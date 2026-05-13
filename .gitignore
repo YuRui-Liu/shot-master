@@ -10,3 +10,5 @@ output/
 .venv/
 node_modules/
 app/.cache/
+.vscode/
+.idea/
