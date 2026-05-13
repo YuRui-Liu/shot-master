@@ -1,0 +1,334 @@
+<div x-data="inferenceTab()" x-init="init()">
+
+  <div class="card">
+    <h2>1. 输入模式</h2>
+    <div class="row">
+      <label><input type="radio" value="grid" x-model="mode"> 拼接宫格图</label>
+      <label><input type="radio" value="multi" x-model="mode"> 多张独立图</label>
+      <label><input type="radio" value="single" x-model="mode"> 单张图</label>
+      <label><input type="radio" value="batch" x-model="mode"> 文件夹批量</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. 选图</h2>
+    <div class="row">
+      <input type="text" x-model="folderPath" placeholder="输入文件夹路径..." style="width: 400px">
+      <button class="secondary" @click="loadFolder()">浏览</button>
+    </div>
+    <div class="thumbs" x-show="files.length">
+      <template x-for="(f, i) in files" :key="f.path">
+        <div class="thumb"
+             :style="selected.includes(f.path) ? 'outline: 3px solid #4f8edc' : ''"
+             @click="toggleSelect(f.path)">
+          <img :src="`/api/files/thumbnail?path=${encodeURIComponent(f.path)}&size=200`">
+          <div class="name" x-text="f.name"></div>
+        </div>
+      </template>
+    </div>
+    <p x-show="!files.length" style="color:#888; margin-top:8px">还没有选文件夹或文件夹为空</p>
+  </div>
+
+  <!-- 拆图预览（防灾门禁） -->
+  <div class="card" x-show="mode === 'grid'">
+    <h2>3. 拆图预览（必须人工确认）</h2>
+    <div class="row">
+      <label>网格规格</label>
+      <input type="number" x-model.number="grid.src_rows" min="1" style="width:60px"> ×
+      <input type="number" x-model.number="grid.src_cols" min="1" style="width:60px"> 源
+      <span style="margin:0 8px">→</span>
+      <input type="number" x-model.number="grid.sub_rows" min="1" style="width:60px"> ×
+      <input type="number" x-model.number="grid.sub_cols" min="1" style="width:60px"> 子
+    </div>
+    <div class="row">
+      <button class="secondary" @click="previewSplit()" :disabled="!selected.length || mode!=='grid'">▶ 预览拆图</button>
+      <span x-show="splitPreviewError" class="alert-err" x-text="splitPreviewError"></span>
+    </div>
+    <div class="thumbs" x-show="tiles.length">
+      <template x-for="(t, i) in tiles" :key="t">
+        <div class="thumb"><img :src="t"><div class="name" x-text="`tile ${i+1}`"></div></div>
+      </template>
+    </div>
+    <div x-show="tiles.length" class="alert-warn">
+      ⚠️ 请人眼检查拆图是否正确。错误的拆图会让 vision 模型反推错误结果。
+    </div>
+    <div class="row" x-show="tiles.length">
+      <label><input type="checkbox" x-model="splitConfirmed"> 我确认拆图正确，可以送入反推</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 x-text="mode === 'grid' ? '4. 反推模板' : '3. 反推模板'"></h2>
+    <div class="row">
+      <select x-model="templateId" @change="onTemplateChange()">
+        <template x-for="t in templates"><option :value="t.id" x-text="`${t.name} (${t.id})`"></option></template>
+      </select>
+      <span style="color:#888; font-size:13px" x-show="recommendedId">推荐: <span x-text="recommendedId"></span></span>
+    </div>
+  </div>
+
+  <div class="card" x-show="currentTemplate">
+    <h2 x-text="mode === 'grid' ? '5. 补充输入' : '4. 补充输入'"></h2>
+    <template x-for="v in currentTemplate?.variables || []">
+      <div class="row">
+        <label x-text="v.label + (v.required?' *':'')"></label>
+        <template x-if="v.type==='int' || v.type==='float'">
+          <input type="number" x-model.number="supplement[v.name]" :placeholder="v.placeholder || v.default" style="width:140px">
+        </template>
+        <template x-if="v.type==='text'">
+          <input type="text" x-model="supplement[v.name]" :placeholder="v.placeholder" style="width:400px">
+        </template>
+        <template x-if="v.type==='textarea'">
+          <textarea x-model="supplement[v.name]" :placeholder="v.placeholder"></textarea>
+        </template>
+        <template x-if="v.type==='select'">
+          <select x-model="supplement[v.name]">
+            <template x-for="opt in v.options"><option :value="opt" x-text="opt"></option></template>
+          </select>
+        </template>
+      </div>
+    </template>
+  </div>
+
+  <div class="card">
+    <h2 x-text="mode === 'grid' ? '6. 反推执行' : '5. 反推执行'"></h2>
+    <div class="row">
+      <button class="primary" @click="runInference()"
+              :disabled="!canRun()" x-text="loading ? '反推中…' : '🚀 开始反推'"></button>
+      <span style="color:#888; font-size:13px" x-text="canRunReason()"></span>
+    </div>
+    <div x-show="error" class="alert-err" x-text="error"></div>
+  </div>
+
+  <div class="card" x-show="result && !result.batch">
+    <h2>结果（可编辑后重保存）</h2>
+    <template x-for="field in ['global_prompt','timeline_data','local_prompts','notes']">
+      <div class="result-field">
+        <label x-text="field"></label>
+        <textarea x-model="result[field]"></textarea>
+        <div class="actions">
+          <button class="copy-btn" @click="api.copy(result[field] || '')">复制</button>
+        </div>
+      </div>
+    </template>
+    <div class="result-field">
+      <label>segment_lengths / max_frames / frame_indices / strengths / epsilon</label>
+      <pre x-text="JSON.stringify({segment_lengths: result.segment_lengths, max_frames: result.max_frames, frame_indices: result.frame_indices, strengths: result.strengths, epsilon: result.epsilon}, null, 2)"></pre>
+    </div>
+    <div class="row">
+      <button class="primary" @click="saveResult()">💾 保存覆盖 md+json</button>
+      <span x-show="result.md_path" style="color:#888; font-size:13px">已保存: <span x-text="result.md_path"></span></span>
+    </div>
+  </div>
+
+  <div class="card" x-show="result && result.batch">
+    <h2>批量进度</h2>
+    <p>成功 <span x-text="result.ok"></span> · 失败 <span x-text="result.failed"></span></p>
+    <ul style="max-height:300px; overflow:auto;">
+      <template x-for="item in result.items.filter(x => x.type === 'item_done')" :key="item.idx">
+        <li>
+          <span :class="{
+            'dot-ok': item.status==='ok',
+            'dot-fail': item.status==='failed',
+            'dot-skip': item.status==='skipped'
+          }" x-text="item.status==='ok'?'●':item.status==='failed'?'✗':'⊘'"></span>
+          <span x-text="item.base_name"></span>
+          <span x-show="item.error" style="color:#d9534f" x-text="' — ' + item.error"></span>
+        </li>
+      </template>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+function inferenceTab() {
+  return {
+    mode: 'multi',
+    folderPath: '',
+    files: [],
+    selected: [],
+    grid: {src_rows: 2, src_cols: 2, sub_rows: 1, sub_cols: 1},
+    tiles: [],
+    splitPreviewError: '',
+    splitConfirmed: false,
+    templates: [],
+    templateId: '',
+    recommendedId: '',
+    currentTemplate: null,
+    supplement: {},
+    loading: false,
+    error: '',
+    result: null,
+
+    async init() {
+      this.templates = await api.get('/api/templates');
+      if (this.templates.length && !this.templateId) {
+        this.templateId = this.templates[0].id;
+        this.onTemplateChange();
+      }
+    },
+    async loadFolder() {
+      if (!this.folderPath.trim()) return;
+      try {
+        const r = await api.get(`/api/files/list?folder=${encodeURIComponent(this.folderPath)}`);
+        this.files = r.items;
+        this.selected = [];
+      } catch (e) {
+        this.error = String(e);
+      }
+    },
+    toggleSelect(path) {
+      if (this.mode === 'single' || this.mode === 'grid') {
+        this.selected = [path];
+        this.tiles = [];
+        this.splitConfirmed = false;
+      } else if (this.mode === 'multi') {
+        if (this.selected.includes(path)) {
+          this.selected = this.selected.filter(p => p !== path);
+        } else {
+          this.selected.push(path);
+        }
+      }
+      this.autoRecommend();
+    },
+    async autoRecommend() {
+      const count = this.mode === 'grid'
+        ? (this.grid.sub_rows && this.grid.sub_cols ? (this.grid.src_rows/this.grid.sub_rows) * (this.grid.src_cols/this.grid.sub_cols) : 1)
+        : this.selected.length || 1;
+      try {
+        const r = await api.get(`/api/templates/recommend?image_count=${count}`);
+        if (r.id) {
+          this.recommendedId = r.id;
+          this.templateId = r.id;
+          this.onTemplateChange();
+        }
+      } catch {}
+    },
+    async onTemplateChange() {
+      this.currentTemplate = this.templates.find(t => t.id === this.templateId) || null;
+      this.supplement = {};
+      if (this.currentTemplate) {
+        for (const v of this.currentTemplate.variables) {
+          if (v.default !== null && v.default !== undefined) {
+            this.supplement[v.name] = v.default;
+          }
+        }
+      }
+    },
+    async previewSplit() {
+      if (!this.selected.length) return;
+      this.splitPreviewError = '';
+      try {
+        const r = await api.post('/api/grid/preview', {
+          image_path: this.selected[0],
+          src_rows: this.grid.src_rows,
+          src_cols: this.grid.src_cols,
+          sub_rows: this.grid.sub_rows,
+          sub_cols: this.grid.sub_cols,
+        });
+        this.tiles = r.tiles;
+        this.splitConfirmed = false;
+        this.autoRecommend();
+      } catch (e) {
+        this.splitPreviewError = String(e);
+        this.tiles = [];
+      }
+    },
+    canRun() {
+      if (this.loading) return false;
+      if (this.mode === 'grid') {
+        return this.selected.length === 1 && this.splitConfirmed && this.templateId;
+      }
+      if (this.mode === 'batch') return !!this.folderPath && this.templateId;
+      return this.selected.length > 0 && this.templateId;
+    },
+    canRunReason() {
+      if (this.mode === 'grid' && this.tiles.length && !this.splitConfirmed) return '请先勾选「我确认拆图正确」';
+      if (this.mode === 'grid' && !this.tiles.length) return '请先点击「预览拆图」';
+      return '';
+    },
+    async runInference() {
+      this.error = '';
+      this.loading = true;
+      this.result = null;
+      try {
+        if (this.mode === 'batch') {
+          await this._runBatch();
+        } else {
+          let images;
+          if (this.mode === 'grid') {
+            const previewResp = await api.post('/api/grid/preview', {
+              image_path: this.selected[0],
+              src_rows: this.grid.src_rows, src_cols: this.grid.src_cols,
+              sub_rows: this.grid.sub_rows, sub_cols: this.grid.sub_cols,
+            });
+            // tile URL → 本地文件路径
+            images = previewResp.tiles.map(u => u.replace('/cache/', 'app/.cache/'));
+          } else {
+            images = this.selected;
+          }
+          const r = await api.post('/api/inference', {
+            images, template_id: this.templateId, supplement: this.supplement,
+          });
+          this.result = r;
+        }
+      } catch (e) {
+        this.error = String(e);
+      } finally {
+        this.loading = false;
+      }
+    },
+    async _runBatch() {
+      const r = await api.post('/api/batch', {
+        folder: this.folderPath, template_id: this.templateId,
+        supplement: this.supplement, skip_existing: true,
+      });
+      const taskId = r.task_id;
+      const evt = new EventSource(`/api/batch/${taskId}/stream`);
+      this.result = {batch: true, items: [], done: false, ok: 0, failed: 0};
+      evt.addEventListener('progress', (e) => {
+        const d = JSON.parse(e.data);
+        this.result.items.push({...d, type: 'progress'});
+      });
+      evt.addEventListener('item_done', (e) => {
+        const d = JSON.parse(e.data);
+        this.result.items.push({...d, type: 'item_done'});
+      });
+      evt.addEventListener('complete', (e) => {
+        const d = JSON.parse(e.data);
+        this.result.ok = d.ok; this.result.failed = d.failed; this.result.done = true;
+        evt.close();
+      });
+    },
+    async saveResult() {
+      if (!this.result || this.result.batch) return;
+      const r = await fetch('/api/inference/save', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          md_path: this.result.md_path,
+          json_path: this.result.json_path,
+          fields: {
+            global_prompt: this.result.global_prompt,
+            timeline_data: this.result.timeline_data,
+            local_prompts: this.result.local_prompts,
+            segment_lengths: this.result.segment_lengths,
+            max_frames: this.result.max_frames,
+            frame_indices: this.result.frame_indices,
+            strengths: this.result.strengths,
+            epsilon: this.result.epsilon,
+            notes: this.result.notes,
+          },
+          meta: this.result.meta,
+        }),
+      });
+      if (!r.ok) {
+        alert('保存失败: ' + (await r.text()));
+      } else {
+        alert('已保存');
+      }
+    },
+  };
+}
+</script>

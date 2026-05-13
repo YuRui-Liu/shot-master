@@ -105,3 +105,41 @@ async def inference(req: InferenceRequest, request: Request):
             "model": model,
         },
     }
+
+
+class SaveRequest(BaseModel):
+    md_path: str
+    json_path: str
+    fields: dict
+    meta: dict
+
+
+@router.post("/api/inference/save")
+async def save_edited(req: SaveRequest):
+    md_path = Path(req.md_path)
+    json_path = Path(req.json_path)
+    if not md_path.parent.exists():
+        raise HTTPException(400, f"md path's parent missing: {md_path.parent}")
+
+    # 用 fields + meta 重建 ParsedResult，复用 output_writer
+    from app.core.result_parser import ParsedResult
+    r = ParsedResult(raw=req.fields.get("raw", ""))
+    r.global_prompt = req.fields.get("global_prompt", "")
+    r.timeline_data = req.fields.get("timeline_data", "")
+    r.local_prompts = req.fields.get("local_prompts", "")
+    r.segment_lengths = req.fields.get("segment_lengths", []) or []
+    r.max_frames = req.fields.get("max_frames")
+    r.frame_indices = req.fields.get("frame_indices", []) or []
+    r.strengths = req.fields.get("strengths", []) or []
+    r.epsilon = req.fields.get("epsilon")
+    r.notes = req.fields.get("notes", "")
+
+    out_dir = md_path.parent
+    base_name = md_path.stem
+    new_md, new_json = write_outputs(
+        result=r, output_dir=out_dir, base_name=base_name,
+        template_id=req.meta.get("template_id", ""),
+        provider=req.meta.get("provider", ""),
+        model=req.meta.get("model", ""),
+    )
+    return {"md_path": str(new_md), "json_path": str(new_json)}
