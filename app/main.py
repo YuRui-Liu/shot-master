@@ -29,6 +29,9 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Shot-Prompt-Backwards", lifespan=_lifespan)
     app.state.config = cfg
 
+    # 触发 provider 注册（必须在路由注册之前）
+    import app.providers as _providers  # noqa: F401
+
     @app.get("/api/health")
     async def health():
         return {
@@ -36,6 +39,10 @@ def create_app() -> FastAPI:
             "provider": cfg.current_provider,
             "model": cfg.current_model,
         }
+
+    # 业务路由
+    from app.api import inference as inference_api
+    app.include_router(inference_api.router)
 
     # 静态资源
     web_dir = Path("web")
