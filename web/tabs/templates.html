@@ -1,0 +1,66 @@
+<div x-data="templatesTab()" x-init="init()">
+  <div class="card">
+    <h2>模板列表</h2>
+    <ul>
+      <template x-for="t in templates" :key="t.id">
+        <li style="padding:6px 0; display:flex; gap:8px; align-items:center;">
+          <button class="secondary" @click="edit(t)" x-text="`${t.name} (${t.id})`"></button>
+          <button class="copy-btn" @click="delTpl(t.id)">删除</button>
+        </li>
+      </template>
+    </ul>
+    <button class="primary" @click="newTpl()">+ 新建模板</button>
+  </div>
+  <div class="card" x-show="editing">
+    <h2 x-text="isNew ? '新建模板' : `编辑：${editing?.id}`"></h2>
+    <div class="row" x-show="isNew">
+      <label>模板 ID</label>
+      <input type="text" x-model="newId" placeholder="例：my_six_frame">
+    </div>
+    <div class="row">
+      <textarea x-model="raw" style="min-height:400px; font-family: monospace; font-size:13px"></textarea>
+    </div>
+    <div class="row">
+      <button class="primary" @click="save()">💾 保存</button>
+      <button class="secondary" @click="cancel()">取消</button>
+    </div>
+    <div x-show="error" class="alert-err" x-text="error"></div>
+  </div>
+</div>
+<script>
+function templatesTab() {
+  return {
+    templates: [], editing: null, isNew: false, newId: '', raw: '', error: '',
+    async init() { this.templates = await api.get('/api/templates'); },
+    edit(t) {
+      this.editing = t; this.isNew = false;
+      this.raw = t.raw_markdown; this.newId = '';
+    },
+    newTpl() {
+      this.editing = {id:'', name:'', raw_markdown:''}; this.isNew = true; this.newId = '';
+      this.raw = `---\nname: 新模板\nsuggest_when: image_count == 1\nvariables:\n  - {name: style_note, type: textarea, label: 风格备注, optional: true}\n---\n你是 ...`;
+    },
+    async save() {
+      this.error = '';
+      try {
+        if (this.isNew) {
+          if (!this.newId) { this.error = '请填模板 ID'; return; }
+          await api.post('/api/templates', {id: this.newId, raw_markdown: this.raw});
+        } else {
+          await api.put(`/api/templates/${this.editing.id}`, {raw_markdown: this.raw});
+        }
+        this.templates = await api.get('/api/templates');
+        this.cancel();
+      } catch (e) { this.error = String(e); }
+    },
+    cancel() { this.editing = null; this.isNew = false; },
+    async delTpl(id) {
+      if (!confirm(`删除模板 ${id}？`)) return;
+      try {
+        await api.del(`/api/templates/${id}`);
+        this.templates = await api.get('/api/templates');
+      } catch (e) { this.error = String(e); }
+    },
+  };
+}
+</script>

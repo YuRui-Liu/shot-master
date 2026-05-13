@@ -1,0 +1,88 @@
+<div x-data="combineTab()" x-init="init()">
+  <div class="card">
+    <h2>拼图（N 张图 → R×C 网格）</h2>
+    <div class="row">
+      <label>选择文件夹</label>
+      <input type="text" x-model="folder" style="width:500px">
+      <button class="secondary" @click="loadFolder()">浏览</button>
+    </div>
+    <div class="thumbs" x-show="files.length">
+      <template x-for="(f, i) in files" :key="f.path">
+        <div class="thumb"
+             :style="getOrder(f.path) >= 0 ? 'outline: 3px solid #4f8edc' : ''"
+             @click="toggle(f.path)">
+          <img :src="`/api/files/thumbnail?path=${encodeURIComponent(f.path)}&size=200`">
+          <div class="name">
+            <span x-show="getOrder(f.path)>=0" x-text="`#${getOrder(f.path)+1}`" style="color:#4f8edc;font-weight:bold"></span>
+            <span x-text="f.name"></span>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div class="row">
+      <label>目标网格</label>
+      <input type="number" x-model.number="targetRows" min="1" style="width:80px"> ×
+      <input type="number" x-model.number="targetCols" min="1" style="width:80px">
+      <label style="margin-left:20px">间距</label>
+      <input type="number" x-model.number="gap" min="0" style="width:80px">
+      <label style="margin-left:20px">缩放</label>
+      <select x-model="scaleMode">
+        <option value="letterbox">letterbox</option>
+        <option value="crop">crop</option>
+        <option value="stretch">stretch</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>输出路径</label>
+      <input type="text" x-model="outputPath" style="width:500px">
+      <label style="margin-left:20px">格式</label>
+      <select x-model="outputFormat"><option>PNG</option><option>JPG</option></select>
+    </div>
+    <div class="row">
+      <button class="primary" @click="run()" :disabled="loading || selected.length === 0">💾 拼接</button>
+      <span x-text="`${selected.length} / ${targetRows*targetCols} 张`"></span>
+    </div>
+    <div x-show="error" class="alert-err" x-text="error"></div>
+    <div x-show="result" class="alert-ok">已生成: <span x-text="result"></span></div>
+  </div>
+</div>
+<script>
+function combineTab() {
+  return {
+    folder: '', files: [], selected: [],
+    targetRows: 2, targetCols: 2, gap: 4, scaleMode: 'letterbox',
+    outputPath: '', outputFormat: 'PNG',
+    result: '', error: '', loading: false,
+    init() {},
+    async loadFolder() {
+      try {
+        const r = await api.get(`/api/files/list?folder=${encodeURIComponent(this.folder)}`);
+        this.files = r.items;
+        this.selected = [];
+      } catch (e) { this.error = String(e); }
+    },
+    getOrder(path) { return this.selected.indexOf(path); },
+    toggle(path) {
+      const idx = this.selected.indexOf(path);
+      if (idx >= 0) this.selected.splice(idx, 1);
+      else this.selected.push(path);
+    },
+    async run() {
+      this.error = ''; this.result = ''; this.loading = true;
+      try {
+        const r = await api.post('/api/grid/combine', {
+          images: this.selected,
+          output_path: this.outputPath,
+          target_rows: this.targetRows,
+          target_cols: this.targetCols,
+          gap: this.gap,
+          scale_mode: this.scaleMode,
+          output_format: this.outputFormat,
+        });
+        this.result = r.output_path;
+      } catch (e) { this.error = String(e); }
+      finally { this.loading = false; }
+    },
+  };
+}
+</script>

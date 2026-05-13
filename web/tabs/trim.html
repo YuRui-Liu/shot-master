@@ -1,0 +1,81 @@
+<div x-data="trimTab()">
+  <div class="card">
+    <h2>去白边</h2>
+    <div class="row">
+      <label>模式</label>
+      <label><input type="radio" value="single" x-model="mode"> 单图</label>
+      <label><input type="radio" value="batch" x-model="mode"> 批量</label>
+    </div>
+    <template x-if="mode==='single'">
+      <div>
+        <div class="row">
+          <label>源图</label>
+          <input type="text" x-model="src" style="width:500px">
+        </div>
+        <div class="row">
+          <label>输出</label>
+          <input type="text" x-model="out" style="width:500px">
+        </div>
+      </div>
+    </template>
+    <template x-if="mode==='batch'">
+      <div>
+        <div class="row">
+          <label>源文件夹</label>
+          <input type="text" x-model="srcFolder" style="width:500px">
+        </div>
+        <div class="row">
+          <label>输出文件夹</label>
+          <input type="text" x-model="outFolder" style="width:500px">
+        </div>
+        <div class="row">
+          <label>命名后缀</label>
+          <input type="text" x-model="nameSuffix" placeholder="留空 = 同名覆盖；建议 _trim">
+        </div>
+      </div>
+    </template>
+    <div class="row">
+      <label>阈值</label>
+      <input type="number" x-model.number="threshold" min="0" max="255" style="width:80px">
+      <label style="margin-left:20px">迭代次数</label>
+      <input type="number" x-model.number="maxIter" min="1" max="10" style="width:80px">
+      <label style="margin-left:20px">格式</label>
+      <select x-model="outputFormat"><option>PNG</option><option>JPG</option></select>
+    </div>
+    <div class="row">
+      <button class="primary" @click="run()" :disabled="loading">💾 执行</button>
+    </div>
+    <div x-show="error" class="alert-err" x-text="error"></div>
+    <div x-show="result" class="alert-ok" x-text="result"></div>
+  </div>
+</div>
+<script>
+function trimTab() {
+  return {
+    mode: 'single', src: '', out: '', srcFolder: '', outFolder: '', nameSuffix: '_trim',
+    threshold: 240, maxIter: 5, outputFormat: 'PNG',
+    result: '', error: '', loading: false,
+    async run() {
+      this.error = ''; this.result = ''; this.loading = true;
+      try {
+        if (this.mode === 'single') {
+          const r = await api.post('/api/border/trim', {
+            image_path: this.src, output_path: this.out,
+            threshold: this.threshold, max_iter: this.maxIter,
+            output_format: this.outputFormat,
+          });
+          this.result = `已保存 ${r.output_path}（${r.size[0]}×${r.size[1]}）`;
+        } else {
+          const r = await api.post('/api/border/trim_batch', {
+            folder: this.srcFolder, output_dir: this.outFolder,
+            threshold: this.threshold, max_iter: this.maxIter,
+            output_format: this.outputFormat, name_suffix: this.nameSuffix,
+          });
+          this.result = `已保存 ${r.files.length} 张`;
+        }
+      } catch (e) { this.error = String(e); }
+      finally { this.loading = false; }
+    },
+  };
+}
+</script>

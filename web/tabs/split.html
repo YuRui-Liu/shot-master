@@ -1,0 +1,73 @@
+<div x-data="splitTab()">
+  <div class="card">
+    <h2>拆图（R×C 网格 → 子网格切分，落盘）</h2>
+    <div class="row">
+      <label>源图路径</label>
+      <input type="text" x-model="imagePath" style="width:500px" placeholder="例：D:/img/grid.png">
+    </div>
+    <div class="row">
+      <label>源网格</label>
+      <input type="number" x-model.number="srcRows" min="1" style="width:80px"> ×
+      <input type="number" x-model.number="srcCols" min="1" style="width:80px">
+      <label style="margin-left:20px">子网格</label>
+      <input type="number" x-model.number="subRows" min="1" style="width:80px"> ×
+      <input type="number" x-model.number="subCols" min="1" style="width:80px">
+    </div>
+    <div class="row">
+      <label>输出目录</label>
+      <input type="text" x-model="outputDir" style="width:500px">
+    </div>
+    <div class="row">
+      <label>命名前缀</label>
+      <input type="text" x-model="namePrefix" placeholder="默认 = 源图文件名">
+      <label style="margin-left:20px">格式</label>
+      <select x-model="outputFormat"><option>PNG</option><option>JPG</option></select>
+    </div>
+    <div class="row">
+      <button class="secondary" @click="preview()">▶ 预览</button>
+      <button class="primary" @click="run()" :disabled="loading">💾 拆分并落盘</button>
+    </div>
+    <div x-show="error" class="alert-err" x-text="error"></div>
+    <div x-show="saved.length" class="alert-ok">已保存 <span x-text="saved.length"></span> 张</div>
+    <div class="thumbs" x-show="tiles.length">
+      <template x-for="(t, i) in tiles" :key="t">
+        <div class="thumb"><img :src="t"><div class="name" x-text="`tile ${i+1}`"></div></div>
+      </template>
+    </div>
+  </div>
+</div>
+<script>
+function splitTab() {
+  return {
+    imagePath: '', outputDir: '', namePrefix: '', outputFormat: 'PNG',
+    srcRows: 2, srcCols: 2, subRows: 1, subCols: 1,
+    tiles: [], saved: [], error: '', loading: false,
+    async preview() {
+      this.error = ''; this.tiles = [];
+      try {
+        const r = await api.post('/api/grid/preview', {
+          image_path: this.imagePath,
+          src_rows: this.srcRows, src_cols: this.srcCols,
+          sub_rows: this.subRows, sub_cols: this.subCols,
+        });
+        this.tiles = r.tiles;
+      } catch (e) { this.error = String(e); }
+    },
+    async run() {
+      this.error = ''; this.saved = []; this.loading = true;
+      try {
+        const r = await api.post('/api/grid/split', {
+          image_path: this.imagePath,
+          output_dir: this.outputDir,
+          src_rows: this.srcRows, src_cols: this.srcCols,
+          sub_rows: this.subRows, sub_cols: this.subCols,
+          output_format: this.outputFormat,
+          name_prefix: this.namePrefix,
+        });
+        this.saved = r.files;
+      } catch (e) { this.error = String(e); }
+      finally { this.loading = false; }
+    },
+  };
+}
+</script>
