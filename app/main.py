@@ -61,6 +61,8 @@ def create_app() -> FastAPI:
     app.include_router(grid_combine_api.router)
     from app.api import border_trim as border_trim_api
     app.include_router(border_trim_api.router)
+    from app.api import templates as templates_api
+    app.include_router(templates_api.router)
 
     # 静态资源
     web_dir = Path("web")
