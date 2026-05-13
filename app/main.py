@@ -63,6 +63,8 @@ def create_app() -> FastAPI:
     app.include_router(border_trim_api.router)
     from app.api import templates as templates_api
     app.include_router(templates_api.router)
+    from app.api import files as files_api
+    app.include_router(files_api.router)
 
     # 静态资源
     web_dir = Path("web")
