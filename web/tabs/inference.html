@@ -10,6 +10,20 @@
     </div>
   </div>
 
+  <div class="card" x-show="mode === 'batch'">
+    <h2>批量复用策略</h2>
+    <div class="row">
+      <label>
+        <input type="checkbox" x-model="perImageSupplement">
+        按文件名规则逐项映射（同名 .md / .json / .txt 自动注入）
+      </label>
+    </div>
+    <p style="color:#888; font-size: 12px">
+      勾选后：对每张图片，会尝试读取同目录、同文件名（仅扩展名不同）的 .md / .txt 当作剧本，
+      或 .json 整体合并进补充输入。未勾选则全部使用上面「补充输入」区填的同一份。
+    </p>
+  </div>
+
   <div class="card">
     <h2>2. 选图</h2>
     <div class="row">
@@ -160,6 +174,7 @@ function inferenceTab() {
     loading: false,
     error: '',
     result: null,
+    perImageSupplement: false,
 
     async init() {
       this.templates = await api.get('/api/templates');
@@ -281,8 +296,11 @@ function inferenceTab() {
     },
     async _runBatch() {
       const r = await api.post('/api/batch', {
-        folder: this.folderPath, template_id: this.templateId,
-        supplement: this.supplement, skip_existing: true,
+        folder: this.folderPath,
+        template_id: this.templateId,
+        supplement: this.supplement,
+        per_image_supplement: this.perImageSupplement,
+        skip_existing: true,
       });
       const taskId = r.task_id;
       const evt = new EventSource(`/api/batch/${taskId}/stream`);
