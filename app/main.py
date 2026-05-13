@@ -57,6 +57,8 @@ def create_app() -> FastAPI:
     app.include_router(batch_api.router)
     from app.api import grid_split as grid_split_api
     app.include_router(grid_split_api.router)
+    from app.api import grid_combine as grid_combine_api
+    app.include_router(grid_combine_api.router)
 
     # 静态资源
     web_dir = Path("web")
