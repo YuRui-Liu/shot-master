@@ -43,6 +43,8 @@ def create_app() -> FastAPI:
     # 业务路由
     from app.api import inference as inference_api
     app.include_router(inference_api.router)
+    from app.api import batch as batch_api
+    app.include_router(batch_api.router)
 
     # 静态资源
     web_dir = Path("web")
