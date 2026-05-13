@@ -1,6 +1,16 @@
 """FastAPI 入口：路由聚合 + 静态文件挂载 + 启动脚本入口"""
 from __future__ import annotations
 
+import sys
+from pathlib import Path as _Path
+
+# 兜底：确保运行时也能 import shot-master
+# __file__ = .../scripts/shot-prompt-backwards/app/main.py
+# 上推 4 层: app → shot-prompt-backwards → scripts → Projects → shot-master
+_SHOT_MASTER = _Path(__file__).resolve().parent.parent.parent.parent / "shot-master"
+if _SHOT_MASTER.exists() and str(_SHOT_MASTER) not in sys.path:
+    sys.path.insert(0, str(_SHOT_MASTER))
+
 import webbrowser
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -45,6 +55,8 @@ def create_app() -> FastAPI:
     app.include_router(inference_api.router)
     from app.api import batch as batch_api
     app.include_router(batch_api.router)
+    from app.api import grid_split as grid_split_api
+    app.include_router(grid_split_api.router)
 
     # 静态资源
     web_dir = Path("web")
