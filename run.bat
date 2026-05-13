@@ -12,7 +12,7 @@ REM 检查 shot-master 是否已装
 python -c "import shot_master" 2>NUL
 if errorlevel 1 (
     echo [INFO] 安装本地 shot-master...
-    pip install -e ..\shot-master
+    pip install -e ..\..\shot-master
 )
 
 REM 检查本项目依赖

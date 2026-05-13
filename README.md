@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-pip install -e ../shot-master   # 先装 shot-master
+pip install -e ../../shot-master   # 先装 shot-master（位于 Projects/shot-master/）
 pip install -e .[dev]
 cp .env.example .env            # 编辑填入 API keys
 ```

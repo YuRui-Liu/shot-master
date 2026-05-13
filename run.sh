@@ -10,7 +10,7 @@ fi
 
 if ! python -c "import shot_master" 2>/dev/null; then
   echo "[INFO] 安装本地 shot-master..."
-  pip install -e ../shot-master
+  pip install -e ../../shot-master
 fi
 
 if ! python -c "import fastapi" 2>/dev/null; then

@@ -19,7 +19,7 @@ dependencies = [
     "openai>=1.30",
     "anthropic>=0.30",
     "dashscope>=1.17",
-    "shot-master @ file:../shot-master",
+    "shot-master @ file:../../shot-master",
 ]
 
 [project.optional-dependencies]
