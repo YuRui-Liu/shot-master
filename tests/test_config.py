@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 import pytest
 from app.config import Config, load_config
