@@ -43,7 +43,13 @@ def openai_compat_presets() -> dict[str, dict]:
         },
         "doubao": {
             "base_url": "https://ark.cn-beijing.volces.com/api/v3",
-            "models": ["doubao-vision-pro-32k", "doubao-1-5-vision-pro-32k"],
+            "models": [
+                "doubao-seed-2-0-pro-260215",
+                "doubao-seed-1-6-vision-250815",
+                "doubao-1-5-vision-pro-32k-250115",
+                "doubao-1-5-vision-pro-32k",
+                "doubao-vision-pro-32k",
+            ],
         },
         "openrouter": {
             "base_url": "https://openrouter.ai/api/v1",

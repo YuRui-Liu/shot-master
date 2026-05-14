@@ -23,10 +23,10 @@ INDEPENDENT_PROVIDERS = ["gemini", "anthropic", "qwen"]
 
 @dataclass
 class Config:
-    default_provider: str = "gemini"
-    default_model: str = "gemini-2.5-pro"
-    current_provider: str = "gemini"
-    current_model: str = "gemini-2.5-pro"
+    default_provider: str = "doubao"
+    default_model: str = "doubao-seed-2-0-pro-260215"
+    current_provider: str = "doubao"
+    current_model: str = "doubao-seed-2-0-pro-260215"
     api_keys: dict[str, str] = field(default_factory=dict)
     base_urls: dict[str, str] = field(default_factory=dict)
     default_output_dir: Optional[str] = None
@@ -74,8 +74,8 @@ def load_config(env_path: Path = Path(".env"),
             base_urls[name] = url
 
     cfg = Config(
-        default_provider=env.get("DEFAULT_PROVIDER", "gemini"),
-        default_model=env.get("DEFAULT_MODEL", "gemini-2.5-pro"),
+        default_provider=env.get("DEFAULT_PROVIDER", "doubao"),
+        default_model=env.get("DEFAULT_MODEL", "doubao-seed-2-0-pro-260215"),
         api_keys=api_keys,
         base_urls=base_urls,
         default_output_dir=env.get("DEFAULT_OUTPUT_DIR") or None,

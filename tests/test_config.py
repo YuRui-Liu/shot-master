@@ -57,6 +57,7 @@ def test_save_settings_persists_changes(tmp_path):
 def test_missing_env_uses_defaults(tmp_path):
     cfg = load_config(env_path=tmp_path / "nonexistent.env",
                       settings_path=tmp_path / "settings.json")
-    assert cfg.default_provider == "gemini"
+    assert cfg.default_provider == "doubao"
+    assert cfg.default_model.startswith("doubao-")
     assert cfg.host == "127.0.0.1"
     assert cfg.port == 7866
