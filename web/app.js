@@ -2,19 +2,12 @@
 const TAB_BASE = "/static/tabs";
 const tabCache = {};
 
-// 通过 innerHTML 注入的 <script> 标签浏览器不会执行（HTML 标准）。
-// 需要遍历找到这些 <script>，手动 new Script + 替换，才会触发执行。
-function runInlineScripts(container) {
-  const scripts = container.querySelectorAll("script");
-  scripts.forEach((old) => {
-    const fresh = document.createElement("script");
-    if (old.src) fresh.src = old.src;
-    if (old.type) fresh.type = old.type;
-    fresh.text = old.textContent;
-    old.parentNode.replaceChild(fresh, old);
-  });
-}
-
+// 关键：Alpine 通过 MutationObserver 监听 document，innerHTML 注入时立刻看到 x-data
+// 但此时 inline <script> 还没执行 → x-data="inferenceTab()" 找不到函数 → 永久失败。
+//
+// 解决：先在游离 DOM 解析（Alpine 不监听游离节点），抽出 <script> 全局执行（把
+// inferenceTab/splitTab/... 挂到 window），然后才 append 纯 markup 到真实 DOM。
+// 这时 Alpine 看到 x-data 时函数已经定义，自动初始化就成功。
 async function loadTab(name) {
   const root = document.getElementById("tab-content");
   let html = tabCache[name];
@@ -32,30 +25,47 @@ async function loadTab(name) {
       return;
     }
   }
-  root.innerHTML = html;
-  // 先把 inline <script> 跑起来（定义 xxxTab() 函数到 window）
-  runInlineScripts(root);
-  // 再让 Alpine 扫描节点上的 x-data / x-bind 指令
-  if (window.Alpine) {
-    try {
-      window.Alpine.initTree(root);
-    } catch (e) {
-      console.error("Alpine.initTree failed:", e);
-    }
-  } else {
-    // Alpine 还没加载完，等一下再试
-    setTimeout(() => {
-      if (window.Alpine) window.Alpine.initTree(root);
-    }, 100);
+
+  // 清空旧内容
+  root.innerHTML = "";
+
+  // 游离 div 解析 HTML
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+
+  // 1) 收集所有 inline <script>，从游离 DOM 移除（避免重复）
+  const scripts = Array.from(tmp.querySelectorAll("script"));
+  scripts.forEach((s) => s.remove());
+
+  // 2) 把脚本内容包装成新的 <script> 节点 append 到 body 让它执行
+  //    （innerHTML 内的 script 不会执行；只有"插入文档树"的新 script 才会执行）
+  scripts.forEach((old) => {
+    const fresh = document.createElement("script");
+    if (old.src) fresh.src = old.src;
+    if (old.type) fresh.type = old.type;
+    fresh.text = old.textContent;
+    document.head.appendChild(fresh);
+    document.head.removeChild(fresh); // 跑完即移除，保持 head 干净
+  });
+
+  // 3) 此时函数已挂到 window，把纯 markup 移入真实 DOM
+  //    Alpine 的 MutationObserver 会自动发现 x-data 并初始化 — 此时函数已存在
+  while (tmp.firstChild) {
+    root.appendChild(tmp.firstChild);
   }
 }
 
 window.addEventListener("tab-changed", (e) => loadTab(e.detail));
 
-// 初始加载默认 tab
-window.addEventListener("DOMContentLoaded", () => {
-  loadTab("inference");
-});
+// 等 Alpine 自身先初始化好（监听 DOM）再首次 loadTab
+function _bootInitialTab() {
+  if (window.Alpine) {
+    loadTab("inference");
+  } else {
+    setTimeout(_bootInitialTab, 30);
+  }
+}
+window.addEventListener("DOMContentLoaded", _bootInitialTab);
 
 // ============== 共用工具 ==============
 async function _parseError(r) {
@@ -98,7 +108,6 @@ window.api = {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text);
     } else {
-      // 兜底：老浏览器或 http 非 localhost 下没 clipboard 权限
       const ta = document.createElement("textarea");
       ta.value = text;
       document.body.appendChild(ta);
