@@ -1,28 +1,37 @@
 @echo off
+chcp 65001 >nul
 setlocal
 
-REM 检查 .env 是否存在
+REM Switch console to UTF-8 so paths and prints are not mangled by GBK.
+REM All echo strings below are ASCII to avoid any encoding mismatch.
+
 if not exist .env (
-    echo [WARN] .env 不存在，先拷贝 .env.example 并填写 API Key
+    echo [WARN] .env not found. Copying .env.example and opening Notepad...
     copy .env.example .env
     notepad .env
 )
 
-REM 检查 shot-master 是否已装
+REM Check shot-master availability
 python -c "import shot_master" 2>NUL
 if errorlevel 1 (
-    echo [INFO] 安装本地 shot-master...
+    echo [INFO] Installing local shot-master...
     pip install -e ..\..\shot-master
+    if errorlevel 1 goto :install_failed
 )
 
-REM 检查本项目依赖
+REM Check this project's deps
 python -c "import fastapi" 2>NUL
 if errorlevel 1 (
-    echo [INFO] 安装本项目依赖...
+    echo [INFO] Installing project dependencies...
     pip install -e .
+    if errorlevel 1 goto :install_failed
 )
 
-REM 启动
+echo [INFO] Starting uvicorn at http://127.0.0.1:7866 ...
 python -m app.main
+goto :eof
 
-endlocal
+:install_failed
+echo [ERROR] pip install failed. See messages above. Press any key to exit.
+pause >nul
+exit /b 1
