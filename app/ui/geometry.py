@@ -38,9 +38,7 @@ def compute_grid_lines(img_w: int, img_h: int,
     Raises:
         ValueError: 子网格不能整除源网格。
     """
-    if src_rows % sub_rows != 0 or src_cols % sub_cols != 0:
-        raise ValueError(
-            f"子图 {sub_rows}×{sub_cols} 必须能整除源图 {src_rows}×{src_cols}")
+    _ = tile_count(src_rows, src_cols, sub_rows, sub_cols)
 
     sx = display_w / img_w
     sy = display_h / img_h
