@@ -34,6 +34,8 @@ class Config:
     port: int = 7866
     settings_path: Optional[Path] = None
     ui: dict = field(default_factory=lambda: {"theme": "light", "preview_thumb_size": 200})
+    last_input_dir: Optional[str] = None
+    last_output_dir: Optional[str] = None
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -45,6 +47,8 @@ class Config:
                 "current_provider": self.current_provider,
                 "current_model": self.current_model,
                 "ui": self.ui,
+                "last_input_dir": self.last_input_dir,
+                "last_output_dir": self.last_output_dir,
             }
             self.settings_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
@@ -96,6 +100,10 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.current_model = data["current_model"]
                 if "ui" in data and isinstance(data["ui"], dict):
                     cfg.ui.update(data["ui"])
+                if "last_input_dir" in data:
+                    cfg.last_input_dir = data["last_input_dir"]
+                if "last_output_dir" in data:
+                    cfg.last_output_dir = data["last_output_dir"]
         except (json.JSONDecodeError, OSError):
             pass
 
