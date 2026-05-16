@@ -36,3 +36,7 @@ class BasePanel(QWidget):
 
     def has_preview(self) -> bool:
         return False
+
+    def overlay_spec(self) -> dict | None:
+        """拆图功能用：返回 overlay 参数 dict；其它面板返回 None。"""
+        return None
