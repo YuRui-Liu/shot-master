@@ -125,7 +125,7 @@ class InferencePanel(BasePanel):
             self.form.set_variables(t.variables)
 
     def select_mode(self) -> str:
-        return "single" if self.mode.currentText() in ("单图", "宫格") else "multi"
+        return "multi"
 
     def validate(self) -> tuple[bool, str]:
         if not self._current_tpl():
