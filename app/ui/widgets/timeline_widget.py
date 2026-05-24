@@ -202,10 +202,10 @@ class SegmentItem(QGraphicsItem):
         return views[0] if views else None
 
 
-# ---------- Audio Item（Task 9 实现完整交互；本任务仅渲染） ----------
+# ---------- Audio Item ----------
 
 class AudioItem(QGraphicsItem):
-    """音频段卡。Task 9 实现完整交互；本任务仅渲染。"""
+    """音频段卡：整体拖动改 start_frame；右沿拖动改 length。"""
 
     def __init__(self, audio: TimelineAudio, x: float, width: float,
                  display_mode: str, frame_rate: int):
@@ -216,6 +216,11 @@ class AudioItem(QGraphicsItem):
         self._frame_rate = frame_rate
         self.setPos(x, AUDIO_LANE_Y)
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
+        self.setAcceptHoverEvents(True)
+        self._press_x: Optional[float] = None
+        self._press_mode: str = "none"
+        self._resize_start_w: float = 0.0
+        self._move_start_pos: Optional[QPointF] = None
 
     def boundingRect(self) -> QRectF:
         return QRectF(0, 0, self._width, AUDIO_HEIGHT)
@@ -223,7 +228,10 @@ class AudioItem(QGraphicsItem):
     def paint(self, painter: QPainter, option, widget=None):
         rect = self.boundingRect()
         painter.fillRect(rect, QColor("#3a4a3a"))
-        painter.setPen(QPen(QColor("#66aa77"), 1))
+        if self.isSelected():
+            painter.setPen(QPen(QColor("#ffaa00"), 2))
+        else:
+            painter.setPen(QPen(QColor("#66aa77"), 1))
         painter.drawRect(rect.adjusted(0, 0, -1, -1))
         painter.setPen(QColor("#ddffdd"))
         f = QFont(); f.setPointSize(8); painter.setFont(f)
@@ -235,6 +243,78 @@ class AudioItem(QGraphicsItem):
             badge = f"♪ {sec_len:.2f}s @{sec_start:.2f}s"
         painter.drawText(rect.adjusted(4, 0, -4, 0),
                          Qt.AlignVCenter | Qt.AlignLeft, badge)
+
+    def hoverMoveEvent(self, event):
+        local_x = event.pos().x()
+        if self._width - RESIZE_HANDLE_W <= local_x <= self._width:
+            self.setCursor(Qt.SizeHorCursor)
+        else:
+            self.setCursor(Qt.OpenHandCursor)
+        super().hoverMoveEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self.unsetCursor()
+        super().hoverLeaveEvent(event)
+
+    def mousePressEvent(self, event):
+        if event.button() != Qt.LeftButton:
+            return super().mousePressEvent(event)
+        local_x = event.pos().x()
+        self._press_x = local_x
+        self._resize_start_w = self._width
+        self._move_start_pos = QPointF(self.pos())
+        if self._width - RESIZE_HANDLE_W <= local_x <= self._width:
+            self._press_mode = "resize"
+        else:
+            self._press_mode = "move"
+        self.setSelected(True)
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self._press_mode == "resize":
+            dx = event.pos().x() - self._press_x
+            new_w = max(8.0, self._resize_start_w + dx)
+            self.prepareGeometryChange()
+            self._width = new_w
+            self.update()
+            event.accept()
+            return
+        if self._press_mode == "move":
+            scene_dx = event.scenePos().x() - (
+                self._move_start_pos.x() + self._press_x)
+            new_x = max(0, self._move_start_pos.x() + scene_dx)
+            self.setPos(new_x, AUDIO_LANE_Y)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        view = self._top_view()
+        if view is None:
+            return super().mouseReleaseEvent(event)
+        ppf = view.pixels_per_frame
+        if self._press_mode == "resize":
+            new_len = max(1, int(round(self._width / ppf)))
+            view.audioChanged.emit(self.audio.audio_id,
+                                    self.audio.start_frame, new_len)
+            self._press_mode = "none"
+            event.accept()
+            return
+        if self._press_mode == "move":
+            new_start = max(0, int(round(self.pos().x() / ppf)))
+            view.audioChanged.emit(self.audio.audio_id,
+                                    new_start, self.audio.length_frames)
+            self._press_mode = "none"
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def _top_view(self) -> Optional["TimelineWidget"]:
+        scene = self.scene()
+        if scene is None:
+            return None
+        views = scene.views()
+        return views[0] if views else None
 
 
 # ---------- Scene ----------
@@ -300,7 +380,12 @@ class TimelineScene(QGraphicsScene):
                 view.segmentReordered.emit(ids)
             e.acceptProposedAction()
             return
-        # MIME_IMG_PATH: Task 9 处理；本任务先占位
+        if e.mimeData().hasFormat(MIME_IMG_PATH):
+            raw = e.mimeData().data(MIME_IMG_PATH).data().decode("utf-8")
+            path = Path(raw)
+            view.imageDroppedAt.emit(path, insert_idx)
+            e.acceptProposedAction()
+            return
         super().dropEvent(e)
 
     def _find_seg_insert_index(self, drop_x: float) -> int:
