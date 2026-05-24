@@ -12,8 +12,8 @@ from typing import Optional
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QGroupBox, QFormLayout, QPlainTextEdit, QSpinBox, QDoubleSpinBox,
-    QStackedWidget, QWidget, QHBoxLayout,
+    QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QSpinBox,
+    QDoubleSpinBox, QStackedWidget, QWidget,
 )
 
 from app.core.video_timeline_model import TimelineSegment
@@ -35,13 +35,17 @@ class SegmentEditor(QGroupBox):
         self._frame_rate = 24
         self._suspend = False
 
-        form = QFormLayout(self)
+        root = QVBoxLayout(self)
+        root.setSpacing(6)
+
+        # Prompt label + multi-line edit
+        root.addWidget(QLabel("Prompt"))
         self.prompt_edit = QPlainTextEdit()
         self.prompt_edit.setMaximumHeight(60)
         self.prompt_edit.setPlaceholderText("本段 prompt（仅作用于此段）")
-        form.addRow("Prompt", self.prompt_edit)
+        root.addWidget(self.prompt_edit)
 
-        # length: QStackedWidget 装两个 spin（frames / seconds），按 display_mode 切显
+        # 长度（按 display_mode 切单位的 stacked spin）
         self.length_frames_spin = QSpinBox()
         self.length_frames_spin.setRange(1, 99999)
         self.length_frames_spin.setValue(24)
@@ -57,14 +61,29 @@ class SegmentEditor(QGroupBox):
         self.length_stack = QStackedWidget()
         self.length_stack.addWidget(self.length_frames_spin)   # index 0
         self.length_stack.addWidget(self.length_seconds_spin)  # index 1
-        form.addRow("长度", self.length_stack)
+        # 让 stack 不要无限拉伸——固定到 spin 的高度
+        self.length_stack.setSizePolicy(
+            self.length_stack.sizePolicy().horizontalPolicy(),
+            self.length_frames_spin.sizePolicy().verticalPolicy())
+        self.length_stack.setMaximumHeight(
+            self.length_frames_spin.sizeHint().height() + 4)
 
+        # Guide
         self.guide_spin = QDoubleSpinBox()
         self.guide_spin.setRange(0.0, 1.0)
         self.guide_spin.setSingleStep(0.05)
         self.guide_spin.setDecimals(2)
         self.guide_spin.setValue(1.0)
-        form.addRow("Guide", self.guide_spin)
+
+        # 同行：长度 + Guide
+        row = QHBoxLayout()
+        row.addWidget(QLabel("长度"))
+        row.addWidget(self.length_stack)
+        row.addSpacing(24)
+        row.addWidget(QLabel("Guide"))
+        row.addWidget(self.guide_spin)
+        row.addStretch(1)
+        root.addLayout(row)
 
         self.prompt_edit.textChanged.connect(self._on_prompt_changed)
         self.length_frames_spin.valueChanged.connect(
