@@ -15,7 +15,7 @@ from shot_master.core.saver import save_image as sm_save_image
 from app.config import Config
 from app.grid_ops import (
     make_grid_spec, split_to_tiles,
-    ResampleSpec, ResampleAlgo, resize_tile, validate_resample_spec,
+    ResampleAlgo, resize_tile, validate_resample_spec,
 )
 from app.providers.comfyui_upscaler import ComfyUIUpscaler
 from app.ui.panels.base_panel import BasePanel
@@ -72,8 +72,7 @@ class SplitPanel(BasePanel):
         root.addWidget(mar)
 
         self.resample = ResampleGroup(
-            list_models_fn=lambda: ComfyUIUpscaler(
-                self.cfg.comfyui_url).list_models(),
+            list_models_fn=self._fetch_upscale_models,
             initial=self.cfg.split_resample_defaults,
         )
         self.resample.specChanged.connect(self.validityChanged)
@@ -177,41 +176,52 @@ class SplitPanel(BasePanel):
 
         status_emit = self.statusMessage.emit
         seen_statuses: set[str] = set()
+        # 容器跨 closure 共享一个 per-tile 标志
+        tile_state = {"fell_back": False}
 
         def dedupe_status(msg: str):
+            tile_state["fell_back"] = True
             if msg not in seen_statuses:
                 seen_statuses.add(msg)
                 status_emit(msg)
 
         def task():
-            out_dir.mkdir(parents=True, exist_ok=True)
-            total = 0
-            ai_total = 0
-            ai_fallback = 0
-            for src_path in paths:
-                tiles = split_to_tiles(src_path, spec)
-                for i, tile in enumerate(tiles):
-                    if rspec.enabled and rspec.algorithm == ResampleAlgo.AI:
-                        ai_total += 1
-                        before = len(seen_statuses)
-                        resized = resize_tile(
-                            tile, rspec, upscaler=upscaler,
-                            status_cb=dedupe_status)
-                        if len(seen_statuses) > before:
-                            ai_fallback += 1
-                    else:
-                        resized = resize_tile(tile, rspec)
-                    out_path = out_dir / f"{src_path.stem}_{i+1}{ext}"
-                    sm_save_image(resized, out_path, fmt)
-                    total += 1
-            return {"total": total, "ai_total": ai_total,
-                    "ai_fallback": ai_fallback}
+            try:
+                out_dir.mkdir(parents=True, exist_ok=True)
+                total = 0
+                ai_total = 0
+                ai_fallback = 0
+                for src_path in paths:
+                    tiles = split_to_tiles(src_path, spec)
+                    for i, tile in enumerate(tiles):
+                        if rspec.enabled and rspec.algorithm == ResampleAlgo.AI:
+                            ai_total += 1
+                            tile_state["fell_back"] = False
+                            resized = resize_tile(
+                                tile, rspec, upscaler=upscaler,
+                                status_cb=dedupe_status)
+                            if tile_state["fell_back"]:
+                                ai_fallback += 1
+                        else:
+                            resized = resize_tile(tile, rspec)
+                        out_path = out_dir / f"{src_path.stem}_{i+1}{ext}"
+                        sm_save_image(resized, out_path, fmt)
+                        total += 1
+                return {"total": total, "ai_total": ai_total,
+                        "ai_fallback": ai_fallback}
+            finally:
+                if upscaler is not None:
+                    upscaler.close()
 
         self._worker = FunctionWorker(task)
         self._worker.finished_with_result.connect(self._on_done)
         self._worker.failed.connect(
             lambda e: QMessageBox.critical(self, "拆图失败", e))
         self._worker.start()
+
+    def _fetch_upscale_models(self) -> list[str]:
+        with ComfyUIUpscaler(self.cfg.comfyui_url) as up:
+            return up.list_models()
 
     def _on_done(self, result):
         n = result["total"]
