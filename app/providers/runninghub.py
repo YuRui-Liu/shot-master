@@ -575,3 +575,76 @@ class LTXTaskHandle:
         """单次拉取状态，返回 QUEUED/RUNNING/SUCCESS/FAILED。"""
         d = self.client.query_task(self.task_id)
         return d.get("status", "UNKNOWN")
+
+    def wait_for_result(self,
+                        timeout: float = 1800.0,
+                        poll_interval: float = 8.0,
+                        progress_cb: Optional[Callable[[str], None]] = None,
+                        cancel_check: Optional[Callable[[], bool]] = None,
+                        ) -> Path:
+        """阻塞轮询直到终态。SUCCESS 时下载并返回 MP4 路径。
+
+        timeout 超时 → cancel_task + RunningHubTaskFailed("timeout")。
+        cancel_check 返 True → cancel_task + RunningHubTaskFailed("cancelled")。
+        网络抖动连续 3 次失败 → RunningHubUnavailable。
+        SUCCESS 但 results 为空 → RunningHubTaskFailed。
+        """
+        deadline = time.time() + timeout
+        last_status = ""
+        consecutive_network_errors = 0
+
+        while time.time() < deadline:
+            if cancel_check and cancel_check():
+                self.client.cancel_task(self.task_id)
+                raise RunningHubTaskFailed(
+                    f"task {self.task_id} cancelled by user")
+
+            try:
+                d = self.client.query_task(self.task_id)
+                consecutive_network_errors = 0
+            except RunningHubUnavailable as e:
+                consecutive_network_errors += 1
+                if consecutive_network_errors >= 3:
+                    raise RunningHubUnavailable(
+                        f"query_task 连续 3 次失败: {e}") from e
+                log.warning("query_task transient error #%d: %s",
+                            consecutive_network_errors, e)
+                time.sleep(poll_interval)
+                continue
+
+            status = d.get("status", "UNKNOWN")
+            if status != last_status and status not in self.TERMINAL:
+                last_status = status
+                if progress_cb:
+                    progress_cb(status)
+
+            if status == "SUCCESS":
+                return self._download_first_result(d)
+            if status == "FAILED":
+                raise RunningHubTaskFailed(
+                    f"task {self.task_id} FAILED: "
+                    f"code={d.get('errorCode')} msg={d.get('errorMessage')}")
+
+            time.sleep(poll_interval)
+
+        self.client.cancel_task(self.task_id)
+        raise RunningHubTaskFailed(
+            f"task {self.task_id} timeout after {timeout}s")
+
+    def cancel(self) -> None:
+        self.client.cancel_task(self.task_id)
+
+    def _download_first_result(self, query_data: dict) -> Path:
+        results = query_data.get("results") or []
+        if not results:
+            raise RunningHubTaskFailed(
+                f"task {self.task_id} SUCCESS 但 results 为空")
+        first = results[0]
+        url = first.get("url")
+        if not url:
+            raise RunningHubTaskFailed(
+                f"task {self.task_id} results[0] 无 url 字段")
+        ext = "." + (first.get("outputType") or "mp4").lower().lstrip(".")
+        dest = (self.spec.output_dir
+                / f"{self.spec.filename_prefix}_{self.task_id}{ext}")
+        return self.client.download_file(url, dest)
