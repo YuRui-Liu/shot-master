@@ -102,7 +102,7 @@ class VideoPanel(BasePanel):
 
         # 4. 全局参数
         self.global_form = VideoGlobalForm()
-        self.global_form.setMaximumHeight(260)
+        self.global_form.setMaximumHeight(220)
         root.addWidget(self.global_form)
 
         # 5. 状态栏

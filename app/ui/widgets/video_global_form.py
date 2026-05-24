@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QGroupBox, QFormLayout, QPlainTextEdit, QCheckBox, QSpinBox, QDoubleSpinBox,
+    QGroupBox, QVBoxLayout, QPlainTextEdit, QCheckBox, QSpinBox, QDoubleSpinBox,
     QComboBox, QLineEdit, QHBoxLayout, QWidget, QRadioButton, QButtonGroup,
     QLabel,
 )
@@ -34,71 +34,93 @@ class VideoGlobalForm(QGroupBox):
         self._wire()
 
     def _build_ui(self):
-        form = QFormLayout(self)
+        root = QVBoxLayout(self)
+        root.setSpacing(6)
 
-        # global_prompt
+        # ---------- Row 1: 两个启用复选框 ----------
         self.use_global_cb = QCheckBox("启用 global_prompt")
         self.use_global_cb.setChecked(True)
-        form.addRow(self.use_global_cb)
-
         self.use_custom_audio_cb = QCheckBox("启用音频轨（use_custom_audio）")
         self.use_custom_audio_cb.setChecked(False)
-        form.addRow(self.use_custom_audio_cb)
+        row1 = QHBoxLayout()
+        row1.addWidget(self.use_global_cb)
+        row1.addSpacing(24)
+        row1.addWidget(self.use_custom_audio_cb)
+        row1.addStretch(1)
+        root.addLayout(row1)
 
+        # ---------- Row 2: Global prompt 多行 ----------
+        root.addWidget(QLabel("Global prompt"))
         self.global_prompt_edit = QPlainTextEdit()
         self.global_prompt_edit.setMaximumHeight(60)
         self.global_prompt_edit.setPlaceholderText("全片统一风格/角色描述…")
-        form.addRow("Global prompt", self.global_prompt_edit)
+        root.addWidget(self.global_prompt_edit)
 
-        # frame_rate
+        # ---------- Row 3: 帧率 / 时间显示 / 分辨率 / 自定义 W×H ----------
+        # 帧率
         self.fr_spin = QSpinBox()
         self.fr_spin.setRange(1, 120)
         self.fr_spin.setValue(24)
         self.fr_spin.setSuffix(" fps")
-        form.addRow("帧率", self.fr_spin)
-
-        # display_mode
-        mode_row = QHBoxLayout()
+        # 时间显示
         self.mode_seconds_btn = QRadioButton("秒")
         self.mode_frames_btn = QRadioButton("帧")
         self.mode_seconds_btn.setChecked(True)
         self._mode_group = QButtonGroup(self)
         self._mode_group.addButton(self.mode_seconds_btn)
         self._mode_group.addButton(self.mode_frames_btn)
-        mode_row.addWidget(self.mode_seconds_btn)
-        mode_row.addWidget(self.mode_frames_btn)
-        mode_row.addStretch(1)
-        mode_wrap = QWidget(); mode_wrap.setLayout(mode_row)
-        form.addRow("时间显示", mode_wrap)
-
         # 分辨率
         self.resolution_combo = QComboBox()
         self.resolution_combo.addItems(RESOLUTION_PRESETS)
-        form.addRow("分辨率", self.resolution_combo)
-
-        custom_row = QHBoxLayout()
+        self.resolution_combo.setMinimumWidth(200)
+        # 自定义 W×H（默认隐藏）
         self.custom_w_spin = QSpinBox()
         self.custom_w_spin.setRange(64, 4096); self.custom_w_spin.setValue(1024)
         self.custom_h_spin = QSpinBox()
         self.custom_h_spin.setRange(64, 4096); self.custom_h_spin.setValue(1024)
-        custom_row.addWidget(self.custom_w_spin)
-        custom_row.addWidget(QLabel("×"))
-        custom_row.addWidget(self.custom_h_spin)
-        custom_row.addStretch(1)
-        self.custom_wrap = QWidget(); self.custom_wrap.setLayout(custom_row)
+        custom_inner = QHBoxLayout()
+        custom_inner.setContentsMargins(0, 0, 0, 0)
+        custom_inner.setSpacing(2)
+        custom_inner.addWidget(QLabel("W"))
+        custom_inner.addWidget(self.custom_w_spin)
+        custom_inner.addWidget(QLabel("×"))
+        custom_inner.addWidget(QLabel("H"))
+        custom_inner.addWidget(self.custom_h_spin)
+        self.custom_wrap = QWidget()
+        self.custom_wrap.setLayout(custom_inner)
         self.custom_wrap.setVisible(False)
-        form.addRow("自定义 W×H", self.custom_wrap)
 
-        # filename_prefix
+        row3 = QHBoxLayout()
+        row3.addWidget(QLabel("帧率"))
+        row3.addWidget(self.fr_spin)
+        row3.addSpacing(20)
+        row3.addWidget(QLabel("时间显示"))
+        row3.addWidget(self.mode_seconds_btn)
+        row3.addWidget(self.mode_frames_btn)
+        row3.addSpacing(20)
+        row3.addWidget(QLabel("分辨率"))
+        row3.addWidget(self.resolution_combo)
+        row3.addSpacing(12)
+        row3.addWidget(self.custom_wrap)
+        row3.addStretch(1)
+        root.addLayout(row3)
+
+        # ---------- Row 4: 输出文件名前缀 / Epsilon ----------
         self.filename_prefix_edit = QLineEdit("spb_video")
-        form.addRow("输出文件名前缀", self.filename_prefix_edit)
-
         self.epsilon_spin = QDoubleSpinBox()
         self.epsilon_spin.setRange(0.0, 1.0)
         self.epsilon_spin.setSingleStep(0.05)
         self.epsilon_spin.setDecimals(2)
         self.epsilon_spin.setValue(0.5)
-        form.addRow("Epsilon (LTX guidance)", self.epsilon_spin)
+
+        row4 = QHBoxLayout()
+        row4.addWidget(QLabel("输出文件名前缀"))
+        row4.addWidget(self.filename_prefix_edit, 3)
+        row4.addSpacing(20)
+        row4.addWidget(QLabel("Epsilon"))
+        row4.addWidget(self.epsilon_spin)
+        row4.addStretch(1)
+        root.addLayout(row4)
 
     def _wire(self):
         self.use_global_cb.toggled.connect(self._emit)
