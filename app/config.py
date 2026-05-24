@@ -69,7 +69,9 @@ class Config:
                 "runninghub_template_path": self.runninghub_template_path,
                 "video_output_dir": self.video_output_dir,
             }
-            self.settings_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+            self.settings_path.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False),
+                encoding="utf-8")
 
 
 def load_config(env_path: Path = Path(".env"),
@@ -117,7 +119,7 @@ def load_config(env_path: Path = Path(".env"),
 
     if settings_path.exists():
         try:
-            data = json.loads(settings_path.read_text())
+            data = json.loads(settings_path.read_text(encoding="utf-8"))
             if isinstance(data, dict):
                 if "current_provider" in data:
                     cfg.current_provider = data["current_provider"]
