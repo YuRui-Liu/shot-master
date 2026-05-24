@@ -494,3 +494,84 @@ class LTXTaskBuilder:
                 if a.audio_path not in uploaded_files:
                     raise RunningHubInvalidSpec(
                         f"音频段 {j} {a.audio_path} 未在 uploaded_files 中")
+
+
+import logging
+from typing import Callable, Optional
+
+log = logging.getLogger(__name__)
+
+
+def submit_ltx_task(client: RunningHubClient,
+                    spec: LTXDirectorSpec,
+                    builder: LTXTaskBuilder,
+                    *,
+                    mode: str = "inline",
+                    workflow_id: str = "",
+                    webhook_url: Optional[str] = None,
+                    upload_progress_cb: Optional[
+                        Callable[[int, int, Path], None]] = None,
+                    ) -> "LTXTaskHandle":
+    """编排一次完整提交：上传 → 构造 → create_task → 返回句柄。
+
+    Args:
+        mode: "inline"（嵌入完整 workflow JSON）或 "id"（workflow_id + nodeInfoList）
+        workflow_id: mode="id" 时必填
+        webhook_url: 可选；非 None 时透传给 create_task
+        upload_progress_cb(done, total, path): 每上传完一个文件回调一次
+
+    Returns:
+        LTXTaskHandle，调用方用 .wait_for_result() 等结果。
+
+    Raises:
+        RunningHubInvalidSpec / RunningHubUploadError /
+        RunningHubUnavailable / RunningHubTaskFailed
+    """
+    if mode not in ("inline", "id"):
+        raise RunningHubInvalidSpec(f"未知 submit mode: {mode}")
+    if mode == "id" and not workflow_id:
+        raise RunningHubInvalidSpec("mode='id' 需要传 workflow_id")
+
+    # 1. 批量上传
+    files_to_upload = spec.unique_local_files()
+    uploaded: dict[Path, str] = {}
+    for i, path in enumerate(files_to_upload):
+        uploaded[path] = client.upload_file(path)
+        if upload_progress_cb:
+            upload_progress_cb(i + 1, len(files_to_upload), path)
+
+    # 2. 构造 + 提交
+    if mode == "inline":
+        workflow = builder.build_inline_workflow(spec, uploaded)
+        task_id = client.create_task(
+            workflow=workflow, webhook_url=webhook_url)
+    else:
+        node_info_list = builder.build_node_info_list(spec, uploaded)
+        task_id = client.create_task(
+            workflow_id=workflow_id,
+            node_info_list=node_info_list,
+            webhook_url=webhook_url,
+        )
+
+    log.info("RunningHub task submitted: %s (mode=%s, segments=%d)",
+             task_id, mode, len(spec.segments))
+    return LTXTaskHandle(client, task_id, spec, uploaded)
+
+
+class LTXTaskHandle:
+    """提交后的任务句柄。可跨线程传递（client 自己负责线程安全）。"""
+
+    TERMINAL = {"SUCCESS", "FAILED"}
+
+    def __init__(self, client: RunningHubClient, task_id: str,
+                 spec: LTXDirectorSpec,
+                 uploaded_files: dict[Path, str]):
+        self.client = client
+        self.task_id = task_id
+        self.spec = spec
+        self.uploaded_files = uploaded_files
+
+    def status(self) -> str:
+        """单次拉取状态，返回 QUEUED/RUNNING/SUCCESS/FAILED。"""
+        d = self.client.query_task(self.task_id)
+        return d.get("status", "UNKNOWN")
