@@ -262,3 +262,82 @@ def test_to_ltx_spec_custom_resolution_passed(tmp_path):
     assert spec.use_custom_resolution is True
     assert spec.custom_width == 720
     assert spec.custom_height == 1280
+
+
+# ---------- 序列化 ----------
+
+def test_to_dict_path_to_str(tmp_path):
+    m = TimelineModel()
+    p = tmp_path / "a.png"
+    m.add_image_segment(p, length_frames=20, local_prompt="P")
+    m.add_audio(tmp_path / "x.mp3", start_frame=5, length_frames=15)
+    m.add_to_pool([tmp_path / "img1.png", tmp_path / "img2.png"])
+    d = m.to_dict()
+    assert isinstance(d["segments"][0]["image_path"], str)
+    assert d["segments"][0]["image_path"] == str(p)
+    assert d["segments"][0]["length_frames"] == 20
+    assert d["audios"][0]["audio_path"] == str(tmp_path / "x.mp3")
+    assert all(isinstance(p, str) for p in d["pool"])
+
+
+def test_to_dict_text_segment_image_path_none(tmp_path):
+    m = TimelineModel()
+    m.add_text_segment(length_frames=10, local_prompt="text")
+    d = m.to_dict()
+    assert d["segments"][0]["image_path"] is None
+    assert d["segments"][0]["segment_type"] == "text"
+
+
+def test_round_trip_to_from_dict(tmp_path):
+    m1 = TimelineModel(
+        global_prompt="GP", use_global_prompt=True,
+        frame_rate=30, display_mode="frames",
+        resolution_preset="720x1280 (9:16) (竖屏)",
+        use_custom_resolution=True,
+        custom_width=720, custom_height=1280,
+        filename_prefix="vid",
+    )
+    img = tmp_path / "img.png"
+    sid = m1.add_image_segment(img, length_frames=42, local_prompt="seg")
+    m1.add_text_segment(length_frames=8)
+    m1.add_audio(tmp_path / "a.mp3", start_frame=10, length_frames=50)
+    m1.add_to_pool([tmp_path / "p1.png"])
+
+    m2 = TimelineModel.from_dict(m1.to_dict())
+    assert len(m2.segments) == 2
+    assert m2.segments[0].seg_id == sid
+    assert m2.segments[0].image_path == img
+    assert m2.segments[0].length_frames == 42
+    assert m2.segments[1].segment_type == "text"
+    assert len(m2.audios) == 1
+    assert m2.audios[0].start_frame == 10
+    assert m2.pool == [tmp_path / "p1.png"]
+    assert m2.global_prompt == "GP"
+    assert m2.frame_rate == 30
+    assert m2.display_mode == "frames"
+    assert m2.use_custom_resolution is True
+    assert m2.custom_width == 720
+
+
+def test_from_dict_empty_uses_defaults():
+    m = TimelineModel.from_dict({})
+    assert m.segments == []
+    assert m.audios == []
+    assert m.pool == []
+    assert m.frame_rate == 24
+    assert m.display_mode == "seconds"
+
+
+def test_from_dict_missing_seg_id_generated():
+    import re
+    m = TimelineModel.from_dict({"segments": [
+        {"segment_type": "image", "length_frames": 10,
+         "image_path": "/x.png", "local_prompt": "p"},
+    ]})
+    assert len(m.segments) == 1
+    assert re.match(r"^\d{13}[0-9a-f]{1,5}$", m.segments[0].seg_id)
+
+
+def test_from_dict_skips_audio_without_path():
+    m = TimelineModel.from_dict({"audios": [{"start_frame": 0}]})
+    assert m.audios == []

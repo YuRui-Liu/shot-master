@@ -180,3 +180,74 @@ class TimelineModel:
             filename_prefix=self.filename_prefix,
             output_dir=output_dir,
         )
+
+    # ---------- 序列化 ----------
+
+    def to_dict(self) -> dict:
+        """序列化到可写入 settings.json 的 dict（Path 转 str）。"""
+        return {
+            "segments": [
+                {
+                    "seg_id": s.seg_id,
+                    "segment_type": s.segment_type,
+                    "length_frames": s.length_frames,
+                    "local_prompt": s.local_prompt,
+                    "image_path": str(s.image_path) if s.image_path else None,
+                    "guide_strength": s.guide_strength,
+                } for s in self.segments
+            ],
+            "audios": [
+                {
+                    "audio_id": a.audio_id,
+                    "audio_path": str(a.audio_path),
+                    "start_frame": a.start_frame,
+                    "length_frames": a.length_frames,
+                } for a in self.audios
+            ],
+            "pool": [str(p) for p in self.pool],
+            "global_prompt": self.global_prompt,
+            "use_global_prompt": self.use_global_prompt,
+            "frame_rate": self.frame_rate,
+            "display_mode": self.display_mode,
+            "resolution_preset": self.resolution_preset,
+            "use_custom_resolution": self.use_custom_resolution,
+            "custom_width": self.custom_width,
+            "custom_height": self.custom_height,
+            "filename_prefix": self.filename_prefix,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TimelineModel":
+        """从 settings.json 缓存恢复。缺字段走默认，stale audio 跳过。"""
+        m = cls()
+        m.segments = [
+            TimelineSegment(
+                seg_id=s.get("seg_id") or _gen_id(),
+                segment_type=s.get("segment_type", "image"),
+                length_frames=int(s.get("length_frames", 24)),
+                local_prompt=s.get("local_prompt", ""),
+                image_path=(Path(s["image_path"])
+                            if s.get("image_path") else None),
+                guide_strength=float(s.get("guide_strength", 1.0)),
+            ) for s in data.get("segments", [])
+        ]
+        m.audios = [
+            TimelineAudio(
+                audio_id=a.get("audio_id") or _gen_id(),
+                audio_path=Path(a["audio_path"]),
+                start_frame=int(a.get("start_frame", 0)),
+                length_frames=int(a.get("length_frames", 24)),
+            ) for a in data.get("audios", []) if a.get("audio_path")
+        ]
+        m.pool = [Path(p) for p in data.get("pool", [])]
+        m.global_prompt = data.get("global_prompt", "")
+        m.use_global_prompt = bool(data.get("use_global_prompt", True))
+        m.frame_rate = int(data.get("frame_rate", 24))
+        m.display_mode = data.get("display_mode", "seconds")
+        m.resolution_preset = data.get(
+            "resolution_preset", "1280x720 (16:9) (横屏)")
+        m.use_custom_resolution = bool(data.get("use_custom_resolution", False))
+        m.custom_width = int(data.get("custom_width", 1024))
+        m.custom_height = int(data.get("custom_height", 1024))
+        m.filename_prefix = data.get("filename_prefix", "spb_video")
+        return m
