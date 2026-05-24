@@ -1,5 +1,6 @@
 import dataclasses
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from PIL import Image
@@ -10,6 +11,9 @@ from app.grid_ops import (
     ResampleAlgo, ResampleSpec,
     _resize_to_long_edge,
     resize_tile,
+)
+from app.providers.comfyui_upscaler import (
+    ComfyUIUpscaler, ComfyUIUnavailable, ComfyUIUpscaleError,
 )
 
 
@@ -198,3 +202,47 @@ def test_resize_tile_lanczos_custom_3_2():
                         long_edge=600, algorithm=ResampleAlgo.LANCZOS)
     out = resize_tile(img, spec)
     assert out.size == (600, 400)
+
+
+def test_resize_tile_ai_calls_upscaler_then_resizes():
+    img = Image.new("RGB", (1024, 1024), (128, 128, 128))
+    up = MagicMock(spec=ComfyUIUpscaler)
+    up.upscale.return_value = Image.new("RGB", (4096, 4096), (200, 200, 200))
+    spec = ResampleSpec(enabled=True, algorithm=ResampleAlgo.AI,
+                        long_edge=2048, ai_model="4x-UltraSharp.pth")
+    out = resize_tile(img, spec, upscaler=up)
+    up.upscale.assert_called_once_with(img, "4x-UltraSharp.pth")
+    assert out.size == (2048, 2048)
+
+
+def test_resize_tile_ai_unavailable_falls_back_to_lanczos():
+    img = Image.new("RGB", (1024, 512), (128, 128, 128))
+    up = MagicMock(spec=ComfyUIUpscaler)
+    up.upscale.side_effect = ComfyUIUnavailable("connection refused")
+    statuses = []
+    spec = ResampleSpec(enabled=True, algorithm=ResampleAlgo.AI,
+                        long_edge=2048, ai_model="x.pth")
+    out = resize_tile(img, spec, upscaler=up, status_cb=statuses.append)
+    assert out.size == (2048, 1024)
+    assert len(statuses) == 1
+    assert "回退" in statuses[0]
+
+
+def test_resize_tile_ai_upscale_error_falls_back_to_lanczos():
+    img = Image.new("RGB", (1024, 512), (128, 128, 128))
+    up = MagicMock(spec=ComfyUIUpscaler)
+    up.upscale.side_effect = ComfyUIUpscaleError("timeout")
+    statuses = []
+    spec = ResampleSpec(enabled=True, algorithm=ResampleAlgo.AI,
+                        long_edge=2048, ai_model="x.pth")
+    out = resize_tile(img, spec, upscaler=up, status_cb=statuses.append)
+    assert out.size == (2048, 1024)
+    assert len(statuses) == 1
+
+
+def test_resize_tile_ai_without_upscaler_falls_through_to_lanczos():
+    img = Image.new("RGB", (1024, 512), (128, 128, 128))
+    spec = ResampleSpec(enabled=True, algorithm=ResampleAlgo.AI,
+                        long_edge=2048, ai_model="x.pth")
+    out = resize_tile(img, spec, upscaler=None)
+    assert out.size == (2048, 1024)

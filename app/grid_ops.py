@@ -181,8 +181,12 @@ def resize_tile(tile: Image.Image,
             tile, AspectRatio(spec.aspect_w, spec.aspect_h))
 
     if spec.algorithm == ResampleAlgo.AI and upscaler is not None:
-        # AI 分支在 Task 7 接入，目前未达此条件
-        pass
+        try:
+            tile = upscaler.upscale(tile, spec.ai_model)
+        except Exception as e:
+            if status_cb:
+                status_cb(f"AI 超分不可用，已回退 LANCZOS：{e}")
+            # 继续走下面的 LANCZOS 收尾
 
     return _resize_to_long_edge(tile, spec.long_edge, Image.LANCZOS)
 
