@@ -47,6 +47,7 @@ class Config:
     runninghub_base_url: str = "https://www.runninghub.cn"
     runninghub_template_path: str = ""           # 空 = 用内置 app/templates/ltx_director_v23.json
     video_output_dir: str = ""                   # 空 = 用 state.output_dir
+    video_timeline_cache: dict = field(default_factory=dict)
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -68,6 +69,7 @@ class Config:
                 "runninghub_base_url": self.runninghub_base_url,
                 "runninghub_template_path": self.runninghub_template_path,
                 "video_output_dir": self.video_output_dir,
+                "video_timeline_cache": self.video_timeline_cache,
             }
             self.settings_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
@@ -148,6 +150,9 @@ def load_config(env_path: Path = Path(".env"),
                             "runninghub_template_path", "video_output_dir"):
                     if key in data and isinstance(data[key], str):
                         setattr(cfg, key, data[key])
+                if "video_timeline_cache" in data and isinstance(
+                        data["video_timeline_cache"], dict):
+                    cfg.video_timeline_cache = data["video_timeline_cache"]
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass
 

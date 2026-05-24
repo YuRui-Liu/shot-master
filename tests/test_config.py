@@ -257,3 +257,39 @@ def test_update_settings_writes_utf8(tmp_path):
     # 必须能用 utf-8 解码；不应被 ensure_ascii 转义
     text = raw.decode("utf-8")
     assert "中文工作流名" in text
+
+
+# ---------- video_timeline_cache ----------
+
+def test_config_default_video_timeline_cache(tmp_path):
+    cfg = load_config(env_path=tmp_path / ".env",
+                       settings_path=tmp_path / "settings.json")
+    assert cfg.video_timeline_cache == {}
+
+
+def test_config_loads_video_timeline_cache(tmp_path):
+    sp = tmp_path / "settings.json"
+    sp.write_text(
+        '{"video_timeline_cache": {"frame_rate": 30, "segments": []}}',
+        encoding="utf-8")
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    assert cfg.video_timeline_cache == {"frame_rate": 30, "segments": []}
+
+
+def test_config_update_settings_persists_video_timeline_cache(tmp_path):
+    sp = tmp_path / "settings.json"
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    cfg.update_settings(
+        video_timeline_cache={"frame_rate": 30, "filename_prefix": "v1"})
+    import json
+    data = json.loads(sp.read_text(encoding="utf-8"))
+    assert data["video_timeline_cache"]["frame_rate"] == 30
+    assert data["video_timeline_cache"]["filename_prefix"] == "v1"
+
+
+def test_config_loads_invalid_video_timeline_cache_falls_back(tmp_path):
+    sp = tmp_path / "settings.json"
+    # value 是 list 而非 dict —— 应被静默忽略走默认
+    sp.write_text('{"video_timeline_cache": ["bad"]}', encoding="utf-8")
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    assert cfg.video_timeline_cache == {}
