@@ -104,3 +104,60 @@ class LTXDirectorSpec:
                 seen.add(a.audio_path)
                 result.append(a.audio_path)
         return tuple(result)
+
+
+import httpx
+
+
+def _guess_mime(path: Path) -> str:
+    ext = path.suffix.lower()
+    return {
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac",
+        ".mp4": "video/mp4", ".mov": "video/quicktime",
+    }.get(ext, "application/octet-stream")
+
+
+class RunningHubClient:
+    """RunningHub OpenAPI 裸客户端：封装鉴权 + 5 个核心端点。
+
+    每个方法对应一次 HTTP 调用；调用方负责把它们编排成业务流程。
+    """
+
+    def __init__(self, api_key: str,
+                 base_url: str = "https://www.runninghub.cn",
+                 request_timeout: float = 30.0):
+        if not api_key:
+            raise RunningHubUnavailable("RUNNINGHUB_API_KEY 未设置")
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+        self._client = httpx.Client(timeout=request_timeout)
+
+    # ---------- upload ----------
+
+    def upload_file(self, path: Path) -> str:
+        """上传一个本地文件，返回 RunningHub 内部 fileName。"""
+        if not path.exists():
+            raise RunningHubUploadError(f"文件不存在: {path}")
+        url = f"{self.base_url}/openapi/v2/media/upload/binary"
+        try:
+            with path.open("rb") as f:
+                resp = self._client.post(
+                    url,
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    files={"file": (path.name, f, _guess_mime(path))},
+                )
+            if resp.status_code >= 400:
+                raise RunningHubUploadError(
+                    f"upload HTTP {resp.status_code}: {resp.text[:300]}")
+            data = resp.json()
+            if data.get("code") != 0:
+                msg = data.get("msg") or data.get("message") or ""
+                raise RunningHubUploadError(
+                    f"upload code={data.get('code')} msg={msg}")
+            return data["data"]["fileName"]
+        except httpx.HTTPError as e:
+            raise RunningHubUnavailable(f"upload 连接失败: {e}") from e
+        except (KeyError, ValueError) as e:
+            raise RunningHubUploadError(f"upload 响应异常: {e}") from e
