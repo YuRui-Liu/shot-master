@@ -183,8 +183,13 @@ class RunningHubSettingsDialog(QDialog):
         def task():
             try:
                 with RunningHubClient(api_key, base_url=base_url) as c:
-                    c.query_task("__spb_probe__")
-                return True, "✓ 鉴权通过（API Key 可用）"
+                    data = c.get_account_status()
+                coins = data.get("remainCoins", "?")
+                money = data.get("remainMoney", "?")
+                currency = data.get("currency", "")
+                api_type = data.get("apiType", "?")
+                return (True,
+                        f"✓ 鉴权通过 · 剩余 {coins} 积分 / {money} {currency} · {api_type}")
             except RunningHubUnavailable as e:
                 return False, f"✗ 不可达：{e}"
             except Exception as e:

@@ -388,6 +388,62 @@ def test_cancel_task_silent_on_4xx():
     c.cancel_task("tid")
 
 
+# ---------- get_account_status ----------
+
+def test_account_status_happy_path():
+    def handler(req):
+        assert req.url.path == "/uc/openapi/accountStatus"
+        assert req.headers.get("Authorization") == "Bearer test-key"
+        body = req.read().decode()
+        assert '"apikey"' in body  # lowercase!
+        return httpx.Response(200, json={
+            "code": 0, "msg": "success", "errorMessages": None,
+            "data": {
+                "remainCoins": "38752",
+                "currentTaskCounts": "0",
+                "remainMoney": "21.780",
+                "currency": "CNY",
+                "apiType": "SHARED",
+            },
+        })
+
+    c = RunningHubClient("test-key")
+    _set_mock_transport(c, handler)
+    data = c.get_account_status()
+    assert data["remainCoins"] == "38752"
+    assert data["apiType"] == "SHARED"
+
+
+def test_account_status_business_error_raises_unavailable():
+    def handler(req):
+        return httpx.Response(200, json={
+            "code": 401, "msg": "Invalid API key", "data": None})
+
+    c = RunningHubClient("bad-key")
+    _set_mock_transport(c, handler)
+    with pytest.raises(RunningHubUnavailable) as exc_info:
+        c.get_account_status()
+    assert "401" in str(exc_info.value) or "Invalid API key" in str(exc_info.value)
+
+
+def test_account_status_5xx_raises_unavailable():
+    def handler(req):
+        return httpx.Response(503, text="upstream timeout")
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    with pytest.raises(RunningHubUnavailable):
+        c.get_account_status()
+
+
+def test_account_status_connect_error_raises_unavailable():
+    def handler(req):
+        raise httpx.ConnectError("network down")
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    with pytest.raises(RunningHubUnavailable):
+        c.get_account_status()
+
+
 # ---------- context manager ----------
 
 def test_context_manager_closes_client():

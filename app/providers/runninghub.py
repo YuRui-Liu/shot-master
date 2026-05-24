@@ -288,6 +288,39 @@ class RunningHubClient:
         except httpx.HTTPError:
             pass
 
+    # ---------- account_status ----------
+
+    def get_account_status(self) -> dict:
+        """POST /uc/openapi/accountStatus — RunningHub 推荐的鉴权探测端点。
+
+        成功返回 data dict（含 remainCoins / remainMoney / currency / apiType 等）；
+        鉴权失败或网络错抛 RunningHubUnavailable。
+
+        无需任何业务参数；最轻量的「测试连接」探测路径。
+        """
+        url = f"{self.base_url}/uc/openapi/accountStatus"
+        try:
+            resp = self._client.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"apikey": self.api_key},
+            )
+            if resp.status_code >= 400:
+                raise RunningHubUnavailable(
+                    f"accountStatus HTTP {resp.status_code}: {resp.text[:300]}")
+            data = resp.json()
+            if data.get("code") != 0:
+                raise RunningHubUnavailable(
+                    f"accountStatus code={data.get('code')} msg={data.get('msg')}")
+            return data.get("data") or {}
+        except httpx.HTTPError as e:
+            raise RunningHubUnavailable(f"accountStatus 连接失败: {e}") from e
+        except (KeyError, ValueError) as e:
+            raise RunningHubUnavailable(f"accountStatus 响应异常: {e}") from e
+
     # ---------- 生命周期 ----------
 
     def close(self) -> None:
