@@ -36,6 +36,11 @@ class Config:
     ui: dict = field(default_factory=lambda: {"theme": "light", "preview_thumb_size": 200})
     last_input_dir: Optional[str] = None
     last_output_dir: Optional[str] = None
+    comfyui_url: str = "http://127.0.0.1:8188"
+    split_resample_defaults: dict = field(default_factory=lambda: {
+        "enabled": False, "aspect_w": 1, "aspect_h": 1,
+        "long_edge": 2048, "algorithm": "lanczos", "ai_model": "",
+    })
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -49,6 +54,8 @@ class Config:
                 "ui": self.ui,
                 "last_input_dir": self.last_input_dir,
                 "last_output_dir": self.last_output_dir,
+                "comfyui_url": self.comfyui_url,
+                "split_resample_defaults": self.split_resample_defaults,
             }
             self.settings_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
@@ -104,6 +111,12 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.last_input_dir = data["last_input_dir"]
                 if "last_output_dir" in data:
                     cfg.last_output_dir = data["last_output_dir"]
+                if "comfyui_url" in data:
+                    cfg.comfyui_url = data["comfyui_url"]
+                if "split_resample_defaults" in data and isinstance(
+                        data["split_resample_defaults"], dict):
+                    cfg.split_resample_defaults.update(
+                        data["split_resample_defaults"])
         except (json.JSONDecodeError, OSError):
             pass
 

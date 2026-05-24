@@ -99,3 +99,54 @@ def test_update_settings_persists_last_dirs(tmp_path):
     cfg2 = load_config(env_path=env_file, settings_path=sj)
     assert cfg2.last_input_dir == "/x/in"
     assert cfg2.last_output_dir == "/x/out"
+
+
+def test_config_default_comfyui_url(tmp_path):
+    cfg = load_config(env_path=tmp_path / ".env",
+                       settings_path=tmp_path / "settings.json")
+    assert cfg.comfyui_url == "http://127.0.0.1:8188"
+
+
+def test_config_default_split_resample_defaults(tmp_path):
+    cfg = load_config(env_path=tmp_path / ".env",
+                       settings_path=tmp_path / "settings.json")
+    d = cfg.split_resample_defaults
+    assert d["enabled"] is False
+    assert d["aspect_w"] == 1 and d["aspect_h"] == 1
+    assert d["long_edge"] == 2048
+    assert d["algorithm"] == "lanczos"
+    assert d["ai_model"] == ""
+
+
+def test_config_loads_comfyui_url_from_settings(tmp_path):
+    sp = tmp_path / "settings.json"
+    sp.write_text('{"comfyui_url": "http://other:1234"}', encoding="utf-8")
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    assert cfg.comfyui_url == "http://other:1234"
+
+
+def test_config_loads_split_resample_defaults_from_settings(tmp_path):
+    sp = tmp_path / "settings.json"
+    sp.write_text(
+        '{"split_resample_defaults": {"enabled": true, "long_edge": 1024, '
+        '"aspect_w": 16, "aspect_h": 9, "algorithm": "ai", '
+        '"ai_model": "x.pth"}}',
+        encoding="utf-8")
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    assert cfg.split_resample_defaults["enabled"] is True
+    assert cfg.split_resample_defaults["long_edge"] == 1024
+    assert cfg.split_resample_defaults["ai_model"] == "x.pth"
+
+
+def test_config_update_settings_persists_comfyui_and_resample(tmp_path):
+    sp = tmp_path / "settings.json"
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    cfg.update_settings(
+        comfyui_url="http://x:9999",
+        split_resample_defaults={
+            "enabled": True, "aspect_w": 1, "aspect_h": 1,
+            "long_edge": 2048, "algorithm": "lanczos", "ai_model": ""})
+    import json
+    data = json.loads(sp.read_text(encoding="utf-8"))
+    assert data["comfyui_url"] == "http://x:9999"
+    assert data["split_resample_defaults"]["enabled"] is True
