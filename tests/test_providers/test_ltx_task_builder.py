@@ -533,3 +533,67 @@ def test_validate_passes_text_segment_without_upload(builder):
     ))
     # 不应抛错（text 段不要求 image_path）
     builder.build_inline_workflow(spec, {})
+
+
+# ---------- v0.7.4: 音频路由 ----------
+
+def test_inline_audio_routes_to_native_when_use_custom_audio_false(builder, tmp_path):
+    """use_custom_audio=False → CreateVideo.audio 走 LTXVAudioVAEDecode (16)
+    以激活 LTX 2.3 原生音频生成。"""
+    img = tmp_path / "a.png"; img.write_bytes(b"x")
+    spec = LTXDirectorSpec(
+        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
+        use_custom_audio=False,
+    )
+    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
+    assert wf[LTXNodes.CREATE_VIDEO]["inputs"]["audio"] == [
+        LTXNodes.AUDIO_VAE_DECODE, 0]
+
+
+def test_inline_audio_routes_to_director_passthrough_when_use_custom_audio_true(
+        builder, tmp_path):
+    """use_custom_audio=True → CreateVideo.audio 走 LTXDirector.6 用户上传。"""
+    img = tmp_path / "a.png"; img.write_bytes(b"x")
+    aud = tmp_path / "a.mp3"; aud.write_bytes(b"y")
+    spec = LTXDirectorSpec(
+        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
+        audio_segments=(LTXAudioSegment(audio_path=aud, start_frame=0,
+                                          length_frames=10),),
+        use_custom_audio=True,
+    )
+    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png",
+                                              aud: "openapi/a.mp3"})
+    assert wf[LTXNodes.CREATE_VIDEO]["inputs"]["audio"] == [
+        LTXNodes.DIRECTOR, 6]
+
+
+def test_nodeinfolist_audio_routing_when_use_custom_audio_false(builder, tmp_path):
+    img = tmp_path / "a.png"; img.write_bytes(b"x")
+    spec = LTXDirectorSpec(
+        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
+        use_custom_audio=False,
+    )
+    items = builder.build_node_info_list(spec, {img: "openapi/a.png"})
+    audio_items = [it for it in items
+                   if it["nodeId"] == LTXNodes.CREATE_VIDEO
+                   and it["fieldName"] == "audio"]
+    assert len(audio_items) == 1
+    assert audio_items[0]["fieldValue"] == [LTXNodes.AUDIO_VAE_DECODE, 0]
+
+
+def test_nodeinfolist_audio_routing_when_use_custom_audio_true(builder, tmp_path):
+    img = tmp_path / "a.png"; img.write_bytes(b"x")
+    aud = tmp_path / "a.mp3"; aud.write_bytes(b"y")
+    spec = LTXDirectorSpec(
+        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
+        audio_segments=(LTXAudioSegment(audio_path=aud, start_frame=0,
+                                          length_frames=10),),
+        use_custom_audio=True,
+    )
+    items = builder.build_node_info_list(spec, {img: "openapi/a.png",
+                                                 aud: "openapi/a.mp3"})
+    audio_items = [it for it in items
+                   if it["nodeId"] == LTXNodes.CREATE_VIDEO
+                   and it["fieldName"] == "audio"]
+    assert len(audio_items) == 1
+    assert audio_items[0]["fieldValue"] == [LTXNodes.DIRECTOR, 6]

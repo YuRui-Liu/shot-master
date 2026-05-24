@@ -360,6 +360,8 @@ class LTXNodes:
     SAVE_VIDEO = "104"
     NOISE = "132"
     RESOLUTION = "139"
+    CREATE_VIDEO = "17"          # 输出 mp4 的拼装节点
+    AUDIO_VAE_DECODE = "16"      # LTX 原生音频解码节点（不勾 use_custom_audio 时用）
 
 
 # ID 模式 nodeInfoList 白名单：仅这 11 个 Director 字段允许被覆盖
@@ -407,7 +409,24 @@ class LTXTaskBuilder:
         if spec.noise_seed is not None:
             wf[LTXNodes.NOISE]["inputs"]["noise_seed"] = spec.noise_seed
         self._apply_resolution(wf[LTXNodes.RESOLUTION]["inputs"], spec)
+        self._apply_audio_routing(wf, spec)
         return wf
+
+    def _apply_audio_routing(self, wf: dict, spec: LTXDirectorSpec) -> None:
+        """CreateVideo 节点的 audio 输入按 use_custom_audio 切换数据源。
+
+        - use_custom_audio=True  → ["46", 6]   LTXDirector passthrough（用户上传音频）
+        - use_custom_audio=False → ["16", 0]   LTXVAudioVAEDecode（LTX 2.3 原生生成）
+
+        作者原模板默认 ["46", 6]，导致不勾 use_custom_audio 时输出静音。
+        修复：根据 spec 动态切到正确的源。
+        """
+        if LTXNodes.CREATE_VIDEO not in wf:
+            return    # 模板不含 CreateVideo 时静默跳过（容错）
+        wf[LTXNodes.CREATE_VIDEO]["inputs"]["audio"] = (
+            [LTXNodes.DIRECTOR, 6] if spec.use_custom_audio
+            else [LTXNodes.AUDIO_VAE_DECODE, 0]
+        )
 
     # ---------- 私有：spec → LTXDirector inputs ----------
 
@@ -516,6 +535,15 @@ class LTXTaskBuilder:
                 "fieldName": "resolution",
                 "fieldValue": spec.resolution_preset,
             })
+        # 音频路由：见 _apply_audio_routing 的文档说明
+        items.append({
+            "nodeId": LTXNodes.CREATE_VIDEO,
+            "fieldName": "audio",
+            "fieldValue": (
+                [LTXNodes.DIRECTOR, 6] if spec.use_custom_audio
+                else [LTXNodes.AUDIO_VAE_DECODE, 0]
+            ),
+        })
         return items
 
     # ---------- 校验 ----------
