@@ -429,16 +429,66 @@ class LTXTaskBuilder:
         else:
             inputs["resolution"] = spec.resolution_preset
 
-    # ---------- 校验（最小版；Task 7 会扩展） ----------
+    def build_node_info_list(self, spec: LTXDirectorSpec,
+                              uploaded_files: dict[Path, str]) -> list[dict]:
+        """生成 nodeInfoList 数组（ID 模式）。"""
+        self._validate(spec, uploaded_files)
+        items: list[dict] = []
+        params = self._compute_director_params(spec, uploaded_files)
+        for fname in _DIRECTOR_FIELDS:
+            if fname in params:
+                items.append({
+                    "nodeId": LTXNodes.DIRECTOR,
+                    "fieldName": fname,
+                    "fieldValue": params[fname],
+                })
+        items.append({
+            "nodeId": LTXNodes.SAVE_VIDEO,
+            "fieldName": "filename_prefix",
+            "fieldValue": spec.filename_prefix,
+        })
+        if spec.noise_seed is not None:
+            items.append({
+                "nodeId": LTXNodes.NOISE,
+                "fieldName": "noise_seed",
+                "fieldValue": spec.noise_seed,
+            })
+        if spec.use_custom_resolution:
+            items.extend([
+                {"nodeId": LTXNodes.RESOLUTION,
+                 "fieldName": "use_custom_resolution", "fieldValue": True},
+                {"nodeId": LTXNodes.RESOLUTION,
+                 "fieldName": "custom_width", "fieldValue": spec.custom_width},
+                {"nodeId": LTXNodes.RESOLUTION,
+                 "fieldName": "custom_height", "fieldValue": spec.custom_height},
+            ])
+        else:
+            items.append({
+                "nodeId": LTXNodes.RESOLUTION,
+                "fieldName": "resolution",
+                "fieldValue": spec.resolution_preset,
+            })
+        return items
+
+    # ---------- 校验 ----------
 
     def _validate(self, spec: LTXDirectorSpec,
                    uploaded_files: dict[Path, str]) -> None:
         if not spec.segments:
             raise RunningHubInvalidSpec("至少需要 1 段")
+        if not (1 <= spec.frame_rate <= 120):
+            raise RunningHubInvalidSpec(
+                f"frame_rate 须在 1-120 之间，当前 {spec.frame_rate}")
         for i, s in enumerate(spec.segments):
+            if s.length < 1:
+                raise RunningHubInvalidSpec(
+                    f"段 {i} length<1（{s.length}）")
             if s.image_path is not None and s.image_path not in uploaded_files:
                 raise RunningHubInvalidSpec(
                     f"段 {i} 的图片 {s.image_path} 未在 uploaded_files 中")
+            if not (0.0 <= s.guide_strength <= 1.0):
+                raise RunningHubInvalidSpec(
+                    f"段 {i} guide_strength 越界（{s.guide_strength}）")
         if spec.use_custom_audio:
             for j, a in enumerate(spec.audio_segments):
                 if a.audio_path not in uploaded_files:
