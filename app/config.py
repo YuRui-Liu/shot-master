@@ -41,6 +41,12 @@ class Config:
         "enabled": False, "aspect_w": 1, "aspect_h": 1,
         "long_edge": 2048, "algorithm": "lanczos", "ai_model": "",
     })
+    runninghub_api_key: str = ""
+    runninghub_workflow_id: str = ""
+    runninghub_submit_mode: str = "inline"       # "inline" 或 "id"
+    runninghub_base_url: str = "https://www.runninghub.cn"
+    runninghub_template_path: str = ""           # 空 = 用内置 app/templates/ltx_director_v23.json
+    video_output_dir: str = ""                   # 空 = 用 state.output_dir
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -56,6 +62,12 @@ class Config:
                 "last_output_dir": self.last_output_dir,
                 "comfyui_url": self.comfyui_url,
                 "split_resample_defaults": self.split_resample_defaults,
+                "runninghub_api_key": self.runninghub_api_key,
+                "runninghub_workflow_id": self.runninghub_workflow_id,
+                "runninghub_submit_mode": self.runninghub_submit_mode,
+                "runninghub_base_url": self.runninghub_base_url,
+                "runninghub_template_path": self.runninghub_template_path,
+                "video_output_dir": self.video_output_dir,
             }
             self.settings_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
@@ -84,6 +96,10 @@ def load_config(env_path: Path = Path(".env"),
         if url:
             base_urls[name] = url
 
+    # RunningHub
+    rh_api_key = env.get("RUNNINGHUB_API_KEY") or ""
+    rh_base_url = env.get("RUNNINGHUB_BASE_URL") or "https://www.runninghub.cn"
+
     cfg = Config(
         default_provider=env.get("DEFAULT_PROVIDER", "doubao"),
         default_model=env.get("DEFAULT_MODEL", "doubao-seed-2-0-pro-260215"),
@@ -92,6 +108,8 @@ def load_config(env_path: Path = Path(".env"),
         default_output_dir=env.get("DEFAULT_OUTPUT_DIR") or None,
         host=env.get("HOST", "127.0.0.1"),
         port=int(env.get("PORT", "7866")),
+        runninghub_api_key=rh_api_key,
+        runninghub_base_url=rh_base_url,
         settings_path=settings_path,
     )
     cfg.current_provider = cfg.default_provider
@@ -117,6 +135,11 @@ def load_config(env_path: Path = Path(".env"),
                         data["split_resample_defaults"], dict):
                     cfg.split_resample_defaults.update(
                         data["split_resample_defaults"])
+                for key in ("runninghub_api_key", "runninghub_workflow_id",
+                            "runninghub_submit_mode", "runninghub_base_url",
+                            "runninghub_template_path", "video_output_dir"):
+                    if key in data and isinstance(data[key], str):
+                        setattr(cfg, key, data[key])
         except (json.JSONDecodeError, OSError):
             pass
 
