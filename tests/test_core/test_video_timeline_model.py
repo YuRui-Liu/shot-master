@@ -202,3 +202,63 @@ def test_pool_usage_counts_segments(tmp_path):
 
 def test_pool_usage_empty_when_pool_empty():
     assert TimelineModel().pool_usage() == {}
+
+
+# ---------- to_ltx_spec ----------
+
+def test_to_ltx_spec_basic_field_mapping(tmp_path):
+    img = tmp_path / "a.png"
+    img.write_bytes(b"x")
+    m = TimelineModel(
+        global_prompt="G", use_global_prompt=True,
+        frame_rate=30, display_mode="frames",
+        filename_prefix="myvid",
+    )
+    m.add_image_segment(img, length_frames=33, local_prompt="P1")
+    out = tmp_path / "out"
+    spec = m.to_ltx_spec(out)
+    assert spec.global_prompt == "G"
+    assert spec.use_global_prompt is True
+    assert spec.frame_rate == 30
+    assert spec.display_mode == "frames"
+    assert spec.filename_prefix == "myvid"
+    assert spec.output_dir == out
+    assert len(spec.segments) == 1
+    assert spec.segments[0].local_prompt == "P1"
+    assert spec.segments[0].length == 33
+    assert spec.segments[0].image_path == img
+
+
+def test_to_ltx_spec_use_custom_audio_auto_derived(tmp_path):
+    img = tmp_path / "a.png"
+    m = TimelineModel()
+    m.add_image_segment(img)
+    spec_no_audio = m.to_ltx_spec(tmp_path)
+    assert spec_no_audio.use_custom_audio is False
+
+    m.add_audio(tmp_path / "x.mp3")
+    spec_with_audio = m.to_ltx_spec(tmp_path)
+    assert spec_with_audio.use_custom_audio is True
+
+
+def test_to_ltx_spec_audio_segments_mapping(tmp_path):
+    m = TimelineModel()
+    m.add_image_segment(tmp_path / "a.png")
+    m.add_audio(tmp_path / "x.mp3", start_frame=24, length_frames=72)
+    spec = m.to_ltx_spec(tmp_path)
+    assert len(spec.audio_segments) == 1
+    assert spec.audio_segments[0].audio_path == tmp_path / "x.mp3"
+    assert spec.audio_segments[0].start_frame == 24
+    assert spec.audio_segments[0].length_frames == 72
+
+
+def test_to_ltx_spec_custom_resolution_passed(tmp_path):
+    m = TimelineModel(
+        use_custom_resolution=True,
+        custom_width=720, custom_height=1280,
+    )
+    m.add_image_segment(tmp_path / "a.png")
+    spec = m.to_ltx_spec(tmp_path)
+    assert spec.use_custom_resolution is True
+    assert spec.custom_width == 720
+    assert spec.custom_height == 1280

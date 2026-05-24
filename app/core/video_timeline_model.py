@@ -142,3 +142,41 @@ class TimelineModel:
             if s.image_path and s.image_path in usage:
                 usage[s.image_path] += 1
         return usage
+
+    # ---------- 转 A 的 LTXDirectorSpec ----------
+
+    def to_ltx_spec(self, output_dir: Path):
+        """转成子项目 A 的契约对象。use_custom_audio 自动推导。"""
+        from app.providers.runninghub import (
+            LTXDirectorSpec, LTXSegment, LTXAudioSegment,
+        )
+        return LTXDirectorSpec(
+            global_prompt=self.global_prompt,
+            use_global_prompt=self.use_global_prompt,
+            segments=tuple(
+                LTXSegment(
+                    local_prompt=s.local_prompt,
+                    length=s.length_frames,
+                    image_path=s.image_path,
+                    segment_type=s.segment_type,
+                    guide_strength=s.guide_strength,
+                    seg_id=s.seg_id,
+                ) for s in self.segments
+            ),
+            audio_segments=tuple(
+                LTXAudioSegment(
+                    audio_path=a.audio_path,
+                    start_frame=a.start_frame,
+                    length_frames=a.length_frames,
+                ) for a in self.audios
+            ),
+            use_custom_audio=len(self.audios) > 0,
+            display_mode=self.display_mode,
+            frame_rate=self.frame_rate,
+            resolution_preset=self.resolution_preset,
+            use_custom_resolution=self.use_custom_resolution,
+            custom_width=self.custom_width,
+            custom_height=self.custom_height,
+            filename_prefix=self.filename_prefix,
+            output_dir=output_dir,
+        )
