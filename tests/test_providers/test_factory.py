@@ -1,7 +1,7 @@
 import pytest
-from app.providers.base import VisionProvider, ProviderConfig
-from app.providers import factory
-from app.config import Config
+from drama_shot_master.providers.base import VisionProvider, ProviderConfig
+from drama_shot_master.providers import factory
+from drama_shot_master.config import Config
 
 
 class DummyProvider(VisionProvider):

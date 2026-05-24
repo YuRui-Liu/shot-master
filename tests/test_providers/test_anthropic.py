@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from app.providers.base import ProviderConfig
-from app.providers.anthropic import AnthropicProvider
+from drama_shot_master.providers.base import ProviderConfig
+from drama_shot_master.providers.anthropic import AnthropicProvider
 
 
 def _make_image(tmp_path: Path) -> Path:
@@ -18,7 +18,7 @@ def test_anthropic_generate(tmp_path):
     fake_text_block = MagicMock(text="claude output")
     fake_resp = MagicMock(content=[fake_text_block])
 
-    with patch("app.providers.anthropic.Anthropic") as MockClient:
+    with patch("drama_shot_master.providers.anthropic.Anthropic") as MockClient:
         MockClient.return_value.messages.create.return_value = fake_resp
         out = provider.generate([img], "sys-prompt", "user-supp")
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from app.providers.base import ProviderConfig
-from app.providers.gemini import GeminiProvider
+from drama_shot_master.providers.base import ProviderConfig
+from drama_shot_master.providers.gemini import GeminiProvider
 
 
 def _make_image(tmp_path: Path) -> Path:
@@ -16,7 +16,7 @@ def test_gemini_generate(tmp_path):
     provider = GeminiProvider(cfg)
 
     fake_resp = MagicMock(text="gemini output")
-    with patch("app.providers.gemini.genai") as mock_genai:
+    with patch("drama_shot_master.providers.gemini.genai") as mock_genai:
         mock_genai.Client.return_value.models.generate_content.return_value = fake_resp
         out = provider.generate([img], "sys", "user")
 

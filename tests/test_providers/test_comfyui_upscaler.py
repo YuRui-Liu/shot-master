@@ -8,7 +8,7 @@ import httpx
 import pytest
 from PIL import Image
 
-from app.providers.comfyui_upscaler import (
+from drama_shot_master.providers.comfyui_upscaler import (
     ComfyUIUpscaler, ComfyUIUnavailable, ComfyUIUpscaleError,
 )
 

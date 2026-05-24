@@ -15,15 +15,15 @@ import io
 import sys
 from pathlib import Path
 
-# 让脚本能从项目根找到 app/
+# 让脚本能从项目根找到 drama_shot_master/
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from PIL import Image
 
-from app.config import load_config
-from app.providers import factory
-import app.providers  # noqa: F401  触发注册
+from drama_shot_master.config import load_config
+from drama_shot_master.providers import factory
+import drama_shot_master.providers  # noqa: F401  触发注册
 
 
 def make_test_image(path: Path) -> Path:
@@ -49,7 +49,7 @@ def main():
             print(f"ERROR: image not found: {img_path}")
             return 2
     else:
-        img_path = ROOT / "app" / ".cache" / "ping_test.png"
+        img_path = ROOT / "drama_shot_master" / ".cache" / "ping_test.png"
         img_path.parent.mkdir(parents=True, exist_ok=True)
         make_test_image(img_path)
         print(f"[INFO] 已生成测试图：{img_path}")

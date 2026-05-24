@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import pytest
-from app.config import Config, load_config
+from drama_shot_master.config import Config, load_config
 
 
 def test_load_config_from_env(tmp_path, monkeypatch):

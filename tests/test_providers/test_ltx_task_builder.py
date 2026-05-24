@@ -8,9 +8,9 @@ import pytest
 import copy
 import json
 
-from app.providers.runninghub import LTXNodes, LTXTaskBuilder
+from drama_shot_master.providers.runninghub import LTXNodes, LTXTaskBuilder
 
-from app.providers.runninghub import (
+from drama_shot_master.providers.runninghub import (
     LTXSegment, LTXAudioSegment, LTXDirectorSpec,
     RunningHubInvalidSpec,
 )
@@ -121,7 +121,7 @@ def template_path():
     """指向项目内置的真实模板。"""
     from pathlib import Path
     p = (Path(__file__).resolve().parent.parent.parent
-         / "app" / "templates" / "ltx_director_v23.json")
+         / "drama_shot_master" / "templates" / "ltx_director_v23.json")
     assert p.exists(), f"模板不存在: {p}"
     return p
 

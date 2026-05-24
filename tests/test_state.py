@@ -1,8 +1,8 @@
 from pathlib import Path
 from PIL import Image
 import pytest
-from app.config import load_config
-from app.ui.state import AppState, restore_from_config, remember_dirs
+from drama_shot_master.config import load_config
+from drama_shot_master.ui.state import AppState, restore_from_config, remember_dirs
 
 
 def _mk_imgs(folder: Path, n=3):

@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from app.providers.base import ProviderConfig
-from app.providers.qwen_vl import QwenVLProvider
+from drama_shot_master.providers.base import ProviderConfig
+from drama_shot_master.providers.qwen_vl import QwenVLProvider
 
 
 def _make_image(tmp_path: Path) -> Path:
@@ -19,7 +19,7 @@ def test_qwen_generate(tmp_path):
         status_code=200,
         output=MagicMock(choices=[MagicMock(message=MagicMock(content=[{"text": "qwen out"}]))]),
     )
-    with patch("app.providers.qwen_vl.MultiModalConversation") as MockMM:
+    with patch("drama_shot_master.providers.qwen_vl.MultiModalConversation") as MockMM:
         MockMM.call.return_value = fake_resp
         out = provider.generate([img], "sys", "user")
 

@@ -1,4 +1,4 @@
-from app.core.result_parser import parse_result, ParsedResult
+from drama_shot_master.core.result_parser import parse_result, ParsedResult
 
 
 RAW = """这是 AI 输出的开场说明。

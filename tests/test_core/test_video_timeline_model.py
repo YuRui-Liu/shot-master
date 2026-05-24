@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.core.video_timeline_model import (
+from drama_shot_master.core.video_timeline_model import (
     TimelineSegment, TimelineAudio, TimelineModel,
 )
 

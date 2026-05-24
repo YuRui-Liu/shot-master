@@ -11,7 +11,7 @@ if SHOT_MASTER.exists() and str(SHOT_MASTER) not in sys.path:
 # ---------------------------------------------------------------------------
 # Stub missing third-party packages that are not installed in the test
 # environment (no network access).  Only the names imported by
-# app/providers/__init__.py and its siblings need to be present.
+# drama_shot_master/providers/__init__.py and its siblings need to be present.
 # We use a permissive stub module whose attribute access always succeeds so
 # that `from openai import OpenAI` and similar imports don't raise.
 # ---------------------------------------------------------------------------

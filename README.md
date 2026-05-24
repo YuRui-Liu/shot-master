@@ -1,7 +1,10 @@
-# Shot-Prompt-Backwards
+# Drama-Shot-Master
 
-分镜提示词反推**桌面应用**（PySide6）+ shot-master 整合工具。
+短剧分镜工作台**桌面应用**（PySide6）+ shot-master 整合工具。
 
+支持：分镜提示词反推 / 图像拆图-拼图-去白边 / LTX 2.3 视频生成（接 RunningHub API）。
+
+> v0.7 起改名为 drama-shot-master，反映从单一"提示词反推"扩展到完整短剧创作工作流。
 > v0.2 起从 FastAPI Web App 重构为 PySide6 桌面应用，避免浏览器沙箱限制（无法访问本地文件路径）。
 
 ## 安装

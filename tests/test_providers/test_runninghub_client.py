@@ -5,8 +5,8 @@ import pytest
 from pathlib import Path
 import httpx
 
-from app.providers.runninghub import RunningHubClient
-from app.providers.runninghub import (
+from drama_shot_master.providers.runninghub import RunningHubClient
+from drama_shot_master.providers.runninghub import (
     RunningHubUnavailable, RunningHubTaskFailed,
     RunningHubUploadError, RunningHubInvalidSpec,
 )

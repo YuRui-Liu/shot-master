@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.providers.runninghub import (
+from drama_shot_master.providers.runninghub import (
     LTXSegment, LTXDirectorSpec, LTXTaskBuilder,
     RunningHubClient, RunningHubInvalidSpec,
     RunningHubTaskFailed, RunningHubUnavailable, RunningHubUploadError,
@@ -19,7 +19,7 @@ from app.providers.runninghub import (
 @pytest.fixture
 def template_path():
     p = (Path(__file__).resolve().parent.parent.parent
-         / "app" / "templates" / "ltx_director_v23.json")
+         / "drama_shot_master" / "templates" / "ltx_director_v23.json")
     return p
 
 
@@ -134,7 +134,7 @@ def test_handle_status_proxies_query_task(mock_client, builder, tmp_path):
 @pytest.fixture(autouse=False)
 def fast_sleep(monkeypatch):
     """禁掉 time.sleep 加速轮询测试。"""
-    monkeypatch.setattr("app.providers.runninghub.time.sleep",
+    monkeypatch.setattr("drama_shot_master.providers.runninghub.time.sleep",
                         lambda _: None)
 
 
@@ -276,7 +276,7 @@ def test_handle_cancel_calls_client(mock_client, builder, tmp_path):
 
 # ---------- resolve_ helpers ----------
 
-from app.providers.runninghub import (
+from drama_shot_master.providers.runninghub import (
     resolve_api_key, resolve_template_path, resolve_video_output_dir,
 )
 

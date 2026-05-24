@@ -1,5 +1,5 @@
 import pytest
-from app.ui.geometry import compute_grid_lines, GridLine
+from drama_shot_master.ui.geometry import compute_grid_lines, GridLine
 
 
 def test_simple_2x2_no_sub_no_margin():
@@ -49,7 +49,7 @@ def test_sub_grid_produces_dashed_lines():
 
 
 def test_tile_count_helper():
-    from app.ui.geometry import tile_count
+    from drama_shot_master.ui.geometry import tile_count
     assert tile_count(4, 4, 2, 2) == 4
     assert tile_count(2, 2, 1, 1) == 4
     assert tile_count(1, 3, 1, 1) == 3

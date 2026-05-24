@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
-from app.core.result_parser import ParsedResult
-from app.core.output_writer import write_outputs, resolve_output_dir
+from drama_shot_master.core.result_parser import ParsedResult
+from drama_shot_master.core.output_writer import write_outputs, resolve_output_dir
 
 
 def _make_result() -> ParsedResult:

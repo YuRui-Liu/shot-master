@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from app.core.template_engine import (
+from drama_shot_master.core.template_engine import (
     Template, TemplateVariable, load_template, list_templates,
     render_template, recommend_template,
 )

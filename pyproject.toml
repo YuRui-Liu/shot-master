@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "shot-prompt-backwards"
-version = "0.2.0"
-description = "分镜提示词反推桌面应用（PySide6 + shot-master 整合）"
+name = "drama-shot-master"
+version = "0.7.0"
+description = "短剧分镜工作台桌面应用：提示词反推 / 图像 ops / LTX 2.3 视频生成（PySide6 + shot-master 整合）"
 requires-python = ">=3.10"
 dependencies = [
     "PySide6>=6.6",
@@ -28,10 +28,10 @@ dev = [
 ]
 
 [project.scripts]
-shot-prompt-backwards = "app.main:main"
+drama-shot-master = "drama_shot_master.main:main"
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["drama_shot_master*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

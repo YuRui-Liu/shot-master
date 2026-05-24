@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from app.providers.base import VisionProvider, ProviderConfig, encode_image_b64
+from drama_shot_master.providers.base import VisionProvider, ProviderConfig, encode_image_b64
 
 
 class FakeProvider(VisionProvider):

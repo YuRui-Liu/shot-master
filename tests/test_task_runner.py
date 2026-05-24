@@ -6,7 +6,7 @@ Task 15: TaskRunner 测试
 """
 import asyncio
 import pytest
-from app.core.task_runner import TaskRunner, TaskItem, TaskEvent
+from drama_shot_master.core.task_runner import TaskRunner, TaskItem, TaskEvent
 
 
 def _make_items(n):

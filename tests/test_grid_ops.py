@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from PIL import Image
 
-from app.grid_ops import (
+from drama_shot_master.grid_ops import (
     make_grid_spec, split_to_tiles, split_to_files, split_to_preview_cache,
     combine_to_file, trim_one, trim_batch,
     ResampleAlgo, ResampleSpec,
@@ -13,7 +13,7 @@ from app.grid_ops import (
     resize_tile,
     validate_resample_spec,
 )
-from app.providers.comfyui_upscaler import (
+from drama_shot_master.providers.comfyui_upscaler import (
     ComfyUIUpscaler, ComfyUIUnavailable, ComfyUIUpscaleError,
 )
 

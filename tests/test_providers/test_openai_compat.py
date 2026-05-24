@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from app.providers.base import ProviderConfig
-from app.providers.openai_compat import OpenAICompatProvider
+from drama_shot_master.providers.base import ProviderConfig
+from drama_shot_master.providers.openai_compat import OpenAICompatProvider
 
 
 def _make_image(tmp_path: Path) -> Path:
@@ -19,7 +19,7 @@ def test_generate_calls_chat_completions(tmp_path):
     fake_resp = MagicMock()
     fake_resp.choices = [MagicMock(message=MagicMock(content="vision output text"))]
 
-    with patch("app.providers.openai_compat.OpenAI") as MockClient:
+    with patch("drama_shot_master.providers.openai_compat.OpenAI") as MockClient:
         client_instance = MockClient.return_value
         client_instance.chat.completions.create.return_value = fake_resp
         out = provider.generate([img], "sys-prompt", "user-supplement")
@@ -49,7 +49,7 @@ def test_generate_with_multiple_images(tmp_path):
     cfg = ProviderConfig(api_key="k", base_url="u", model="m")
     provider = OpenAICompatProvider(cfg)
     fake_resp = MagicMock(choices=[MagicMock(message=MagicMock(content="out"))])
-    with patch("app.providers.openai_compat.OpenAI") as MockClient:
+    with patch("drama_shot_master.providers.openai_compat.OpenAI") as MockClient:
         MockClient.return_value.chat.completions.create.return_value = fake_resp
         provider.generate(imgs, "sp", "us")
         msgs = MockClient.return_value.chat.completions.create.call_args.kwargs["messages"]
