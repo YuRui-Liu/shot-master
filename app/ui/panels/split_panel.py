@@ -1,4 +1,4 @@
-"""拆图面板：网格参数 + 白边/网格一键检测 + 批量拆。"""
+"""拆图面板：网格参数 + 白边/网格一键检测 + 可选重采样 + 批量拆。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,11 +10,17 @@ from PySide6.QtWidgets import (
 )
 
 from shot_master.core.border_detector import detect_borders, infer_grid
+from shot_master.core.saver import save_image as sm_save_image
 
 from app.config import Config
-from app.grid_ops import make_grid_spec, split_to_files
+from app.grid_ops import (
+    make_grid_spec, split_to_tiles,
+    ResampleSpec, ResampleAlgo, resize_tile, validate_resample_spec,
+)
+from app.providers.comfyui_upscaler import ComfyUIUpscaler
 from app.ui.panels.base_panel import BasePanel
 from app.ui.state import AppState
+from app.ui.widgets.resample_group import ResampleGroup
 from app.ui.worker import FunctionWorker
 
 
@@ -64,6 +70,14 @@ class SplitPanel(BasePanel):
         det_row.addWidget(btn_grid)
         mf.addRow(det_row)
         root.addWidget(mar)
+
+        self.resample = ResampleGroup(
+            list_models_fn=lambda: ComfyUIUpscaler(
+                self.cfg.comfyui_url).list_models(),
+            initial=self.cfg.split_resample_defaults,
+        )
+        self.resample.specChanged.connect(self.validityChanged)
+        root.addWidget(self.resample)
 
         out = QGroupBox("输出")
         of = QFormLayout(out)
@@ -127,6 +141,15 @@ class SplitPanel(BasePanel):
         br, bc = self.sub_rows.value(), self.sub_cols.value()
         if sr % br != 0 or sc % bc != 0:
             return False, f"子图 {br}×{bc} 必须整除源图 {sr}×{sc}"
+        # 重采样校验
+        rspec = self.resample.get_spec()
+        ok, msg = validate_resample_spec(rspec)
+        if not ok:
+            return False, msg
+        # 自定义比例时强校验 w/h>0（validate_resample_spec 不做这层）
+        if rspec.enabled and self.resample.aspect_combo.currentText() == "自定义":
+            if rspec.aspect_w <= 0 or rspec.aspect_h <= 0:
+                return False, "请填写自定义比例（w 和 h 都需 >0）"
         return True, ""
 
     def execute(self):
@@ -138,19 +161,63 @@ class SplitPanel(BasePanel):
             self.m_bottom.value(), self.m_left.value(),
             self.gap.value(),
         )
+        rspec = self.resample.get_spec()
         out_dir = self.state.output_dir
         fmt = self.fmt.currentText()
+        ext = ".png" if fmt.upper() == "PNG" else ".jpg"
+
+        # 持久化当前重采样默认值
+        self.cfg.update_settings(
+            split_resample_defaults=self.resample.to_dict())
+
+        # AI 档才构造 upscaler
+        upscaler = None
+        if rspec.enabled and rspec.algorithm == ResampleAlgo.AI:
+            upscaler = ComfyUIUpscaler(self.cfg.comfyui_url)
+
+        status_emit = self.statusMessage.emit
+        seen_statuses: set[str] = set()
+
+        def dedupe_status(msg: str):
+            if msg not in seen_statuses:
+                seen_statuses.add(msg)
+                status_emit(msg)
 
         def task():
+            out_dir.mkdir(parents=True, exist_ok=True)
             total = 0
-            for p in paths:
-                total += len(split_to_files(p, spec, out_dir,
-                                            output_format=fmt))
-            return total
+            ai_total = 0
+            ai_fallback = 0
+            for src_path in paths:
+                tiles = split_to_tiles(src_path, spec)
+                for i, tile in enumerate(tiles):
+                    if rspec.enabled and rspec.algorithm == ResampleAlgo.AI:
+                        ai_total += 1
+                        before = len(seen_statuses)
+                        resized = resize_tile(
+                            tile, rspec, upscaler=upscaler,
+                            status_cb=dedupe_status)
+                        if len(seen_statuses) > before:
+                            ai_fallback += 1
+                    else:
+                        resized = resize_tile(tile, rspec)
+                    out_path = out_dir / f"{src_path.stem}_{i+1}{ext}"
+                    sm_save_image(resized, out_path, fmt)
+                    total += 1
+            return {"total": total, "ai_total": ai_total,
+                    "ai_fallback": ai_fallback}
 
         self._worker = FunctionWorker(task)
-        self._worker.finished_with_result.connect(
-            lambda n: QMessageBox.information(self, "完成", f"已拆出 {n} 张"))
+        self._worker.finished_with_result.connect(self._on_done)
         self._worker.failed.connect(
             lambda e: QMessageBox.critical(self, "拆图失败", e))
         self._worker.start()
+
+    def _on_done(self, result):
+        n = result["total"]
+        ai_fb = result["ai_fallback"]
+        ai_total = result["ai_total"]
+        msg = f"已拆出 {n} 张"
+        if ai_fb:
+            msg += f"\n（其中 {ai_fb}/{ai_total} 张因超分失败回退 LANCZOS）"
+        QMessageBox.information(self, "完成", msg)
