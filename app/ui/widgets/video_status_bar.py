@@ -23,6 +23,11 @@ class VideoStatusBar(QWidget):
         self.status_label.linkActivated.connect(self._on_link)
         layout.addWidget(self.status_label, 1)
 
+        # 总时长 read-only 显示（VideoPanel 在 model 变化时调 set_total_length）
+        self.total_label = QLabel("总时长: 0 f / 0.00 s")
+        self.total_label.setStyleSheet("color: #888; padding: 0 8px;")
+        layout.addWidget(self.total_label)
+
         self.cancel_btn = QPushButton("取消")
         self.cancel_btn.setVisible(False)
         self.cancel_btn.clicked.connect(self.cancelRequested)
@@ -69,3 +74,7 @@ class VideoStatusBar(QWidget):
     def _on_link(self, link: str):
         if link.startswith("open:"):
             self.openFolderRequested.emit(Path(link[5:]).parent)
+
+    def set_total_length(self, frames: int, seconds: float):
+        """VideoPanel 在 model 变化时调，刷新右下角总时长显示。"""
+        self.total_label.setText(f"总时长: {frames} f / {seconds:.2f} s")

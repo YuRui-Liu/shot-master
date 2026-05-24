@@ -147,10 +147,17 @@ class VideoPanel(BasePanel):
         self.seg_editor.bind_to(None,
                                  self.model.display_mode, self.model.frame_rate)
         self.video_status_bar.set_idle()
+        self._refresh_total_length()
 
     def _refresh_pool(self):
         self.image_pool.set_paths(self.model.pool)
         self.image_pool.refresh_usage(self.model.pool_usage())
+
+    def _refresh_total_length(self):
+        """根据 model 重算总时长，刷新 status bar 显示。"""
+        total_frames = sum(s.length_frames for s in self.model.segments)
+        total_seconds = total_frames / max(self.model.frame_rate, 1)
+        self.video_status_bar.set_total_length(total_frames, total_seconds)
 
     # ---------- slots: toolbar ----------
 
@@ -187,6 +194,7 @@ class VideoPanel(BasePanel):
     def _on_add_text(self):
         self.model.add_text_segment(length_frames=12, local_prompt="")
         self.timeline.rebuild()
+        self._refresh_total_length()
 
     def _on_add_audio(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -217,6 +225,7 @@ class VideoPanel(BasePanel):
             self.model.segments.insert(insert_idx, seg)
         self.timeline.rebuild()
         self._refresh_pool()
+        self._refresh_total_length()
 
     def _on_segment_selected(self, seg_id: str):
         seg = next((s for s in self.model.segments if s.seg_id == seg_id), None)
@@ -230,6 +239,7 @@ class VideoPanel(BasePanel):
         seg = next((s for s in self.model.segments if s.seg_id == seg_id), None)
         self.seg_editor.bind_to(seg,
                                   self.model.display_mode, self.model.frame_rate)
+        self._refresh_total_length()
 
     def _on_segments_reordered(self, ordered_ids: list):
         self.model.reorder_segments(ordered_ids)
@@ -241,6 +251,7 @@ class VideoPanel(BasePanel):
         self.seg_editor.bind_to(None,
                                   self.model.display_mode, self.model.frame_rate)
         self._refresh_pool()
+        self._refresh_total_length()
 
     def _on_audio_changed(self, audio_id: str, start: int, length: int):
         self.model.update_audio(
@@ -256,6 +267,7 @@ class VideoPanel(BasePanel):
     def _on_segment_edited(self, seg_id: str, field: str, value):
         self.model.update_segment(seg_id, **{field: value})
         self.timeline.rebuild()
+        self._refresh_total_length()
 
     def _on_global_changed(self):
         st = self.global_form.get_state()
@@ -268,6 +280,7 @@ class VideoPanel(BasePanel):
         self.seg_editor.bind_to(cur,
                                   self.model.display_mode, self.model.frame_rate)
         self.timeline.rebuild()
+        self._refresh_total_length()
 
     # ---------- slots: status bar / 提交链路 ----------
 

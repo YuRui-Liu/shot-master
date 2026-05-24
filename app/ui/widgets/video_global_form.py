@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QGroupBox, QFormLayout, QPlainTextEdit, QCheckBox, QSpinBox,
+    QGroupBox, QFormLayout, QPlainTextEdit, QCheckBox, QSpinBox, QDoubleSpinBox,
     QComboBox, QLineEdit, QHBoxLayout, QWidget, QRadioButton, QButtonGroup,
     QLabel,
 )
@@ -40,6 +40,10 @@ class VideoGlobalForm(QGroupBox):
         self.use_global_cb = QCheckBox("启用 global_prompt")
         self.use_global_cb.setChecked(True)
         form.addRow(self.use_global_cb)
+
+        self.use_custom_audio_cb = QCheckBox("启用音频轨（use_custom_audio）")
+        self.use_custom_audio_cb.setChecked(False)
+        form.addRow(self.use_custom_audio_cb)
 
         self.global_prompt_edit = QPlainTextEdit()
         self.global_prompt_edit.setMaximumHeight(60)
@@ -89,6 +93,13 @@ class VideoGlobalForm(QGroupBox):
         self.filename_prefix_edit = QLineEdit("spb_video")
         form.addRow("输出文件名前缀", self.filename_prefix_edit)
 
+        self.epsilon_spin = QDoubleSpinBox()
+        self.epsilon_spin.setRange(0.0, 1.0)
+        self.epsilon_spin.setSingleStep(0.05)
+        self.epsilon_spin.setDecimals(2)
+        self.epsilon_spin.setValue(0.5)
+        form.addRow("Epsilon (LTX guidance)", self.epsilon_spin)
+
     def _wire(self):
         self.use_global_cb.toggled.connect(self._emit)
         self.global_prompt_edit.textChanged.connect(self._emit)
@@ -98,6 +109,8 @@ class VideoGlobalForm(QGroupBox):
         self.custom_w_spin.valueChanged.connect(self._emit)
         self.custom_h_spin.valueChanged.connect(self._emit)
         self.filename_prefix_edit.textChanged.connect(self._emit)
+        self.use_custom_audio_cb.toggled.connect(self._emit)
+        self.epsilon_spin.valueChanged.connect(self._emit)
 
     def _on_res_changed(self, text: str):
         self.custom_wrap.setVisible(text == "自定义...")
@@ -125,6 +138,8 @@ class VideoGlobalForm(QGroupBox):
             "custom_height": self.custom_h_spin.value(),
             "filename_prefix": self.filename_prefix_edit.text().strip()
                                 or "spb_video",
+            "use_custom_audio": self.use_custom_audio_cb.isChecked(),
+            "epsilon": self.epsilon_spin.value(),
         }
 
     def set_state(self, m: TimelineModel) -> None:
@@ -146,4 +161,6 @@ class VideoGlobalForm(QGroupBox):
                 self.resolution_combo.setCurrentIndex(idx)
         self.filename_prefix_edit.setText(m.filename_prefix)
         self.custom_wrap.setVisible(m.use_custom_resolution)
+        self.use_custom_audio_cb.setChecked(m.use_custom_audio)
+        self.epsilon_spin.setValue(m.epsilon)
         self._suspend = False
