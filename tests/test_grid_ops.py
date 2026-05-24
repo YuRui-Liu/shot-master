@@ -1,9 +1,14 @@
+import dataclasses
 from pathlib import Path
-from PIL import Image
+
 import pytest
+from PIL import Image
+
 from app.grid_ops import (
     make_grid_spec, split_to_tiles, split_to_files, split_to_preview_cache,
     combine_to_file, trim_one, trim_batch,
+    ResampleAlgo, ResampleSpec,
+    _resize_to_long_edge,
 )
 
 
@@ -97,9 +102,6 @@ def test_trim_batch(tmp_path):
         assert "_trim" in f.name
 
 
-from app.grid_ops import ResampleAlgo, ResampleSpec
-
-
 def test_resample_spec_defaults_are_disabled_auto_lanczos():
     spec = ResampleSpec()
     assert spec.enabled is False
@@ -117,7 +119,6 @@ def test_resample_spec_is_auto_aspect_when_either_zero():
 
 
 def test_resample_spec_is_frozen():
-    import dataclasses
     spec = ResampleSpec()
     with pytest.raises(dataclasses.FrozenInstanceError):
         spec.enabled = True
@@ -126,3 +127,33 @@ def test_resample_spec_is_frozen():
 def test_resample_algo_enum_values():
     assert ResampleAlgo.LANCZOS.value == "lanczos"
     assert ResampleAlgo.AI.value == "ai"
+
+
+def test_resize_to_long_edge_upsample_landscape():
+    img = Image.new("RGB", (1024, 512), (128, 128, 128))
+    out = _resize_to_long_edge(img, 2048, Image.LANCZOS)
+    assert out.size == (2048, 1024)
+
+
+def test_resize_to_long_edge_upsample_portrait():
+    img = Image.new("RGB", (512, 1024), (128, 128, 128))
+    out = _resize_to_long_edge(img, 2048, Image.LANCZOS)
+    assert out.size == (1024, 2048)
+
+
+def test_resize_to_long_edge_downsample():
+    img = Image.new("RGB", (4096, 2048), (128, 128, 128))
+    out = _resize_to_long_edge(img, 1024, Image.LANCZOS)
+    assert out.size == (1024, 512)
+
+
+def test_resize_to_long_edge_noop_when_already_target():
+    img = Image.new("RGB", (1024, 512), (128, 128, 128))
+    out = _resize_to_long_edge(img, 1024, Image.LANCZOS)
+    assert out is img    # 同一对象，未触发 resize
+
+
+def test_resize_to_long_edge_square():
+    img = Image.new("RGB", (1000, 1000), (128, 128, 128))
+    out = _resize_to_long_edge(img, 500, Image.LANCZOS)
+    assert out.size == (500, 500)

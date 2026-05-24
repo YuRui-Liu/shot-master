@@ -4,8 +4,19 @@
 """
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from typing import Optional
+
+from PIL import Image
+
+from shot_master.core.specs import GridSpec, Margins, AspectRatio, CombineSpec, ScaleMode
+from shot_master.core.splitter import split_image
+from shot_master.core.combiner import combine_images
+from shot_master.core.aspect_ops import trim_white_edges
+from shot_master.core.saver import save_image
 
 
 class ResampleAlgo(str, Enum):
@@ -26,19 +37,6 @@ class ResampleSpec:
     @property
     def is_auto_aspect(self) -> bool:
         return self.aspect_w == 0 or self.aspect_h == 0
-
-
-import hashlib
-from pathlib import Path
-from typing import Optional
-
-from PIL import Image
-
-from shot_master.core.specs import GridSpec, Margins, AspectRatio, CombineSpec, ScaleMode
-from shot_master.core.splitter import split_image
-from shot_master.core.combiner import combine_images
-from shot_master.core.aspect_ops import trim_white_edges
-from shot_master.core.saver import save_image
 
 
 # ---------- 拆图 ----------
@@ -160,3 +158,14 @@ def trim_batch(src_folder: Path, out_folder: Path,
                  output_format=output_format)
         saved.append(out)
     return saved
+
+
+# ---------- 重采样辅助 ----------
+
+def _resize_to_long_edge(img: Image.Image, long_edge: int, resample) -> Image.Image:
+    """按 max(w,h)==long_edge 等比缩放。已经满足则返回同一对象。"""
+    w, h = img.size
+    if max(w, h) == long_edge:
+        return img
+    scale = long_edge / max(w, h)
+    return img.resize((round(w * scale), round(h * scale)), resample)
