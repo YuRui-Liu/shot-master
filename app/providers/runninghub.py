@@ -648,3 +648,44 @@ class LTXTaskHandle:
         dest = (self.spec.output_dir
                 / f"{self.spec.filename_prefix}_{self.task_id}{ext}")
         return self.client.download_file(url, dest)
+
+
+# ---------- resolve_ helpers ----------
+
+def resolve_api_key(cfg) -> str:
+    """settings.json 中已合并的 cfg.runninghub_api_key > 报错。
+
+    .env / settings.json 的优先级合并由 load_config 在加载时完成；
+    本函数只读取最终态字段。
+    """
+    if getattr(cfg, "runninghub_api_key", ""):
+        return cfg.runninghub_api_key
+    raise RunningHubUnavailable(
+        "未配置 RUNNINGHUB_API_KEY（.env 或 settings.json）")
+
+
+def resolve_template_path(cfg) -> Path:
+    """cfg.runninghub_template_path 自定义 > 项目内置 app/templates/ltx_director_v23.json。"""
+    custom = getattr(cfg, "runninghub_template_path", "")
+    if custom:
+        p = Path(custom)
+        if not p.exists():
+            raise RunningHubInvalidSpec(
+                f"settings.json 指定的模板不存在: {p}")
+        return p
+    builtin = (Path(__file__).resolve().parent.parent
+               / "templates" / "ltx_director_v23.json")
+    if not builtin.exists():
+        raise RunningHubInvalidSpec(f"内置模板缺失: {builtin}")
+    return builtin
+
+
+def resolve_video_output_dir(cfg, state_output_dir: Path | None) -> Path:
+    """cfg.video_output_dir > state_output_dir > 报错。"""
+    custom = getattr(cfg, "video_output_dir", "")
+    if custom:
+        return Path(custom)
+    if state_output_dir:
+        return state_output_dir
+    raise RunningHubInvalidSpec(
+        "未设置视频输出目录（settings.video_output_dir 或 state.output_dir 至少一个）")

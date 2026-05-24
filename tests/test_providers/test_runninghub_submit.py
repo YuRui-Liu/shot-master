@@ -272,3 +272,69 @@ def test_handle_cancel_calls_client(mock_client, builder, tmp_path):
     handle = _make_handle(mock_client, builder, tmp_path)
     handle.cancel()
     mock_client.cancel_task.assert_called_with("tid-1")
+
+
+# ---------- resolve_ helpers ----------
+
+from app.providers.runninghub import (
+    resolve_api_key, resolve_template_path, resolve_video_output_dir,
+)
+
+
+class _FakeCfg:
+    def __init__(self, **kwargs):
+        defaults = {
+            "runninghub_api_key": "",
+            "runninghub_template_path": "",
+            "video_output_dir": "",
+        }
+        defaults.update(kwargs)
+        for k, v in defaults.items():
+            setattr(self, k, v)
+
+
+def test_resolve_api_key_from_cfg():
+    cfg = _FakeCfg(runninghub_api_key="from-cfg")
+    assert resolve_api_key(cfg) == "from-cfg"
+
+
+def test_resolve_api_key_raises_when_missing():
+    cfg = _FakeCfg(runninghub_api_key="")
+    with pytest.raises(RunningHubUnavailable, match="RUNNINGHUB_API_KEY"):
+        resolve_api_key(cfg)
+
+
+def test_resolve_template_path_uses_builtin_when_cfg_empty():
+    cfg = _FakeCfg(runninghub_template_path="")
+    p = resolve_template_path(cfg)
+    assert p.name == "ltx_director_v23.json"
+    assert p.exists()
+
+
+def test_resolve_template_path_uses_cfg_override(tmp_path):
+    custom = tmp_path / "my.json"
+    custom.write_text('{"46": {"class_type": "X"}}')
+    cfg = _FakeCfg(runninghub_template_path=str(custom))
+    assert resolve_template_path(cfg) == custom
+
+
+def test_resolve_template_path_raises_when_cfg_path_missing(tmp_path):
+    cfg = _FakeCfg(runninghub_template_path=str(tmp_path / "absent.json"))
+    with pytest.raises(RunningHubInvalidSpec, match="不存在"):
+        resolve_template_path(cfg)
+
+
+def test_resolve_video_output_dir_uses_cfg(tmp_path):
+    cfg = _FakeCfg(video_output_dir=str(tmp_path / "v"))
+    assert resolve_video_output_dir(cfg, None) == tmp_path / "v"
+
+
+def test_resolve_video_output_dir_falls_back_to_state(tmp_path):
+    cfg = _FakeCfg(video_output_dir="")
+    assert resolve_video_output_dir(cfg, tmp_path) == tmp_path
+
+
+def test_resolve_video_output_dir_raises_when_both_missing():
+    cfg = _FakeCfg(video_output_dir="")
+    with pytest.raises(RunningHubInvalidSpec, match="视频输出目录"):
+        resolve_video_output_dir(cfg, None)
