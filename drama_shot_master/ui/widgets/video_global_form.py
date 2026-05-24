@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from drama_shot_master.core.video_timeline_model import TimelineModel
+from drama_shot_master.ui.widgets.translate_button import attach_translate_button
 
 
 RESOLUTION_PRESETS = [
@@ -50,8 +51,13 @@ class VideoGlobalForm(QGroupBox):
         root.addLayout(row1)
 
         # ---------- Row 2: Global prompt 多行 ----------
-        root.addWidget(QLabel("Global prompt"))
         self.global_prompt_edit = QPlainTextEdit()
+        prompt_row = QHBoxLayout()
+        prompt_row.addWidget(QLabel("Global prompt"))
+        prompt_row.addStretch(1)
+        prompt_row.addWidget(
+            attach_translate_button(self.global_prompt_edit, self))
+        root.addLayout(prompt_row)
         self.global_prompt_edit.setMaximumHeight(60)
         self.global_prompt_edit.setPlaceholderText("全片统一风格/角色描述…")
         root.addWidget(self.global_prompt_edit)
