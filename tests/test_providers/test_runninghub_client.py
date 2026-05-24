@@ -148,3 +148,116 @@ def test_upload_file_mime_inferred_from_extension(tmp_path):
     _set_mock_transport(c, handler)
     c.upload_file(img)
     assert b"image/jpeg" in captured["body"]
+
+
+# ---------- create_task ----------
+
+def _ok_create_response(task_id="tid-1", status="QUEUED"):
+    return httpx.Response(200, json={
+        "code": 0, "msg": "success",
+        "data": {
+            "netWssUrl": "wss://x",
+            "taskId": task_id,
+            "clientId": "cid",
+            "taskStatus": status,
+            "promptTips": "{\"result\": true}",
+        },
+    })
+
+
+def test_create_task_inline_workflow():
+    captured = {}
+
+    def handler(req):
+        captured["url"] = str(req.url)
+        captured["body"] = req.read()
+        return _ok_create_response("tid-42")
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    task_id = c.create_task(workflow={"3": {"class_type": "VAE"}})
+    assert task_id == "tid-42"
+    assert captured["url"].endswith("/task/openapi/create")
+    body = captured["body"].decode()
+    assert '"workflow"' in body
+    assert '"workflowId"' not in body
+
+
+def test_create_task_with_workflow_id_and_node_info_list():
+    captured = {}
+
+    def handler(req):
+        captured["body"] = req.read()
+        return _ok_create_response("tid-2")
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    items = [{"nodeId": "46", "fieldName": "global_prompt",
+              "fieldValue": "hello"}]
+    task_id = c.create_task(workflow_id="wf-123", node_info_list=items)
+    assert task_id == "tid-2"
+    body = captured["body"].decode()
+    # workflowId 字段在 payload 里
+    assert '"workflowId":"wf-123"' in body.replace(" ", "")
+    assert '"nodeInfoList"' in body
+    # workflow 字段不应单独出现（"workflowId" 里的 "workflow" 子串不算）
+    # 把 workflowId 删了再判断 workflow 是否出现
+    body_no_wfid = body.replace('"workflowId"', "")
+    assert '"workflow"' not in body_no_wfid
+
+
+def test_create_task_rejects_when_both_workflow_and_id_missing():
+    c = RunningHubClient("k")
+    with pytest.raises(RunningHubInvalidSpec):
+        c.create_task()
+
+
+def test_create_task_passes_webhook_url():
+    captured = {}
+
+    def handler(req):
+        captured["body"] = req.read()
+        return _ok_create_response()
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    c.create_task(workflow={}, webhook_url="https://callback/x")
+    assert b"https://callback/x" in captured["body"]
+
+
+def test_create_task_business_error_includes_prompt_tips():
+    def handler(req):
+        return httpx.Response(200, json={
+            "code": 805, "msg": "validation failed",
+            "data": {"promptTips":
+                     "{\"node_errors\": {\"46\": \"invalid\"}}"},
+        })
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    with pytest.raises(RunningHubTaskFailed) as exc_info:
+        c.create_task(workflow={})
+    msg = str(exc_info.value)
+    assert "805" in msg
+    assert "validation failed" in msg
+
+
+def test_create_task_http_5xx_raises_task_failed():
+    def handler(req):
+        return httpx.Response(503, text="service unavailable")
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    with pytest.raises(RunningHubTaskFailed) as exc_info:
+        c.create_task(workflow={})
+    assert "503" in str(exc_info.value)
+
+
+def test_create_task_connect_error_raises_unavailable():
+    def handler(req):
+        raise httpx.ConnectError("refused")
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    with pytest.raises(RunningHubUnavailable):
+        c.create_task(workflow={})

@@ -161,3 +161,60 @@ class RunningHubClient:
             raise RunningHubUnavailable(f"upload 连接失败: {e}") from e
         except (KeyError, ValueError) as e:
             raise RunningHubUploadError(f"upload 响应异常: {e}") from e
+
+    # ---------- create_task ----------
+
+    def create_task(self, *,
+                    workflow: dict | None = None,
+                    workflow_id: str | None = None,
+                    node_info_list: list[dict] | None = None,
+                    webhook_url: str | None = None,
+                    add_metadata: bool = True) -> str:
+        """提交 ComfyUI 任务。
+
+        workflow 与 workflow_id 二选一：
+          - workflow=完整 JSON（inline 模式）
+          - workflow_id=平台模板 ID + node_info_list（id 模式）
+
+        返回 taskId（字符串）。
+        """
+        if workflow is None and not workflow_id:
+            raise RunningHubInvalidSpec(
+                "create_task 必须传 workflow 或 workflow_id")
+        payload: dict = {
+            "apiKey": self.api_key,
+            "addMetadata": add_metadata,
+        }
+        if workflow is not None:
+            payload["workflow"] = workflow
+        else:
+            payload["workflowId"] = workflow_id
+        if node_info_list:
+            payload["nodeInfoList"] = node_info_list
+        if webhook_url:
+            payload["webhookUrl"] = webhook_url
+
+        url = f"{self.base_url}/task/openapi/create"
+        try:
+            resp = self._client.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            if resp.status_code >= 400:
+                raise RunningHubTaskFailed(
+                    f"create_task HTTP {resp.status_code}: {resp.text[:500]}")
+            data = resp.json()
+            if data.get("code") != 0:
+                tips = (data.get("data") or {}).get("promptTips", "")[:300]
+                raise RunningHubTaskFailed(
+                    f"create_task code={data.get('code')} "
+                    f"msg={data.get('msg')} tips={tips}")
+            return str(data["data"]["taskId"])
+        except httpx.HTTPError as e:
+            raise RunningHubUnavailable(f"create_task 连接失败: {e}") from e
+        except (KeyError, ValueError) as e:
+            raise RunningHubTaskFailed(f"create_task 响应异常: {e}") from e
