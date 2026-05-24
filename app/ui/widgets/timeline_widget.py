@@ -67,6 +67,10 @@ class SegmentItem(QGraphicsItem):
         self.setPos(x, SEG_LANE_Y)
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setAcceptHoverEvents(True)
+        # 交互状态
+        self._press_x: Optional[float] = None
+        self._press_mode: str = "none"     # "resize" | "move" | "none"
+        self._resize_start_w: float = 0.0
 
     def boundingRect(self) -> QRectF:
         return QRectF(0, 0, self._width, SEG_HEIGHT)
@@ -109,6 +113,93 @@ class SegmentItem(QGraphicsItem):
             painter.drawText(
                 QRectF(text_x, 4, max(self._width - text_x - 4, 0), SEG_HEIGHT - 20),
                 Qt.AlignLeft | Qt.TextWordWrap, preview)
+
+    def hoverMoveEvent(self, event):
+        local_x = event.pos().x()
+        if self._width - RESIZE_HANDLE_W <= local_x <= self._width:
+            self.setCursor(Qt.SizeHorCursor)
+        else:
+            self.setCursor(Qt.OpenHandCursor)
+        super().hoverMoveEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self.unsetCursor()
+        super().hoverLeaveEvent(event)
+
+    def mousePressEvent(self, event):
+        if event.button() != Qt.LeftButton:
+            return super().mousePressEvent(event)
+        local_x = event.pos().x()
+        self._press_x = local_x
+        self._resize_start_w = self._width
+        if self._width - RESIZE_HANDLE_W <= local_x <= self._width:
+            self._press_mode = "resize"
+        else:
+            self._press_mode = "move"
+        self.setSelected(True)
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self._press_mode == "resize":
+            dx = event.pos().x() - self._press_x
+            new_w = max(8.0, self._resize_start_w + dx)
+            self.prepareGeometryChange()
+            self._width = new_w
+            self.update()
+            event.accept()
+            return
+        if self._press_mode == "move":
+            # 启动 QDrag 一旦移动超过 8px
+            if abs(event.pos().x() - self._press_x) > 8:
+                self._start_drag()
+                self._press_mode = "none"   # drag 启动后状态机重置
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._press_mode == "resize":
+            view = self._top_view()
+            ppf = view.pixels_per_frame if view else 5.0
+            new_len = max(1, int(round(self._width / ppf)))
+            if view is not None:
+                view.segmentChanged.emit(self.seg.seg_id, new_len)
+            self._press_mode = "none"
+            event.accept()
+            return
+        if self._press_mode == "move":
+            # 原位释放 = 仅选中
+            view = self._top_view()
+            if view is not None:
+                view.segmentSelected.emit(self.seg.seg_id)
+            self._press_mode = "none"
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        view = self._top_view()
+        if view is not None:
+            view.segmentDoubleClicked.emit(self.seg.seg_id)
+        event.accept()
+
+    def _start_drag(self):
+        view = self._top_view()
+        if view is None:
+            return
+        mime = QMimeData()
+        mime.setData("application/x-spb-seg-id",
+                     self.seg.seg_id.encode("utf-8"))
+        drag = QDrag(view)
+        drag.setMimeData(mime)
+        drag.exec(Qt.MoveAction)
+
+    def _top_view(self) -> Optional["TimelineWidget"]:
+        scene = self.scene()
+        if scene is None:
+            return None
+        views = scene.views()
+        return views[0] if views else None
 
 
 # ---------- Audio Item（Task 9 实现完整交互；本任务仅渲染） ----------
@@ -179,6 +270,48 @@ class TimelineScene(QGraphicsScene):
             hint.setPos(20, SEG_HEIGHT / 2 - 10)
             self.addItem(hint)
 
+    def dragEnterEvent(self, e):
+        if (e.mimeData().hasFormat("application/x-spb-seg-id") or
+                e.mimeData().hasFormat(MIME_IMG_PATH)):
+            e.acceptProposedAction()
+        else:
+            super().dragEnterEvent(e)
+
+    def dragMoveEvent(self, e):
+        if (e.mimeData().hasFormat("application/x-spb-seg-id") or
+                e.mimeData().hasFormat(MIME_IMG_PATH)):
+            e.acceptProposedAction()
+        else:
+            super().dragMoveEvent(e)
+
+    def dropEvent(self, e):
+        view = self.views()[0] if self.views() else None
+        if view is None:
+            return super().dropEvent(e)
+        drop_x = e.scenePos().x()
+        insert_idx = self._find_seg_insert_index(drop_x)
+        if e.mimeData().hasFormat("application/x-spb-seg-id"):
+            seg_id = e.mimeData().data(
+                "application/x-spb-seg-id").data().decode("utf-8")
+            ids = [s.seg_id for s in self.model.segments]
+            if seg_id in ids:
+                ids.remove(seg_id)
+                ids.insert(min(insert_idx, len(ids)), seg_id)
+                view.segmentReordered.emit(ids)
+            e.acceptProposedAction()
+            return
+        # MIME_IMG_PATH: Task 9 处理；本任务先占位
+        super().dropEvent(e)
+
+    def _find_seg_insert_index(self, drop_x: float) -> int:
+        x = 0.0
+        for i, s in enumerate(self.model.segments):
+            w = s.length_frames * self.pixels_per_frame
+            if drop_x < x + w / 2:
+                return i
+            x += w
+        return len(self.model.segments)
+
 
 # ---------- View ----------
 
@@ -204,13 +337,42 @@ class TimelineWidget(QGraphicsView):
         self.setScene(self._scene)
         self.setRenderHint(QPainter.Antialiasing)
         self.setRenderHint(QPainter.SmoothPixmapTransform)
+        self.setFocusPolicy(Qt.StrongFocus)
         self.setDragMode(QGraphicsView.NoDrag)
         self.setAcceptDrops(True)
         self.rebuild()
 
     def rebuild(self):
+        selected_id = self._current_selected_seg_id() if hasattr(self, "_scene") else ""
         self._scene.pixels_per_frame = self.pixels_per_frame
         self._scene.rebuild()
+        if selected_id:
+            for item in self._scene.items():
+                if isinstance(item, SegmentItem) and item.seg.seg_id == selected_id:
+                    item.setSelected(True)
+                    break
+
+    def keyPressEvent(self, e):
+        if e.key() in (Qt.Key_Delete, Qt.Key_Backspace):
+            items = self._scene.selectedItems()
+            for item in items:
+                if isinstance(item, SegmentItem):
+                    self.segmentDeleteRequested.emit(item.seg.seg_id)
+                    return
+                if isinstance(item, AudioItem):
+                    self.audioDeleteRequested.emit(item.audio.audio_id)
+                    return
+        super().keyPressEvent(e)
+
+    def _current_selected_seg_id(self) -> str:
+        for item in self._scene.selectedItems():
+            if isinstance(item, SegmentItem):
+                return item.seg.seg_id
+        return ""
+
+    def currently_selected_seg_id(self) -> str:
+        """公共 API 给 VideoPanel 调（display_mode 切换时获取当前段）。"""
+        return self._current_selected_seg_id()
 
     def wheelEvent(self, e):
         if e.modifiers() & Qt.ControlModifier:
