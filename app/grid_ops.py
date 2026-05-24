@@ -39,6 +39,25 @@ class ResampleSpec:
         return self.aspect_w == 0 or self.aspect_h == 0
 
 
+def validate_resample_spec(spec: ResampleSpec) -> tuple[bool, str]:
+    """校验 ResampleSpec 字段合法性，返回 (ok, error_message)。
+
+    enabled=False → 直接 True。
+    enabled=True 时：
+      - long_edge 必须在 256..8192 闭区间
+      - algorithm=AI 时必须有 ai_model
+    aspect 字段不在此校验——Auto(0,0) 与有效比例都允许。
+    UI 层需自行确保「自定义」模式下 w>0 且 h>0。
+    """
+    if not spec.enabled:
+        return True, ""
+    if not (256 <= spec.long_edge <= 8192):
+        return False, f"长边须在 256–8192 范围内（当前 {spec.long_edge}）"
+    if spec.algorithm == ResampleAlgo.AI and not spec.ai_model:
+        return False, "请选择 AI 超分模型"
+    return True, ""
+
+
 # ---------- 拆图 ----------
 
 def make_grid_spec(src_rows: int, src_cols: int,

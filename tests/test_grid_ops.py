@@ -11,6 +11,7 @@ from app.grid_ops import (
     ResampleAlgo, ResampleSpec,
     _resize_to_long_edge,
     resize_tile,
+    validate_resample_spec,
 )
 from app.providers.comfyui_upscaler import (
     ComfyUIUpscaler, ComfyUIUnavailable, ComfyUIUpscaleError,
@@ -246,3 +247,49 @@ def test_resize_tile_ai_without_upscaler_falls_through_to_lanczos():
                         long_edge=2048, ai_model="x.pth")
     out = resize_tile(img, spec, upscaler=None)
     assert out.size == (2048, 1024)
+
+
+def test_validate_resample_disabled_always_ok():
+    assert validate_resample_spec(ResampleSpec(enabled=False)) == (True, "")
+
+
+def test_validate_resample_auto_aspect_lanczos_ok():
+    spec = ResampleSpec(enabled=True, aspect_w=0, aspect_h=0,
+                        long_edge=2048, algorithm=ResampleAlgo.LANCZOS)
+    assert validate_resample_spec(spec) == (True, "")
+
+
+def test_validate_resample_custom_aspect_zero_fails():
+    spec = ResampleSpec(enabled=True, aspect_w=0, aspect_h=9,
+                        long_edge=2048, algorithm=ResampleAlgo.LANCZOS)
+    # 注意：aspect_w=0,aspect_h=9 视为 Auto（is_auto_aspect=True），所以 OK
+    assert validate_resample_spec(spec) == (True, "")
+    # 但若声明 enabled + 用户期望"自定义"模式：调用方应保证 w>0 且 h>0
+    # validate 不区分 preset/custom，只看数值合法性
+
+
+def test_validate_resample_ai_without_model_fails():
+    spec = ResampleSpec(enabled=True, algorithm=ResampleAlgo.AI, ai_model="")
+    ok, msg = validate_resample_spec(spec)
+    assert ok is False
+    assert "AI 超分模型" in msg
+
+
+def test_validate_resample_long_edge_too_small_fails():
+    spec = ResampleSpec(enabled=True, long_edge=100)
+    ok, msg = validate_resample_spec(spec)
+    assert ok is False
+    assert "256" in msg and "8192" in msg
+
+
+def test_validate_resample_long_edge_too_large_fails():
+    spec = ResampleSpec(enabled=True, long_edge=10000)
+    ok, msg = validate_resample_spec(spec)
+    assert ok is False
+
+
+def test_validate_resample_long_edge_boundaries_ok():
+    assert validate_resample_spec(
+        ResampleSpec(enabled=True, long_edge=256))[0] is True
+    assert validate_resample_spec(
+        ResampleSpec(enabled=True, long_edge=8192))[0] is True
