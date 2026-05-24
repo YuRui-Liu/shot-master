@@ -21,10 +21,13 @@ from app.ui.panels.inference_panel import InferencePanel
 from app.ui.panels.split_panel import SplitPanel
 from app.ui.panels.combine_panel import CombinePanel
 from app.ui.panels.trim_panel import TrimPanel
+from app.ui.panels.video_panel import VideoPanel
+from app.ui.dialogs.runninghub_settings_dialog import RunningHubSettingsDialog
 
 
 FUNCS = [("反推", "inference"), ("拆图", "split"),
-         ("拼图", "combine"), ("去白边", "trim")]
+         ("拼图", "combine"), ("去白边", "trim"),
+         ("视频生成", "video_gen")]
 
 
 class MainWindow(QMainWindow):
@@ -58,6 +61,11 @@ class MainWindow(QMainWindow):
         fm.addSeparator()
         a_quit = QAction("退出", self); a_quit.triggered.connect(self.close)
         fm.addAction(a_quit)
+
+        sm = menu.addMenu("设置")
+        a_rh = QAction("RunningHub 配置…", self)
+        a_rh.triggered.connect(self._open_runninghub_settings)
+        sm.addAction(a_rh)
 
         sp = QSplitter(Qt.Horizontal)
 
@@ -95,6 +103,7 @@ class MainWindow(QMainWindow):
             SplitPanel(self.state, self.cfg),
             CombinePanel(self.state, self.cfg),
             TrimPanel(self.state, self.cfg),
+            VideoPanel(self.state, self.cfg),
         ]
         for p in self.panels:
             self.stack.addWidget(p)
@@ -162,13 +171,30 @@ class MainWindow(QMainWindow):
         remember_dirs(self.state, self.cfg)
         self._refresh_validity()
 
+    def _open_runninghub_settings(self):
+        RunningHubSettingsDialog(self.cfg, parent=self).exec()
+
     def _on_func_changed(self, idx: int):
         self.stack.setCurrentIndex(idx)
         self.state.active_function = FUNCS[idx][1]
         panel = self.panels[idx]
         self.thumb.set_mode(panel.select_mode())
-        self.btn_preview.setVisible(panel.has_preview()
-                                    or FUNCS[idx][1] == "split")
+        is_video = (FUNCS[idx][1] == "video_gen")
+        # 视频生成时：隐藏中栏 thumb + 隐藏底部 preview/execute 控制
+        self.thumb.setVisible(not is_video)
+        self.btn_preview.setVisible(not is_video and (
+            panel.has_preview() or FUNCS[idx][1] == "split"))
+        self.btn_exec.setVisible(not is_video)
+        self.exec_hint.setVisible(not is_video)
+        # 视频生成模式下让右栏拓宽（取消 maxWidth）
+        right_widget = self.btn_exec.parentWidget()
+        if right_widget:
+            if is_video:
+                right_widget.setMaximumWidth(16777215)
+                right_widget.setMinimumWidth(800)
+            else:
+                right_widget.setMaximumWidth(420)
+                right_widget.setMinimumWidth(340)
         self._refresh_validity()
 
     def _on_selection(self, order: list[int]):
@@ -219,3 +245,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "无法执行", why)
             return
         panel.execute()
+
+    def closeEvent(self, e):
+        for w in self.panels:
+            if isinstance(w, VideoPanel):
+                w.save_cache()
+                break
+        super().closeEvent(e)
