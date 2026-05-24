@@ -423,30 +423,45 @@ class TimelineWidget(QGraphicsView):
         self.setRenderHint(QPainter.Antialiasing)
         self.setRenderHint(QPainter.SmoothPixmapTransform)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.setDragMode(QGraphicsView.NoDrag)
+        self.setDragMode(QGraphicsView.RubberBandDrag)
         self.setAcceptDrops(True)
         self.rebuild()
 
     def rebuild(self):
-        selected_id = self._current_selected_seg_id() if hasattr(self, "_scene") else ""
+        # 保留所有选中（含 SegmentItem + AudioItem）跨 rebuild
+        selected_seg_ids: set[str] = set()
+        selected_audio_ids: set[str] = set()
+        if hasattr(self, "_scene"):
+            for item in self._scene.selectedItems():
+                if isinstance(item, SegmentItem):
+                    selected_seg_ids.add(item.seg.seg_id)
+                elif isinstance(item, AudioItem):
+                    selected_audio_ids.add(item.audio.audio_id)
         self._scene.pixels_per_frame = self.pixels_per_frame
         self._scene.rebuild()
-        if selected_id:
-            for item in self._scene.items():
-                if isinstance(item, SegmentItem) and item.seg.seg_id == selected_id:
-                    item.setSelected(True)
-                    break
+        # 恢复
+        for item in self._scene.items():
+            if isinstance(item, SegmentItem) and item.seg.seg_id in selected_seg_ids:
+                item.setSelected(True)
+            elif isinstance(item, AudioItem) and item.audio.audio_id in selected_audio_ids:
+                item.setSelected(True)
 
     def keyPressEvent(self, e):
         if e.key() in (Qt.Key_Delete, Qt.Key_Backspace):
-            items = self._scene.selectedItems()
-            for item in items:
+            seg_ids: list[str] = []
+            audio_ids: list[str] = []
+            for item in self._scene.selectedItems():
                 if isinstance(item, SegmentItem):
-                    self.segmentDeleteRequested.emit(item.seg.seg_id)
-                    return
-                if isinstance(item, AudioItem):
-                    self.audioDeleteRequested.emit(item.audio.audio_id)
-                    return
+                    seg_ids.append(item.seg.seg_id)
+                elif isinstance(item, AudioItem):
+                    audio_ids.append(item.audio.audio_id)
+            for sid in seg_ids:
+                self.segmentDeleteRequested.emit(sid)
+            for aid in audio_ids:
+                self.audioDeleteRequested.emit(aid)
+            if seg_ids or audio_ids:
+                e.accept()
+                return
         super().keyPressEvent(e)
 
     def _current_selected_seg_id(self) -> str:

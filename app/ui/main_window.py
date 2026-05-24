@@ -48,7 +48,15 @@ class MainWindow(QMainWindow):
         if self.state.output_dir:
             self.out_label.setText(f"输出目录:\n{self.state.output_dir}")
         self._refresh_counts()
-        self._on_func_changed(0)
+        # 恢复上次活跃的 panel（settings.json 持久化）
+        target_key = self.cfg.last_active_function
+        start_idx = next(
+            (i for i, (_, key) in enumerate(FUNCS) if key == target_key), 0)
+        # 同步左上 button group 的选中状态
+        btn = self.func_group.button(start_idx)
+        if btn is not None:
+            btn.setChecked(True)
+        self._on_func_changed(start_idx)
 
     def _build_ui(self):
         menu = self.menuBar()
@@ -247,8 +255,15 @@ class MainWindow(QMainWindow):
         panel.execute()
 
     def closeEvent(self, e):
+        # 保存视频面板缓存（VideoPanel 自己处理）
         for w in self.panels:
             if isinstance(w, VideoPanel):
                 w.save_cache()
                 break
+        # 持久化当前活跃 panel
+        try:
+            self.cfg.update_settings(
+                last_active_function=self.state.active_function or "inference")
+        except Exception:
+            pass
         super().closeEvent(e)
