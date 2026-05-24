@@ -10,11 +10,9 @@ from __future__ import annotations
 import json
 import logging
 import os
-import socket
-from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-_logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 _HEADERS = {
     "Content-Type": "application/json",
@@ -32,7 +30,7 @@ def translate_en_to_zh(text: str, *, timeout: float = 3.0) -> str | None:
 
     url = os.environ.get("DEEPLX_URL", "").strip()
     if not url:
-        _logger.warning("DEEPLX_URL not set; skip translation")
+        log.warning("DEEPLX_URL not set; skip translation")
         return None
 
     payload = json.dumps({
@@ -46,18 +44,18 @@ def translate_en_to_zh(text: str, *, timeout: float = 3.0) -> str | None:
     try:
         with urlopen(req, timeout=timeout) as resp:
             raw = resp.read()
-    except (HTTPError, URLError, socket.timeout, OSError) as exc:
-        _logger.info("DeepLX request failed: %s", exc)
+    except OSError as exc:
+        log.info("DeepLX request failed: %s", exc)
         return None
 
     try:
         obj = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        _logger.info("DeepLX bad response body: %s", exc)
+        log.info("DeepLX bad response body: %s", exc)
         return None
 
     data = obj.get("data") if isinstance(obj, dict) else None
     if not isinstance(data, str) or not data:
-        _logger.info("DeepLX missing/invalid data field: %r", obj)
+        log.info("DeepLX missing/invalid data field: %r", obj)
         return None
     return data
