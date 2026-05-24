@@ -4,6 +4,30 @@
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+from enum import Enum
+
+
+class ResampleAlgo(str, Enum):
+    LANCZOS = "lanczos"
+    AI = "ai"
+
+
+@dataclass(frozen=True)
+class ResampleSpec:
+    """拆图重采样后处理规格。enabled=False 时其他字段被忽略。"""
+    enabled: bool = False
+    aspect_w: int = 0           # 0 = 跟随原图（与 aspect_h=0 同义 Auto）
+    aspect_h: int = 0
+    long_edge: int = 2048
+    algorithm: ResampleAlgo = ResampleAlgo.LANCZOS
+    ai_model: str = ""
+
+    @property
+    def is_auto_aspect(self) -> bool:
+        return self.aspect_w == 0 or self.aspect_h == 0
+
+
 import hashlib
 from pathlib import Path
 from typing import Optional

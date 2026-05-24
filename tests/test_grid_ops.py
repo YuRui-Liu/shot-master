@@ -95,3 +95,34 @@ def test_trim_batch(tmp_path):
     for f in files:
         assert f.exists()
         assert "_trim" in f.name
+
+
+from app.grid_ops import ResampleAlgo, ResampleSpec
+
+
+def test_resample_spec_defaults_are_disabled_auto_lanczos():
+    spec = ResampleSpec()
+    assert spec.enabled is False
+    assert spec.aspect_w == 0 and spec.aspect_h == 0
+    assert spec.long_edge == 2048
+    assert spec.algorithm == ResampleAlgo.LANCZOS
+    assert spec.ai_model == ""
+
+
+def test_resample_spec_is_auto_aspect_when_either_zero():
+    assert ResampleSpec(aspect_w=0, aspect_h=0).is_auto_aspect
+    assert ResampleSpec(aspect_w=16, aspect_h=0).is_auto_aspect
+    assert ResampleSpec(aspect_w=0, aspect_h=9).is_auto_aspect
+    assert not ResampleSpec(aspect_w=16, aspect_h=9).is_auto_aspect
+
+
+def test_resample_spec_is_frozen():
+    import dataclasses
+    spec = ResampleSpec()
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        spec.enabled = True
+
+
+def test_resample_algo_enum_values():
+    assert ResampleAlgo.LANCZOS.value == "lanczos"
+    assert ResampleAlgo.AI.value == "ai"
