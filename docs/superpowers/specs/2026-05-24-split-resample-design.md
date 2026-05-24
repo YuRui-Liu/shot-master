@@ -301,7 +301,8 @@ GET {base_url}/object_info/UpscaleModelLoader
    → {"prompt_id": "..."}
 4. 轮询 GET /history/{prompt_id} 每 0.5s，直到 entry["outputs"] 出现
    超时 timeout 秒 → ComfyUIUpscaleError("timeout")
-5. 取 outputs["3"]["images"][0] = {filename, subfolder, type:"output"}
+5. 取 outputs["4"]["images"][0] = {filename, subfolder, type:"output"}
+   （节点 "4" 是 workflow 中的 SaveImage 节点；3 是中间 ImageUpscaleWithModel 不产出 images）
    GET /view?filename=...&subfolder=...&type=output
    → 返回 PIL.Image
 ```
