@@ -218,3 +218,83 @@ class RunningHubClient:
             raise RunningHubUnavailable(f"create_task 连接失败: {e}") from e
         except (KeyError, ValueError) as e:
             raise RunningHubTaskFailed(f"create_task 响应异常: {e}") from e
+
+    # ---------- query_task ----------
+
+    def query_task(self, task_id: str) -> dict:
+        """POST /openapi/v2/query 查任务状态。
+
+        返回 {status, results, errorCode, errorMessage}（V2 dict）或
+        {status, results=None, errorCode='', errorMessage=''}（legacy string 兼容）。
+        """
+        url = f"{self.base_url}/openapi/v2/query"
+        try:
+            resp = self._client.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"taskId": task_id},
+            )
+            if resp.status_code >= 400:
+                raise RunningHubUnavailable(
+                    f"query_task HTTP {resp.status_code}: {resp.text[:300]}")
+            data = resp.json()
+            if data.get("code") != 0:
+                raise RunningHubUnavailable(
+                    f"query_task code={data.get('code')} msg={data.get('msg')}")
+            d = data["data"]
+            if isinstance(d, str):
+                return {"status": d, "results": None,
+                        "errorCode": "", "errorMessage": ""}
+            return d
+        except httpx.HTTPError as e:
+            raise RunningHubUnavailable(f"query_task 连接失败: {e}") from e
+        except (KeyError, ValueError) as e:
+            raise RunningHubUnavailable(f"query_task 响应异常: {e}") from e
+
+    # ---------- download_file ----------
+
+    def download_file(self, url: str, dest: Path) -> Path:
+        """流式下载到 dest（自动创建 parent dir），返回 dest。"""
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with self._client.stream("GET", url) as resp:
+                if resp.status_code >= 400:
+                    raise RunningHubUnavailable(
+                        f"download HTTP {resp.status_code}")
+                with dest.open("wb") as f:
+                    for chunk in resp.iter_bytes():
+                        f.write(chunk)
+            return dest
+        except httpx.HTTPError as e:
+            raise RunningHubUnavailable(f"download 连接失败: {e}") from e
+
+    # ---------- cancel_task ----------
+
+    def cancel_task(self, task_id: str) -> None:
+        """POST /task/openapi/cancel；best-effort，失败静默吞错。"""
+        url = f"{self.base_url}/task/openapi/cancel"
+        try:
+            self._client.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"apiKey": self.api_key, "taskId": task_id},
+            )
+        except httpx.HTTPError:
+            pass
+
+    # ---------- 生命周期 ----------
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> "RunningHubClient":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()

@@ -261,3 +261,137 @@ def test_create_task_connect_error_raises_unavailable():
     _set_mock_transport(c, handler)
     with pytest.raises(RunningHubUnavailable):
         c.create_task(workflow={})
+
+
+# ---------- query_task ----------
+
+def test_query_task_v2_dict_shape():
+    captured = {}
+
+    def handler(req):
+        captured["url"] = str(req.url)
+        captured["body"] = req.read()
+        return httpx.Response(200, json={
+            "code": 0, "msg": "",
+            "data": {
+                "taskId": "tid", "status": "RUNNING",
+                "results": None, "errorCode": "",
+                "errorMessage": "",
+            },
+        })
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    d = c.query_task("tid")
+    assert d["status"] == "RUNNING"
+    assert d["results"] is None
+    assert captured["url"].endswith("/openapi/v2/query")
+    assert b"tid" in captured["body"]
+
+
+def test_query_task_legacy_string_data_compat():
+    def handler(req):
+        return httpx.Response(200, json={
+            "code": 0, "msg": "", "data": "SUCCESS"})
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    d = c.query_task("tid")
+    assert d == {"status": "SUCCESS", "results": None,
+                  "errorCode": "", "errorMessage": ""}
+
+
+def test_query_task_success_with_results():
+    def handler(req):
+        return httpx.Response(200, json={
+            "code": 0, "msg": "",
+            "data": {
+                "status": "SUCCESS",
+                "results": [{"url": "https://x/v.mp4",
+                              "outputType": "mp4"}],
+                "errorCode": "", "errorMessage": "",
+            },
+        })
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    d = c.query_task("tid")
+    assert d["status"] == "SUCCESS"
+    assert d["results"] == [{"url": "https://x/v.mp4", "outputType": "mp4"}]
+
+
+def test_query_task_connect_error_raises_unavailable():
+    def handler(req):
+        raise httpx.ConnectError("refused")
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    with pytest.raises(RunningHubUnavailable):
+        c.query_task("tid")
+
+
+def test_query_task_5xx_raises_unavailable():
+    def handler(req):
+        return httpx.Response(503)
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    with pytest.raises(RunningHubUnavailable):
+        c.query_task("tid")
+
+
+# ---------- download_file ----------
+
+def test_download_file_streams_to_dest(tmp_path):
+    payload = b"a" * 5000
+
+    def handler(req):
+        return httpx.Response(200, content=payload)
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    dest = tmp_path / "sub" / "out.mp4"
+    result = c.download_file("https://x/v.mp4", dest)
+    assert result == dest
+    assert dest.read_bytes() == payload
+    assert dest.parent.exists()
+
+
+def test_download_file_raises_on_404(tmp_path):
+    def handler(req):
+        return httpx.Response(404)
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    with pytest.raises(RunningHubUnavailable):
+        c.download_file("https://x/v.mp4", tmp_path / "v.mp4")
+
+
+# ---------- cancel_task ----------
+
+def test_cancel_task_silent_on_error():
+    def handler(req):
+        raise httpx.ConnectError("refused")
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    # 不应抛错
+    c.cancel_task("tid")
+
+
+def test_cancel_task_silent_on_4xx():
+    def handler(req):
+        return httpx.Response(400)
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    c.cancel_task("tid")
+
+
+# ---------- context manager ----------
+
+def test_context_manager_closes_client():
+    c = RunningHubClient("k")
+    with c as got:
+        assert got is c
+    assert c._client.is_closed
