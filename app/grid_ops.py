@@ -8,14 +8,14 @@ import hashlib
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from PIL import Image
 
 from shot_master.core.specs import GridSpec, Margins, AspectRatio, CombineSpec, ScaleMode
 from shot_master.core.splitter import split_image
 from shot_master.core.combiner import combine_images
-from shot_master.core.aspect_ops import trim_white_edges
+from shot_master.core.aspect_ops import trim_white_edges, center_crop_to_aspect
 from shot_master.core.saver import save_image
 
 
@@ -161,6 +161,31 @@ def trim_batch(src_folder: Path, out_folder: Path,
 
 
 # ---------- 重采样辅助 ----------
+
+def resize_tile(tile: Image.Image,
+                spec: ResampleSpec,
+                upscaler: Optional["ComfyUIUpscaler"] = None,
+                status_cb: Optional[Callable[[str], None]] = None,
+                ) -> Image.Image:
+    """重采样后处理：可选中心裁剪 + 选定算法缩放到 long_edge。
+
+    spec.enabled=False 直接返回原图。
+    spec.algorithm=AI 时尝试 ComfyUI 超分，失败回退 LANCZOS 并通过 status_cb 提示。
+    最终都用 LANCZOS 把长边压/拉到 spec.long_edge（AI 输出通常 4× 需收尾）。
+    """
+    if not spec.enabled:
+        return tile
+
+    if not spec.is_auto_aspect:
+        tile = center_crop_to_aspect(
+            tile, AspectRatio(spec.aspect_w, spec.aspect_h))
+
+    if spec.algorithm == ResampleAlgo.AI and upscaler is not None:
+        # AI 分支在 Task 7 接入，目前未达此条件
+        pass
+
+    return _resize_to_long_edge(tile, spec.long_edge, Image.LANCZOS)
+
 
 def _resize_to_long_edge(img: Image.Image, long_edge: int,
                           resample: Image.Resampling) -> Image.Image:

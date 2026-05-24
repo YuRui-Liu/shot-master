@@ -9,6 +9,7 @@ from app.grid_ops import (
     combine_to_file, trim_one, trim_batch,
     ResampleAlgo, ResampleSpec,
     _resize_to_long_edge,
+    resize_tile,
 )
 
 
@@ -157,3 +158,43 @@ def test_resize_to_long_edge_square():
     img = Image.new("RGB", (1000, 1000), (128, 128, 128))
     out = _resize_to_long_edge(img, 500, Image.LANCZOS)
     assert out.size == (500, 500)
+
+
+def test_resize_tile_disabled_passthrough():
+    img = Image.new("RGB", (1024, 512), (128, 128, 128))
+    spec = ResampleSpec(enabled=False)
+    out = resize_tile(img, spec)
+    assert out is img
+
+
+def test_resize_tile_lanczos_auto_aspect_just_resizes():
+    img = Image.new("RGB", (1024, 512), (128, 128, 128))
+    spec = ResampleSpec(enabled=True, long_edge=2048,
+                        algorithm=ResampleAlgo.LANCZOS)
+    out = resize_tile(img, spec)
+    assert out.size == (2048, 1024)
+
+
+def test_resize_tile_lanczos_crops_then_resizes_16_9_from_4_3():
+    # 1200x900 (4:3) → center crop 16:9 → 1200x675 → long_edge 1600 → 1600x900
+    img = Image.new("RGB", (1200, 900), (128, 128, 128))
+    spec = ResampleSpec(enabled=True, aspect_w=16, aspect_h=9,
+                        long_edge=1600, algorithm=ResampleAlgo.LANCZOS)
+    out = resize_tile(img, spec)
+    assert out.size == (1600, 900)
+
+
+def test_resize_tile_lanczos_crops_1_1_from_landscape():
+    img = Image.new("RGB", (1920, 1080), (128, 128, 128))
+    spec = ResampleSpec(enabled=True, aspect_w=1, aspect_h=1,
+                        long_edge=512, algorithm=ResampleAlgo.LANCZOS)
+    out = resize_tile(img, spec)
+    assert out.size == (512, 512)
+
+
+def test_resize_tile_lanczos_custom_3_2():
+    img = Image.new("RGB", (1000, 1000), (128, 128, 128))
+    spec = ResampleSpec(enabled=True, aspect_w=3, aspect_h=2,
+                        long_edge=600, algorithm=ResampleAlgo.LANCZOS)
+    out = resize_tile(img, spec)
+    assert out.size == (600, 400)
