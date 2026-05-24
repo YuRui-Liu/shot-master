@@ -224,8 +224,14 @@ class RunningHubClient:
     def query_task(self, task_id: str) -> dict:
         """POST /openapi/v2/query 查任务状态。
 
-        返回 {status, results, errorCode, errorMessage}（V2 dict）或
-        {status, results=None, errorCode='', errorMessage=''}（legacy string 兼容）。
+        V2 端点返回**扁平 dict**（无 code/msg/data 包装）：
+            {taskId, status, errorCode, errorMessage, results,
+             clientId, promptTips, failedReason, usage, ...}
+        status ∈ {QUEUED, RUNNING, SUCCESS, FAILED}。
+        results 在 SUCCESS 时是 [{url, outputType}, ...]，否则 null。
+
+        兼容旧 /task/openapi/status 端点：那个会返
+        {code:0, msg:"", data:"STATUS_STR" 或 dict}，本方法也认。
         """
         url = f"{self.base_url}/openapi/v2/query"
         try:
@@ -241,14 +247,23 @@ class RunningHubClient:
                 raise RunningHubUnavailable(
                     f"query_task HTTP {resp.status_code}: {resp.text[:300]}")
             data = resp.json()
-            if data.get("code") != 0:
-                raise RunningHubUnavailable(
-                    f"query_task code={data.get('code')} msg={data.get('msg')}")
-            d = data["data"]
-            if isinstance(d, str):
-                return {"status": d, "results": None,
-                        "errorCode": "", "errorMessage": ""}
-            return d
+            # V2 端点：扁平 dict，含 status 字段即合法
+            if "status" in data and "code" not in data:
+                return data
+            # legacy 端点：{code, msg, data} 包装
+            if "code" in data:
+                if data["code"] != 0:
+                    raise RunningHubUnavailable(
+                        f"query_task code={data.get('code')} "
+                        f"msg={data.get('msg')}")
+                d = data.get("data")
+                if isinstance(d, str):
+                    return {"status": d, "results": None,
+                            "errorCode": "", "errorMessage": ""}
+                if isinstance(d, dict):
+                    return d
+            raise RunningHubUnavailable(
+                f"query_task 响应形状未知: keys={list(data.keys())}")
         except httpx.HTTPError as e:
             raise RunningHubUnavailable(f"query_task 连接失败: {e}") from e
         except (KeyError, ValueError) as e:

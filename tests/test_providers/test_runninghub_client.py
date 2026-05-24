@@ -265,19 +265,18 @@ def test_create_task_connect_error_raises_unavailable():
 
 # ---------- query_task ----------
 
-def test_query_task_v2_dict_shape():
+def test_query_task_v2_flat_shape():
+    """V2 endpoint returns flat dict (no code/msg/data wrapper)."""
     captured = {}
 
     def handler(req):
         captured["url"] = str(req.url)
         captured["body"] = req.read()
         return httpx.Response(200, json={
-            "code": 0, "msg": "",
-            "data": {
-                "taskId": "tid", "status": "RUNNING",
-                "results": None, "errorCode": "",
-                "errorMessage": "",
-            },
+            "taskId": "tid", "status": "RUNNING",
+            "errorCode": "", "errorMessage": "",
+            "results": None, "clientId": "",
+            "promptTips": "", "failedReason": {},
         })
 
     c = RunningHubClient("k")
@@ -285,6 +284,7 @@ def test_query_task_v2_dict_shape():
     d = c.query_task("tid")
     assert d["status"] == "RUNNING"
     assert d["results"] is None
+    assert d["taskId"] == "tid"
     assert captured["url"].endswith("/openapi/v2/query")
     assert b"tid" in captured["body"]
 
@@ -301,16 +301,15 @@ def test_query_task_legacy_string_data_compat():
                   "errorCode": "", "errorMessage": ""}
 
 
-def test_query_task_success_with_results():
+def test_query_task_success_with_results_flat():
+    """V2 SUCCESS response is flat dict with results array."""
     def handler(req):
         return httpx.Response(200, json={
-            "code": 0, "msg": "",
-            "data": {
-                "status": "SUCCESS",
-                "results": [{"url": "https://x/v.mp4",
-                              "outputType": "mp4"}],
-                "errorCode": "", "errorMessage": "",
-            },
+            "taskId": "tid", "status": "SUCCESS",
+            "errorCode": "", "errorMessage": "",
+            "results": [{"url": "https://x/v.mp4",
+                          "outputType": "mp4"}],
+            "clientId": "", "promptTips": "",
         })
 
     c = RunningHubClient("k")
@@ -337,6 +336,17 @@ def test_query_task_5xx_raises_unavailable():
     c = RunningHubClient("k")
     _set_mock_transport(c, handler)
     with pytest.raises(RunningHubUnavailable):
+        c.query_task("tid")
+
+
+def test_query_task_unknown_shape_raises_unavailable():
+    """既没有 status 也没有 code 字段 → 抛 Unavailable。"""
+    def handler(req):
+        return httpx.Response(200, json={"unrelated": "junk"})
+
+    c = RunningHubClient("k")
+    _set_mock_transport(c, handler)
+    with pytest.raises(RunningHubUnavailable, match="响应形状未知"):
         c.query_task("tid")
 
 
