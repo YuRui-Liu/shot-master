@@ -175,8 +175,16 @@ class ResampleGroup(QGroupBox):
                     break
             else:
                 w, h = 0, 0
-        algo = self.algo_combo.currentData()
-        if algo is None:
+        # PySide6 把 (str, Enum) 的 userData 扁平化成 plain str，需要再转回 Enum
+        algo_data = self.algo_combo.currentData()
+        if isinstance(algo_data, ResampleAlgo):
+            algo = algo_data
+        elif isinstance(algo_data, str):
+            try:
+                algo = ResampleAlgo(algo_data)
+            except ValueError:
+                algo = ResampleAlgo.LANCZOS
+        else:
             algo = ResampleAlgo.LANCZOS
         return ResampleSpec(
             enabled=self.enable_cb.isChecked(),
@@ -213,7 +221,10 @@ class ResampleGroup(QGroupBox):
         self.long_edge.setValue(int(d.get("long_edge", 2048)))
         algo_str = d.get("algorithm", "lanczos")
         for i in range(self.algo_combo.count()):
-            if self.algo_combo.itemData(i).value == algo_str:
+            item_data = self.algo_combo.itemData(i)
+            # PySide6 quirk: (str, Enum) userData 可能扁平化为 plain str
+            item_value = item_data.value if hasattr(item_data, "value") else item_data
+            if item_value == algo_str:
                 self.algo_combo.setCurrentIndex(i)
                 break
         self.model_combo.setEditText(d.get("ai_model", ""))
