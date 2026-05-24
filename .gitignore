@@ -12,3 +12,4 @@ node_modules/
 app/.cache/
 .vscode/
 .idea/
+.superpowers/
