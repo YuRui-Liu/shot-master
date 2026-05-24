@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from drama_shot_master.core.video_timeline_model import TimelineSegment
+from drama_shot_master.ui.widgets.translate_button import attach_translate_button
 
 
 class SegmentEditor(QGroupBox):
@@ -38,9 +39,13 @@ class SegmentEditor(QGroupBox):
         root = QVBoxLayout(self)
         root.setSpacing(6)
 
-        # Prompt label + multi-line edit
-        root.addWidget(QLabel("Prompt"))
+        # Prompt label + 译按钮 + multi-line edit
         self.prompt_edit = QPlainTextEdit()
+        prompt_row = QHBoxLayout()
+        prompt_row.addWidget(QLabel("Prompt"))
+        prompt_row.addStretch(1)
+        prompt_row.addWidget(attach_translate_button(self.prompt_edit, self))
+        root.addLayout(prompt_row)
         self.prompt_edit.setMaximumHeight(60)
         self.prompt_edit.setPlaceholderText("本段 prompt（仅作用于此段）")
         root.addWidget(self.prompt_edit)
