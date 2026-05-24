@@ -298,3 +298,149 @@ class RunningHubClient:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
+
+
+import copy
+import json
+import secrets
+import time
+
+
+class LTXNodes:
+    """LTX 工作流的关键节点 id。模板更新时改这里。"""
+    DIRECTOR = "46"
+    SAVE_VIDEO = "104"
+    NOISE = "132"
+    RESOLUTION = "139"
+
+
+# ID 模式 nodeInfoList 白名单：仅这 11 个 Director 字段允许被覆盖
+_DIRECTOR_FIELDS = (
+    "global_prompt", "duration_frames", "duration_seconds",
+    "timeline_data", "local_prompts", "segment_lengths",
+    "use_custom_audio", "frame_rate", "display_mode",
+    "guide_strength", "epsilon",
+)
+
+
+def _gen_seg_id() -> str:
+    """模仿原 JSON 里的 id 格式：13 位毫秒戳 + 5 位 hex 随机。"""
+    ts = int(time.time() * 1000)
+    rnd = secrets.token_hex(3)[:5]
+    return f"{ts}{rnd}"
+
+
+class LTXTaskBuilder:
+    """LTXDirectorSpec → workflow JSON / nodeInfoList 翻译。
+
+    启动时一次性加载模板并校验关键节点存在；每次 build_* deepcopy 一份新结果。
+    """
+
+    def __init__(self, template_path: Path):
+        self.template_path = template_path
+        with template_path.open(encoding="utf-8") as f:
+            self._template: dict = json.load(f)
+        for nid in (LTXNodes.DIRECTOR, LTXNodes.SAVE_VIDEO,
+                    LTXNodes.NOISE, LTXNodes.RESOLUTION):
+            if nid not in self._template:
+                raise RunningHubInvalidSpec(
+                    f"模板 {template_path} 缺少节点 {nid}")
+
+    # ---------- 公共构建 API ----------
+
+    def build_inline_workflow(self, spec: LTXDirectorSpec,
+                              uploaded_files: dict[Path, str]) -> dict:
+        """生成完整 workflow JSON（嵌入模式）。"""
+        self._validate(spec, uploaded_files)
+        wf = copy.deepcopy(self._template)
+        params = self._compute_director_params(spec, uploaded_files)
+        wf[LTXNodes.DIRECTOR]["inputs"].update(params)
+        wf[LTXNodes.SAVE_VIDEO]["inputs"]["filename_prefix"] = spec.filename_prefix
+        if spec.noise_seed is not None:
+            wf[LTXNodes.NOISE]["inputs"]["noise_seed"] = spec.noise_seed
+        self._apply_resolution(wf[LTXNodes.RESOLUTION]["inputs"], spec)
+        return wf
+
+    # ---------- 私有：spec → LTXDirector inputs ----------
+
+    def _compute_director_params(self, spec: LTXDirectorSpec,
+                                  uploaded_files: dict[Path, str]) -> dict:
+        segments_payload = self._build_segments_payload(spec, uploaded_files)
+        audio_payload = self._build_audio_segments_payload(spec, uploaded_files)
+        timeline_data = json.dumps(
+            {"segments": segments_payload, "audioSegments": audio_payload},
+            ensure_ascii=False,
+        )
+        total_frames = spec.total_length_frames()
+        return {
+            "global_prompt": spec.global_prompt if spec.use_global_prompt else "",
+            "duration_frames": total_frames,
+            "duration_seconds": round(total_frames / spec.frame_rate, 6),
+            "timeline_data": timeline_data,
+            "local_prompts": " | ".join(s.local_prompt for s in spec.segments),
+            "segment_lengths": ",".join(str(s.length) for s in spec.segments),
+            "use_custom_audio": spec.use_custom_audio,
+            "frame_rate": spec.frame_rate,
+            "display_mode": spec.display_mode,
+            "guide_strength": ",".join(
+                f"{s.guide_strength:.2f}" for s in spec.segments),
+            "epsilon": spec.epsilon,
+        }
+
+    def _build_segments_payload(self, spec: LTXDirectorSpec,
+                                 uploaded_files: dict[Path, str]) -> list[dict]:
+        payload: list[dict] = []
+        start = 0
+        for seg in spec.segments:
+            entry: dict = {
+                "id": seg.seg_id or _gen_seg_id(),
+                "start": start,
+                "length": seg.length,
+                "prompt": seg.local_prompt,
+                "type": seg.segment_type,
+            }
+            if seg.image_path is not None:
+                file_name = uploaded_files[seg.image_path]
+                entry["imageFile"] = Path(file_name).name
+                entry["imageB64"] = (
+                    f"/view?filename={Path(file_name).name}"
+                    f"&type=input&subfolder=")
+            payload.append(entry)
+            start += seg.length
+        return payload
+
+    def _build_audio_segments_payload(self, spec: LTXDirectorSpec,
+                                       uploaded_files: dict[Path, str]
+                                       ) -> list[dict]:
+        if not spec.use_custom_audio or not spec.audio_segments:
+            return []
+        return [{
+            "id": _gen_seg_id(),
+            "start": a.start_frame,
+            "length": a.length_frames,
+            "audioFile": Path(uploaded_files[a.audio_path]).name,
+        } for a in spec.audio_segments]
+
+    def _apply_resolution(self, inputs: dict, spec: LTXDirectorSpec) -> None:
+        inputs["use_custom_resolution"] = spec.use_custom_resolution
+        if spec.use_custom_resolution:
+            inputs["custom_width"] = spec.custom_width
+            inputs["custom_height"] = spec.custom_height
+        else:
+            inputs["resolution"] = spec.resolution_preset
+
+    # ---------- 校验（最小版；Task 7 会扩展） ----------
+
+    def _validate(self, spec: LTXDirectorSpec,
+                   uploaded_files: dict[Path, str]) -> None:
+        if not spec.segments:
+            raise RunningHubInvalidSpec("至少需要 1 段")
+        for i, s in enumerate(spec.segments):
+            if s.image_path is not None and s.image_path not in uploaded_files:
+                raise RunningHubInvalidSpec(
+                    f"段 {i} 的图片 {s.image_path} 未在 uploaded_files 中")
+        if spec.use_custom_audio:
+            for j, a in enumerate(spec.audio_segments):
+                if a.audio_path not in uploaded_files:
+                    raise RunningHubInvalidSpec(
+                        f"音频段 {j} {a.audio_path} 未在 uploaded_files 中")
