@@ -221,3 +221,39 @@ def test_config_update_settings_persists_runninghub_fields(tmp_path):
     assert data["runninghub_api_key"] == "new-key"
     assert data["runninghub_submit_mode"] == "id"
     assert data["video_output_dir"] == "/x/v"
+
+
+# ---------- 老 settings.json GBK 编码兼容 ----------
+
+def test_load_config_falls_back_to_locale_on_non_utf8_settings(tmp_path):
+    """Windows 上历史 settings.json 可能是 GBK 编码（含中文路径/值）。
+    UTF-8 严格读失败时应回退 locale 默认读取，不应抛 UnicodeDecodeError。"""
+    sp = tmp_path / "settings.json"
+    # 用 GBK 编码写入含中文字符的合法 JSON
+    payload = '{"runninghub_workflow_id": "测试工作流-中文"}'
+    sp.write_bytes(payload.encode("gbk"))
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    # 在 GBK locale 系统（Win cp936）上能读出来；在 UTF-8 locale 系统上
+    # locale fallback 会失败但被外层 except 吞掉，cfg 走默认空串。
+    # 两种情况都不应抛 UnicodeDecodeError。
+    assert cfg.runninghub_workflow_id in ("测试工作流-中文", "")
+
+
+def test_load_config_swallows_unicode_decode_error_completely(tmp_path):
+    """彻底乱码的 settings.json 应该被静默忽略，不抛错。"""
+    sp = tmp_path / "settings.json"
+    sp.write_bytes(b"\xff\xfe\xbb\xbb\xaa not valid in any encoding")
+    # 不应抛 UnicodeDecodeError；应该走默认值
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    assert cfg.runninghub_api_key == ""    # 默认空值
+
+
+def test_update_settings_writes_utf8(tmp_path):
+    """update_settings 落盘应该用 UTF-8（保证下次读取一致）。"""
+    sp = tmp_path / "settings.json"
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    cfg.update_settings(runninghub_workflow_id="中文工作流名")
+    raw = sp.read_bytes()
+    # 必须能用 utf-8 解码；不应被 ensure_ascii 转义
+    text = raw.decode("utf-8")
+    assert "中文工作流名" in text

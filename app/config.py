@@ -119,7 +119,13 @@ def load_config(env_path: Path = Path(".env"),
 
     if settings_path.exists():
         try:
-            data = json.loads(settings_path.read_text(encoding="utf-8"))
+            # 兼容老 settings.json（Windows 默认 GBK 编码）：先 UTF-8 严格读，
+            # 失败则回退按 locale 默认编码读；若仍失败则交给外层 except 走默认值
+            try:
+                raw = settings_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                raw = settings_path.read_text()    # locale 默认（Win 上为 cp936）
+            data = json.loads(raw)
             if isinstance(data, dict):
                 if "current_provider" in data:
                     cfg.current_provider = data["current_provider"]
@@ -142,7 +148,7 @@ def load_config(env_path: Path = Path(".env"),
                             "runninghub_template_path", "video_output_dir"):
                     if key in data and isinstance(data[key], str):
                         setattr(cfg, key, data[key])
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass
 
     return cfg
