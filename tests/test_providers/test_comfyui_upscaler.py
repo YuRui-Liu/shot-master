@@ -1,11 +1,15 @@
 """ComfyUIUpscaler 单测（mock httpx，不连真实服务）。"""
 from __future__ import annotations
 
+import io
+import re
+
 import httpx
 import pytest
+from PIL import Image
 
 from app.providers.comfyui_upscaler import (
-    ComfyUIUpscaler, ComfyUIUnavailable,
+    ComfyUIUpscaler, ComfyUIUnavailable, ComfyUIUpscaleError,
 )
 
 
@@ -78,13 +82,6 @@ def test_list_models_raises_unavailable_on_5xx(monkeypatch):
 def test_base_url_trailing_slash_normalized():
     up = ComfyUIUpscaler("http://test:8188/")
     assert up.base_url == "http://test:8188"
-
-
-import io
-import json
-from PIL import Image
-
-from app.providers.comfyui_upscaler import ComfyUIUpscaleError
 
 
 def _png_bytes(w=64, h=64, color=(100, 100, 100)):
@@ -166,7 +163,7 @@ def test_upscale_polls_until_outputs_present():
     assert scen.history_calls == 3
 
 
-def test_upscale_timeout_raises_upscale_error(monkeypatch):
+def test_upscale_timeout_raises_upscale_error():
     # history 始终为空 → 超过 timeout 抛错
     scen = _ComfyUIScenario([{"test-prompt-1": {}}])
     up = _make_upscaler_with_scenario(scen, timeout=1)
@@ -176,7 +173,7 @@ def test_upscale_timeout_raises_upscale_error(monkeypatch):
     assert "timeout" in str(exc_info.value).lower()
 
 
-def test_upscale_model_not_found_in_prompt_response(monkeypatch):
+def test_upscale_model_not_found_in_prompt_response():
     def handler(req):
         if req.url.path == "/upload/image":
             return httpx.Response(200, json={
@@ -200,10 +197,11 @@ def test_upscale_uses_unique_filename_per_call():
     def handler(req):
         if req.url.path == "/upload/image":
             body = req.read().decode("latin-1", errors="ignore")
-            import re
             m = re.search(r'filename="([^"]+)"', body)
             if m:
                 seen.append(m.group(1))
+            else:
+                pytest.fail("filename not found in multipart body")
             return httpx.Response(200, json={
                 "name": seen[-1], "subfolder": "", "type": "input"})
         if req.url.path == "/prompt":

@@ -75,10 +75,12 @@ class ComfyUIUpscaler:
         try:
             resp = self._client.post(f"{self.base_url}/upload/image",
                                        files=files, data=data)
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                raise ComfyUIUpscaleError(
+                    f"upload HTTP {resp.status_code}: {resp.text[:300]}")
             return resp.json()["name"]
         except httpx.HTTPError as e:
-            raise ComfyUIUnavailable(f"upload 失败: {e}") from e
+            raise ComfyUIUnavailable(f"upload 连接失败: {e}") from e
         except (KeyError, ValueError) as e:
             raise ComfyUIUpscaleError(f"bad_response upload: {e}") from e
 
