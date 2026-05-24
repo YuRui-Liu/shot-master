@@ -162,7 +162,8 @@ def trim_batch(src_folder: Path, out_folder: Path,
 
 # ---------- 重采样辅助 ----------
 
-def _resize_to_long_edge(img: Image.Image, long_edge: int, resample) -> Image.Image:
+def _resize_to_long_edge(img: Image.Image, long_edge: int,
+                          resample: Image.Resampling) -> Image.Image:
     """按 max(w,h)==long_edge 等比缩放。已经满足则返回同一对象。"""
     w, h = img.size
     if max(w, h) == long_edge:
