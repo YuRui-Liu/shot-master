@@ -341,3 +341,78 @@ def test_from_dict_missing_seg_id_generated():
 def test_from_dict_skips_audio_without_path():
     m = TimelineModel.from_dict({"audios": [{"start_frame": 0}]})
     assert m.audios == []
+
+
+# ---------- validate ----------
+
+def test_validate_rejects_empty_segments():
+    m = TimelineModel()
+    ok, msg = m.validate()
+    assert ok is False
+    assert "至少需要 1 段" in msg
+
+
+def test_validate_rejects_length_lt_1(tmp_path):
+    img = tmp_path / "a.png"; img.write_bytes(b"x")
+    m = TimelineModel()
+    m.add_image_segment(img, length_frames=0)
+    ok, msg = m.validate()
+    assert ok is False
+    assert "长度" in msg
+
+
+def test_validate_rejects_image_segment_without_path(tmp_path):
+    m = TimelineModel()
+    # 用 update_segment 把已有段的 image_path 改成 None
+    sid = m.add_image_segment(tmp_path / "a.png")
+    m.update_segment(sid, image_path=None)
+    ok, msg = m.validate()
+    assert ok is False
+    assert "图片" in msg
+
+
+def test_validate_rejects_missing_image_file(tmp_path):
+    m = TimelineModel()
+    m.add_image_segment(tmp_path / "nonexistent.png")
+    ok, msg = m.validate()
+    assert ok is False
+    assert "不存在" in msg
+
+
+def test_validate_rejects_invalid_frame_rate(tmp_path):
+    img = tmp_path / "a.png"; img.write_bytes(b"x")
+    for bad_fr in (0, 200):
+        m = TimelineModel(frame_rate=bad_fr)
+        m.add_image_segment(img)
+        ok, msg = m.validate()
+        assert ok is False
+        assert "frame_rate" in msg or "帧率" in msg
+
+
+def test_validate_rejects_missing_audio_file(tmp_path):
+    img = tmp_path / "a.png"; img.write_bytes(b"x")
+    m = TimelineModel()
+    m.add_image_segment(img)
+    m.add_audio(tmp_path / "no.mp3")
+    ok, msg = m.validate()
+    assert ok is False
+    assert "音频" in msg
+
+
+def test_validate_passes_text_segment_without_image(tmp_path):
+    m = TimelineModel()
+    m.add_text_segment(length_frames=10, local_prompt="p")
+    ok, msg = m.validate()
+    assert ok is True
+    assert msg == ""
+
+
+def test_validate_passes_complete_spec(tmp_path):
+    img = tmp_path / "a.png"; img.write_bytes(b"x")
+    aud = tmp_path / "a.mp3"; aud.write_bytes(b"y")
+    m = TimelineModel()
+    m.add_image_segment(img, length_frames=24)
+    m.add_audio(aud, start_frame=0, length_frames=24)
+    ok, msg = m.validate()
+    assert ok is True
+    assert msg == ""

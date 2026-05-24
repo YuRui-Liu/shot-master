@@ -251,3 +251,26 @@ class TimelineModel:
         m.custom_height = int(data.get("custom_height", 1024))
         m.filename_prefix = data.get("filename_prefix", "spb_video")
         return m
+
+    # ---------- pre-flight 校验 ----------
+
+    def validate(self) -> tuple[bool, str]:
+        """提交前校验。返回 (ok, error_msg)。"""
+        if not self.segments:
+            return False, "至少需要 1 段画面"
+        if not (1 <= self.frame_rate <= 120):
+            return False, f"frame_rate（帧率）越界（当前 {self.frame_rate}，需 1-120）"
+        for i, s in enumerate(self.segments, start=1):
+            if s.length_frames < 1:
+                return False, f"段 {i} 长度不合法（{s.length_frames}）"
+            if s.segment_type == "image":
+                if s.image_path is None:
+                    return False, f"段 {i} 是图片段但未绑定图片"
+                if not s.image_path.exists():
+                    return False, f"段 {i} 图片不存在：{s.image_path}"
+            if not (0.0 <= s.guide_strength <= 1.0):
+                return False, f"段 {i} guide_strength 越界（{s.guide_strength}）"
+        for j, a in enumerate(self.audios, start=1):
+            if not a.audio_path.exists():
+                return False, f"音频段 {j} 文件不存在：{a.audio_path}"
+        return True, ""
