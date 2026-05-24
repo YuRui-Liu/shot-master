@@ -59,6 +59,10 @@ class TimelineModel:
     custom_height: int = 1024
     filename_prefix: str = "spb_video"
 
+    # 高级（LTX Director 直传）
+    epsilon: float = 0.5                # LTX guidance epsilon (0.0~1.0)
+    use_custom_audio: bool = False      # 显式开关，原本是 audios>0 自动推导
+
     # ---------- 增删段 ----------
 
     def add_image_segment(self, image_path: Path,
@@ -170,7 +174,8 @@ class TimelineModel:
                     length_frames=a.length_frames,
                 ) for a in self.audios
             ),
-            use_custom_audio=len(self.audios) > 0,
+            use_custom_audio=self.use_custom_audio,
+            epsilon=self.epsilon,
             display_mode=self.display_mode,
             frame_rate=self.frame_rate,
             resolution_preset=self.resolution_preset,
@@ -214,6 +219,8 @@ class TimelineModel:
             "custom_width": self.custom_width,
             "custom_height": self.custom_height,
             "filename_prefix": self.filename_prefix,
+            "epsilon": self.epsilon,
+            "use_custom_audio": self.use_custom_audio,
         }
 
     @classmethod
@@ -250,6 +257,8 @@ class TimelineModel:
         m.custom_width = int(data.get("custom_width", 1024))
         m.custom_height = int(data.get("custom_height", 1024))
         m.filename_prefix = data.get("filename_prefix", "spb_video")
+        m.epsilon = float(data.get("epsilon", 0.5))
+        m.use_custom_audio = bool(data.get("use_custom_audio", False))
         return m
 
     # ---------- pre-flight 校验 ----------
@@ -260,6 +269,8 @@ class TimelineModel:
             return False, "至少需要 1 段画面"
         if not (1 <= self.frame_rate <= 120):
             return False, f"frame_rate（帧率）越界（当前 {self.frame_rate}，需 1-120）"
+        if not (0.0 <= self.epsilon <= 1.0):
+            return False, f"epsilon 越界（当前 {self.epsilon}，需 0.0-1.0）"
         for i, s in enumerate(self.segments, start=1):
             if s.length_frames < 1:
                 return False, f"段 {i} 长度不合法（{s.length_frames}）"

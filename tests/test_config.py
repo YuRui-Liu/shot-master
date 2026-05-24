@@ -293,3 +293,28 @@ def test_config_loads_invalid_video_timeline_cache_falls_back(tmp_path):
     sp.write_text('{"video_timeline_cache": ["bad"]}', encoding="utf-8")
     cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
     assert cfg.video_timeline_cache == {}
+
+
+# ---------- F-1: last_active_function ----------
+
+def test_config_default_last_active_function(tmp_path):
+    cfg = load_config(env_path=tmp_path / ".env",
+                       settings_path=tmp_path / "settings.json")
+    assert cfg.last_active_function == "inference"
+
+
+def test_config_loads_last_active_function_from_settings(tmp_path):
+    sp = tmp_path / "settings.json"
+    sp.write_text(
+        '{"last_active_function": "video_gen"}', encoding="utf-8")
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    assert cfg.last_active_function == "video_gen"
+
+
+def test_config_update_settings_persists_last_active_function(tmp_path):
+    sp = tmp_path / "settings.json"
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    cfg.update_settings(last_active_function="video_gen")
+    import json
+    data = json.loads(sp.read_text(encoding="utf-8"))
+    assert data["last_active_function"] == "video_gen"

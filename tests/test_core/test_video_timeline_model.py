@@ -229,7 +229,8 @@ def test_to_ltx_spec_basic_field_mapping(tmp_path):
     assert spec.segments[0].image_path == img
 
 
-def test_to_ltx_spec_use_custom_audio_auto_derived(tmp_path):
+def test_to_ltx_spec_use_custom_audio_defaults_false(tmp_path):
+    """use_custom_audio 默认 False，即使有 audios 也不自动推导为 True。"""
     img = tmp_path / "a.png"
     m = TimelineModel()
     m.add_image_segment(img)
@@ -238,7 +239,8 @@ def test_to_ltx_spec_use_custom_audio_auto_derived(tmp_path):
 
     m.add_audio(tmp_path / "x.mp3")
     spec_with_audio = m.to_ltx_spec(tmp_path)
-    assert spec_with_audio.use_custom_audio is True
+    # 新逻辑：use_custom_audio 是显式字段，不再从 audios 自动推导
+    assert spec_with_audio.use_custom_audio is False
 
 
 def test_to_ltx_spec_audio_segments_mapping(tmp_path):
@@ -416,3 +418,79 @@ def test_validate_passes_complete_spec(tmp_path):
     ok, msg = m.validate()
     assert ok is True
     assert msg == ""
+
+
+# ---------- F-1: epsilon + use_custom_audio ----------
+
+def test_model_defaults_epsilon_and_use_custom_audio():
+    m = TimelineModel()
+    assert m.epsilon == 0.5
+    assert m.use_custom_audio is False
+
+
+def test_to_ltx_spec_uses_explicit_use_custom_audio_true(tmp_path):
+    """显式 use_custom_audio=True 即使没有 audios 也应保留 True。"""
+    img = tmp_path / "a.png"
+    m = TimelineModel(use_custom_audio=True)
+    m.add_image_segment(img)
+    spec = m.to_ltx_spec(tmp_path)
+    assert spec.use_custom_audio is True
+
+
+def test_to_ltx_spec_uses_explicit_use_custom_audio_false(tmp_path):
+    """显式 use_custom_audio=False 即使有 audios 也应保留 False。"""
+    img = tmp_path / "a.png"
+    m = TimelineModel(use_custom_audio=False)
+    m.add_image_segment(img)
+    m.add_audio(tmp_path / "x.mp3")
+    spec = m.to_ltx_spec(tmp_path)
+    assert spec.use_custom_audio is False
+
+
+def test_to_ltx_spec_passes_epsilon(tmp_path):
+    img = tmp_path / "a.png"
+    m = TimelineModel(epsilon=0.75)
+    m.add_image_segment(img)
+    spec = m.to_ltx_spec(tmp_path)
+    assert spec.epsilon == 0.75
+
+
+def test_to_dict_includes_new_fields(tmp_path):
+    m = TimelineModel(epsilon=0.3, use_custom_audio=True)
+    m.add_image_segment(tmp_path / "a.png")
+    d = m.to_dict()
+    assert d["epsilon"] == 0.3
+    assert d["use_custom_audio"] is True
+
+
+def test_from_dict_restores_new_fields():
+    m = TimelineModel.from_dict({
+        "epsilon": 0.8, "use_custom_audio": True,
+    })
+    assert m.epsilon == 0.8
+    assert m.use_custom_audio is True
+
+
+def test_from_dict_missing_new_fields_uses_defaults():
+    m = TimelineModel.from_dict({})
+    assert m.epsilon == 0.5
+    assert m.use_custom_audio is False
+
+
+def test_validate_rejects_epsilon_out_of_range(tmp_path):
+    img = tmp_path / "a.png"; img.write_bytes(b"x")
+    for bad in (-0.1, 1.5):
+        m = TimelineModel(epsilon=bad)
+        m.add_image_segment(img)
+        ok, msg = m.validate()
+        assert ok is False
+        assert "epsilon" in msg
+
+
+def test_validate_accepts_epsilon_boundaries(tmp_path):
+    img = tmp_path / "a.png"; img.write_bytes(b"x")
+    for ok_v in (0.0, 1.0, 0.5):
+        m = TimelineModel(epsilon=ok_v)
+        m.add_image_segment(img)
+        ok, msg = m.validate()
+        assert ok is True, f"epsilon={ok_v} should pass; got msg={msg}"

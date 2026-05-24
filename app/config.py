@@ -48,6 +48,7 @@ class Config:
     runninghub_template_path: str = ""           # 空 = 用内置 app/templates/ltx_director_v23.json
     video_output_dir: str = ""                   # 空 = 用 state.output_dir
     video_timeline_cache: dict = field(default_factory=dict)
+    last_active_function: str = "inference"      # 上次退出时活跃的 panel
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -70,6 +71,7 @@ class Config:
                 "runninghub_template_path": self.runninghub_template_path,
                 "video_output_dir": self.video_output_dir,
                 "video_timeline_cache": self.video_timeline_cache,
+                "last_active_function": self.last_active_function,
             }
             self.settings_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
@@ -153,6 +155,9 @@ def load_config(env_path: Path = Path(".env"),
                 if "video_timeline_cache" in data and isinstance(
                         data["video_timeline_cache"], dict):
                     cfg.video_timeline_cache = data["video_timeline_cache"]
+                if "last_active_function" in data and isinstance(
+                        data["last_active_function"], str):
+                    cfg.last_active_function = data["last_active_function"]
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass
 
