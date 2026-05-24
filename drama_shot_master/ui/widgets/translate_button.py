@@ -6,13 +6,20 @@
 按钮会在 text 为空时自动 disable；点击触发后台线程调
 drama_shot_master.providers.translator.translate_en_to_zh，
 完成后弹一个非模态 QDialog 显示原文和中译，失败时显示提示。
+
+线程安全说明
+------------
+后台调用走项目通用的 FunctionWorker（QThread 子类），完成 / 失败信号的接收
+方为 _TranslateController（QObject，parented 到 GUI 线程的 parent widget），
+因此 Qt AutoConnection 会以 QueuedConnection 把信号路由回 GUI 线程，
+_TranslateDialog 始终在 GUI 线程构造。
 """
 from __future__ import annotations
 
 import os
 from typing import Optional
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
@@ -20,20 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from drama_shot_master.providers.translator import translate_en_to_zh
-
-
-class _TranslateWorker(QObject):
-    """后台线程包装，避免阻塞 UI。"""
-
-    finished = Signal(str, object)  # (source_text, translated_or_None)
-
-    def __init__(self, text: str):
-        super().__init__()
-        self._text = text
-
-    def run(self) -> None:
-        result = translate_en_to_zh(self._text)
-        self.finished.emit(self._text, result)
+from drama_shot_master.ui.worker import FunctionWorker
 
 
 class _TranslateDialog(QDialog):
@@ -92,62 +86,84 @@ class _TranslateDialog(QDialog):
         root.addLayout(btn_row)
 
 
+class _TranslateController(QObject):
+    """QObject 控制器：固定在 GUI 线程，承接 worker 信号 → 弹窗。
+
+    通过 ``parent=parent`` 与 GUI 上的 QWidget 形成 Qt 父子关系，因此
+    本对象与槽方法都在 GUI 线程上；FunctionWorker 在另一线程发出的
+    finished_with_result / failed 信号会以 QueuedConnection 派发回来。
+    """
+
+    def __init__(self, btn: QToolButton, text_widget: QPlainTextEdit,
+                 parent: QWidget):
+        super().__init__(parent)
+        self._btn = btn
+        self._text_widget = text_widget
+        self._parent_widget = parent
+        self._worker: Optional[FunctionWorker] = None
+        self._source_text: str = ""
+
+        text_widget.textChanged.connect(self._sync_enabled)
+        btn.clicked.connect(self._on_clicked)
+        self._sync_enabled()
+
+    def _sync_enabled(self) -> None:
+        running = self._worker is not None
+        text = self._text_widget.toPlainText().strip()
+        self._btn.setEnabled(bool(text) and not running)
+
+    def _on_clicked(self) -> None:
+        if self._worker is not None:
+            return  # 已在跑
+        text = self._text_widget.toPlainText()
+        if not text.strip():
+            return
+        self._source_text = text
+
+        worker = FunctionWorker(translate_en_to_zh, text)
+        worker.finished_with_result.connect(self._on_result)
+        worker.failed.connect(self._on_failed)
+        worker.finished.connect(self._on_thread_done)
+        worker.finished.connect(worker.deleteLater)
+        self._worker = worker
+        self._sync_enabled()
+        worker.start()
+
+    def _on_result(self, result) -> None:
+        # translate_en_to_zh 返回 str | None
+        self._show_dialog(result if isinstance(result, str) else None)
+
+    def _on_failed(self, _msg: str) -> None:
+        # translate_en_to_zh 本身会吞异常返回 None，所以这里通常不会触发；
+        # 但若 FunctionWorker 报错，仍走"失败"弹窗。
+        self._show_dialog(None)
+
+    def _show_dialog(self, translated: Optional[str]) -> None:
+        dlg = _TranslateDialog(self._source_text, translated,
+                               parent=self._parent_widget,
+                               on_retry=self._on_clicked)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        dlg.show()
+
+    def _on_thread_done(self) -> None:
+        self._worker = None
+        self._sync_enabled()
+
+
 def attach_translate_button(text_widget: QPlainTextEdit,
                             parent: QWidget) -> QToolButton:
     """创建一个"译"按钮，挂到 parent，但与 text_widget 联动。
 
     返回 button，调用方负责把它 add 进自己的 layout。
+
+    内部会创建一个 _TranslateController 作为 parent 的子 QObject，承接
+    后台 worker 的信号；信号以 QueuedConnection 回到 GUI 线程，弹窗始终
+    在 GUI 线程构造。
     """
     btn = QToolButton(parent)
     btn.setText("译")
     btn.setToolTip("调 DeepLX 翻译当前 prompt 为中文")
     btn.setFixedSize(28, 22)
-
-    # 内部状态：当前正在跑的 thread / worker，避免并发点击
-    state: dict = {"thread": None, "worker": None, "dialog": None}
-
-    def _sync_enabled() -> None:
-        running = state["thread"] is not None
-        text = text_widget.toPlainText().strip()
-        btn.setEnabled(bool(text) and not running)
-
-    def _on_clicked() -> None:
-        text = text_widget.toPlainText()
-        if not text.strip():
-            return
-        if state["thread"] is not None:
-            return  # 已在跑
-
-        thread = QThread(parent)
-        worker = _TranslateWorker(text)
-        worker.moveToThread(thread)
-        thread.started.connect(worker.run)
-
-        def _on_finished(source: str, result):
-            dlg = _TranslateDialog(source, result, parent=parent,
-                                   on_retry=_on_clicked)
-            dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-            dlg.show()
-            state["dialog"] = dlg
-            thread.quit()
-
-        worker.finished.connect(_on_finished)
-        thread.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-
-        def _on_thread_done():
-            state["thread"] = None
-            state["worker"] = None
-            _sync_enabled()
-
-        thread.finished.connect(_on_thread_done)
-
-        state["thread"] = thread
-        state["worker"] = worker
-        _sync_enabled()
-        thread.start()
-
-    btn.clicked.connect(_on_clicked)
-    text_widget.textChanged.connect(_sync_enabled)
-    _sync_enabled()
+    # 控制器 parented 到 parent → 与 parent 同生命周期，无需手动持有。
+    _TranslateController(btn, text_widget, parent)
     return btn
