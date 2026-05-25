@@ -201,6 +201,7 @@ class SegmentItem(QGraphicsItem):
             self.prepareGeometryChange()
             self._width = new_w
             self.update()
+            self._set_scene_cursor(self.pos().x() + new_w)
             event.accept()
             return
         if self._press_mode == "move":
@@ -219,6 +220,7 @@ class SegmentItem(QGraphicsItem):
             new_len = max(1, int(round(self._width / ppf)))
             if view is not None:
                 view.segmentChanged.emit(self.seg.seg_id, new_len)
+            self._set_scene_cursor(None)
             self._press_mode = "none"
             event.accept()
             return
@@ -227,6 +229,7 @@ class SegmentItem(QGraphicsItem):
             view = self._top_view()
             if view is not None:
                 view.segmentSelected.emit(self.seg.seg_id)
+            self._set_scene_cursor(None)
             self._press_mode = "none"
             event.accept()
             return
@@ -255,6 +258,11 @@ class SegmentItem(QGraphicsItem):
             return None
         views = scene.views()
         return views[0] if views else None
+
+    def _set_scene_cursor(self, x: Optional[float]) -> None:
+        scene = self.scene()
+        if isinstance(scene, TimelineScene):
+            scene.set_cursor_x(x)
 
 
 # ---------- Audio Item ----------
@@ -332,6 +340,7 @@ class AudioItem(QGraphicsItem):
             self.prepareGeometryChange()
             self._width = new_w
             self.update()
+            self._set_scene_cursor(self.pos().x() + new_w)
             event.accept()
             return
         if self._press_mode == "move":
@@ -339,6 +348,7 @@ class AudioItem(QGraphicsItem):
                 self._move_start_pos.x() + self._press_x)
             new_x = max(0, self._move_start_pos.x() + scene_dx)
             self.setPos(new_x, AUDIO_LANE_Y)
+            self._set_scene_cursor(new_x)
             event.accept()
             return
         super().mouseMoveEvent(event)
@@ -352,6 +362,7 @@ class AudioItem(QGraphicsItem):
             new_len = max(1, int(round(self._width / ppf)))
             view.audioChanged.emit(self.audio.audio_id,
                                     self.audio.start_frame, new_len)
+            self._set_scene_cursor(None)
             self._press_mode = "none"
             event.accept()
             return
@@ -359,6 +370,7 @@ class AudioItem(QGraphicsItem):
             new_start = max(0, int(round(self.pos().x() / ppf)))
             view.audioChanged.emit(self.audio.audio_id,
                                     new_start, self.audio.length_frames)
+            self._set_scene_cursor(None)
             self._press_mode = "none"
             event.accept()
             return
@@ -370,6 +382,11 @@ class AudioItem(QGraphicsItem):
             return None
         views = scene.views()
         return views[0] if views else None
+
+    def _set_scene_cursor(self, x: Optional[float]) -> None:
+        scene = self.scene()
+        if isinstance(scene, TimelineScene):
+            scene.set_cursor_x(x)
 
 
 # ---------- Scene ----------
