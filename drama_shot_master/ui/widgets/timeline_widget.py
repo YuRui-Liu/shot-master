@@ -40,6 +40,16 @@ MINOR_RATIO = 5                   # minor = max(1, major // 5)
 SECONDS_CANDIDATES = [0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600]  # 秒
 FRAMES_CANDIDATES = [1, 5, 10, 30, 60, 120, 300, 600]            # 帧
 
+# ---------- 刻度尺 / 游标配色 ----------
+
+RULER_BAND_COLOR = "#2b2f3a"      # 背景带（略亮于场景背景）
+TICK_MINOR_COLOR = "#7a8597"      # minor tick（中灰）
+TICK_MAJOR_COLOR = "#d4dae6"      # major tick（近白）
+TICK_LABEL_COLOR = "#e6ebf2"      # 标签文字（近白）
+CURSOR_LINE_COLOR = "#ff4d4d"     # 红色游标线
+CURSOR_LABEL_BG = "#ff4d4d"       # 游标标签底（红）
+CURSOR_LABEL_FG = "#ffffff"       # 游标标签字（白）
+
 
 def _pick_tick_interval(ppf: float, frame_rate: int, display_mode: str
                         ) -> tuple[int, int]:
@@ -62,6 +72,19 @@ def _pick_tick_interval(ppf: float, frame_rate: int, display_mode: str
             return (f, max(1, f // MINOR_RATIO))
     last = FRAMES_CANDIDATES[-1]
     return (last, max(1, last // MINOR_RATIO))
+
+
+def _format_cursor_label(x: float, ppf: float, frame_rate: int,
+                         display_mode: str) -> str:
+    """游标 scene-x → 当前帧/秒的显示文本。"""
+    if ppf <= 0:
+        frame = 0
+    else:
+        frame = max(0, int(round(x / ppf)))
+    if display_mode == "frames":
+        return f"{frame}f"
+    sec = frame / max(frame_rate, 1)
+    return f"{sec:.2f}s"
 
 
 # MIME types
@@ -387,7 +410,7 @@ class TimelineScene(QGraphicsScene):
         scene_w = self.sceneRect().width()
         # 1. 背景带
         band = QRectF(0, 0, scene_w, RULER_HEIGHT)
-        painter.fillRect(band, QColor("#262a30"))
+        painter.fillRect(band, QColor(RULER_BAND_COLOR))
         # 2. 选刻度间隔
         major, minor = _pick_tick_interval(
             self.pixels_per_frame,
@@ -401,7 +424,7 @@ class TimelineScene(QGraphicsScene):
         x_start = max(0.0, rect.left())
         x_end = min(scene_w, rect.right())
         # 4. minor ticks
-        painter.setPen(QPen(QColor("#3a3f48"), 1))
+        painter.setPen(QPen(QColor(TICK_MINOR_COLOR), 1))
         frame = (int(x_start / ppf) // minor) * minor
         while frame * ppf <= x_end:
             if frame % major != 0:
@@ -410,12 +433,14 @@ class TimelineScene(QGraphicsScene):
                                  QPointF(x, RULER_HEIGHT))
             frame += minor
         # 5. major ticks + 标签
-        painter.setPen(QPen(QColor("#888"), 1))
+        major_pen = QPen(QColor(TICK_MAJOR_COLOR), 1)
+        label_color = QColor(TICK_LABEL_COLOR)
         f = QFont(); f.setPointSize(7); painter.setFont(f)
         fr = max(self.model.frame_rate, 1)
         frame = (int(x_start / ppf) // major) * major
         while frame * ppf <= x_end:
             x = frame * ppf
+            painter.setPen(major_pen)
             painter.drawLine(QPointF(x, RULER_HEIGHT - 12),
                              QPointF(x, RULER_HEIGHT))
             if self.model.display_mode == "frames":
@@ -424,6 +449,7 @@ class TimelineScene(QGraphicsScene):
                 sec = frame / fr
                 label = (f"{int(sec)}s" if sec == int(sec)
                          else f"{sec:.1f}s")
+            painter.setPen(label_color)
             painter.drawText(QPointF(x + 2, RULER_HEIGHT - 14), label)
             frame += major
 
