@@ -1,0 +1,7 @@
+# LTX2.3 V3 额外节点覆盖。编辑本文件即可调 V3 专属参数，无需改代码/前台。
+# 留空（overrides: []）= 全部用工作流自带默认值。
+# 每条：{node: "节点ID", field: "字段名", value: 值}
+overrides: []
+# 示例（按需取消注释、复制到上面的 overrides 列表里）：
+#   - {node: "695", field: "lora_01", value: "your_lora.safetensors"}
+#   - {node: "637", field: "switch", value: false}   # F9 / T14 帧数切换
