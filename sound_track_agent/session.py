@@ -14,6 +14,15 @@ class EmotionTag:
     arousal: float = 0.0       # 0..1
     intensity: float = 0.5     # 0..1
 
+    def to_dict(self) -> dict:
+        # labels 显式拷贝，避免序列化 dict 与实例共享同一 list
+        return {
+            "labels": list(self.labels),
+            "valence": self.valence,
+            "arousal": self.arousal,
+            "intensity": self.intensity,
+        }
+
 
 @dataclass
 class BGMCandidate:
@@ -51,7 +60,7 @@ class SegmentScore:
             "t_start": self.t_start,
             "t_end": self.t_end,
             "shot_ids": list(self.shot_ids),
-            "emotion": (vars(self.emotion) if self.emotion else None),
+            "emotion": (self.emotion.to_dict() if self.emotion else None),
             "music_prompt": self.music_prompt,
             "candidates": [vars(c) for c in self.candidates],
             "chosen_candidate": self.chosen_candidate,
