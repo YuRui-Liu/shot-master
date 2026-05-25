@@ -363,3 +363,49 @@ def test_missing_new_fields_default_empty(tmp_path, monkeypatch):
     assert cfg.refine_model == ""
     assert cfg.refine_provider_preset == "ollama"
     assert cfg.deeplx_url == ""
+
+
+# ---------- video_tasks（多任务）+ 老缓存迁移 ----------
+
+def test_video_tasks_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.delenv("DEEPLX_URL", raising=False)
+    env_file = tmp_path / ".env"; env_file.write_text("")
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.chdir(tmp_path)
+    cfg = load_config(env_path=env_file, settings_path=settings_file)
+    cfg.update_settings(video_tasks=[
+        {"id": "1", "name": "T1", "timeline": {"global_prompt": "g"},
+         "updated_at": 123.0, "last_result": "/o/v.mp4"}])
+    cfg2 = load_config(env_path=env_file, settings_path=settings_file)
+    assert cfg2.video_tasks[0]["name"] == "T1"
+    assert cfg2.video_tasks[0]["timeline"] == {"global_prompt": "g"}
+
+
+def test_migrate_old_cache_to_one_task(tmp_path, monkeypatch):
+    import json as _json
+    monkeypatch.delenv("DEEPLX_URL", raising=False)
+    env_file = tmp_path / ".env"; env_file.write_text("")
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text(_json.dumps({
+        "video_timeline_cache": {"global_prompt": "OLD", "segments": []},
+    }))
+    monkeypatch.chdir(tmp_path)
+    cfg = load_config(env_path=env_file, settings_path=settings_file)
+    assert len(cfg.video_tasks) == 1
+    assert cfg.video_tasks[0]["name"] == "默认任务"
+    assert cfg.video_tasks[0]["timeline"] == {"global_prompt": "OLD", "segments": []}
+
+
+def test_no_migration_when_tasks_exist(tmp_path, monkeypatch):
+    import json as _json
+    monkeypatch.delenv("DEEPLX_URL", raising=False)
+    env_file = tmp_path / ".env"; env_file.write_text("")
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text(_json.dumps({
+        "video_timeline_cache": {"global_prompt": "OLD"},
+        "video_tasks": [{"id": "1", "name": "Keep", "timeline": {}}],
+    }))
+    monkeypatch.chdir(tmp_path)
+    cfg = load_config(env_path=env_file, settings_path=settings_file)
+    assert len(cfg.video_tasks) == 1
+    assert cfg.video_tasks[0]["name"] == "Keep"

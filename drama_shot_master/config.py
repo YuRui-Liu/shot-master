@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 from dotenv import dotenv_values
+
+from drama_shot_master.core.video_task_store import _gen_task_id
 
 
 # OpenAI 兼容 endpoints 的 key 名（在 .env 里以 {NAME}_API_KEY / {NAME}_BASE_URL 形式存在）
@@ -48,6 +51,7 @@ class Config:
     runninghub_template_path: str = ""           # 空 = 用内置 drama_shot_master/templates/ltx_director_v23.json
     video_output_dir: str = ""                   # 空 = 用 state.output_dir
     video_timeline_cache: dict = field(default_factory=dict)
+    video_tasks: list = field(default_factory=list)
     last_active_function: str = "inference"      # 上次退出时活跃的 panel
     # 翻译
     deeplx_url: str = ""
@@ -78,6 +82,7 @@ class Config:
                 "runninghub_template_path": self.runninghub_template_path,
                 "video_output_dir": self.video_output_dir,
                 "video_timeline_cache": self.video_timeline_cache,
+                "video_tasks": self.video_tasks,
                 "last_active_function": self.last_active_function,
                 "deeplx_url": self.deeplx_url,
                 "refine_base_url": self.refine_base_url,
@@ -174,11 +179,22 @@ def load_config(env_path: Path = Path(".env"),
                 if "video_timeline_cache" in data and isinstance(
                         data["video_timeline_cache"], dict):
                     cfg.video_timeline_cache = data["video_timeline_cache"]
+                if "video_tasks" in data and isinstance(data["video_tasks"], list):
+                    cfg.video_tasks = data["video_tasks"]
                 if "last_active_function" in data and isinstance(
                         data["last_active_function"], str):
                     cfg.last_active_function = data["last_active_function"]
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass
+
+    if not cfg.video_tasks and cfg.video_timeline_cache:
+        cfg.video_tasks = [{
+            "id": _gen_task_id(),
+            "name": "默认任务",
+            "timeline": cfg.video_timeline_cache,
+            "updated_at": time.time(),
+            "last_result": "",
+        }]
 
     if cfg.deeplx_url:
         os.environ["DEEPLX_URL"] = cfg.deeplx_url
