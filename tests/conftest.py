@@ -77,7 +77,7 @@ class _QtModule(types.ModuleType):
 
 try:  # pragma: no cover - depends on environment
     import PySide6  # noqa: F401
-except Exception:  # pragma: no cover - headless CI / sandbox
+except ImportError:  # pragma: no cover - headless CI / sandbox
     for _qt_name in (
         "PySide6",
         "PySide6.QtCore",

@@ -53,3 +53,9 @@ def test_minor_at_least_1():
         assert major >= 1
         assert minor >= 1
         assert minor <= major
+
+
+def test_seconds_fallback_when_all_candidates_too_small():
+    # ppf far below valid range forces every SECONDS candidate < 80px,
+    # exercising the fallback to the largest candidate (600s = 14400f @ 24fps).
+    assert _pick_tick_interval(0.001, 24, "seconds") == (14400, 2880)
