@@ -28,7 +28,8 @@ from drama_shot_master.ui.widgets.timeline_widget import TimelineWidget
 from drama_shot_master.ui.widgets.video_global_form import VideoGlobalForm
 from drama_shot_master.ui.widgets.video_status_bar import VideoStatusBar
 from drama_shot_master.ui.worker import FunctionWorker
-from drama_shot_master.providers import factory
+from drama_shot_master.providers.openai_compat import OpenAICompatProvider
+from drama_shot_master.providers.base import ProviderConfig
 from drama_shot_master.core.prompt_refiner import (
     build_refine_request, parse_refine_response, load_refine_meta_prompt,
 )
@@ -220,18 +221,22 @@ class VideoPanel(BasePanel):
         if not self.model.segments:
             QMessageBox.information(self, "无内容", "时间轴为空，先添加分镜段")
             return
-        try:
-            provider = factory.build_provider(
-                self.cfg, self.cfg.current_provider, self.cfg.current_model)
-        except Exception as e:
-            QMessageBox.critical(self, "Provider 错误", str(e))
+        if not self.cfg.refine_base_url or not self.cfg.refine_model:
+            QMessageBox.warning(
+                self, "未配置",
+                "请先在「设置 → 提示词优化配置」填 Base URL 和 Model")
             return
+        provider = OpenAICompatProvider(ProviderConfig(
+            api_key=self.cfg.refine_api_key or "ollama",
+            base_url=self.cfg.refine_base_url,
+            model=self.cfg.refine_model))
         try:
-            system_prompt = load_refine_meta_prompt()
+            system_prompt = load_refine_meta_prompt(self.cfg.refine_meta_prompt_path)
         except FileNotFoundError:
             QMessageBox.critical(
                 self, "缺少 meta-prompt",
-                "templates/ltx_refine_meta_prompt.md 不存在")
+                f"找不到 meta-prompt 文件："
+                f"{self.cfg.refine_meta_prompt_path or 'templates/ltx_refine_meta_prompt.md'}")
             return
         req = build_refine_request(self.model)
 
