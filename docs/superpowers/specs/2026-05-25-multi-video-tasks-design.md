@@ -118,20 +118,13 @@ class VideoTaskStore:
 
 改为：
 ```python
-def __init__(self, state, cfg, model: TimelineModel, on_change=None, parent=None):
+def __init__(self, state, cfg, model: TimelineModel, parent=None):
     super().__init__(state, cfg, parent)
     self.model = model
-    self._on_change = on_change          # 可选回调：编辑后通知 window 去抖存
     ...
 ```
-- 删除 `_restore_model` / `save_cache`。
-- 在所有改 model 的 slot 末尾（如 `_on_segment_edited`/`_on_global_changed`/增删段/audio）调 `self._notify_change()`：
-  ```python
-  def _notify_change(self):
-      if self._on_change:
-          self._on_change()
-  ```
-  （集中加在现有刷新点；不改信号契约。）
+- 删除 `_restore_model` / `save_cache`（构造改为接收外部 model；持久化由 window 负责，见 §4.4）。
+- **不在各 slot 里加 on_change**（避免 14 处易漏）。持久化在 window 层统一做（窗口失活/关闭时存 `model.to_dict()`）。
 - 提交链路逻辑**保持不变**，仍用 `self._worker` / `self._cancel_flag` / `video_status_bar`。仅**新增 3 个转发信号** `submitStarted()` / `submitDone(str)` / `submitFailed(str)`，在现有 `_on_submit`（起 worker 时）/ `_on_submit_done` / `_on_submit_failed` 末尾各 emit 一次，供 window 转发给 manager（§4.4）。
 
 > 注：BasePanel 仍是父类，但 VideoPanel 不再作为 stack 直接面板；它被 window 内嵌。`select_mode/validate/execute` 保留（window 不用主窗的执行按钮，submit 在面板内部按钮）。
@@ -142,18 +135,32 @@ def __init__(self, state, cfg, model: TimelineModel, on_change=None, parent=None
 class VideoTaskWindow(QMainWindow):
     statusChanged = Signal(str, str)     # (task_id, status_text)
     resultReady = Signal(str, str)       # (task_id, mp4_path)
-    timelineDirty = Signal(str, dict)    # (task_id, timeline_dict) 去抖后发
+    timelineDirty = Signal(str, dict)    # (task_id, timeline_dict)
 
     def __init__(self, task: VideoTask, state, cfg, parent=None):
         ...
+        self._task_id = task.id
         self.model = TimelineModel.from_dict(task.timeline)
-        self.editor = VideoPanel(state, cfg, self.model,
-                                 on_change=self._on_dirty)
+        self.editor = VideoPanel(state, cfg, self.model)
         self.setCentralWidget(self.editor)
         self.setWindowTitle(f"视频任务 · {task.name}")
-        # 去抖 timer：on_change → 500ms 后 emit timelineDirty(task_id, model.to_dict())
-        # 接 editor 的 submit 状态：通过 editor.video_status_bar 或转发
+        # 接 editor 的 3 个转发信号
+        self.editor.submitStarted.connect(
+            lambda: self.statusChanged.emit(self._task_id, "生成中"))
+        self.editor.submitDone.connect(self._on_submit_done)
+        self.editor.submitFailed.connect(
+            lambda e: self.statusChanged.emit(self._task_id, "失败"))
+
+    def _persist(self):
+        self.timelineDirty.emit(self._task_id, self.model.to_dict())
+
+    def _on_submit_done(self, mp4):
+        self.statusChanged.emit(self._task_id, "完成")
+        self.resultReady.emit(self._task_id, mp4)
 ```
+**持久化触发点**（window 层，覆盖所有编辑，无需 VideoPanel 配合）：
+- `changeEvent`：`event.type() == QEvent.WindowDeactivate` → `self._persist()`（用户切到别的窗就存）
+- `closeEvent`：`self._persist()`（关窗必存）
 - **状态转发**：让 manager 知道生成中/完成/失败。最简单：window 监听 editor 内部提交状态。当前 `VideoPanel._on_submit/_on_submit_done/_on_submit_failed` 直接更新 `video_status_bar`。为让 window 拿到，给 VideoPanel 加 3 个转发信号 `submitStarted()` / `submitDone(str mp4)` / `submitFailed(str)`，在对应 slot 里 emit；window 接它们 → emit `statusChanged`/`resultReady`。
 - **关窗**（`closeEvent`）：
   - emit 最新 `timelineDirty`（确保存盘）
@@ -196,7 +203,7 @@ class VideoTaskManagerPanel(BasePanel):
 ```
 [管理面板 + 新建任务] → store.add("任务 N", 空timeline) → open_window_cb(task)
 [打开] → 已开?聚焦 : new VideoTaskWindow(task) → show
-[窗口内编辑] → VideoPanel.on_change → 去抖 → timelineDirty → store.update + 落盘
+[窗口内编辑] → 切窗失活/关窗 → window._persist → timelineDirty → store.update + 落盘
 [窗口内提交] → 自己的 worker（独立并行）→ submitStarted/Done/Failed
         → window.statusChanged/resultReady → 管理列表实时刷新 + last_result 落盘
 [关窗/关app] → 停本地轮询(若在跑) + 存 timeline；状态回"空闲/上次结果"
