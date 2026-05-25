@@ -379,8 +379,53 @@ class TimelineScene(QGraphicsScene):
         if not self.model.segments and not self.model.audios:
             hint = QGraphicsTextItem("拖一张图到这里开始")
             hint.setDefaultTextColor(QColor("#666"))
-            hint.setPos(20, SEG_HEIGHT / 2 - 10)
+            hint.setPos(20, SEG_LANE_Y + SEG_HEIGHT / 2 - 10)
             self.addItem(hint)
+
+    def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
+        super().drawBackground(painter, rect)
+        scene_w = self.sceneRect().width()
+        # 1. 背景带
+        band = QRectF(0, 0, scene_w, RULER_HEIGHT)
+        painter.fillRect(band, QColor("#262a30"))
+        # 2. 选刻度间隔
+        major, minor = _pick_tick_interval(
+            self.pixels_per_frame,
+            self.model.frame_rate,
+            self.model.display_mode,
+        )
+        ppf = self.pixels_per_frame
+        if ppf <= 0:
+            return
+        # 3. 可见 x 范围（rect 是脏区域；裁掉负数和超出 sceneRect）
+        x_start = max(0.0, rect.left())
+        x_end = min(scene_w, rect.right())
+        # 4. minor ticks
+        painter.setPen(QPen(QColor("#3a3f48"), 1))
+        frame = (int(x_start / ppf) // minor) * minor
+        while frame * ppf <= x_end:
+            if frame % major != 0:
+                x = frame * ppf
+                painter.drawLine(QPointF(x, RULER_HEIGHT - 6),
+                                 QPointF(x, RULER_HEIGHT))
+            frame += minor
+        # 5. major ticks + 标签
+        painter.setPen(QPen(QColor("#888"), 1))
+        f = QFont(); f.setPointSize(7); painter.setFont(f)
+        fr = max(self.model.frame_rate, 1)
+        frame = (int(x_start / ppf) // major) * major
+        while frame * ppf <= x_end:
+            x = frame * ppf
+            painter.drawLine(QPointF(x, RULER_HEIGHT - 12),
+                             QPointF(x, RULER_HEIGHT))
+            if self.model.display_mode == "frames":
+                label = f"{frame}f"
+            else:
+                sec = frame / fr
+                label = (f"{int(sec)}s" if sec == int(sec)
+                         else f"{sec:.1f}s")
+            painter.drawText(QPointF(x + 2, RULER_HEIGHT - 14), label)
+            frame += major
 
     def dragEnterEvent(self, e):
         if (e.mimeData().hasFormat("application/x-spb-seg-id") or
