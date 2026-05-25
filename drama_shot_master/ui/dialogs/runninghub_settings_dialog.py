@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from drama_shot_master.config import Config
+from drama_shot_master.core.workflow_profiles import PROFILES
 from drama_shot_master.providers.runninghub import (
     RunningHubClient, RunningHubUnavailable, RunningHubTaskFailed,
 )
@@ -62,10 +63,13 @@ class RunningHubSettingsDialog(QDialog):
         out_wrap = QWidget(); out_wrap.setLayout(out_row)
         form.addRow("视频输出目录", out_wrap)
 
-        # Workflow ID（RunningHub 仅支持 workflowId 提交，必填）
-        self.workflow_id_edit = QLineEdit()
-        self.workflow_id_edit.setPlaceholderText("平台已保存的工作流 ID（必填）")
-        form.addRow("Workflow ID", self.workflow_id_edit)
+        # Workflow ID（每个工作流 profile 各一个，RunningHub 仅支持 workflowId 提交）
+        self.workflow_id_edits: dict[str, QLineEdit] = {}
+        for key, prof in PROFILES.items():
+            edit = QLineEdit()
+            edit.setPlaceholderText(f"{prof.name} 的 workflow_id")
+            self.workflow_id_edits[key] = edit
+            form.addRow(f"{prof.name} workflow_id", edit)
 
         # 工作流模板
         tpl_row = QHBoxLayout()
@@ -115,7 +119,11 @@ class RunningHubSettingsDialog(QDialog):
         self.base_url_edit.setText(
             self.cfg.runninghub_base_url or "https://www.runninghub.cn")
         self.video_out_edit.setText(self.cfg.video_output_dir)
-        self.workflow_id_edit.setText(self.cfg.runninghub_workflow_id)
+        wf_ids = dict(self.cfg.workflow_ids or {})
+        if "director" not in wf_ids and self.cfg.runninghub_workflow_id:
+            wf_ids["director"] = self.cfg.runninghub_workflow_id
+        for key, edit in self.workflow_id_edits.items():
+            edit.setText(wf_ids.get(key, ""))
         custom_tpl = self.cfg.runninghub_template_path
         if custom_tpl:
             self.use_builtin_cb.setChecked(False)
@@ -187,10 +195,10 @@ class RunningHubSettingsDialog(QDialog):
     def accept(self):
         api_key = self.api_key_edit.text().strip()
         base_url = self.base_url_edit.text().strip() or "https://www.runninghub.cn"
-        wf_id = self.workflow_id_edit.text().strip()
-        if not wf_id:
-            QMessageBox.warning(
-                self, "校验失败", "必须填 Workflow ID")
+        wf_ids = {key: edit.text().strip()
+                  for key, edit in self.workflow_id_edits.items()}
+        if not wf_ids.get("director"):
+            QMessageBox.warning(self, "校验失败", "必须填「导演台」的 workflow_id")
             return
         template_path = ("" if self.use_builtin_cb.isChecked()
                          else self.template_path_edit.text().strip())
@@ -198,7 +206,8 @@ class RunningHubSettingsDialog(QDialog):
         self.cfg.update_settings(
             runninghub_api_key=api_key,
             runninghub_base_url=base_url,
-            runninghub_workflow_id=wf_id,
+            runninghub_workflow_id=wf_ids["director"],
+            workflow_ids=wf_ids,
             runninghub_template_path=template_path,
             video_output_dir=video_out,
         )
