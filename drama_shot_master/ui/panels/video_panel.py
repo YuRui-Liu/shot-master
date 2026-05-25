@@ -21,7 +21,7 @@ from drama_shot_master.providers.runninghub import (
     RunningHubClient, LTXTaskBuilder, submit_ltx_task,
     RunningHubUnavailable, RunningHubInvalidSpec,
     RunningHubUploadError, RunningHubTaskFailed,
-    resolve_api_key, resolve_video_output_dir,
+    resolve_api_key, resolve_video_output_dir, resolve_template_path,
 )
 from drama_shot_master.ui.panels.base_panel import BasePanel
 from drama_shot_master.ui.state import AppState
@@ -408,7 +408,12 @@ class VideoPanel(BasePanel):
             return
 
         profile = get_profile(self.model.workflow_key)
-        template_path = template_path_for(profile)
+        # 导演台 profile 仍尊重「自定义模板路径」设置（resolve_template_path 自带兜底）；
+        # 其它 profile 用各自内置模板。
+        if profile.key == "director":
+            template_path = resolve_template_path(self.cfg)
+        else:
+            template_path = template_path_for(profile)
         wf_id = (self.cfg.workflow_ids or {}).get(profile.key) or (
             self.cfg.runninghub_workflow_id if profile.key == "director" else "")
         if not wf_id:

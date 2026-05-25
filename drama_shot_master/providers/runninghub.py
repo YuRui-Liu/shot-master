@@ -459,14 +459,6 @@ class LTXTaskBuilder:
             "audioFile": Path(uploaded_files[a.audio_path]).name,
         } for a in spec.audio_segments]
 
-    def _apply_resolution(self, inputs: dict, spec: LTXDirectorSpec) -> None:
-        inputs["use_custom_resolution"] = spec.use_custom_resolution
-        if spec.use_custom_resolution:
-            inputs["custom_width"] = spec.custom_width
-            inputs["custom_height"] = spec.custom_height
-        else:
-            inputs["resolution"] = spec.resolution_preset
-
     def build_node_info_list(self, spec: LTXDirectorSpec,
                               uploaded_files: dict[Path, str]) -> list[dict]:
         """生成 nodeInfoList 数组（ID 模式），按 profile 取节点 ID。"""
