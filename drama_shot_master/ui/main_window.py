@@ -23,6 +23,8 @@ from drama_shot_master.ui.panels.combine_panel import CombinePanel
 from drama_shot_master.ui.panels.trim_panel import TrimPanel
 from drama_shot_master.ui.panels.video_panel import VideoPanel
 from drama_shot_master.ui.dialogs.runninghub_settings_dialog import RunningHubSettingsDialog
+from drama_shot_master.ui.dialogs.translation_settings_dialog import TranslationSettingsDialog
+from drama_shot_master.ui.dialogs.refine_settings_dialog import RefineSettingsDialog
 
 
 FUNCS = [("反推", "inference"), ("拆图", "split"),
@@ -74,6 +76,12 @@ class MainWindow(QMainWindow):
         a_rh = QAction("RunningHub 配置…", self)
         a_rh.triggered.connect(self._open_runninghub_settings)
         sm.addAction(a_rh)
+        a_tr = QAction("翻译配置…", self)
+        a_tr.triggered.connect(self._open_translation_settings)
+        sm.addAction(a_tr)
+        a_rf = QAction("提示词优化配置…", self)
+        a_rf.triggered.connect(self._open_refine_settings)
+        sm.addAction(a_rf)
 
         sp = QSplitter(Qt.Horizontal)
 
@@ -181,6 +189,12 @@ class MainWindow(QMainWindow):
 
     def _open_runninghub_settings(self):
         RunningHubSettingsDialog(self.cfg, parent=self).exec()
+
+    def _open_translation_settings(self):
+        TranslationSettingsDialog(self.cfg, parent=self).exec()
+
+    def _open_refine_settings(self):
+        RefineSettingsDialog(self.cfg, parent=self).exec()
 
     def _on_func_changed(self, idx: int):
         self.stack.setCurrentIndex(idx)
