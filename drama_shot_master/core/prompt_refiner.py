@@ -11,7 +11,7 @@ from typing import Optional
 
 from drama_shot_master.core.video_timeline_model import TimelineModel
 
-REFINE_META_PROMPT_PATH = Path("templates/ltx_refine_meta_prompt.md")
+DEFAULT_REFINE_META_PROMPT_PATH = Path("templates/ltx_refine_meta_prompt.md")
 
 
 class RefineParseError(Exception):
@@ -32,9 +32,10 @@ class RefineResult:
     warnings: list[str] = field(default_factory=list)
 
 
-def load_refine_meta_prompt() -> str:
-    """读 meta-prompt 文件全文。缺失 → FileNotFoundError。"""
-    return REFINE_META_PROMPT_PATH.read_text(encoding="utf-8")
+def load_refine_meta_prompt(path: str = "") -> str:
+    """path 空 → bundled 默认；否则读自定义路径。缺失 → FileNotFoundError。"""
+    p = Path(path) if path else DEFAULT_REFINE_META_PROMPT_PATH
+    return p.read_text(encoding="utf-8")
 
 
 def build_refine_request(model: TimelineModel) -> RefineRequest:

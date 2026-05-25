@@ -81,3 +81,24 @@ def test_parse_blank_global_treated_as_none():
     raw = '{"global_prompt": "   ", "segments": []}'
     res = parse_refine_response(raw, [])
     assert res.global_prompt is None
+
+
+def test_load_meta_default_reads_bundled():
+    from drama_shot_master.core.prompt_refiner import load_refine_meta_prompt
+    text = load_refine_meta_prompt("")
+    assert "global_prompt" in text
+    assert "Nothing in this frame is still" in text
+
+
+def test_load_meta_custom_path(tmp_path):
+    from drama_shot_master.core.prompt_refiner import load_refine_meta_prompt
+    custom = tmp_path / "my_meta.md"
+    custom.write_text("CUSTOM META CONTENT", encoding="utf-8")
+    assert load_refine_meta_prompt(str(custom)) == "CUSTOM META CONTENT"
+
+
+def test_load_meta_missing_raises(tmp_path):
+    from drama_shot_master.core.prompt_refiner import load_refine_meta_prompt
+    import pytest as _pytest
+    with _pytest.raises(FileNotFoundError):
+        load_refine_meta_prompt(str(tmp_path / "nope.md"))
