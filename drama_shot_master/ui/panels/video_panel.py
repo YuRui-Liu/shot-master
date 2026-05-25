@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QFileDialog, QMessageBox,
@@ -48,9 +48,14 @@ class VideoPanel(BasePanel):
     所有 model 写入只在本类。
     """
 
-    def __init__(self, state: AppState, cfg: Config, parent=None):
+    submitStarted = Signal()
+    submitDone = Signal(str)     # mp4 path
+    submitFailed = Signal(str)   # error message
+
+    def __init__(self, state: AppState, cfg: Config,
+                 model: Optional[TimelineModel] = None, parent=None):
         super().__init__(state, cfg, parent)
-        self.model = self._restore_model()
+        self.model = model if model is not None else TimelineModel()
         self._worker: Optional[FunctionWorker] = None
         self._refine_worker: Optional[FunctionWorker] = None
         self._cancel_flag = {"v": False}
@@ -408,6 +413,7 @@ class VideoPanel(BasePanel):
         self._worker.finished_with_result.connect(self._on_submit_done)
         self._worker.failed.connect(self._on_submit_failed)
         self._worker.start()
+        self.submitStarted.emit()
 
     def _post(self, kind: str, payload):
         """worker 线程 → UI 线程的回调转发。"""
@@ -423,9 +429,11 @@ class VideoPanel(BasePanel):
     def _on_submit_done(self, mp4_path):
         self.video_status_bar.set_done(Path(mp4_path))
         self.statusMessage.emit(f"视频已保存：{mp4_path}")
+        self.submitDone.emit(str(mp4_path))
 
     def _on_submit_failed(self, err_msg: str):
         self.video_status_bar.set_failed(err_msg)
+        self.submitFailed.emit(err_msg)
 
     def _on_cancel(self):
         self._cancel_flag["v"] = True
@@ -433,22 +441,3 @@ class VideoPanel(BasePanel):
 
     def _on_open_folder(self, folder):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
-
-    # ---------- 缓存 ----------
-
-    def save_cache(self):
-        """MainWindow.closeEvent 调用。"""
-        try:
-            self.cfg.update_settings(
-                video_timeline_cache=self.model.to_dict())
-        except Exception as e:
-            log.warning("video_timeline_cache 保存失败：%s", e)
-
-    def _restore_model(self) -> TimelineModel:
-        data = getattr(self.cfg, "video_timeline_cache", None) or {}
-        if data:
-            try:
-                return TimelineModel.from_dict(data)
-            except Exception as e:
-                log.warning("video_timeline_cache 解析失败，走空 model：%s", e)
-        return TimelineModel()
