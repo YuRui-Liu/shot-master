@@ -9,16 +9,19 @@ from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QFileDialog, QMessageBox,
-    QListWidget, QWidget, QDialog,
+    QListWidget, QWidget, QDialog, QComboBox, QLabel,
 )
 
 from drama_shot_master.config import Config
 from drama_shot_master.core.video_timeline_model import TimelineModel
+from drama_shot_master.core.workflow_profiles import (
+    PROFILES, get_profile, template_path_for,
+)
 from drama_shot_master.providers.runninghub import (
     RunningHubClient, LTXTaskBuilder, submit_ltx_task,
     RunningHubUnavailable, RunningHubInvalidSpec,
     RunningHubUploadError, RunningHubTaskFailed,
-    resolve_api_key, resolve_template_path, resolve_video_output_dir,
+    resolve_api_key, resolve_video_output_dir,
 )
 from drama_shot_master.ui.panels.base_panel import BasePanel
 from drama_shot_master.ui.state import AppState
@@ -62,6 +65,7 @@ class VideoPanel(BasePanel):
         self._build_ui()
         self._wire()
         self._refresh_all()
+        self._sync_workflow_combo()
 
     # ---------- BasePanel override ----------
 
@@ -85,6 +89,11 @@ class VideoPanel(BasePanel):
         pw = QVBoxLayout(pool_wrapper)
         pw.setContentsMargins(0, 0, 0, 0)
         pool_toolbar = QHBoxLayout()
+        self.workflow_combo = QComboBox()
+        for key, prof in PROFILES.items():
+            self.workflow_combo.addItem(prof.name, key)
+        pool_toolbar.addWidget(QLabel("工作流"))
+        pool_toolbar.addWidget(self.workflow_combo)
         self.btn_import = QPushButton("+ 批量导入图片")
         self.btn_import_dir = QPushButton("+ 当前目录全部")
         self.btn_clear_pool = QPushButton("🗑 清空池")
@@ -126,6 +135,7 @@ class VideoPanel(BasePanel):
 
     def _wire(self):
         # toolbar
+        self.workflow_combo.currentIndexChanged.connect(self._on_workflow_changed)
         self.btn_import.clicked.connect(self._on_import_images)
         self.btn_import_dir.clicked.connect(self._on_import_current_dir)
         self.btn_clear_pool.clicked.connect(self._on_clear_pool)
@@ -176,6 +186,18 @@ class VideoPanel(BasePanel):
         self.video_status_bar.set_total_length(total_frames, total_seconds)
 
     # ---------- slots: toolbar ----------
+
+    def _sync_workflow_combo(self):
+        idx = self.workflow_combo.findData(self.model.workflow_key)
+        if idx >= 0:
+            self.workflow_combo.blockSignals(True)
+            self.workflow_combo.setCurrentIndex(idx)
+            self.workflow_combo.blockSignals(False)
+
+    def _on_workflow_changed(self, _idx: int):
+        key = self.workflow_combo.currentData()
+        if key:
+            self.model.workflow_key = key
 
     def _on_import_images(self):
         paths, _ = QFileDialog.getOpenFileNames(
@@ -378,12 +400,21 @@ class VideoPanel(BasePanel):
             return
         try:
             api_key = resolve_api_key(self.cfg)
-            template_path = resolve_template_path(self.cfg)
             out_dir = resolve_video_output_dir(self.cfg, self.state.output_dir)
         except (RunningHubUnavailable, RunningHubInvalidSpec) as e:
             QMessageBox.warning(
                 self, "配置缺失",
                 f"{e}\n\n请在「设置 → RunningHub…」补充。")
+            return
+
+        profile = get_profile(self.model.workflow_key)
+        template_path = template_path_for(profile)
+        wf_id = (self.cfg.workflow_ids or {}).get(profile.key) or (
+            self.cfg.runninghub_workflow_id if profile.key == "director" else "")
+        if not wf_id:
+            QMessageBox.warning(
+                self, "未配置 workflow_id",
+                f"请在「设置 → RunningHub」填「{profile.name}」的 workflow_id")
             return
 
         spec = self.model.to_ltx_spec(out_dir)
@@ -395,10 +426,10 @@ class VideoPanel(BasePanel):
         def task():
             with RunningHubClient(api_key,
                                     base_url=cfg.runninghub_base_url) as client:
-                builder = LTXTaskBuilder(template_path)
+                builder = LTXTaskBuilder(template_path, profile)
                 handle = submit_ltx_task(
                     client, spec, builder,
-                    workflow_id=cfg.runninghub_workflow_id,
+                    workflow_id=wf_id,
                     upload_progress_cb=lambda d, t, p: self._post(
                         "upload", (d, t, p.name)),
                 )
