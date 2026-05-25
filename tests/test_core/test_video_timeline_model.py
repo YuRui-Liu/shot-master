@@ -494,3 +494,20 @@ def test_validate_accepts_epsilon_boundaries(tmp_path):
         m.add_image_segment(img)
         ok, msg = m.validate()
         assert ok is True, f"epsilon={ok_v} should pass; got msg={msg}"
+
+
+def test_workflow_key_default_and_roundtrip():
+    from drama_shot_master.core.video_timeline_model import TimelineModel
+    m = TimelineModel()
+    assert m.workflow_key == "director"
+    m.workflow_key = "director_v3"
+    d = m.to_dict()
+    assert d["workflow_key"] == "director_v3"
+    m2 = TimelineModel.from_dict(d)
+    assert m2.workflow_key == "director_v3"
+
+
+def test_workflow_key_missing_defaults_director():
+    from drama_shot_master.core.video_timeline_model import TimelineModel
+    m = TimelineModel.from_dict({"segments": []})
+    assert m.workflow_key == "director"

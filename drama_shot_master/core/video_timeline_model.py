@@ -62,6 +62,7 @@ class TimelineModel:
     # 高级（LTX Director 直传）
     epsilon: float = 0.5                # LTX guidance epsilon (0.0~1.0)
     use_custom_audio: bool = False      # 显式开关，原本是 audios>0 自动推导
+    workflow_key: str = "director"
 
     # ---------- 增删段 ----------
 
@@ -221,6 +222,7 @@ class TimelineModel:
             "filename_prefix": self.filename_prefix,
             "epsilon": self.epsilon,
             "use_custom_audio": self.use_custom_audio,
+            "workflow_key": self.workflow_key,
         }
 
     @classmethod
@@ -259,6 +261,7 @@ class TimelineModel:
         m.filename_prefix = data.get("filename_prefix", "spb_video")
         m.epsilon = float(data.get("epsilon", 0.5))
         m.use_custom_audio = bool(data.get("use_custom_audio", False))
+        m.workflow_key = data.get("workflow_key", "director")
         return m
 
     # ---------- pre-flight 校验 ----------
