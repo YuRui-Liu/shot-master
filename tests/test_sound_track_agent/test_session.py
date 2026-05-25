@@ -57,3 +57,31 @@ def test_to_dict_does_not_alias_emotion_labels():
     d = seg.to_dict()
     d["emotion"]["labels"].append("MUTATED")
     assert emo.labels == ["tense"]      # 原实例不受序列化 dict 改动影响
+
+
+from pathlib import Path
+from sound_track_agent.session import hash_file
+
+
+def test_hash_file_stable(tmp_path):
+    f = tmp_path / "a.bin"
+    f.write_bytes(b"hello world")
+    h1 = hash_file(f)
+    h2 = hash_file(f)
+    assert h1 == h2
+    assert len(h1) == 16          # 取 sha256 前 16 hex
+    f.write_bytes(b"different")
+    assert hash_file(f) != h1
+
+
+def test_session_save_load_roundtrip(tmp_path):
+    sess = ScoringSession(
+        source_mp4="/x/ep1.mp4", source_hash="abc123",
+        global_style="冷色调", frame_rate=24.0,
+        segments=[SegmentScore(index=0, t_start=0.0, t_end=4.0)],
+    )
+    p = tmp_path / "session.json"
+    sess.save(p)
+    assert p.exists()
+    loaded = ScoringSession.load(p)
+    assert loaded == sess

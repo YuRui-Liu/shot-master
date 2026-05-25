@@ -1,7 +1,10 @@
 """配乐会话数据结构 + 持久化 + 续跑。零外部依赖，可单测。"""
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal, Optional
 
 Status = Literal["pending", "tagged", "prompted", "generated", "chosen", "aligned"]
@@ -115,3 +118,26 @@ class ScoringSession:
             accent_points=[AccentPoint(**a) for a in d.get("accent_points", [])],
             output=d.get("output"),
         )
+
+    def save(self, path: Path) -> None:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(
+            json.dumps(self.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8")
+
+    @classmethod
+    def load(cls, path: Path) -> "ScoringSession":
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        return cls.from_dict(data)
+
+
+def hash_file(path: Path, chunk: int = 1 << 20) -> str:
+    """文件内容 sha256 前 16 hex，作缓存/会话键。"""
+    h = hashlib.sha256()
+    with Path(path).open("rb") as f:
+        while True:
+            block = f.read(chunk)
+            if not block:
+                break
+            h.update(block)
+    return h.hexdigest()[:16]
