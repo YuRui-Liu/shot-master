@@ -43,7 +43,6 @@ class Config:
     })
     runninghub_api_key: str = ""
     runninghub_workflow_id: str = ""
-    runninghub_submit_mode: str = "inline"       # "inline" 或 "id"
     runninghub_base_url: str = "https://www.runninghub.cn"
     runninghub_template_path: str = ""           # 空 = 用内置 drama_shot_master/templates/ltx_director_v23.json
     video_output_dir: str = ""                   # 空 = 用 state.output_dir
@@ -66,7 +65,6 @@ class Config:
                 "split_resample_defaults": self.split_resample_defaults,
                 "runninghub_api_key": self.runninghub_api_key,
                 "runninghub_workflow_id": self.runninghub_workflow_id,
-                "runninghub_submit_mode": self.runninghub_submit_mode,
                 "runninghub_base_url": self.runninghub_base_url,
                 "runninghub_template_path": self.runninghub_template_path,
                 "video_output_dir": self.video_output_dir,
@@ -148,7 +146,7 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.split_resample_defaults.update(
                         data["split_resample_defaults"])
                 for key in ("runninghub_api_key", "runninghub_workflow_id",
-                            "runninghub_submit_mode", "runninghub_base_url",
+                            "runninghub_base_url",
                             "runninghub_template_path", "video_output_dir"):
                     if key in data and isinstance(data[key], str):
                         setattr(cfg, key, data[key])

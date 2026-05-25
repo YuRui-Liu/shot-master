@@ -165,30 +165,22 @@ class RunningHubClient:
     # ---------- create_task ----------
 
     def create_task(self, *,
-                    workflow: dict | None = None,
-                    workflow_id: str | None = None,
+                    workflow_id: str,
                     node_info_list: list[dict] | None = None,
                     webhook_url: str | None = None,
                     add_metadata: bool = True) -> str:
-        """提交 ComfyUI 任务。
+        """提交 ComfyUI 任务（workflowId + nodeInfoList）。
 
-        workflow 与 workflow_id 二选一：
-          - workflow=完整 JSON（inline 模式）
-          - workflow_id=平台模板 ID + node_info_list（id 模式）
-
-        返回 taskId（字符串）。
+        RunningHub /task/openapi/create 只接受平台已保存的 workflowId，
+        不支持提交裸 workflow JSON。返回 taskId（字符串）。
         """
-        if workflow is None and not workflow_id:
-            raise RunningHubInvalidSpec(
-                "create_task 必须传 workflow 或 workflow_id")
+        if not workflow_id:
+            raise RunningHubInvalidSpec("create_task 必须传 workflow_id")
         payload: dict = {
             "apiKey": self.api_key,
             "addMetadata": add_metadata,
+            "workflowId": workflow_id,
         }
-        if workflow is not None:
-            payload["workflow"] = workflow
-        else:
-            payload["workflowId"] = workflow_id
         if node_info_list:
             payload["nodeInfoList"] = node_info_list
         if webhook_url:
@@ -209,10 +201,12 @@ class RunningHubClient:
                     f"create_task HTTP {resp.status_code}: {resp.text[:500]}")
             data = resp.json()
             if data.get("code") != 0:
-                tips = (data.get("data") or {}).get("promptTips", "")[:300]
+                d = data.get("data")
+                tips = d.get("promptTips", "")[:300] if isinstance(d, dict) else ""
                 raise RunningHubTaskFailed(
                     f"create_task code={data.get('code')} "
-                    f"msg={data.get('msg')} tips={tips}")
+                    f"msg={data.get('msg')} tips={tips} "
+                    f"raw={resp.text[:800]}")
             return str(data["data"]["taskId"])
         except httpx.HTTPError as e:
             raise RunningHubUnavailable(f"create_task 连接失败: {e}") from e
@@ -348,7 +342,6 @@ class RunningHubClient:
         self.close()
 
 
-import copy
 import json
 import secrets
 import time
@@ -360,8 +353,6 @@ class LTXNodes:
     SAVE_VIDEO = "104"
     NOISE = "132"
     RESOLUTION = "139"
-    CREATE_VIDEO = "17"          # 输出 mp4 的拼装节点
-    AUDIO_VAE_DECODE = "16"      # LTX 原生音频解码节点（不勾 use_custom_audio 时用）
 
 
 # ID 模式 nodeInfoList 白名单：仅这 11 个 Director 字段允许被覆盖
@@ -395,38 +386,6 @@ class LTXTaskBuilder:
             if nid not in self._template:
                 raise RunningHubInvalidSpec(
                     f"模板 {template_path} 缺少节点 {nid}")
-
-    # ---------- 公共构建 API ----------
-
-    def build_inline_workflow(self, spec: LTXDirectorSpec,
-                              uploaded_files: dict[Path, str]) -> dict:
-        """生成完整 workflow JSON（嵌入模式）。"""
-        self._validate(spec, uploaded_files)
-        wf = copy.deepcopy(self._template)
-        params = self._compute_director_params(spec, uploaded_files)
-        wf[LTXNodes.DIRECTOR]["inputs"].update(params)
-        wf[LTXNodes.SAVE_VIDEO]["inputs"]["filename_prefix"] = spec.filename_prefix
-        if spec.noise_seed is not None:
-            wf[LTXNodes.NOISE]["inputs"]["noise_seed"] = spec.noise_seed
-        self._apply_resolution(wf[LTXNodes.RESOLUTION]["inputs"], spec)
-        self._apply_audio_routing(wf, spec)
-        return wf
-
-    def _apply_audio_routing(self, wf: dict, spec: LTXDirectorSpec) -> None:
-        """CreateVideo 节点的 audio 输入按 use_custom_audio 切换数据源。
-
-        - use_custom_audio=True  → ["46", 6]   LTXDirector passthrough（用户上传音频）
-        - use_custom_audio=False → ["16", 0]   LTXVAudioVAEDecode（LTX 2.3 原生生成）
-
-        作者原模板默认 ["46", 6]，导致不勾 use_custom_audio 时输出静音。
-        修复：根据 spec 动态切到正确的源。
-        """
-        if LTXNodes.CREATE_VIDEO not in wf:
-            return    # 模板不含 CreateVideo 时静默跳过（容错）
-        wf[LTXNodes.CREATE_VIDEO]["inputs"]["audio"] = (
-            [LTXNodes.DIRECTOR, 6] if spec.use_custom_audio
-            else [LTXNodes.AUDIO_VAE_DECODE, 0]
-        )
 
     # ---------- 私有：spec → LTXDirector inputs ----------
 
@@ -535,15 +494,9 @@ class LTXTaskBuilder:
                 "fieldName": "resolution",
                 "fieldValue": spec.resolution_preset,
             })
-        # 音频路由：见 _apply_audio_routing 的文档说明
-        items.append({
-            "nodeId": LTXNodes.CREATE_VIDEO,
-            "fieldName": "audio",
-            "fieldValue": (
-                [LTXNodes.DIRECTOR, 6] if spec.use_custom_audio
-                else [LTXNodes.AUDIO_VAE_DECODE, 0]
-            ),
-        })
+        # 不覆盖 CreateVideo.audio：它是节点连线(link)而非 widget，nodeInfoList
+        # 只能改 widget，覆盖连线会被服务端拒为 code=404 NOT_FOUND。原生音频路由
+        # （改接 LTXVAudioVAEDecode）需在 RunningHub 平台上改工作流本身。
         return items
 
     # ---------- 校验 ----------
@@ -582,17 +535,17 @@ def submit_ltx_task(client: RunningHubClient,
                     spec: LTXDirectorSpec,
                     builder: LTXTaskBuilder,
                     *,
-                    mode: str = "inline",
-                    workflow_id: str = "",
+                    workflow_id: str,
                     webhook_url: Optional[str] = None,
                     upload_progress_cb: Optional[
                         Callable[[int, int, Path], None]] = None,
                     ) -> "LTXTaskHandle":
-    """编排一次完整提交：上传 → 构造 → create_task → 返回句柄。
+    """编排一次完整提交：上传 → 构造 nodeInfoList → create_task → 返回句柄。
+
+    RunningHub 仅支持 workflowId + nodeInfoList 提交（不支持裸 workflow JSON）。
 
     Args:
-        mode: "inline"（嵌入完整 workflow JSON）或 "id"（workflow_id + nodeInfoList）
-        workflow_id: mode="id" 时必填
+        workflow_id: 平台已保存的工作流 ID，必填
         webhook_url: 可选；非 None 时透传给 create_task
         upload_progress_cb(done, total, path): 每上传完一个文件回调一次
 
@@ -603,10 +556,8 @@ def submit_ltx_task(client: RunningHubClient,
         RunningHubInvalidSpec / RunningHubUploadError /
         RunningHubUnavailable / RunningHubTaskFailed
     """
-    if mode not in ("inline", "id"):
-        raise RunningHubInvalidSpec(f"未知 submit mode: {mode}")
-    if mode == "id" and not workflow_id:
-        raise RunningHubInvalidSpec("mode='id' 需要传 workflow_id")
+    if not workflow_id:
+        raise RunningHubInvalidSpec("submit_ltx_task 需要传 workflow_id")
 
     # 1. 批量上传
     files_to_upload = spec.unique_local_files()
@@ -616,21 +567,16 @@ def submit_ltx_task(client: RunningHubClient,
         if upload_progress_cb:
             upload_progress_cb(i + 1, len(files_to_upload), path)
 
-    # 2. 构造 + 提交
-    if mode == "inline":
-        workflow = builder.build_inline_workflow(spec, uploaded)
-        task_id = client.create_task(
-            workflow=workflow, webhook_url=webhook_url)
-    else:
-        node_info_list = builder.build_node_info_list(spec, uploaded)
-        task_id = client.create_task(
-            workflow_id=workflow_id,
-            node_info_list=node_info_list,
-            webhook_url=webhook_url,
-        )
+    # 2. 构造 nodeInfoList + 提交
+    node_info_list = builder.build_node_info_list(spec, uploaded)
+    task_id = client.create_task(
+        workflow_id=workflow_id,
+        node_info_list=node_info_list,
+        webhook_url=webhook_url,
+    )
 
-    log.info("RunningHub task submitted: %s (mode=%s, segments=%d)",
-             task_id, mode, len(spec.segments))
+    log.info("RunningHub task submitted: %s (segments=%d)",
+             task_id, len(spec.segments))
     return LTXTaskHandle(client, task_id, spec, uploaded)
 
 

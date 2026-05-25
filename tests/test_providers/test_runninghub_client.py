@@ -165,28 +165,11 @@ def _ok_create_response(task_id="tid-1", status="QUEUED"):
     })
 
 
-def test_create_task_inline_workflow():
-    captured = {}
-
-    def handler(req):
-        captured["url"] = str(req.url)
-        captured["body"] = req.read()
-        return _ok_create_response("tid-42")
-
-    c = RunningHubClient("k")
-    _set_mock_transport(c, handler)
-    task_id = c.create_task(workflow={"3": {"class_type": "VAE"}})
-    assert task_id == "tid-42"
-    assert captured["url"].endswith("/task/openapi/create")
-    body = captured["body"].decode()
-    assert '"workflow"' in body
-    assert '"workflowId"' not in body
-
-
 def test_create_task_with_workflow_id_and_node_info_list():
     captured = {}
 
     def handler(req):
+        captured["url"] = str(req.url)
         captured["body"] = req.read()
         return _ok_create_response("tid-2")
 
@@ -196,20 +179,19 @@ def test_create_task_with_workflow_id_and_node_info_list():
               "fieldValue": "hello"}]
     task_id = c.create_task(workflow_id="wf-123", node_info_list=items)
     assert task_id == "tid-2"
+    assert captured["url"].endswith("/task/openapi/create")
     body = captured["body"].decode()
-    # workflowId 字段在 payload 里
     assert '"workflowId":"wf-123"' in body.replace(" ", "")
     assert '"nodeInfoList"' in body
-    # workflow 字段不应单独出现（"workflowId" 里的 "workflow" 子串不算）
-    # 把 workflowId 删了再判断 workflow 是否出现
+    # 不应出现裸 workflow 字段（"workflowId" 里的 "workflow" 子串不算）
     body_no_wfid = body.replace('"workflowId"', "")
     assert '"workflow"' not in body_no_wfid
 
 
-def test_create_task_rejects_when_both_workflow_and_id_missing():
+def test_create_task_rejects_empty_workflow_id():
     c = RunningHubClient("k")
     with pytest.raises(RunningHubInvalidSpec):
-        c.create_task()
+        c.create_task(workflow_id="")
 
 
 def test_create_task_passes_webhook_url():
@@ -221,7 +203,7 @@ def test_create_task_passes_webhook_url():
 
     c = RunningHubClient("k")
     _set_mock_transport(c, handler)
-    c.create_task(workflow={}, webhook_url="https://callback/x")
+    c.create_task(workflow_id="wf-1", webhook_url="https://callback/x")
     assert b"https://callback/x" in captured["body"]
 
 
@@ -236,7 +218,7 @@ def test_create_task_business_error_includes_prompt_tips():
     c = RunningHubClient("k")
     _set_mock_transport(c, handler)
     with pytest.raises(RunningHubTaskFailed) as exc_info:
-        c.create_task(workflow={})
+        c.create_task(workflow_id="wf-1")
     msg = str(exc_info.value)
     assert "805" in msg
     assert "validation failed" in msg
@@ -249,7 +231,7 @@ def test_create_task_http_5xx_raises_task_failed():
     c = RunningHubClient("k")
     _set_mock_transport(c, handler)
     with pytest.raises(RunningHubTaskFailed) as exc_info:
-        c.create_task(workflow={})
+        c.create_task(workflow_id="wf-1")
     assert "503" in str(exc_info.value)
 
 
@@ -260,7 +242,7 @@ def test_create_task_connect_error_raises_unavailable():
     c = RunningHubClient("k")
     _set_mock_transport(c, handler)
     with pytest.raises(RunningHubUnavailable):
-        c.create_task(workflow={})
+        c.create_task(workflow_id="wf-1")
 
 
 # ---------- query_task ----------

@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog, QFormLayout, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
-    QLabel, QFileDialog, QRadioButton, QButtonGroup, QCheckBox, QWidget,
+    QLabel, QFileDialog, QCheckBox, QWidget,
     QDialogButtonBox, QMessageBox, QFrame,
 )
 
@@ -62,25 +62,9 @@ class RunningHubSettingsDialog(QDialog):
         out_wrap = QWidget(); out_wrap.setLayout(out_row)
         form.addRow("视频输出目录", out_wrap)
 
-        # 提交模式
-        mode_row = QHBoxLayout()
-        self.mode_inline_btn = QRadioButton("Inline（推荐）")
-        self.mode_id_btn = QRadioButton("ID + nodeInfoList")
-        self.mode_inline_btn.setChecked(True)
-        self._mode_group = QButtonGroup(self)
-        self._mode_group.addButton(self.mode_inline_btn)
-        self._mode_group.addButton(self.mode_id_btn)
-        self.mode_inline_btn.toggled.connect(self._on_mode_changed)
-        mode_row.addWidget(self.mode_inline_btn)
-        mode_row.addWidget(self.mode_id_btn)
-        mode_row.addStretch(1)
-        mode_wrap = QWidget(); mode_wrap.setLayout(mode_row)
-        form.addRow("提交模式", mode_wrap)
-
-        # Workflow ID
+        # Workflow ID（RunningHub 仅支持 workflowId 提交，必填）
         self.workflow_id_edit = QLineEdit()
-        self.workflow_id_edit.setPlaceholderText("仅 ID 模式需要")
-        self.workflow_id_edit.setEnabled(False)
+        self.workflow_id_edit.setPlaceholderText("平台已保存的工作流 ID（必填）")
         form.addRow("Workflow ID", self.workflow_id_edit)
 
         # 工作流模板
@@ -131,10 +115,6 @@ class RunningHubSettingsDialog(QDialog):
         self.base_url_edit.setText(
             self.cfg.runninghub_base_url or "https://www.runninghub.cn")
         self.video_out_edit.setText(self.cfg.video_output_dir)
-        if self.cfg.runninghub_submit_mode == "id":
-            self.mode_id_btn.setChecked(True)
-        else:
-            self.mode_inline_btn.setChecked(True)
         self.workflow_id_edit.setText(self.cfg.runninghub_workflow_id)
         custom_tpl = self.cfg.runninghub_template_path
         if custom_tpl:
@@ -148,9 +128,6 @@ class RunningHubSettingsDialog(QDialog):
     def _toggle_key_visibility(self, on: bool):
         self.api_key_edit.setEchoMode(
             QLineEdit.Normal if on else QLineEdit.Password)
-
-    def _on_mode_changed(self):
-        self.workflow_id_edit.setEnabled(self.mode_id_btn.isChecked())
 
     def _on_builtin_toggled(self, on: bool):
         self.template_path_edit.setEnabled(not on)
@@ -210,12 +187,10 @@ class RunningHubSettingsDialog(QDialog):
     def accept(self):
         api_key = self.api_key_edit.text().strip()
         base_url = self.base_url_edit.text().strip() or "https://www.runninghub.cn"
-        mode = "id" if self.mode_id_btn.isChecked() else "inline"
         wf_id = self.workflow_id_edit.text().strip()
-        if mode == "id" and not wf_id:
+        if not wf_id:
             QMessageBox.warning(
-                self, "校验失败",
-                "提交模式 = ID 时必须填 Workflow ID")
+                self, "校验失败", "必须填 Workflow ID")
             return
         template_path = ("" if self.use_builtin_cb.isChecked()
                          else self.template_path_edit.text().strip())
@@ -223,7 +198,6 @@ class RunningHubSettingsDialog(QDialog):
         self.cfg.update_settings(
             runninghub_api_key=api_key,
             runninghub_base_url=base_url,
-            runninghub_submit_mode=mode,
             runninghub_workflow_id=wf_id,
             runninghub_template_path=template_path,
             video_output_dir=video_out,

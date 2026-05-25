@@ -159,7 +159,6 @@ def test_config_default_runninghub_fields(tmp_path):
                        settings_path=tmp_path / "settings.json")
     assert cfg.runninghub_api_key == ""
     assert cfg.runninghub_workflow_id == ""
-    assert cfg.runninghub_submit_mode == "inline"
     assert cfg.runninghub_base_url == "https://www.runninghub.cn"
     assert cfg.runninghub_template_path == ""
     assert cfg.video_output_dir == ""
@@ -196,14 +195,12 @@ def test_config_settings_loads_all_runninghub_fields(tmp_path):
     settings_file = tmp_path / "settings.json"
     settings_file.write_text(
         '{"runninghub_workflow_id": "wf-1",'
-        ' "runninghub_submit_mode": "id",'
         ' "runninghub_template_path": "/x/tpl.json",'
         ' "video_output_dir": "/x/out"}',
         encoding="utf-8")
     cfg = load_config(env_path=tmp_path / ".env",
                        settings_path=settings_file)
     assert cfg.runninghub_workflow_id == "wf-1"
-    assert cfg.runninghub_submit_mode == "id"
     assert cfg.runninghub_template_path == "/x/tpl.json"
     assert cfg.video_output_dir == "/x/out"
 
@@ -213,13 +210,11 @@ def test_config_update_settings_persists_runninghub_fields(tmp_path):
     cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
     cfg.update_settings(
         runninghub_api_key="new-key",
-        runninghub_submit_mode="id",
         video_output_dir="/x/v",
     )
     import json
     data = json.loads(sp.read_text(encoding="utf-8"))
     assert data["runninghub_api_key"] == "new-key"
-    assert data["runninghub_submit_mode"] == "id"
     assert data["video_output_dir"] == "/x/v"
 
 

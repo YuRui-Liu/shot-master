@@ -153,7 +153,7 @@ def test_builder_init_rejects_missing_file(tmp_path):
         LTXTaskBuilder(tmp_path / "absent.json")
 
 
-# ---------- build_inline_workflow ----------
+# ---------- Director 参数计算（经 build_node_info_list）----------
 
 def _basic_spec(img_path=None, length=33, n_segs=1):
     return LTXDirectorSpec(
@@ -167,38 +167,32 @@ def _basic_spec(img_path=None, length=33, n_segs=1):
     )
 
 
-def test_inline_workflow_minimal_spec(builder, tmp_path):
+def _ninfo(builder, spec, uploaded):
+    """build_node_info_list → {(nodeId, fieldName): fieldValue}。
+    取代旧 inline 模式 wf[node]['inputs'][field] 的检查方式。"""
+    items = builder.build_node_info_list(spec, uploaded)
+    return {(it["nodeId"], it["fieldName"]): it["fieldValue"] for it in items}
+
+
+def test_director_minimal_spec(builder, tmp_path):
     img = tmp_path / "a.png"
     img.write_bytes(b"x")
     spec = _basic_spec(img_path=img)
-    uploaded = {img: "openapi/abc.png"}
-    wf = builder.build_inline_workflow(spec, uploaded)
-    assert LTXNodes.DIRECTOR in wf
-    inputs = wf[LTXNodes.DIRECTOR]["inputs"]
-    assert inputs["global_prompt"] == "global"
-    assert inputs["frame_rate"] == 24
+    m = _ninfo(builder, spec, {img: "openapi/abc.png"})
+    assert m[(LTXNodes.DIRECTOR, "global_prompt")] == "global"
+    assert m[(LTXNodes.DIRECTOR, "frame_rate")] == 24
 
 
-def test_inline_workflow_does_not_mutate_template(builder, tmp_path):
+def test_build_node_info_list_does_not_mutate_template(builder, tmp_path):
     snapshot = copy.deepcopy(builder._template)
     img = tmp_path / "a.png"
     img.write_bytes(b"x")
     spec = _basic_spec(img_path=img)
-    builder.build_inline_workflow(spec, {img: "openapi/abc.png"})
+    builder.build_node_info_list(spec, {img: "openapi/abc.png"})
     assert builder._template == snapshot
 
 
-def test_inline_workflow_other_nodes_unchanged(builder, tmp_path):
-    img = tmp_path / "a.png"
-    img.write_bytes(b"x")
-    spec = _basic_spec(img_path=img)
-    wf = builder.build_inline_workflow(spec, {img: "openapi/abc.png"})
-    # 节点 80 / 113 / 140（LoRA loaders）必须保持模板默认
-    for nid in ("80", "113", "140"):
-        assert wf[nid] == builder._template[nid]
-
-
-def test_inline_timeline_data_json_structure(builder, tmp_path):
+def test_timeline_data_json_structure(builder, tmp_path):
     img1 = tmp_path / "a.png"; img1.write_bytes(b"x")
     img2 = tmp_path / "b.png"; img2.write_bytes(b"y")
     spec = LTXDirectorSpec(segments=(
@@ -207,8 +201,8 @@ def test_inline_timeline_data_json_structure(builder, tmp_path):
         LTXSegment(local_prompt="p3", length=30, image_path=img1),  # 复用
     ))
     uploaded = {img1: "openapi/a.png", img2: "openapi/b.png"}
-    wf = builder.build_inline_workflow(spec, uploaded)
-    td = json.loads(wf[LTXNodes.DIRECTOR]["inputs"]["timeline_data"])
+    m = _ninfo(builder, spec, uploaded)
+    td = json.loads(m[(LTXNodes.DIRECTOR, "timeline_data")])
     assert len(td["segments"]) == 3
     assert td["segments"][0]["start"] == 0
     assert td["segments"][1]["start"] == 33
@@ -221,29 +215,29 @@ def test_inline_timeline_data_json_structure(builder, tmp_path):
     assert td["audioSegments"] == []
 
 
-def test_inline_local_prompts_joined_with_pipe_and_spaces(builder, tmp_path):
+def test_local_prompts_joined_with_pipe_and_spaces(builder, tmp_path):
     img = tmp_path / "a.png"; img.write_bytes(b"x")
     spec = LTXDirectorSpec(segments=(
         LTXSegment(local_prompt="a", length=10, image_path=img),
         LTXSegment(local_prompt="b", length=10, image_path=img),
         LTXSegment(local_prompt="c", length=10, image_path=img),
     ))
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    assert wf[LTXNodes.DIRECTOR]["inputs"]["local_prompts"] == "a | b | c"
+    m = _ninfo(builder, spec, {img: "openapi/a.png"})
+    assert m[(LTXNodes.DIRECTOR, "local_prompts")] == "a | b | c"
 
 
-def test_inline_segment_lengths_csv(builder, tmp_path):
+def test_segment_lengths_csv(builder, tmp_path):
     img = tmp_path / "a.png"; img.write_bytes(b"x")
     spec = LTXDirectorSpec(segments=(
         LTXSegment(local_prompt="a", length=33, image_path=img),
         LTXSegment(local_prompt="b", length=33, image_path=img),
         LTXSegment(local_prompt="c", length=30, image_path=img),
     ))
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    assert wf[LTXNodes.DIRECTOR]["inputs"]["segment_lengths"] == "33,33,30"
+    m = _ninfo(builder, spec, {img: "openapi/a.png"})
+    assert m[(LTXNodes.DIRECTOR, "segment_lengths")] == "33,33,30"
 
 
-def test_inline_guide_strength_two_decimals(builder, tmp_path):
+def test_guide_strength_two_decimals(builder, tmp_path):
     img = tmp_path / "a.png"; img.write_bytes(b"x")
     spec = LTXDirectorSpec(segments=(
         LTXSegment(local_prompt="a", length=10, image_path=img,
@@ -251,34 +245,33 @@ def test_inline_guide_strength_two_decimals(builder, tmp_path):
         LTXSegment(local_prompt="b", length=10, image_path=img,
                     guide_strength=0.75),
     ))
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    assert wf[LTXNodes.DIRECTOR]["inputs"]["guide_strength"] == "1.00,0.75"
+    m = _ninfo(builder, spec, {img: "openapi/a.png"})
+    assert m[(LTXNodes.DIRECTOR, "guide_strength")] == "1.00,0.75"
 
 
-def test_inline_global_prompt_blanked_when_disabled(builder, tmp_path):
+def test_global_prompt_blanked_when_disabled(builder, tmp_path):
     img = tmp_path / "a.png"; img.write_bytes(b"x")
     spec = LTXDirectorSpec(
         global_prompt="should-be-blanked",
         use_global_prompt=False,
         segments=(LTXSegment(local_prompt="p", length=10, image_path=img),),
     )
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    assert wf[LTXNodes.DIRECTOR]["inputs"]["global_prompt"] == ""
+    m = _ninfo(builder, spec, {img: "openapi/a.png"})
+    assert m[(LTXNodes.DIRECTOR, "global_prompt")] == ""
 
 
-def test_inline_duration_frames_and_seconds_consistent(builder, tmp_path):
+def test_duration_frames_and_seconds_consistent(builder, tmp_path):
     img = tmp_path / "a.png"; img.write_bytes(b"x")
     spec = LTXDirectorSpec(
         segments=(LTXSegment(local_prompt="a", length=96, image_path=img),),
         frame_rate=24,
     )
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    inputs = wf[LTXNodes.DIRECTOR]["inputs"]
-    assert inputs["duration_frames"] == 96
-    assert inputs["duration_seconds"] == 4.0
+    m = _ninfo(builder, spec, {img: "openapi/a.png"})
+    assert m[(LTXNodes.DIRECTOR, "duration_frames")] == 96
+    assert m[(LTXNodes.DIRECTOR, "duration_seconds")] == 4.0
 
 
-def test_inline_audio_empty_when_disabled(builder, tmp_path):
+def test_audio_empty_when_disabled(builder, tmp_path):
     img = tmp_path / "a.png"; img.write_bytes(b"x")
     aud = tmp_path / "x.mp3"; aud.write_bytes(b"a")
     spec = LTXDirectorSpec(
@@ -287,14 +280,13 @@ def test_inline_audio_empty_when_disabled(builder, tmp_path):
                                           length_frames=10),),
         use_custom_audio=False,
     )
-    wf = builder.build_inline_workflow(
-        spec, {img: "openapi/a.png", aud: "openapi/x.mp3"})
-    td = json.loads(wf[LTXNodes.DIRECTOR]["inputs"]["timeline_data"])
+    m = _ninfo(builder, spec, {img: "openapi/a.png", aud: "openapi/x.mp3"})
+    td = json.loads(m[(LTXNodes.DIRECTOR, "timeline_data")])
     assert td["audioSegments"] == []
-    assert wf[LTXNodes.DIRECTOR]["inputs"]["use_custom_audio"] is False
+    assert m[(LTXNodes.DIRECTOR, "use_custom_audio")] is False
 
 
-def test_inline_audio_present_when_enabled(builder, tmp_path):
+def test_audio_present_when_enabled(builder, tmp_path):
     img = tmp_path / "a.png"; img.write_bytes(b"x")
     aud = tmp_path / "x.mp3"; aud.write_bytes(b"a")
     spec = LTXDirectorSpec(
@@ -303,69 +295,10 @@ def test_inline_audio_present_when_enabled(builder, tmp_path):
                                           length_frames=10),),
         use_custom_audio=True,
     )
-    wf = builder.build_inline_workflow(
-        spec, {img: "openapi/a.png", aud: "openapi/x.mp3"})
-    td = json.loads(wf[LTXNodes.DIRECTOR]["inputs"]["timeline_data"])
+    m = _ninfo(builder, spec, {img: "openapi/a.png", aud: "openapi/x.mp3"})
+    td = json.loads(m[(LTXNodes.DIRECTOR, "timeline_data")])
     assert len(td["audioSegments"]) == 1
     assert td["audioSegments"][0]["audioFile"] == "x.mp3"
-
-
-def test_inline_filename_prefix_node_104(builder, tmp_path):
-    img = tmp_path / "a.png"; img.write_bytes(b"x")
-    spec = LTXDirectorSpec(
-        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
-        filename_prefix="myvid",
-    )
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    assert wf[LTXNodes.SAVE_VIDEO]["inputs"]["filename_prefix"] == "myvid"
-
-
-def test_inline_noise_seed_none_preserves_template(builder, tmp_path):
-    img = tmp_path / "a.png"; img.write_bytes(b"x")
-    original_seed = builder._template[LTXNodes.NOISE]["inputs"]["noise_seed"]
-    spec = LTXDirectorSpec(
-        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
-        noise_seed=None,
-    )
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    assert wf[LTXNodes.NOISE]["inputs"]["noise_seed"] == original_seed
-
-
-def test_inline_noise_seed_overrides_template(builder, tmp_path):
-    img = tmp_path / "a.png"; img.write_bytes(b"x")
-    spec = LTXDirectorSpec(
-        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
-        noise_seed=42,
-    )
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    assert wf[LTXNodes.NOISE]["inputs"]["noise_seed"] == 42
-
-
-def test_inline_resolution_preset_applied(builder, tmp_path):
-    img = tmp_path / "a.png"; img.write_bytes(b"x")
-    spec = LTXDirectorSpec(
-        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
-        resolution_preset="720x1280 (9:16) (竖屏)",
-        use_custom_resolution=False,
-    )
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    inputs = wf[LTXNodes.RESOLUTION]["inputs"]
-    assert inputs["use_custom_resolution"] is False
-    assert inputs["resolution"] == "720x1280 (9:16) (竖屏)"
-
-
-def test_inline_custom_resolution_applied(builder, tmp_path):
-    img = tmp_path / "a.png"; img.write_bytes(b"x")
-    spec = LTXDirectorSpec(
-        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
-        use_custom_resolution=True,
-        custom_width=1024, custom_height=768,
-    )
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    inputs = wf[LTXNodes.RESOLUTION]["inputs"]
-    assert inputs["use_custom_resolution"] is True
-    assert inputs["custom_width"] == 1024
-    assert inputs["custom_height"] == 768
 
 
 def test_seg_id_generated_when_blank(builder, tmp_path):
@@ -374,8 +307,8 @@ def test_seg_id_generated_when_blank(builder, tmp_path):
     spec = LTXDirectorSpec(segments=(
         LTXSegment(local_prompt="a", length=10, image_path=img, seg_id=""),
     ))
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    td = json.loads(wf[LTXNodes.DIRECTOR]["inputs"]["timeline_data"])
+    m = _ninfo(builder, spec, {img: "openapi/a.png"})
+    td = json.loads(m[(LTXNodes.DIRECTOR, "timeline_data")])
     generated_id = td["segments"][0]["id"]
     assert re.match(r"^\d{13}[0-9a-f]{1,5}$", generated_id), generated_id
 
@@ -386,8 +319,8 @@ def test_seg_id_preserved_when_provided(builder, tmp_path):
         LTXSegment(local_prompt="a", length=10, image_path=img,
                     seg_id="custom-abc"),
     ))
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    td = json.loads(wf[LTXNodes.DIRECTOR]["inputs"]["timeline_data"])
+    m = _ninfo(builder, spec, {img: "openapi/a.png"})
+    td = json.loads(m[(LTXNodes.DIRECTOR, "timeline_data")])
     assert td["segments"][0]["id"] == "custom-abc"
 
 
@@ -473,7 +406,7 @@ def test_nodeinfolist_custom_resolution_three_fields(builder, tmp_path):
 def test_validate_rejects_empty_segments(builder):
     spec = LTXDirectorSpec(segments=())
     with pytest.raises(RunningHubInvalidSpec, match="至少需要 1 段"):
-        builder.build_inline_workflow(spec, {})
+        builder.build_node_info_list(spec, {})
 
 
 def test_validate_rejects_segment_length_lt_1(builder, tmp_path):
@@ -482,14 +415,14 @@ def test_validate_rejects_segment_length_lt_1(builder, tmp_path):
         LTXSegment(local_prompt="a", length=0, image_path=img),
     ))
     with pytest.raises(RunningHubInvalidSpec, match="length"):
-        builder.build_inline_workflow(spec, {img: "openapi/a.png"})
+        builder.build_node_info_list(spec, {img: "openapi/a.png"})
 
 
 def test_validate_rejects_missing_uploaded_image(builder, tmp_path):
     img = tmp_path / "a.png"; img.write_bytes(b"x")
     spec = _basic_spec(img_path=img)
     with pytest.raises(RunningHubInvalidSpec, match="未在 uploaded_files"):
-        builder.build_inline_workflow(spec, {})
+        builder.build_node_info_list(spec, {})
 
 
 def test_validate_rejects_guide_strength_out_of_range(builder, tmp_path):
@@ -500,7 +433,7 @@ def test_validate_rejects_guide_strength_out_of_range(builder, tmp_path):
                         guide_strength=bad),
         ))
         with pytest.raises(RunningHubInvalidSpec, match="guide_strength"):
-            builder.build_inline_workflow(spec, {img: "openapi/a.png"})
+            builder.build_node_info_list(spec, {img: "openapi/a.png"})
 
 
 def test_validate_rejects_invalid_frame_rate(builder, tmp_path):
@@ -511,7 +444,7 @@ def test_validate_rejects_invalid_frame_rate(builder, tmp_path):
             frame_rate=bad,
         )
         with pytest.raises(RunningHubInvalidSpec, match="frame_rate"):
-            builder.build_inline_workflow(spec, {img: "openapi/a.png"})
+            builder.build_node_info_list(spec, {img: "openapi/a.png"})
 
 
 def test_validate_rejects_missing_audio_upload(builder, tmp_path):
@@ -524,7 +457,7 @@ def test_validate_rejects_missing_audio_upload(builder, tmp_path):
         use_custom_audio=True,
     )
     with pytest.raises(RunningHubInvalidSpec, match="音频段"):
-        builder.build_inline_workflow(spec, {img: "openapi/a.png"})
+        builder.build_node_info_list(spec, {img: "openapi/a.png"})
 
 
 def test_validate_passes_text_segment_without_upload(builder):
@@ -532,68 +465,32 @@ def test_validate_passes_text_segment_without_upload(builder):
         LTXSegment(local_prompt="a", length=10, image_path=None),
     ))
     # 不应抛错（text 段不要求 image_path）
-    builder.build_inline_workflow(spec, {})
+    builder.build_node_info_list(spec, {})
 
 
-# ---------- v0.7.4: 音频路由 ----------
+# ---------- 音频路由约束 ----------
 
-def test_inline_audio_routes_to_native_when_use_custom_audio_false(builder, tmp_path):
-    """use_custom_audio=False → CreateVideo.audio 走 LTXVAudioVAEDecode (16)
-    以激活 LTX 2.3 原生音频生成。"""
+def test_nodeinfolist_never_overrides_audio_link(builder, tmp_path):
+    """RunningHub nodeInfoList 只能覆盖 widget 参数；CreateVideo.audio 是
+    节点间连线(link)，覆盖它会被服务端拒为 code=404 NOT_FOUND。
+    因此 nodeInfoList 绝不能把 audio 放进去——无论 use_custom_audio 取值。
+    原生音频路由需在 RunningHub 平台上改工作流本身。"""
+    CREATE_VIDEO = "17"
     img = tmp_path / "a.png"; img.write_bytes(b"x")
-    spec = LTXDirectorSpec(
-        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
-        use_custom_audio=False,
-    )
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png"})
-    assert wf[LTXNodes.CREATE_VIDEO]["inputs"]["audio"] == [
-        LTXNodes.AUDIO_VAE_DECODE, 0]
-
-
-def test_inline_audio_routes_to_director_passthrough_when_use_custom_audio_true(
-        builder, tmp_path):
-    """use_custom_audio=True → CreateVideo.audio 走 LTXDirector.6 用户上传。"""
-    img = tmp_path / "a.png"; img.write_bytes(b"x")
-    aud = tmp_path / "a.mp3"; aud.write_bytes(b"y")
-    spec = LTXDirectorSpec(
-        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
-        audio_segments=(LTXAudioSegment(audio_path=aud, start_frame=0,
-                                          length_frames=10),),
-        use_custom_audio=True,
-    )
-    wf = builder.build_inline_workflow(spec, {img: "openapi/a.png",
-                                              aud: "openapi/a.mp3"})
-    assert wf[LTXNodes.CREATE_VIDEO]["inputs"]["audio"] == [
-        LTXNodes.DIRECTOR, 6]
-
-
-def test_nodeinfolist_audio_routing_when_use_custom_audio_false(builder, tmp_path):
-    img = tmp_path / "a.png"; img.write_bytes(b"x")
-    spec = LTXDirectorSpec(
-        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
-        use_custom_audio=False,
-    )
-    items = builder.build_node_info_list(spec, {img: "openapi/a.png"})
-    audio_items = [it for it in items
-                   if it["nodeId"] == LTXNodes.CREATE_VIDEO
-                   and it["fieldName"] == "audio"]
-    assert len(audio_items) == 1
-    assert audio_items[0]["fieldValue"] == [LTXNodes.AUDIO_VAE_DECODE, 0]
-
-
-def test_nodeinfolist_audio_routing_when_use_custom_audio_true(builder, tmp_path):
-    img = tmp_path / "a.png"; img.write_bytes(b"x")
-    aud = tmp_path / "a.mp3"; aud.write_bytes(b"y")
-    spec = LTXDirectorSpec(
-        segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
-        audio_segments=(LTXAudioSegment(audio_path=aud, start_frame=0,
-                                          length_frames=10),),
-        use_custom_audio=True,
-    )
-    items = builder.build_node_info_list(spec, {img: "openapi/a.png",
-                                                 aud: "openapi/a.mp3"})
-    audio_items = [it for it in items
-                   if it["nodeId"] == LTXNodes.CREATE_VIDEO
-                   and it["fieldName"] == "audio"]
-    assert len(audio_items) == 1
-    assert audio_items[0]["fieldValue"] == [LTXNodes.DIRECTOR, 6]
+    for use_custom in (False, True):
+        kwargs = dict(
+            segments=(LTXSegment(local_prompt="a", length=10, image_path=img),),
+            use_custom_audio=use_custom,
+        )
+        files = {img: "openapi/a.png"}
+        if use_custom:
+            aud = tmp_path / "a.mp3"; aud.write_bytes(b"y")
+            kwargs["audio_segments"] = (
+                LTXAudioSegment(audio_path=aud, start_frame=0, length_frames=10),)
+            files[aud] = "openapi/a.mp3"
+        items = builder.build_node_info_list(LTXDirectorSpec(**kwargs), files)
+        audio_items = [it for it in items
+                       if it["nodeId"] == CREATE_VIDEO
+                       and it["fieldName"] == "audio"]
+        assert audio_items == [], (
+            f"use_custom_audio={use_custom}: nodeInfoList 不应覆盖 audio 连线")

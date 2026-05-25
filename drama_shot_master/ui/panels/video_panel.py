@@ -311,7 +311,6 @@ class VideoPanel(BasePanel):
                 builder = LTXTaskBuilder(template_path)
                 handle = submit_ltx_task(
                     client, spec, builder,
-                    mode=cfg.runninghub_submit_mode,
                     workflow_id=cfg.runninghub_workflow_id,
                     upload_progress_cb=lambda d, t, p: self._post(
                         "upload", (d, t, p.name)),

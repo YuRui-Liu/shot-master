@@ -218,20 +218,24 @@ class SegmentItem(QGraphicsItem):
             view = self._top_view()
             ppf = view.pixels_per_frame if view else 5.0
             new_len = max(1, int(round(self._width / ppf)))
-            if view is not None:
-                view.segmentChanged.emit(self.seg.seg_id, new_len)
+            seg_id = self.seg.seg_id
+            # 先做完所有碰 self 的事，emit 放最后：handler 会重建时间轴并
+            # 删除本 C++ item，发射后再访问 self 会触发 already-deleted 崩溃。
             self._set_scene_cursor(None)
             self._press_mode = "none"
             event.accept()
+            if view is not None:
+                view.segmentChanged.emit(seg_id, new_len)
             return
         if self._press_mode == "move":
             # 原位释放 = 仅选中
             view = self._top_view()
-            if view is not None:
-                view.segmentSelected.emit(self.seg.seg_id)
+            seg_id = self.seg.seg_id
             self._set_scene_cursor(None)
             self._press_mode = "none"
             event.accept()
+            if view is not None:
+                view.segmentSelected.emit(seg_id)
             return
         super().mouseReleaseEvent(event)
 
