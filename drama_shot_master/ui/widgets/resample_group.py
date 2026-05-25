@@ -6,7 +6,7 @@ from typing import Callable, Optional
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QGroupBox, QVBoxLayout, QHBoxLayout, QFormLayout, QCheckBox,
-    QComboBox, QSpinBox, QPushButton, QWidget, QLabel, QMessageBox,
+    QComboBox, QSpinBox, QPushButton, QWidget, QLabel,
 )
 
 from drama_shot_master.grid_ops import ResampleAlgo, ResampleSpec
@@ -139,12 +139,16 @@ class ResampleGroup(QGroupBox):
         try:
             models = self._list_models_fn()
         except Exception as e:
+            # 非模态降级：绝不在此弹模态框——构造阶段（_set_form_enabled →
+            # _on_algo_changed）也会走到这里，模态会卡死整个 app 启动。
+            # 下拉可编辑：清空 + 占位提示，用户可手填或点🔄重试。
             self.model_combo.clear()
-            QMessageBox.warning(self, "ComfyUI 不可达",
-                                f"无法拉取 upscale 模型列表：{e}\n\n"
-                                "你可以手动在下拉框输入模型文件名（如 4x-UltraSharp.pth），"
-                                "或点🔄按钮重试。")
+            le = self.model_combo.lineEdit()
+            if le is not None:
+                le.setPlaceholderText("ComfyUI 不可达：手动输入模型名或点🔄重试")
+            self.model_combo.setToolTip(f"拉取 upscale 模型失败：{e}")
             return
+        self.model_combo.setToolTip("")
         self._populate_models(models)
 
     def _force_refresh_models(self):
