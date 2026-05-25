@@ -381,6 +381,7 @@ class TimelineScene(QGraphicsScene):
         super().__init__(parent)
         self.model = model
         self.pixels_per_frame = pixels_per_frame
+        self._cursor_x: Optional[float] = None
 
     def rebuild(self):
         self.clear()
@@ -453,6 +454,35 @@ class TimelineScene(QGraphicsScene):
             painter.drawText(QPointF(x + 2, RULER_HEIGHT - 14), label)
             frame += major
 
+    def set_cursor_x(self, x: Optional[float]) -> None:
+        """设/清游标 x（scene 坐标）。None = 隐藏。"""
+        if self._cursor_x == x:
+            return
+        self._cursor_x = x
+        self.update()
+
+    def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
+        super().drawForeground(painter, rect)
+        if self._cursor_x is None:
+            return
+        x = self._cursor_x
+        h = self.sceneRect().height()
+        # 1. 红色竖线
+        painter.setPen(QPen(QColor(CURSOR_LINE_COLOR), 1))
+        painter.drawLine(QPointF(x, 0), QPointF(x, h))
+        # 2. 顶部标签
+        label = _format_cursor_label(
+            x, self.pixels_per_frame, self.model.frame_rate,
+            self.model.display_mode)
+        f = QFont(); f.setPointSize(7); painter.setFont(f)
+        fm = painter.fontMetrics()
+        tw = fm.horizontalAdvance(label) + 6
+        th = fm.height() + 2
+        box = QRectF(x + 1, 0, tw, th)
+        painter.fillRect(box, QColor(CURSOR_LABEL_BG))
+        painter.setPen(QColor(CURSOR_LABEL_FG))
+        painter.drawText(box, Qt.AlignCenter, label)
+
     def dragEnterEvent(self, e):
         if (e.mimeData().hasFormat("application/x-spb-seg-id") or
                 e.mimeData().hasFormat(MIME_IMG_PATH)):
@@ -463,11 +493,13 @@ class TimelineScene(QGraphicsScene):
     def dragMoveEvent(self, e):
         if (e.mimeData().hasFormat("application/x-spb-seg-id") or
                 e.mimeData().hasFormat(MIME_IMG_PATH)):
+            self.set_cursor_x(e.scenePos().x())
             e.acceptProposedAction()
         else:
             super().dragMoveEvent(e)
 
     def dropEvent(self, e):
+        self.set_cursor_x(None)
         view = self.views()[0] if self.views() else None
         if view is None:
             return super().dropEvent(e)
@@ -490,6 +522,10 @@ class TimelineScene(QGraphicsScene):
             e.acceptProposedAction()
             return
         super().dropEvent(e)
+
+    def dragLeaveEvent(self, e):
+        self.set_cursor_x(None)
+        super().dragLeaveEvent(e)
 
     def _find_seg_insert_index(self, drop_x: float) -> int:
         x = 0.0
