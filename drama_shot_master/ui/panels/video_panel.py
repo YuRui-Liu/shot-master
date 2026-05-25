@@ -28,10 +28,9 @@ from drama_shot_master.ui.widgets.timeline_widget import TimelineWidget
 from drama_shot_master.ui.widgets.video_global_form import VideoGlobalForm
 from drama_shot_master.ui.widgets.video_status_bar import VideoStatusBar
 from drama_shot_master.ui.worker import FunctionWorker
-from drama_shot_master.providers.openai_compat import OpenAICompatProvider
-from drama_shot_master.providers.base import ProviderConfig
 from drama_shot_master.core.prompt_refiner import (
     build_refine_request, parse_refine_response, load_refine_meta_prompt,
+    build_refine_provider,
 )
 from drama_shot_master.ui.widgets.refine_review_dialog import (
     RefineReviewDialog, RefineRow,
@@ -226,10 +225,7 @@ class VideoPanel(BasePanel):
                 self, "未配置",
                 "请先在「设置 → 提示词优化配置」填 Base URL 和 Model")
             return
-        provider = OpenAICompatProvider(ProviderConfig(
-            api_key=self.cfg.refine_api_key or "ollama",
-            base_url=self.cfg.refine_base_url,
-            model=self.cfg.refine_model))
+        provider = build_refine_provider(self.cfg)
         try:
             system_prompt = load_refine_meta_prompt(self.cfg.refine_meta_prompt_path)
         except FileNotFoundError:

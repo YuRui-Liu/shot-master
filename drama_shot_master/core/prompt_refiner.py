@@ -13,6 +13,10 @@ from drama_shot_master.core.video_timeline_model import TimelineModel
 
 DEFAULT_REFINE_META_PROMPT_PATH = Path("templates/ltx_refine_meta_prompt.md")
 
+# 反推是「多图上传 + 长 JSON 输出」的 vision 生成，比探活 ping 慢得多；
+# provider 默认 60s 实测会超时（豆包多段反推），这里放宽到 5 分钟。
+REFINE_REQUEST_TIMEOUT = 300.0
+
 
 class RefineParseError(Exception):
     """模型返回无法解析为预期 JSON。"""
@@ -36,6 +40,21 @@ def load_refine_meta_prompt(path: str = "") -> str:
     """path 空 → bundled 默认；否则读自定义路径。缺失 → FileNotFoundError。"""
     p = Path(path) if path else DEFAULT_REFINE_META_PROMPT_PATH
     return p.read_text(encoding="utf-8")
+
+
+def build_refine_provider(cfg):
+    """用 refine 专属配置构造 vision provider。
+
+    超时放宽到 REFINE_REQUEST_TIMEOUT（默认 60s 对多图长输出反推不够）。
+    cfg 需有 refine_api_key / refine_base_url / refine_model 属性。
+    """
+    from drama_shot_master.providers.openai_compat import OpenAICompatProvider
+    from drama_shot_master.providers.base import ProviderConfig
+    return OpenAICompatProvider(ProviderConfig(
+        api_key=cfg.refine_api_key or "ollama",
+        base_url=cfg.refine_base_url,
+        model=cfg.refine_model,
+        timeout=REFINE_REQUEST_TIMEOUT))
 
 
 def build_refine_request(model: TimelineModel) -> RefineRequest:

@@ -102,3 +102,20 @@ def test_load_meta_missing_raises(tmp_path):
     import pytest as _pytest
     with _pytest.raises(FileNotFoundError):
         load_refine_meta_prompt(str(tmp_path / "nope.md"))
+
+
+def test_build_refine_provider_uses_long_timeout():
+    # 反推是多图 + 长输出的 vision 生成，远慢于探活 ping；
+    # 默认 60s 不够（实测豆包超时），必须放宽到 REFINE_REQUEST_TIMEOUT。
+    from types import SimpleNamespace
+    from drama_shot_master.core.prompt_refiner import (
+        build_refine_provider, REFINE_REQUEST_TIMEOUT,
+    )
+    cfg = SimpleNamespace(
+        refine_api_key="", refine_base_url="http://x/v1", refine_model="m")
+    p = build_refine_provider(cfg)
+    assert p.config.timeout == REFINE_REQUEST_TIMEOUT
+    assert p.config.timeout >= 180          # 远高于旧的 60s 默认
+    assert p.config.base_url == "http://x/v1"
+    assert p.config.model == "m"
+    assert p.config.api_key == "ollama"     # 空 key 兜底
