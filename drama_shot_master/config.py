@@ -52,6 +52,7 @@ class Config:
     video_output_dir: str = ""                   # 空 = 用 state.output_dir
     video_timeline_cache: dict = field(default_factory=dict)
     video_tasks: list = field(default_factory=list)
+    workflow_ids: dict = field(default_factory=dict)
     last_active_function: str = "inference"      # 上次退出时活跃的 panel
     # 翻译
     deeplx_url: str = ""
@@ -83,6 +84,7 @@ class Config:
                 "video_output_dir": self.video_output_dir,
                 "video_timeline_cache": self.video_timeline_cache,
                 "video_tasks": self.video_tasks,
+                "workflow_ids": self.workflow_ids,
                 "last_active_function": self.last_active_function,
                 "deeplx_url": self.deeplx_url,
                 "refine_base_url": self.refine_base_url,
@@ -181,6 +183,8 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.video_timeline_cache = data["video_timeline_cache"]
                 if "video_tasks" in data and isinstance(data["video_tasks"], list):
                     cfg.video_tasks = data["video_tasks"]
+                if "workflow_ids" in data and isinstance(data["workflow_ids"], dict):
+                    cfg.workflow_ids = data["workflow_ids"]
                 if "last_active_function" in data and isinstance(
                         data["last_active_function"], str):
                     cfg.last_active_function = data["last_active_function"]
@@ -195,6 +199,9 @@ def load_config(env_path: Path = Path(".env"),
             "updated_at": time.time(),
             "last_result": "",
         }]
+
+    if not cfg.workflow_ids and cfg.runninghub_workflow_id:
+        cfg.workflow_ids = {"director": cfg.runninghub_workflow_id}
 
     if cfg.deeplx_url:
         os.environ["DEEPLX_URL"] = cfg.deeplx_url

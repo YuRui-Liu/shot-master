@@ -409,3 +409,25 @@ def test_no_migration_when_tasks_exist(tmp_path, monkeypatch):
     cfg = load_config(env_path=env_file, settings_path=settings_file)
     assert len(cfg.video_tasks) == 1
     assert cfg.video_tasks[0]["name"] == "Keep"
+
+
+def test_workflow_ids_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.delenv("DEEPLX_URL", raising=False)
+    env_file = tmp_path / ".env"; env_file.write_text("")
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.chdir(tmp_path)
+    cfg = load_config(env_path=env_file, settings_path=settings_file)
+    cfg.update_settings(workflow_ids={"director": "A", "director_v3": "B"})
+    cfg2 = load_config(env_path=env_file, settings_path=settings_file)
+    assert cfg2.workflow_ids == {"director": "A", "director_v3": "B"}
+
+
+def test_migrate_old_workflow_id(tmp_path, monkeypatch):
+    import json as _json
+    monkeypatch.delenv("DEEPLX_URL", raising=False)
+    env_file = tmp_path / ".env"; env_file.write_text("")
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text(_json.dumps({"runninghub_workflow_id": "OLD"}))
+    monkeypatch.chdir(tmp_path)
+    cfg = load_config(env_path=env_file, settings_path=settings_file)
+    assert cfg.workflow_ids.get("director") == "OLD"
