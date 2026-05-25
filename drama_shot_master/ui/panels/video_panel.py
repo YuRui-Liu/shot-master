@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QFileDialog, QMessageBox,
-    QListWidget, QWidget,
+    QListWidget, QWidget, QDialog,
 )
 
 from drama_shot_master.config import Config
@@ -28,6 +28,13 @@ from drama_shot_master.ui.widgets.timeline_widget import TimelineWidget
 from drama_shot_master.ui.widgets.video_global_form import VideoGlobalForm
 from drama_shot_master.ui.widgets.video_status_bar import VideoStatusBar
 from drama_shot_master.ui.worker import FunctionWorker
+from drama_shot_master.providers import factory
+from drama_shot_master.core.prompt_refiner import (
+    build_refine_request, parse_refine_response, load_refine_meta_prompt,
+)
+from drama_shot_master.ui.widgets.refine_review_dialog import (
+    RefineReviewDialog, RefineRow,
+)
 
 
 log = logging.getLogger(__name__)
@@ -45,6 +52,7 @@ class VideoPanel(BasePanel):
         super().__init__(state, cfg, parent)
         self.model = self._restore_model()
         self._worker: Optional[FunctionWorker] = None
+        self._refine_worker: Optional[FunctionWorker] = None
         self._cancel_flag = {"v": False}
         self._build_ui()
         self._wire()
@@ -77,11 +85,13 @@ class VideoPanel(BasePanel):
         self.btn_clear_pool = QPushButton("🗑 清空池")
         self.btn_add_text = QPushButton("+ Add Text")
         self.btn_add_audio = QPushButton("+ Add Audio")
+        self.btn_refine = QPushButton("✨ 优化提示词")
         for b in (self.btn_import, self.btn_import_dir, self.btn_clear_pool):
             pool_toolbar.addWidget(b)
         pool_toolbar.addStretch(1)
         pool_toolbar.addWidget(self.btn_add_text)
         pool_toolbar.addWidget(self.btn_add_audio)
+        pool_toolbar.addWidget(self.btn_refine)
         pw.addLayout(pool_toolbar)
         self.image_pool = ImagePoolWidget()
         self.image_pool.setMaximumHeight(80)
@@ -116,6 +126,7 @@ class VideoPanel(BasePanel):
         self.btn_clear_pool.clicked.connect(self._on_clear_pool)
         self.btn_add_text.clicked.connect(self._on_add_text)
         self.btn_add_audio.clicked.connect(self._on_add_audio)
+        self.btn_refine.clicked.connect(self._on_refine)
 
         # image pool（OS 拖入 → 加池）
         self.image_pool.imagesAdded.connect(self._on_pool_images_added)
@@ -204,6 +215,76 @@ class VideoPanel(BasePanel):
             return
         self.model.add_audio(Path(path), start_frame=0, length_frames=24)
         self.timeline.rebuild()
+
+    def _on_refine(self):
+        if not self.model.segments:
+            QMessageBox.information(self, "无内容", "时间轴为空，先添加分镜段")
+            return
+        try:
+            provider = factory.build_provider(
+                self.cfg, self.cfg.current_provider, self.cfg.current_model)
+        except Exception as e:
+            QMessageBox.critical(self, "Provider 错误", str(e))
+            return
+        try:
+            system_prompt = load_refine_meta_prompt()
+        except FileNotFoundError:
+            QMessageBox.critical(
+                self, "缺少 meta-prompt",
+                "templates/ltx_refine_meta_prompt.md 不存在")
+            return
+        req = build_refine_request(self.model)
+
+        def task():
+            raw = provider.generate(req.images, system_prompt, req.user_message)
+            return parse_refine_response(raw, req.seg_ids)
+
+        self.video_status_bar.set_status("优化中…")
+        self.btn_refine.setEnabled(False)
+        self._refine_worker = FunctionWorker(task)
+        self._refine_worker.finished_with_result.connect(self._on_refine_done)
+        self._refine_worker.failed.connect(self._on_refine_failed)
+        self._refine_worker.start()
+
+    def _on_refine_failed(self, err_msg: str):
+        self.btn_refine.setEnabled(True)
+        self.video_status_bar.set_idle()
+        QMessageBox.critical(self, "优化失败", err_msg)
+
+    def _on_refine_done(self, result):
+        self.btn_refine.setEnabled(True)
+        self.video_status_bar.set_idle()
+        rows: list[RefineRow] = []
+        if result.global_prompt is not None:
+            rows.append(RefineRow("global", "全局",
+                                  self.model.global_prompt,
+                                  result.global_prompt))
+        for seg_id, refined in result.segment_locals:
+            seg = next((s for s in self.model.segments
+                        if s.seg_id == seg_id), None)
+            if seg is None:
+                continue
+            idx = self.model.segments.index(seg)
+            rows.append(RefineRow(
+                seg_id, f"段 {idx}（{seg.segment_type}）",
+                seg.local_prompt, refined))
+        if result.warnings:
+            self.statusMessage.emit("；".join(result.warnings))
+        if not rows:
+            QMessageBox.information(self, "无可替换项", "模型未返回有效的精炼结果")
+            return
+        dlg = RefineReviewDialog(rows, self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        accepted = dlg.accepted_keys()
+        if "global" in accepted and result.global_prompt is not None:
+            self.model.global_prompt = result.global_prompt
+        for seg_id, refined in result.segment_locals:
+            if seg_id in accepted:
+                self.model.update_segment(seg_id, local_prompt=refined)
+        self.global_form.set_state(self.model)
+        self.timeline.rebuild()
+        self.statusMessage.emit(f"已应用 {len(accepted)} 项优化")
 
     # ---------- slots: image pool ----------
 
