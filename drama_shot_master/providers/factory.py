@@ -67,6 +67,10 @@ def openai_compat_presets() -> dict[str, dict]:
             "base_url": "http://127.0.0.1:8000/v1",
             "models": [],
         },
+        "ollama": {
+            "base_url": "http://localhost:11434/v1",
+            "models": ["qwen2.5-vl", "qwen2.5-vl:7b", "qwen2.5-vl:32b"],
+        },
     }
 
 

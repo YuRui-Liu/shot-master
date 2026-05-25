@@ -6,6 +6,7 @@ settings.json: 运行时偏好（当前 provider / model / 默认输出策略）
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -15,7 +16,7 @@ from dotenv import dotenv_values
 
 # OpenAI 兼容 endpoints 的 key 名（在 .env 里以 {NAME}_API_KEY / {NAME}_BASE_URL 形式存在）
 OPENAI_COMPAT_ENDPOINTS = [
-    "openai", "deepseek", "doubao", "openrouter", "siliconflow", "vllm"
+    "openai", "deepseek", "doubao", "openrouter", "siliconflow", "vllm", "ollama"
 ]
 # 独立 SDK 后端
 INDEPENDENT_PROVIDERS = ["gemini", "anthropic", "qwen"]
@@ -48,6 +49,14 @@ class Config:
     video_output_dir: str = ""                   # 空 = 用 state.output_dir
     video_timeline_cache: dict = field(default_factory=dict)
     last_active_function: str = "inference"      # 上次退出时活跃的 panel
+    # 翻译
+    deeplx_url: str = ""
+    # 帧提示词优化（refine）独立 provider
+    refine_base_url: str = ""
+    refine_api_key: str = ""
+    refine_model: str = ""
+    refine_provider_preset: str = "ollama"
+    refine_meta_prompt_path: str = ""
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -70,6 +79,12 @@ class Config:
                 "video_output_dir": self.video_output_dir,
                 "video_timeline_cache": self.video_timeline_cache,
                 "last_active_function": self.last_active_function,
+                "deeplx_url": self.deeplx_url,
+                "refine_base_url": self.refine_base_url,
+                "refine_api_key": self.refine_api_key,
+                "refine_model": self.refine_model,
+                "refine_provider_preset": self.refine_provider_preset,
+                "refine_meta_prompt_path": self.refine_meta_prompt_path,
             }
             self.settings_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
@@ -115,6 +130,7 @@ def load_config(env_path: Path = Path(".env"),
         runninghub_api_key=rh_api_key,
         runninghub_base_url=rh_base_url,
         settings_path=settings_path,
+        deeplx_url=env.get("DEEPLX_URL") or "",
     )
     cfg.current_provider = cfg.default_provider
     cfg.current_model = cfg.default_model
@@ -150,6 +166,11 @@ def load_config(env_path: Path = Path(".env"),
                             "runninghub_template_path", "video_output_dir"):
                     if key in data and isinstance(data[key], str):
                         setattr(cfg, key, data[key])
+                for key in ("deeplx_url", "refine_base_url", "refine_api_key",
+                            "refine_model", "refine_provider_preset",
+                            "refine_meta_prompt_path"):
+                    if key in data and isinstance(data[key], str):
+                        setattr(cfg, key, data[key])
                 if "video_timeline_cache" in data and isinstance(
                         data["video_timeline_cache"], dict):
                     cfg.video_timeline_cache = data["video_timeline_cache"]
@@ -159,4 +180,6 @@ def load_config(env_path: Path = Path(".env"),
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass
 
+    if cfg.deeplx_url:
+        os.environ["DEEPLX_URL"] = cfg.deeplx_url
     return cfg

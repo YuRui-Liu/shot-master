@@ -313,3 +313,53 @@ def test_config_update_settings_persists_last_active_function(tmp_path):
     import json
     data = json.loads(sp.read_text(encoding="utf-8"))
     assert data["last_active_function"] == "video_gen"
+
+
+# ---------- 翻译 + refine provider 字段 ----------
+
+def test_save_load_refine_and_deeplx_fields(tmp_path, monkeypatch):
+    monkeypatch.delenv("DEEPLX_URL", raising=False)
+    env_file = tmp_path / ".env"; env_file.write_text("")
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.chdir(tmp_path)
+    cfg = load_config(env_path=env_file, settings_path=settings_file)
+    cfg.update_settings(
+        deeplx_url="http://localhost:1188/translate",
+        refine_base_url="http://localhost:11434/v1",
+        refine_api_key="k",
+        refine_model="qwen2.5-vl",
+        refine_provider_preset="ollama",
+        refine_meta_prompt_path="/custom/meta.md",
+    )
+    cfg2 = load_config(env_path=env_file, settings_path=settings_file)
+    assert cfg2.deeplx_url == "http://localhost:1188/translate"
+    assert cfg2.refine_base_url == "http://localhost:11434/v1"
+    assert cfg2.refine_api_key == "k"
+    assert cfg2.refine_model == "qwen2.5-vl"
+    assert cfg2.refine_provider_preset == "ollama"
+    assert cfg2.refine_meta_prompt_path == "/custom/meta.md"
+
+
+def test_deeplx_url_env_fallback_syncs_os_environ(tmp_path, monkeypatch):
+    import os
+    monkeypatch.delenv("DEEPLX_URL", raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPLX_URL=http://env.example/translate\n")
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.chdir(tmp_path)
+    cfg = load_config(env_path=env_file, settings_path=settings_file)
+    assert cfg.deeplx_url == "http://env.example/translate"
+    assert os.environ.get("DEEPLX_URL") == "http://env.example/translate"
+
+
+def test_missing_new_fields_default_empty(tmp_path, monkeypatch):
+    monkeypatch.delenv("DEEPLX_URL", raising=False)
+    env_file = tmp_path / ".env"; env_file.write_text("")
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text(json.dumps({"current_provider": "gemini"}))
+    monkeypatch.chdir(tmp_path)
+    cfg = load_config(env_path=env_file, settings_path=settings_file)
+    assert cfg.refine_base_url == ""
+    assert cfg.refine_model == ""
+    assert cfg.refine_provider_preset == "ollama"
+    assert cfg.deeplx_url == ""
