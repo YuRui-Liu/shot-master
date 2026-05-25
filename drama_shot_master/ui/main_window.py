@@ -21,7 +21,9 @@ from drama_shot_master.ui.panels.inference_panel import InferencePanel
 from drama_shot_master.ui.panels.split_panel import SplitPanel
 from drama_shot_master.ui.panels.combine_panel import CombinePanel
 from drama_shot_master.ui.panels.trim_panel import TrimPanel
-from drama_shot_master.ui.panels.video_panel import VideoPanel
+from drama_shot_master.core.video_task_store import VideoTaskStore
+from drama_shot_master.ui.panels.video_task_manager_panel import VideoTaskManagerPanel
+from drama_shot_master.ui.windows.video_task_window import VideoTaskWindow
 from drama_shot_master.ui.dialogs.runninghub_settings_dialog import RunningHubSettingsDialog
 from drama_shot_master.ui.dialogs.translation_settings_dialog import TranslationSettingsDialog
 from drama_shot_master.ui.dialogs.refine_settings_dialog import RefineSettingsDialog
@@ -39,6 +41,8 @@ class MainWindow(QMainWindow):
         self.resize(1360, 860)
         self.cfg = load_config()
         self.state = AppState()
+        self.video_store = VideoTaskStore.from_list(self.cfg.video_tasks)
+        self._open_task_windows: dict[str, VideoTaskWindow] = {}
 
         self._build_ui()
         self._wire()
@@ -119,7 +123,10 @@ class MainWindow(QMainWindow):
             SplitPanel(self.state, self.cfg),
             CombinePanel(self.state, self.cfg),
             TrimPanel(self.state, self.cfg),
-            VideoPanel(self.state, self.cfg),
+            VideoTaskManagerPanel(
+                self.state, self.cfg, self.video_store,
+                self._open_task_window, self._close_task_window,
+                self._persist_tasks),
         ]
         for p in self.panels:
             self.stack.addWidget(p)
@@ -196,6 +203,50 @@ class MainWindow(QMainWindow):
     def _open_refine_settings(self):
         RefineSettingsDialog(self.cfg, parent=self).exec()
 
+    def _video_manager(self):
+        return self.panels[-1]
+
+    def _persist_tasks(self):
+        try:
+            self.cfg.update_settings(video_tasks=self.video_store.to_list())
+        except Exception:
+            pass
+
+    def _open_task_window(self, task):
+        existing = self._open_task_windows.get(task.id)
+        if existing is not None:
+            existing.raise_(); existing.activateWindow()
+            return
+        win = VideoTaskWindow(task, self.state, self.cfg)
+        win.timelineDirty.connect(self._on_task_dirty)
+        win.statusChanged.connect(self._on_task_status)
+        win.resultReady.connect(self._on_task_result)
+        win.closed.connect(self._on_task_window_closed)
+        self._open_task_windows[task.id] = win
+        win.show()
+
+    def _close_task_window(self, task_id: str):
+        win = self._open_task_windows.get(task_id)
+        if win is not None:
+            win.close()
+
+    def _on_task_dirty(self, task_id: str, timeline: dict):
+        self.video_store.update(task_id, timeline=timeline)
+        self._persist_tasks()
+
+    def _on_task_status(self, task_id: str, status: str):
+        self._video_manager().set_task_status(task_id, status)
+
+    def _on_task_result(self, task_id: str, mp4: str):
+        self.video_store.update(task_id, last_result=mp4)
+        self._persist_tasks()
+        self._video_manager().refresh()
+
+    def _on_task_window_closed(self, task_id: str):
+        self._open_task_windows.pop(task_id, None)
+        self._video_manager().clear_task_status(task_id)
+        self._video_manager().refresh()
+
     def _on_func_changed(self, idx: int):
         self.stack.setCurrentIndex(idx)
         self.state.active_function = FUNCS[idx][1]
@@ -269,11 +320,13 @@ class MainWindow(QMainWindow):
         panel.execute()
 
     def closeEvent(self, e):
-        # 保存视频面板缓存（VideoPanel 自己处理）
-        for w in self.panels:
-            if isinstance(w, VideoPanel):
-                w.save_cache()
-                break
+        # 让每个打开的任务窗口存一次 timeline，再整体落盘
+        for win in list(self._open_task_windows.values()):
+            try:
+                self.video_store.update(win.task_id, timeline=win.model.to_dict())
+            except Exception:
+                pass
+        self._persist_tasks()
         # 持久化当前活跃 panel
         try:
             self.cfg.update_settings(
