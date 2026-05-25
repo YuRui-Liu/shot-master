@@ -33,12 +33,19 @@ class BGMCandidate:
     seed: int
     prompt: str
 
+    def to_dict(self) -> dict:
+        return {"path": self.path, "seed": self.seed, "prompt": self.prompt}
+
 
 @dataclass
 class AccentPoint:
     t: float
     intensity: float
     confirmed: bool = False
+
+    def to_dict(self) -> dict:
+        return {"t": self.t, "intensity": self.intensity,
+                "confirmed": self.confirmed}
 
 
 @dataclass
@@ -65,7 +72,7 @@ class SegmentScore:
             "shot_ids": list(self.shot_ids),
             "emotion": (self.emotion.to_dict() if self.emotion else None),
             "music_prompt": self.music_prompt,
-            "candidates": [vars(c) for c in self.candidates],
+            "candidates": [c.to_dict() for c in self.candidates],
             "chosen_candidate": self.chosen_candidate,
             "status": self.status,
         }
@@ -103,7 +110,7 @@ class ScoringSession:
             "global_style": self.global_style,
             "frame_rate": self.frame_rate,
             "segments": [s.to_dict() for s in self.segments],
-            "accent_points": [vars(a) for a in self.accent_points],
+            "accent_points": [a.to_dict() for a in self.accent_points],
             "output": self.output,
         }
 

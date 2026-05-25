@@ -18,9 +18,11 @@ class Shot:
 
 
 def plan_segments(shots: list[Shot], target: int = 4) -> list[SegmentScore]:
-    """把相邻镜头按累计时长均衡聚合成 ~target 段（clamp 3-5、且不超过镜头数）。
+    """把相邻镜头按累计时长均衡聚合成 ~target 段。
 
-    贪心：理想段长 = 总时长 / 段数；累加镜头，超过理想段长即断段。
+    段数上限 = min(target, 5, 镜头数)；镜头很少时可少于 target（无硬下限）。
+    贪心：理想段长 = 总时长 / 段数；累加镜头，超过理想段长即断段，
+    故等长镜头下实际段数可能略少于上限（~target 为近似）。
     """
     if not shots:
         raise ValueError("plan_segments 需要至少 1 个镜头")
