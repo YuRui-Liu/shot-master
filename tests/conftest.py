@@ -41,3 +41,48 @@ _stub(
     "google.genai",
     "dashscope",
 )
+
+# PySide6 is a heavy C-extension GUI library that is not available in the
+# headless test environment.  Pure helpers in ui/widgets (e.g.
+# _pick_tick_interval) are intentionally Qt-free and can be unit-tested if the
+# surrounding module imports succeed.  Only stub PySide6 when it cannot be
+# imported for real, so a developer machine with PySide6 installed still
+# exercises the real Qt classes.
+#
+# Unlike the simple package stubs above, Qt names are used as base classes
+# (``class SegmentItem(QGraphicsItem)``) and as descriptors (``Signal(...)``)
+# at import time, so attribute access must yield a real ``type`` that is also
+# callable.  ``_QtModule`` lazily fabricates such dummy classes on demand.
+class _QtDummy:
+    """Usable as a base class, instance, signal, and constant placeholder."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __call__(self, *args, **kwargs):
+        return self
+
+    def __getattr__(self, name):  # constants like Qt.LeftButton, etc.
+        return _QtDummy()
+
+
+class _QtModule(types.ModuleType):
+    """Module stub whose attribute access returns dummy *classes*."""
+
+    def __getattr__(self, name):  # type: ignore[override]
+        cls = type(name, (_QtDummy,), {})
+        setattr(self, name, cls)
+        return cls
+
+
+try:  # pragma: no cover - depends on environment
+    import PySide6  # noqa: F401
+except Exception:  # pragma: no cover - headless CI / sandbox
+    for _qt_name in (
+        "PySide6",
+        "PySide6.QtCore",
+        "PySide6.QtGui",
+        "PySide6.QtWidgets",
+    ):
+        if _qt_name not in sys.modules:
+            sys.modules[_qt_name] = _QtModule(_qt_name)

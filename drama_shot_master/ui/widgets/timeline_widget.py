@@ -22,15 +22,47 @@ from drama_shot_master.core.video_timeline_model import (
 
 # ---------- 布局常量 ----------
 
-SEG_LANE_Y = 0
+RULER_HEIGHT = 20
+SEG_LANE_Y = RULER_HEIGHT
 SEG_HEIGHT = 60
 LANE_GAP = 10
-AUDIO_LANE_Y = SEG_HEIGHT + LANE_GAP   # 70
+AUDIO_LANE_Y = SEG_LANE_Y + SEG_HEIGHT + LANE_GAP   # 20 + 60 + 10 = 90
 AUDIO_HEIGHT = 30
 RESIZE_HANDLE_W = 6
 DEFAULT_PX_PER_FRAME = 5.0
 MIN_PX_PER_FRAME = 0.5
 MAX_PX_PER_FRAME = 50.0
+
+# ---------- 刻度尺常量 ----------
+
+TARGET_MAJOR_PX = 80              # 相邻 major tick 目标间距（像素）
+MINOR_RATIO = 5                   # minor = max(1, major // 5)
+SECONDS_CANDIDATES = [0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600]  # 秒
+FRAMES_CANDIDATES = [1, 5, 10, 30, 60, 120, 300, 600]            # 帧
+
+
+def _pick_tick_interval(ppf: float, frame_rate: int, display_mode: str
+                        ) -> tuple[int, int]:
+    """选 (major_frames, minor_frames) 使相邻 major tick 间距 >= TARGET_MAJOR_PX。
+
+    遍历候选间隔（升序），返回首个满足像素阈值的；都不满足则取最大候选。
+    minor_frames = max(1, major_frames // MINOR_RATIO)。
+    """
+    fr = max(frame_rate, 1)
+    if display_mode == "seconds":
+        for sec in SECONDS_CANDIDATES:
+            major_frames = max(1, int(round(sec * fr)))
+            if major_frames * ppf >= TARGET_MAJOR_PX:
+                return (major_frames, max(1, major_frames // MINOR_RATIO))
+        last = max(1, int(round(SECONDS_CANDIDATES[-1] * fr)))
+        return (last, max(1, last // MINOR_RATIO))
+    # frames
+    for f in FRAMES_CANDIDATES:
+        if f * ppf >= TARGET_MAJOR_PX:
+            return (f, max(1, f // MINOR_RATIO))
+    last = FRAMES_CANDIDATES[-1]
+    return (last, max(1, last // MINOR_RATIO))
+
 
 # MIME types
 MIME_IMG_PATH = "application/x-spb-image-path"
