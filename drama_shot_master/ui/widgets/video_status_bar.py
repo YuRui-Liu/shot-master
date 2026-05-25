@@ -34,6 +34,7 @@ class VideoStatusBar(QWidget):
         layout.addWidget(self.cancel_btn)
 
         self.submit_btn = QPushButton("🎬 提交")
+        self.submit_btn.setObjectName("AccentButton")
         self.submit_btn.clicked.connect(self.submitRequested)
         layout.addWidget(self.submit_btn)
 

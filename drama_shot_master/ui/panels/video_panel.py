@@ -112,12 +112,12 @@ class VideoPanel(BasePanel):
 
         # 3. per-seg 编辑器
         self.seg_editor = SegmentEditor()
-        self.seg_editor.setMaximumHeight(180)
+        self.seg_editor.setMaximumHeight(250)
         root.addWidget(self.seg_editor)
 
         # 4. 全局参数
         self.global_form = VideoGlobalForm()
-        self.global_form.setMaximumHeight(220)
+        self.global_form.setMaximumHeight(290)
         root.addWidget(self.global_form)
 
         # 5. 状态栏

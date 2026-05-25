@@ -9,6 +9,7 @@ from drama_shot_master.core.video_timeline_model import TimelineModel
 from drama_shot_master.core.video_task_store import VideoTask
 from drama_shot_master.ui.state import AppState
 from drama_shot_master.ui.panels.video_panel import VideoPanel
+from drama_shot_master.ui.theme import apply_dark_titlebar
 
 
 class VideoTaskWindow(QMainWindow):
@@ -48,6 +49,12 @@ class VideoTaskWindow(QMainWindow):
     def _on_done(self, mp4: str) -> None:
         self.statusChanged.emit(self._task_id, "完成")
         self.resultReady.emit(self._task_id, mp4)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, "_titlebar_themed", False):
+            self._titlebar_themed = True
+            apply_dark_titlebar(self)
 
     def changeEvent(self, event):
         if event.type() == QEvent.WindowDeactivate:

@@ -24,6 +24,7 @@ from drama_shot_master.ui.panels.trim_panel import TrimPanel
 from drama_shot_master.core.video_task_store import VideoTaskStore
 from drama_shot_master.ui.panels.video_task_manager_panel import VideoTaskManagerPanel
 from drama_shot_master.ui.windows.video_task_window import VideoTaskWindow
+from drama_shot_master.ui.theme import apply_dark_titlebar
 from drama_shot_master.ui.dialogs.runninghub_settings_dialog import RunningHubSettingsDialog
 from drama_shot_master.ui.dialogs.translation_settings_dialog import TranslationSettingsDialog
 from drama_shot_master.ui.dialogs.refine_settings_dialog import RefineSettingsDialog
@@ -136,6 +137,7 @@ class MainWindow(QMainWindow):
         self.btn_preview = QPushButton("预览")
         self.btn_preview.clicked.connect(self._do_preview)
         self.btn_exec = QPushButton("执行")
+        self.btn_exec.setObjectName("AccentButton")
         self.btn_exec.clicked.connect(self._do_execute)
         self.exec_hint = QLabel("")
         self.exec_hint.setStyleSheet("color:#888")
@@ -324,6 +326,12 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "无法执行", why)
             return
         panel.execute()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if not getattr(self, "_titlebar_themed", False):
+            self._titlebar_themed = True
+            apply_dark_titlebar(self)
 
     def closeEvent(self, e):
         # 让每个打开的任务窗口存一次 timeline，再整体落盘

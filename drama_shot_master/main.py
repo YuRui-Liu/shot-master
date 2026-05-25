@@ -13,9 +13,12 @@ if _SHOT_MASTER.exists() and str(_SHOT_MASTER) not in sys.path:
 def main() -> int:
     from PySide6.QtWidgets import QApplication
     from drama_shot_master.ui.main_window import MainWindow
+    from drama_shot_master.ui.theme import apply_theme, apply_app_icon
 
     app = QApplication(sys.argv)
     app.setApplicationName("Drama-Shot-Master")
+    apply_theme(app)
+    apply_app_icon(app)
     w = MainWindow()
     w.show()
     return app.exec()

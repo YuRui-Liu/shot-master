@@ -5,10 +5,19 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox, QAbstractItemView,
 )
+
+# 状态 → 文字颜色（深色主题下的色标）
+_STATUS_COLORS = {
+    "空闲": "#9aa0a6",     # 灰
+    "生成中": "#4a9eff",   # 蓝（强调）
+    "完成": "#4ec98f",     # 绿
+    "失败": "#ff5c5c",     # 红
+}
 
 from drama_shot_master.config import Config
 from drama_shot_master.core.video_task_store import VideoTaskStore
@@ -83,7 +92,7 @@ class VideoTaskManagerPanel(BasePanel):
             name_item.setData(Qt.UserRole, t.id)
             self.table.setItem(r, 0, name_item)
             status = self._live_status.get(t.id, "空闲")
-            self.table.setItem(r, 1, self._readonly(status))
+            self.table.setItem(r, 1, self._status_item(status))
             res = Path(t.last_result).name if t.last_result else "—"
             self.table.setItem(r, 2, self._readonly(res))
             ts = (time.strftime("%m-%d %H:%M", time.localtime(t.updated_at))
@@ -95,6 +104,16 @@ class VideoTaskManagerPanel(BasePanel):
     def _readonly(text: str) -> QTableWidgetItem:
         it = QTableWidgetItem(text)
         it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+        return it
+
+    @classmethod
+    def _status_item(cls, status: str) -> QTableWidgetItem:
+        it = cls._readonly(status)
+        color = _STATUS_COLORS.get(status)
+        if color:
+            it.setForeground(QColor(color))
+            if status in ("生成中", "失败"):
+                f = QFont(); f.setBold(True); it.setFont(f)
         return it
 
     def _selected_task_id(self) -> str:

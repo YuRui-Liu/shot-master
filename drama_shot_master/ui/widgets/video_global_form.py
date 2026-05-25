@@ -58,7 +58,8 @@ class VideoGlobalForm(QGroupBox):
         prompt_row.addWidget(
             attach_translate_button(self.global_prompt_edit, self))
         root.addLayout(prompt_row)
-        self.global_prompt_edit.setMaximumHeight(60)
+        self.global_prompt_edit.setMinimumHeight(110)   # ≈5 行
+        self.global_prompt_edit.setMaximumHeight(160)
         self.global_prompt_edit.setPlaceholderText("全片统一风格/角色描述…")
         root.addWidget(self.global_prompt_edit)
 

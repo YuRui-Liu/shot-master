@@ -46,7 +46,8 @@ class SegmentEditor(QGroupBox):
         prompt_row.addStretch(1)
         prompt_row.addWidget(attach_translate_button(self.prompt_edit, self))
         root.addLayout(prompt_row)
-        self.prompt_edit.setMaximumHeight(60)
+        self.prompt_edit.setMinimumHeight(110)   # ≈5 行
+        self.prompt_edit.setMaximumHeight(160)
         self.prompt_edit.setPlaceholderText("本段 prompt（仅作用于此段）")
         root.addWidget(self.prompt_edit)
 

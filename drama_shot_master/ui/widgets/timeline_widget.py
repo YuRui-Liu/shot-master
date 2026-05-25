@@ -42,6 +42,7 @@ FRAMES_CANDIDATES = [1, 5, 10, 30, 60, 120, 300, 600]            # 帧
 
 # ---------- 刻度尺 / 游标配色 ----------
 
+SCENE_BG = "#1e1f22"              # 时间轴画布背景（与主题窗口底一致）
 RULER_BAND_COLOR = "#2b2f3a"      # 背景带（略亮于场景背景）
 TICK_MINOR_COLOR = "#7a8597"      # minor tick（中灰）
 TICK_MAJOR_COLOR = "#d4dae6"      # major tick（近白）
@@ -403,6 +404,9 @@ class TimelineScene(QGraphicsScene):
         self.model = model
         self.pixels_per_frame = pixels_per_frame
         self._cursor_x: Optional[float] = None
+        # 背景刷设在 scene（不是 view）：view 设 brush 会短路 scene.drawBackground，
+        # 导致刻度尺整段不绘制。scene.drawBackground 先 super() 填此底色再画刻度。
+        self.setBackgroundBrush(QColor(SCENE_BG))
 
     def rebuild(self):
         self.clear()

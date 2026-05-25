@@ -1,129 +1,53 @@
 {
-  "3": {
+  "1": {
     "inputs": {
-      "vae_name": "LTX23_video_vae_bf16.safetensors",
-      "device": "main_device",
-      "weight_dtype": "bf16"
+      "model_name": "ltx-2.3-22b-distilled-1.1_transformer_only_fp8_scaled.safetensors",
+      "weight_dtype": "default",
+      "compute_dtype": "default",
+      "patch_cublaslinear": false,
+      "sage_attention": "disabled",
+      "enable_fp16_accumulation": false
     },
-    "class_type": "VAELoaderKJ",
+    "class_type": "DiffusionModelLoaderKJ",
     "_meta": {
-      "title": "Video VAELoader"
+      "title": "Diffusion Model Loader KJ"
     }
   },
   "4": {
     "inputs": {
-      "vae_name": "LTX23_audio_vae_bf16.safetensors",
-      "device": "main_device",
-      "weight_dtype": "bf16"
-    },
-    "class_type": "VAELoaderKJ",
-    "_meta": {
-      "title": "Audio VAELoader"
-    }
-  },
-  "5": {
-    "inputs": {
-      "frame_rate": [
-        "46",
-        5
-      ],
-      "positive": [
-        "46",
-        1
-      ],
-      "negative": [
-        "26",
-        0
-      ]
-    },
-    "class_type": "LTXVConditioning",
-    "_meta": {
-      "title": "LTXVConditioning"
-    }
-  },
-  "16": {
-    "inputs": {
-      "samples": [
-        "131",
-        1
-      ],
-      "audio_vae": [
-        "4",
-        0
-      ]
-    },
-    "class_type": "LTXVAudioVAEDecode",
-    "_meta": {
-      "title": "LTXV Audio VAE Decode"
-    }
-  },
-  "17": {
-    "inputs": {
-      "fps": [
-        "46",
-        5
-      ],
-      "images": [
-        "94",
-        0
-      ],
-      "audio": [
-        "46",
-        6
-      ]
-    },
-    "class_type": "CreateVideo",
-    "_meta": {
-      "title": "Create Video"
-    }
-  },
-  "26": {
-    "inputs": {
-      "conditioning": [
-        "46",
-        1
-      ]
-    },
-    "class_type": "ConditioningZeroOut",
-    "_meta": {
-      "title": "ConditioningZeroOut"
-    }
-  },
-  "46": {
-    "inputs": {
-      "global_prompt": "池禾（亚洲年轻女性，齐肩黑色短发，深青色短款工装夹克，灰色高领内搭，深棕色工装长裤，腰间战术腰带，裤腿侧袋，脸上带轻微擦伤/血迹）、燕渡（亚洲男性，黑色短发，深灰色长款风衣，黑色高领内搭，右侧面部大面积龟裂状丧尸化皮肤，左眼红瞳，左侧皮肤正常）保持外观、服装、配饰一致；丧尸统一为灰败皮肤、带血迹破旧衣物、动作僵硬的末日感染者形象。场景为末日废墟城市街道，坍塌废弃建筑、锈迹斑斑废弃车辆，灰蒙蒙天空与薄雾，整体破败压抑。风格为2D写实末日动画，线条硬朗，低饱和冷灰蓝调，画面带颗粒感；全片身份稳定、五官稳定、发型稳定、服装稳定、场景结构稳定，灯光有节奏变化但不跳变，无换脸、无换装、无场景跳变、无风格漂移，动作自然流畅。",
-      "duration_frames": 96,
-      "duration_seconds": 4.000000000000001,
-      "timeline_data": "{\"segments\":[{\"id\":\"1779594020021fvz6v\",\"start\":0,\"length\":33,\"prompt\":\"全景定场镜头，薄雾缓慢流动。破败街道一望无际，遍地坍塌建筑、翻倒锈蚀车辆，海量丧尸绵延至地平线，丧尸步行移动。少女身形渺小模糊，隐于尸群之中。灰蓝雾气漫动，灰烬如雪缓缓飘落，风声微动，画面松弛且有持续动态。\",\"type\":\"image\",\"imageFile\":\"c147f35b8d237dd09aa28e04239eb1f1770c5554e97a4796a6029396eca4bfca.png\",\"imageB64\":\"/view?filename=c147f35b8d237dd09aa28e04239eb1f1770c5554e97a4796a6029396eca4bfca.png&type=input&subfolder=&Rh-Comfy-Auth=eyJ1c2VySWQiOiIwY2E1ZGU1NWRlNjc5ZThhNzllNTNjN2ZmZTBkY2ExYyIsInNpZ25FeHBpcmUiOjE3ODAxOTg3NTQyOTYsInRzIjoxNzc5NTkzOTU0Mjk2LCJzaWduIjoiYzBiOWRhMGQ2ZjQyODBkYzFlZDU1ODhmM2I4YTJiOTYifQ==&Rh-Identify=0ca5de55de679e8a79e53c7ffe0dca1c\"},{\"id\":\"1779594020587tmgoc\",\"start\":33,\"length\":31,\"prompt\":\"中广角镜头，全场瞬间静止。所有丧尸动作骤停，抬脚、挪动姿态全部定格，无任何动态。少女伫立尸群中一同静止，空气中浮尘依旧缓慢飘动，整片废墟场景死寂诡异，动静对比强烈\",\"type\":\"image\",\"imageFile\":\"bc091432a48c823352f2adff183e0a33c5096e3cccc97fdfe1c8967363c1555b.png\",\"imageB64\":\"/view?filename=bc091432a48c823352f2adff183e0a33c5096e3cccc97fdfe1c8967363c1555b.png&type=input&subfolder=&Rh-Comfy-Auth=eyJ1c2VySWQiOiIwY2E1ZGU1NWRlNjc5ZThhNzllNTNjN2ZmZTBkY2ExYyIsInNpZ25FeHBpcmUiOjE3ODAxOTg3NTQyOTYsInRzIjoxNzc5NTkzOTU0Mjk2LCJzaWduIjoiYzBiOWRhMGQ2ZjQyODBkYzFlZDU1ODhmM2I4YTJiOTYifQ==&Rh-Identify=0ca5de55de679e8a79e53c7ffe0dca1c\"},{\"id\":\"17795940212083uif0\",\"start\":66,\"length\":31,\"prompt\":\"中景镜头，柔和微动。男女二人并肩站立，周身丧尸集体缓慢转头，动作整齐僵硬。少年身着黑色长款风衣，少女身穿工装外套，二人神情紧绷。废墟背景灰光弥散，伴随细微骨骼脆响，画面张力拉满，动态连贯丝滑\",\"type\":\"image\",\"imageFile\":\"b3f736bb4f83d8cac52face10cdbb65573ba6bee8e72e4a4eb7a0c95671a01ef.png\",\"imageB64\":\"/view?filename=b3f736bb4f83d8cac52face10cdbb65573ba6bee8e72e4a4eb7a0c95671a01ef.png&type=input&subfolder=&Rh-Comfy-Auth=eyJ1c2VySWQiOiIwY2E1ZGU1NWRlNjc5ZThhNzllNTNjN2ZmZTBkY2ExYyIsInNpZ25FeHBpcmUiOjE3ODAxOTg3NTQyOTYsInRzIjoxNzc5NTkzOTU0Mjk2LCJzaWduIjoiYzBiOWRhMGQ2ZjQyODBkYzFlZDU1ODhmM2I4YTJiOTYifQ==&Rh-Identify=0ca5de55de679e8a79e53c7ffe0dca1c\"}],\"audioSegments\":[]}",
-      "local_prompts": "全景定场镜头，薄雾缓慢流动。破败街道一望无际，遍地坍塌建筑、翻倒锈蚀车辆，海量丧尸绵延至地平线，丧尸步行移动。少女身形渺小模糊，隐于尸群之中。灰蓝雾气漫动，灰烬如雪缓缓飘落，风声微动，画面松弛且有持续动态。 | 中广角镜头，全场瞬间静止。所有丧尸动作骤停，抬脚、挪动姿态全部定格，无任何动态。少女伫立尸群中一同静止，空气中浮尘依旧缓慢飘动，整片废墟场景死寂诡异，动静对比强烈 | 中景镜头，柔和微动。男女二人并肩站立，周身丧尸集体缓慢转头，动作整齐僵硬。少年身着黑色长款风衣，少女身穿工装外套，二人神情紧绷。废墟背景灰光弥散，伴随细微骨骼脆响，画面张力拉满，动态连贯丝滑",
-      "segment_lengths": "33,33,30",
-      "epsilon": 0.5,
-      "guide_strength": "1.00,1.00,1.00",
+      "global_prompt": "末日废土电影质感，冷色调低饱和，轻微手持呼吸晃动，自然动态模糊，发丝、布料、血液细微动态，空气中漂浮微尘，画面有机流畅，胶片颗粒，景深虚化，紧张压抑的末日氛围，人物微肌肉动态，无僵硬定格感。 背景僵尸移动。",
+      "duration_frames": 392,
+      "duration_seconds": 16.333,
+      "timeline_data": "{\"segments\":[{\"id\":\"1779541595241o6v0f\",\"start\":0,\"length\":83,\"prompt\":\"咀嚼声\",\"type\":\"image\",\"imageFile\":\"489773d23f0632a4583cdeedf0509aa224632817c3b5bc55047e2f132ed1e55f.png\",\"imageB64\":\"/view?filename=489773d23f0632a4583cdeedf0509aa224632817c3b5bc55047e2f132ed1e55f.png&type=input&subfolder=&Rh-Comfy-Auth=eyJ1c2VySWQiOiIwY2E1ZGU1NWRlNjc5ZThhNzllNTNjN2ZmZTBkY2ExYyIsInNpZ25FeHBpcmUiOjE3ODAxNDYyOTE3NjIsInRzIjoxNzc5NTQxNDkxNzYyLCJzaWduIjoiZGJmNGUwMGJlMzI2M2RhOGUxOGE4MmU4M2RmOGQ2YjEifQ==&Rh-Identify=0ca5de55de679e8a79e53c7ffe0dca1c\"},{\"id\":\"17795416066010ioa8\",\"start\":84,\"length\":174,\"prompt\":\"Memory flash cut dynamic picture-in-picture shot. Vertical phone screen floats in center frame, subtle slight screen jitter and faint pixel flicker of old recorded video. Young man inside screen has obvious slight body trembling, rapid natural facial micro-expression change, eyes glistening with suppressed panic. Dark surrounding space has slow floating dust particles, cold ambient light faintly fluctuates. Warm screen light casts tiny dynamic light spot on dark background. Soft frame flicker fits memory flash effect. Mouth moves naturally as speaking. Smoothly connect subsequent real scene footage.\",\"type\":\"image\",\"imageFile\":\"52b7241189fe6fbbf044a064541636c3a11b9c418b381e2584b9a81570d6746d.png\",\"imageB64\":\"/view?filename=52b7241189fe6fbbf044a064541636c3a11b9c418b381e2584b9a81570d6746d.png&type=input&subfolder=&Rh-Comfy-Auth=eyJ1c2VySWQiOiIwY2E1ZGU1NWRlNjc5ZThhNzllNTNjN2ZmZTBkY2ExYyIsInNpZ25FeHBpcmUiOjE3ODAxNDYyOTE3NjIsInRzIjoxNzc5NTQxNDkxNzYyLCJzaWduIjoiZGJmNGUwMGJlMzI2M2RhOGUxOGE4MmU4M2RmOGQ2YjEifQ==&Rh-Identify=0ca5de55de679e8a79e53c7ffe0dca1c\"},{\"id\":\"1779541613374vzucz\",\"start\":259,\"length\":74,\"prompt\":\"Medium close-up dynamic shot, slow subtle push lens with slight anti-shake sway. Woman swings back hand swiftly to wipe blood off mouth, obvious motion blur traces follow wiping gesture. Hair strands float gently with small airflow disturbance, jacket fabric folds slightly shake. \",\"type\":\"image\",\"imageFile\":\"b2d2daa3d96c351d7c6a7c7a1a41e01983f7554f8c3c0b62f17f3c1116d018db.png\",\"imageB64\":\"/view?filename=b2d2daa3d96c351d7c6a7c7a1a41e01983f7554f8c3c0b62f17f3c1116d018db.png&type=input&subfolder=&Rh-Comfy-Auth=eyJ1c2VySWQiOiIwY2E1ZGU1NWRlNjc5ZThhNzllNTNjN2ZmZTBkY2ExYyIsInNpZ25FeHBpcmUiOjE3ODAxNDYyOTE3NjIsInRzIjoxNzc5NTQxNDkxNzYyLCJzaWduIjoiZGJmNGUwMGJlMzI2M2RhOGUxOGE4MmU4M2RmOGQ2YjEifQ==&Rh-Identify=0ca5de55de679e8a79e53c7ffe0dca1c\"},{\"id\":\"177954278560686bi3\",\"start\":334,\"length\":52,\"prompt\":\"Left wrist slowly turns toward camera, matte black countdown watch displays glowing green digital number, indicator light has faint regular flicker. Blurred zombie background keeps slow swaying movement. All body actions smooth and coherent, no stiff pause. Mouth moves naturally. Seamless transition to follow-up frame.\",\"type\":\"image\",\"imageFile\":\"419b190db6c4549ca42fb09295aca8854a03cf9cf454faab3120c8451f29ed43.png\",\"imageB64\":\"/view?filename=419b190db6c4549ca42fb09295aca8854a03cf9cf454faab3120c8451f29ed43.png&type=input&subfolder=&Rh-Comfy-Auth=eyJ1c2VySWQiOiIwY2E1ZGU1NWRlNjc5ZThhNzllNTNjN2ZmZTBkY2ExYyIsInNpZ25FeHBpcmUiOjE3ODAxNDc1MzI0MTksInRzIjoxNzc5NTQyNzMyNDE5LCJzaWduIjoiZTRmZTQ5MTljNGY1MGVlMmMzY2E4YzExMzAyYTM5NzUifQ==&Rh-Identify=0ca5de55de679e8a79e53c7ffe0dca1c\"}],\"audioSegments\":[]}",
+      "local_prompts": "咀嚼声 | Memory flash cut dynamic picture-in-picture shot. Vertical phone screen floats in center frame, subtle slight screen jitter and faint pixel flicker of old recorded video. Young man inside screen has obvious slight body trembling, rapid natural facial micro-expression change, eyes glistening with suppressed panic. Dark surrounding space has slow floating dust particles, cold ambient light faintly fluctuates. Warm screen light casts tiny dynamic light spot on dark background. Soft frame flicker fits memory flash effect. Mouth moves naturally as speaking. Smoothly connect subsequent real scene footage. | Medium close-up dynamic shot, slow subtle push lens with slight anti-shake sway. Woman swings back hand swiftly to wipe blood off mouth, obvious motion blur traces follow wiping gesture. Hair strands float gently with small airflow disturbance, jacket fabric folds slightly shake.  | Left wrist slowly turns toward camera, matte black countdown watch displays glowing green digital number, indicator light has faint regular flicker. Blurred zombie background keeps slow swaying movement. All body actions smooth and coherent, no stiff pause. Mouth moves naturally. Seamless transition to follow-up frame.",
+      "segment_lengths": "84,175,75,58",
+      "epsilon": 0.001,
+      "guide_strength": "1.00,1.00,1.00,1.00",
       "use_custom_audio": false,
       "frame_rate": 24,
       "display_mode": "seconds",
       "custom_width": [
-        "139",
+        "34",
         0
       ],
       "custom_height": [
-        "139",
+        "34",
         1
       ],
       "resize_method": "maintain aspect ratio",
       "divisible_by": 32,
-      "img_compression": 0,
+      "img_compression": 18,
       "timeline_ui": "",
       "model": [
-        "140",
+        "70",
         0
       ],
       "clip": [
-        "84",
+        "8",
         0
       ],
       "audio_vae": [
-        "4",
+        "6",
         0
       ]
     },
@@ -132,37 +56,31 @@
       "title": "LTX Director"
     }
   },
-  "77": {
+  "6": {
     "inputs": {
-      "model_name": "ltx-2.3-22b-distilled-1.1_transformer_only_fp8_scaled.safetensors",
-      "weight_dtype": "default",
-      "compute_dtype": "default",
-      "patch_cublaslinear": false,
-      "sage_attention": "auto",
-      "enable_fp16_accumulation": true
+      "vae_name": "LTX23_audio_vae_bf16.safetensors",
+      "device": "main_device",
+      "weight_dtype": "bf16"
     },
-    "class_type": "DiffusionModelLoaderKJ",
+    "class_type": "VAELoaderKJ",
     "_meta": {
-      "title": "Diffusion Model Loader KJ"
+      "title": "VAELoader KJ"
     }
   },
-  "80": {
+  "7": {
     "inputs": {
-      "lora_name": "Ltx2.3-Licon-VBVR-I2V-240K-R32.safetensors",
-      "strength_model": 0.7,
-      "model": [
-        "77",
-        0
-      ]
+      "vae_name": "LTX23_video_vae_bf16.safetensors",
+      "device": "main_device",
+      "weight_dtype": "bf16"
     },
-    "class_type": "LoraLoaderModelOnly",
+    "class_type": "VAELoaderKJ",
     "_meta": {
-      "title": "Load LoRA"
+      "title": "VAELoader KJ"
     }
   },
-  "84": {
+  "8": {
     "inputs": {
-      "clip_name1": "gemma_3_12B_it_fp8_e4m3fn.safetensors",
+      "clip_name1": "gemma_3_12B_it.safetensors",
       "clip_name2": "ltx-2.3_text_projection_bf16.safetensors",
       "type": "ltxv",
       "device": "default"
@@ -172,64 +90,60 @@
       "title": "DualCLIPLoader"
     }
   },
-  "94": {
+  "16": {
     "inputs": {
-      "tile_size": 512,
-      "overlap": 64,
-      "temporal_size": 4096,
-      "temporal_overlap": 8,
-      "samples": [
-        "136",
-        2
+      "frame_rate": [
+        "4",
+        5
       ],
-      "vae": [
-        "3",
-        0
-      ]
-    },
-    "class_type": "VAEDecodeTiled",
-    "_meta": {
-      "title": "Video Decode Tiled"
-    }
-  },
-  "104": {
-    "inputs": {
-      "filename_prefix": "屿僳",
-      "format": "auto",
-      "codec": "auto",
-      "fw_video_preview": "",
-      "video": [
+      "positive": [
+        "4",
+        1
+      ],
+      "negative": [
         "17",
         0
       ]
     },
-    "class_type": "SaveVideo",
+    "class_type": "LTXVConditioning",
     "_meta": {
-      "title": "💾 Save Video"
+      "title": "LTXVConditioning"
     }
   },
-  "109": {
+  "17": {
     "inputs": {
-      "scale_by": 1,
+      "conditioning": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "18": {
+    "inputs": {
+      "scale_by": 1.0000000000000002,
       "upscale_method": "bicubic",
       "positive": [
-        "5",
+        "16",
         0
       ],
       "negative": [
-        "5",
+        "16",
         1
       ],
       "vae": [
-        "3",
+        "7",
         0
       ],
       "latent": [
-        "46",
+        "4",
         2
       ],
       "guide_data": [
-        "46",
+        "4",
         4
       ]
     },
@@ -238,49 +152,26 @@
       "title": "LTX Director Guide"
     }
   },
-  "113": {
-    "inputs": {
-      "lora_name": "ltx-2.3-22b-ic-lora-refocus.safetensors",
-      "strength_model": 0.65,
-      "model": [
-        "80",
-        0
-      ]
-    },
-    "class_type": "LoraLoaderModelOnly",
-    "_meta": {
-      "title": "Load LoRA"
-    }
-  },
-  "128": {
-    "inputs": {
-      "sampler_name": "euler"
-    },
-    "class_type": "KSamplerSelect",
-    "_meta": {
-      "title": "KSamplerSelect"
-    }
-  },
-  "129": {
+  "22": {
     "inputs": {
       "noise": [
-        "132",
+        "23",
         0
       ],
       "guider": [
-        "133",
+        "24",
         0
       ],
       "sampler": [
-        "128",
+        "25",
         0
       ],
       "sigmas": [
-        "135",
+        "26",
         0
       ],
       "latent_image": [
-        "134",
+        "27",
         0
       ]
     },
@@ -289,40 +180,28 @@
       "title": "SamplerCustomAdvanced"
     }
   },
-  "131": {
+  "23": {
     "inputs": {
-      "av_latent": [
-        "129",
-        0
-      ]
-    },
-    "class_type": "LTXVSeparateAVLatent",
-    "_meta": {
-      "title": "LTXVSeparateAVLatent"
-    }
-  },
-  "132": {
-    "inputs": {
-      "noise_seed": 877865034117229
+      "noise_seed": 24
     },
     "class_type": "RandomNoise",
     "_meta": {
       "title": "RandomNoise"
     }
   },
-  "133": {
+  "24": {
     "inputs": {
-      "cfg": 1.2,
+      "cfg": 1,
       "model": [
-        "46",
+        "4",
         0
       ],
       "positive": [
-        "109",
+        "18",
         0
       ],
       "negative": [
-        "109",
+        "18",
         1
       ]
     },
@@ -331,29 +210,22 @@
       "title": "CFG Guider"
     }
   },
-  "134": {
+  "25": {
     "inputs": {
-      "video_latent": [
-        "109",
-        2
-      ],
-      "audio_latent": [
-        "46",
-        3
-      ]
+      "sampler_name": "euler"
     },
-    "class_type": "LTXVConcatAVLatent",
+    "class_type": "KSamplerSelect",
     "_meta": {
-      "title": "LTXVConcatAVLatent"
+      "title": "KSamplerSelect"
     }
   },
-  "135": {
+  "26": {
     "inputs": {
       "scheduler": "linear_quadratic",
       "steps": 8,
       "denoise": 1,
       "model": [
-        "46",
+        "4",
         0
       ]
     },
@@ -362,18 +234,134 @@
       "title": "BasicScheduler"
     }
   },
-  "136": {
+  "27": {
+    "inputs": {
+      "video_latent": [
+        "18",
+        2
+      ],
+      "audio_latent": [
+        "4",
+        3
+      ]
+    },
+    "class_type": "LTXVConcatAVLatent",
+    "_meta": {
+      "title": "LTXVConcatAVLatent"
+    }
+  },
+  "28": {
+    "inputs": {
+      "av_latent": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "LTXVSeparateAVLatent",
+    "_meta": {
+      "title": "LTXVSeparateAVLatent"
+    }
+  },
+  "30": {
+    "inputs": {
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 512,
+      "temporal_overlap": 8,
+      "samples": [
+        "71",
+        2
+      ],
+      "vae": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "VAE Decode (Tiled)"
+    }
+  },
+  "32": {
+    "inputs": {
+      "frame_rate": [
+        "4",
+        5
+      ],
+      "loop_count": 0,
+      "filename_prefix": "AnimateDiff",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "no_preview": false,
+      "images": [
+        "30",
+        0
+      ],
+      "audio": [
+        "42",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "34": {
+    "inputs": {
+      "use_custom_resolution": true,
+      "resolution": "1280x720 (16:9) (横屏)",
+      "custom_width": 1280,
+      "custom_height": 832
+    },
+    "class_type": "TTResolutionSelector",
+    "_meta": {
+      "title": "TT分辨率选择器"
+    }
+  },
+  "42": {
+    "inputs": {
+      "samples": [
+        "28",
+        1
+      ],
+      "audio_vae": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "LTXVAudioVAEDecode",
+    "_meta": {
+      "title": "LTXV Audio VAE Decode"
+    }
+  },
+  "70": {
+    "inputs": {
+      "unet_name": "ltx-2.3-22b-distilled-1.1_transformer_only_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "71": {
     "inputs": {
       "positive": [
-        "109",
+        "18",
         0
       ],
       "negative": [
-        "109",
+        "18",
         1
       ],
       "latent": [
-        "131",
+        "28",
         0
       ]
     },
@@ -382,30 +370,16 @@
       "title": "LTXVCropGuides"
     }
   },
-  "139": {
+  "73": {
     "inputs": {
-      "use_custom_resolution": false,
-      "resolution": "1280x720 (16:9) (横屏)",
-      "custom_width": 1024,
-      "custom_height": 1024
-    },
-    "class_type": "TTResolutionSelector",
-    "_meta": {
-      "title": "TT分辨率选择器"
-    }
-  },
-  "140": {
-    "inputs": {
-      "lora_name": "LTX2.3_Crisp_Enhance.safetensors",
-      "strength_model": 0.75,
-      "model": [
-        "113",
+      "anything": [
+        "30",
         0
       ]
     },
-    "class_type": "LoraLoaderModelOnly",
+    "class_type": "easy cleanGpuUsed",
     "_meta": {
-      "title": "Load LoRA"
+      "title": "Clean VRAM Used"
     }
   }
 }

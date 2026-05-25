@@ -348,11 +348,14 @@ import time
 
 
 class LTXNodes:
-    """LTX 工作流的关键节点 id。模板更新时改这里。"""
-    DIRECTOR = "46"
-    SAVE_VIDEO = "104"
-    NOISE = "132"
-    RESOLUTION = "139"
+    """LTX 工作流的关键节点 id。模板更新时改这里。
+
+    对应 LTX2.3导演台_api 工作流；id 必须与 RunningHub 上部署的那份一致。
+    """
+    DIRECTOR = "4"
+    SAVE_VIDEO = "32"        # VHS_VideoCombine（原 SaveVideo），字段名仍是 filename_prefix
+    NOISE = "23"             # RandomNoise
+    RESOLUTION = "34"        # TTResolutionSelector
 
 
 # ID 模式 nodeInfoList 白名单：仅这 11 个 Director 字段允许被覆盖
