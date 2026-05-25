@@ -494,3 +494,64 @@ def test_nodeinfolist_never_overrides_audio_link(builder, tmp_path):
                        and it["fieldName"] == "audio"]
         assert audio_items == [], (
             f"use_custom_audio={use_custom}: nodeInfoList 不应覆盖 audio 连线")
+
+
+# ---------- V3 profile-driven builder ----------
+
+def make_spec(**overrides):
+    """复用 _basic_spec 构造带图片段的 spec；overrides 经 dataclasses.replace 应用。
+
+    LTXDirectorSpec 为 frozen dataclass，故新增字段通过 replace 而非属性赋值。
+    """
+    spec = _basic_spec(img_path=Path("/v3_img.png"))
+    if overrides:
+        spec = dataclasses.replace(spec, **overrides)
+    return spec
+
+
+def test_v3_profile_uses_v3_node_ids_and_audio_switch(tmp_path):
+    from drama_shot_master.core import workflow_profiles as wp
+    from drama_shot_master.providers.runninghub import LTXTaskBuilder
+    prof = wp.PROFILES["director_v3"]
+    builder = LTXTaskBuilder(wp.template_path_for(prof), prof)
+    spec = make_spec(use_custom_audio=True)
+    uploaded = {spec.segments[0].image_path: "uploaded_0.png"}
+    items = builder.build_node_info_list(spec, uploaded)
+    node_ids = {it["nodeId"] for it in items}
+    assert "672" in node_ids and "683" in node_ids
+    assert any(it["nodeId"] == "672" and it["fieldName"] == "global_prompt" for it in items)
+    assert any(it["nodeId"] == "683" and it["fieldName"] == "filename_prefix" for it in items)
+    sw = [it for it in items if it["nodeId"] == "687" and it["fieldName"] == "switch"]
+    assert sw and sw[0]["fieldValue"] is True
+
+
+def test_v3_resolution_lands_on_director_custom_wh(tmp_path):
+    from drama_shot_master.core import workflow_profiles as wp
+    from drama_shot_master.providers.runninghub import LTXTaskBuilder
+    prof = wp.PROFILES["director_v3"]
+    builder = LTXTaskBuilder(wp.template_path_for(prof), prof)
+    spec = make_spec(use_custom_resolution=False,
+                     resolution_preset="720x1280 (9:16) (竖屏)")
+    uploaded = {spec.segments[0].image_path: "u.png"}
+    items = builder.build_node_info_list(spec, uploaded)
+    w = [it for it in items if it["nodeId"] == "672" and it["fieldName"] == "custom_width"]
+    h = [it for it in items if it["nodeId"] == "672" and it["fieldName"] == "custom_height"]
+    assert w and w[0]["fieldValue"] == 720
+    assert h and h[0]["fieldValue"] == 1280
+    assert all(it["nodeId"] != "34" for it in items)
+
+
+def test_v3_extras_appended(tmp_path, monkeypatch):
+    from drama_shot_master.core import workflow_profiles as wp
+    from drama_shot_master.providers.runninghub import LTXTaskBuilder
+    y = tmp_path / "extras.yaml"
+    y.write_text("overrides:\n  - {node: '695', field: lora_01, value: x.safetensors}\n",
+                 encoding="utf-8")
+    monkeypatch.setattr(wp, "extras_path_for", lambda prof: y)
+    prof = wp.PROFILES["director_v3"]
+    builder = LTXTaskBuilder(wp.template_path_for(prof), prof)
+    spec = make_spec()
+    uploaded = {spec.segments[0].image_path: "u.png"}
+    items = builder.build_node_info_list(spec, uploaded)
+    assert any(it["nodeId"] == "695" and it["fieldName"] == "lora_01"
+               and it["fieldValue"] == "x.safetensors" for it in items)

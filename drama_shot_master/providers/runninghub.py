@@ -346,6 +346,10 @@ import json
 import secrets
 import time
 
+from drama_shot_master.core.workflow_profiles import (
+    WorkflowProfile, get_profile, load_extras, parse_preset_wh,
+)
+
 
 class LTXNodes:
     """LTX 工作流的关键节点 id。模板更新时改这里。
@@ -380,12 +384,17 @@ class LTXTaskBuilder:
     启动时一次性加载模板并校验关键节点存在；每次 build_* deepcopy 一份新结果。
     """
 
-    def __init__(self, template_path: Path):
+    def __init__(self, template_path: Path,
+                 profile: "WorkflowProfile | None" = None):
         self.template_path = template_path
+        self.profile = profile or get_profile("director")
         with template_path.open(encoding="utf-8") as f:
             self._template: dict = json.load(f)
-        for nid in (LTXNodes.DIRECTOR, LTXNodes.SAVE_VIDEO,
-                    LTXNodes.NOISE, LTXNodes.RESOLUTION):
+        required = [self.profile.director_node, self.profile.save_video_node,
+                    self.profile.noise_node]
+        if self.profile.resolution_node:
+            required.append(self.profile.resolution_node)
+        for nid in required:
             if nid not in self._template:
                 raise RunningHubInvalidSpec(
                     f"模板 {template_path} 缺少节点 {nid}")
@@ -460,47 +469,58 @@ class LTXTaskBuilder:
 
     def build_node_info_list(self, spec: LTXDirectorSpec,
                               uploaded_files: dict[Path, str]) -> list[dict]:
-        """生成 nodeInfoList 数组（ID 模式）。"""
+        """生成 nodeInfoList 数组（ID 模式），按 profile 取节点 ID。"""
         self._validate(spec, uploaded_files)
+        prof = self.profile
         items: list[dict] = []
         params = self._compute_director_params(spec, uploaded_files)
         for fname in _DIRECTOR_FIELDS:
             if fname in params:
-                items.append({
-                    "nodeId": LTXNodes.DIRECTOR,
-                    "fieldName": fname,
-                    "fieldValue": params[fname],
-                })
-        items.append({
-            "nodeId": LTXNodes.SAVE_VIDEO,
-            "fieldName": "filename_prefix",
-            "fieldValue": spec.filename_prefix,
-        })
+                items.append({"nodeId": prof.director_node,
+                              "fieldName": fname, "fieldValue": params[fname]})
+        items.append({"nodeId": prof.save_video_node,
+                      "fieldName": "filename_prefix",
+                      "fieldValue": spec.filename_prefix})
         if spec.noise_seed is not None:
-            items.append({
-                "nodeId": LTXNodes.NOISE,
-                "fieldName": "noise_seed",
-                "fieldValue": spec.noise_seed,
-            })
-        if spec.use_custom_resolution:
-            items.extend([
-                {"nodeId": LTXNodes.RESOLUTION,
-                 "fieldName": "use_custom_resolution", "fieldValue": True},
-                {"nodeId": LTXNodes.RESOLUTION,
-                 "fieldName": "custom_width", "fieldValue": spec.custom_width},
-                {"nodeId": LTXNodes.RESOLUTION,
-                 "fieldName": "custom_height", "fieldValue": spec.custom_height},
-            ])
-        else:
-            items.append({
-                "nodeId": LTXNodes.RESOLUTION,
-                "fieldName": "resolution",
-                "fieldValue": spec.resolution_preset,
-            })
+            items.append({"nodeId": prof.noise_node,
+                          "fieldName": "noise_seed", "fieldValue": spec.noise_seed})
+        items.extend(self._resolution_items(spec))
+        if prof.audio_switch_node:
+            items.append({"nodeId": prof.audio_switch_node,
+                          "fieldName": "switch",
+                          "fieldValue": bool(spec.use_custom_audio)})
+        for o in load_extras(prof):
+            items.append({"nodeId": o["node"], "fieldName": o["field"],
+                          "fieldValue": o.get("value")})
         # 不覆盖 CreateVideo.audio：它是节点连线(link)而非 widget，nodeInfoList
         # 只能改 widget，覆盖连线会被服务端拒为 code=404 NOT_FOUND。原生音频路由
         # （改接 LTXVAudioVAEDecode）需在 RunningHub 平台上改工作流本身。
         return items
+
+    def _resolution_items(self, spec: LTXDirectorSpec) -> list[dict]:
+        prof = self.profile
+        if prof.resolution_node:
+            if spec.use_custom_resolution:
+                return [
+                    {"nodeId": prof.resolution_node,
+                     "fieldName": "use_custom_resolution", "fieldValue": True},
+                    {"nodeId": prof.resolution_node,
+                     "fieldName": "custom_width", "fieldValue": spec.custom_width},
+                    {"nodeId": prof.resolution_node,
+                     "fieldName": "custom_height", "fieldValue": spec.custom_height},
+                ]
+            return [{"nodeId": prof.resolution_node,
+                     "fieldName": "resolution", "fieldValue": spec.resolution_preset}]
+        # 无分辨率节点（V3）→ 落 director 的 custom_width/custom_height
+        if spec.use_custom_resolution:
+            w, h = spec.custom_width, spec.custom_height
+        else:
+            wh = parse_preset_wh(spec.resolution_preset)
+            w, h = wh if wh else (spec.custom_width, spec.custom_height)
+        return [
+            {"nodeId": prof.director_node, "fieldName": "custom_width", "fieldValue": w},
+            {"nodeId": prof.director_node, "fieldName": "custom_height", "fieldValue": h},
+        ]
 
     # ---------- 校验 ----------
 
