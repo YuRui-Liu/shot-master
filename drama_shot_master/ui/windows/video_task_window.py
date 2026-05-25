@@ -55,7 +55,10 @@ class VideoTaskWindow(QMainWindow):
         super().changeEvent(event)
 
     def closeEvent(self, event):
-        # 停本地轮询（云端可能仍跑）；断开提交转发避免 use-after-free
+        # 停本地轮询（云端可能仍跑）；断开提交转发信号。
+        # 注意：本窗不设 WA_DeleteOnClose、不 deleteLater，关窗后 editor 仍存活，
+        # 故 worker 的 QTimer 回调即便在关窗后触发也只更新隐藏的 status bar，无
+        # use-after-free。若日后加 WA_DeleteOnClose，须改为带存活判断的回调。
         try:
             self.editor._cancel_flag["v"] = True
             self.editor.submitStarted.disconnect()

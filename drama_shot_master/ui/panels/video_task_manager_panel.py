@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox, QAbstractItemView,
@@ -19,6 +19,8 @@ from drama_shot_master.ui.state import AppState
 
 class VideoTaskManagerPanel(BasePanel):
     """任务列表 + 新建/打开/复制/删除。开窗与持久化由回调交给 main_window。"""
+
+    taskRenamed = Signal(str, str)   # (task_id, new_name) → main_window 同步已开窗标题
 
     def __init__(self, state: AppState, cfg: Config,
                  store: VideoTaskStore,
@@ -166,3 +168,4 @@ class VideoTaskManagerPanel(BasePanel):
         if tid and new_name:
             self.store.update(tid, name=new_name)
             self._persist_cb()
+            self.taskRenamed.emit(tid, new_name)

@@ -171,6 +171,7 @@ class MainWindow(QMainWindow):
         for p in self.panels:
             p.validityChanged.connect(self._refresh_validity)
             p.statusMessage.connect(self.status.setText)
+        self._video_manager().taskRenamed.connect(self._on_task_renamed)
 
     def _open_dir(self):
         start = str(self.state.current_dir or Path.home())
@@ -246,6 +247,11 @@ class MainWindow(QMainWindow):
         self._open_task_windows.pop(task_id, None)
         self._video_manager().clear_task_status(task_id)
         self._video_manager().refresh()
+
+    def _on_task_renamed(self, task_id: str, name: str):
+        win = self._open_task_windows.get(task_id)
+        if win is not None:
+            win.set_title_name(name)
 
     def _on_func_changed(self, idx: int):
         self.stack.setCurrentIndex(idx)
