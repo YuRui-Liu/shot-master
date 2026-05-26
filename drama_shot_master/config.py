@@ -53,6 +53,17 @@ class Config:
     video_timeline_cache: dict = field(default_factory=dict)
     video_tasks: list = field(default_factory=list)
     soundtrack_tasks: list = field(default_factory=list)
+    dub_tasks: list = field(default_factory=list)
+    dub_workflow_ids: dict = field(default_factory=lambda: {
+        "voice_design": "2059260167811850242",
+        "voice_clone": "2058388078015901697",
+    })
+    dub_node_profiles: dict = field(default_factory=dict)   # 角色→节点号 覆盖（可选）
+    dub_output_dir: str = ""
+    dub_sampling: dict = field(default_factory=lambda: {
+        "top_k": 30, "top_p": 0.8, "temperature": 0.8, "num_beams": 3,
+        "max_mel_tokens": 1500,
+    })
     soundtrack_workflow_id: str = "2059090557116440578"
     soundtrack_output_dir: str = ""
     soundtrack_seeds_count: int = 2
@@ -90,6 +101,11 @@ class Config:
                 "video_timeline_cache": self.video_timeline_cache,
                 "video_tasks": self.video_tasks,
                 "soundtrack_tasks": self.soundtrack_tasks,
+                "dub_tasks": self.dub_tasks,
+                "dub_workflow_ids": self.dub_workflow_ids,
+                "dub_node_profiles": self.dub_node_profiles,
+                "dub_output_dir": self.dub_output_dir,
+                "dub_sampling": self.dub_sampling,
                 "soundtrack_workflow_id": self.soundtrack_workflow_id,
                 "soundtrack_output_dir": self.soundtrack_output_dir,
                 "soundtrack_seeds_count": self.soundtrack_seeds_count,
@@ -195,6 +211,16 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.video_tasks = data["video_tasks"]
                 if "soundtrack_tasks" in data and isinstance(data["soundtrack_tasks"], list):
                     cfg.soundtrack_tasks = data["soundtrack_tasks"]
+                if "dub_tasks" in data and isinstance(data["dub_tasks"], list):
+                    cfg.dub_tasks = data["dub_tasks"]
+                if "dub_workflow_ids" in data and isinstance(data["dub_workflow_ids"], dict):
+                    cfg.dub_workflow_ids = data["dub_workflow_ids"]
+                if "dub_node_profiles" in data and isinstance(data["dub_node_profiles"], dict):
+                    cfg.dub_node_profiles = data["dub_node_profiles"]
+                if "dub_output_dir" in data and isinstance(data["dub_output_dir"], str):
+                    cfg.dub_output_dir = data["dub_output_dir"]
+                if "dub_sampling" in data and isinstance(data["dub_sampling"], dict):
+                    cfg.dub_sampling = data["dub_sampling"]
                 if isinstance(data.get("soundtrack_workflow_id"), str):
                     cfg.soundtrack_workflow_id = data["soundtrack_workflow_id"]
                 if isinstance(data.get("soundtrack_output_dir"), str):
