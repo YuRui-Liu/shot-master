@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>配音 · Drama-Shot-Master 帮助</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- NAV_BLOCK，active = dubbing.html -->
+    <nav class="sidebar">
+      <div class="brand">Drama-Shot-Master<small>用户帮助文档</small></div>
+      <div class="group">入门</div>
+      <a href="index.html">软件简介</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="activation.html">激活与授权</a>
+      <div class="group">功能详解</div>
+      <a href="image-split.html">拆图</a>
+      <a href="image-combine.html">拼图</a>
+      <a href="image-trim.html">去白边</a>
+      <a href="video.html">视频生成</a>
+      <a href="soundtrack.html">配乐</a>
+      <a href="dubbing.html" class="active">配音</a>
+      <div class="group">配置与进阶</div>
+      <a href="settings.html">设置说明</a>
+      <a href="custom-workflow.html">自定义工作流</a>
+      <div class="group">支持</div>
+      <a href="faq.html">常见问题</a>
+      <a href="troubleshooting.html">故障排查</a>
+      <a href="glossary.html">术语表</a>
+    </nav>
+  <main>
+    <div class="breadcrumb"><a href="index.html">首页</a> / 功能详解 / 配音</div>
+    <h1>配音</h1>
+
+    <h2>概述</h2>
+    <p>配音功能基于 RunningHub 的 TTS 工作流为台词生成语音，配音任务在独立窗口中管理。任务窗顶部可在两种方式间切换：音色设计与声音克隆。</p>
+
+    <h2>适用场景</h2>
+    <p>为短剧台词生成配音，既可用自然语言描述想要的音色，也可用一段参考音频克隆特定人声并赋予情感。</p>
+
+    <h2>操作步骤</h2>
+    <ol class="steps">
+      <li>在顶部功能条选择「配音」，新建一个配音任务窗。</li>
+      <li>在任务窗顶部选择「音色设计」或「声音克隆」。</li>
+      <li>按所选方式填写表单。</li>
+      <li>点「生成」提交任务。</li>
+      <li>完成后点「打开结果」试听生成的 FLAC 音频。</li>
+    </ol>
+    <figure class="shot"><span>图：配音任务窗的方式切换与表单</span></figure>
+
+    <h3>音色设计</h3>
+    <p>填写：要合成的文本、音色描述（用自然语言描述想要的声线特征）、语言。软件据此直接合成符合描述的语音。</p>
+
+    <h3>声音克隆</h3>
+    <p>填写：要合成的文本、说话人参考音频、情感强度；并从以下 4 种情感模式中选择其一：</p>
+    <ul>
+      <li><strong>默认</strong>：情感随参考音频本身。</li>
+      <li><strong>文本情绪</strong>：另写一段情感描述文本来指定情绪。</li>
+      <li><strong>语音情绪模仿</strong>：另传一段情感参考音频，模仿其情绪。</li>
+      <li><strong>情感向量</strong>：用 8 维向量调节情绪（Happy / Angry / Sad / Fear / Hate / Low / Surprise / Neutral）。</li>
+    </ul>
+
+    <h2>参数说明</h2>
+    <table class="params">
+      <tr><th>参数</th><th>含义</th></tr>
+      <tr><td>情感强度 emo_alpha</td><td>情感的施加强度，取值 0–2；越大情感越明显。</td></tr>
+      <tr><td>默认模式输入</td><td>说话人参考音频，情感随其本身。</td></tr>
+      <tr><td>文本情绪模式输入</td><td>一段描述目标情绪的文本。</td></tr>
+      <tr><td>语音情绪模仿模式输入</td><td>一段作为情绪参考的音频。</td></tr>
+      <tr><td>情感向量模式输入</td><td>8 维情感向量（Happy/Angry/Sad/Fear/Hate/Low/Surprise/Neutral）。</td></tr>
+    </table>
+
+    <h2>提示与技巧</h2>
+    <div class="note">使用前需在「设置 → 配音…」中配置两个工作流 ID（音色设计与声音克隆各一个）以及输出目录。</div>
+
+    <h2>常见问题</h2>
+    <h3>「语音情绪模仿」模式不可用怎么办？</h3>
+    <p>该模式要求线上工作流包含情感音频输入节点。若不可用，请参阅 <a href="custom-workflow.html">自定义工作流</a> 调整或更换工作流。</p>
+
+    <div class="pager"><a href="soundtrack.html">← 上一页：配乐</a><a href="settings.html">下一页：设置说明 →</a></div>
+    <footer>© 2026 二进制糯米 · Drama-Shot-Master 帮助文档</footer>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>配乐 · Drama-Shot-Master 帮助</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- NAV_BLOCK，active = soundtrack.html -->
+    <nav class="sidebar">
+      <div class="brand">Drama-Shot-Master<small>用户帮助文档</small></div>
+      <div class="group">入门</div>
+      <a href="index.html">软件简介</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="activation.html">激活与授权</a>
+      <div class="group">功能详解</div>
+      <a href="image-split.html">拆图</a>
+      <a href="image-combine.html">拼图</a>
+      <a href="image-trim.html">去白边</a>
+      <a href="video.html">视频生成</a>
+      <a href="soundtrack.html" class="active">配乐</a>
+      <a href="dubbing.html">配音</a>
+      <div class="group">配置与进阶</div>
+      <a href="settings.html">设置说明</a>
+      <a href="custom-workflow.html">自定义工作流</a>
+      <div class="group">支持</div>
+      <a href="faq.html">常见问题</a>
+      <a href="troubleshooting.html">故障排查</a>
+      <a href="glossary.html">术语表</a>
+    </nav>
+  <main>
+    <div class="breadcrumb"><a href="index.html">首页</a> / 功能详解 / 配乐</div>
+    <h1>配乐</h1>
+
+    <h2>概述</h2>
+    <p>配乐功能为成片自动分析卡点并生成 / 对齐配乐，让音乐节奏与画面切换相吻合。配乐任务在独立窗口中管理。</p>
+
+    <h2>适用场景</h2>
+    <p>给剪好的视频配上节奏贴合画面的背景音乐，提升成片的观感与节奏感。</p>
+
+    <h2>操作步骤</h2>
+    <ol class="steps">
+      <li>在顶部功能条选择「配乐」，新建一个配乐任务窗。</li>
+      <li>选择要配乐的视频。</li>
+      <li>分析卡点；在卡点编辑器中微调卡点位置。</li>
+      <li>生成或对齐配乐，确认无误后导出。</li>
+    </ol>
+    <figure class="shot"><span>图：配乐任务窗与卡点编辑器</span></figure>
+
+    <h2>参数说明</h2>
+    <table class="params">
+      <tr><th>参数</th><th>含义</th></tr>
+      <tr><td>风格</td><td>配乐的音乐风格。</td></tr>
+      <tr><td>随机种子</td><td>控制生成结果的随机性；相同种子可复现同一结果。</td></tr>
+      <tr><td>交叉淡入淡出</td><td>段落衔接处的渐入渐出时长，让过渡更平滑。</td></tr>
+      <tr><td>卡点参数</td><td>卡点检测的灵敏度与数量等设置（在「设置 → 配乐…」中调整）。</td></tr>
+    </table>
+
+    <h2>提示与技巧</h2>
+    <div class="tip">卡点编辑器支持手动增删卡点，自动分析后可以再微调，让音乐重拍精确落在画面切换处。</div>
+
+    <h2>常见问题</h2>
+    <h3>卡点太多或太少怎么办？</h3>
+    <p>在配乐设置中调整卡点检测的灵敏度与最大数量，再重新分析。</p>
+
+    <div class="pager"><a href="video.html">← 上一页：视频生成</a><a href="dubbing.html">下一页：配音 →</a></div>
+    <footer>© 2026 二进制糯米 · Drama-Shot-Master 帮助文档</footer>
+  </main>
+</div>
+</body>
+</html>

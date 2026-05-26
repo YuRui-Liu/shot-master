@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>视频生成 · Drama-Shot-Master 帮助</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- NAV_BLOCK，active = video.html -->
+    <nav class="sidebar">
+      <div class="brand">Drama-Shot-Master<small>用户帮助文档</small></div>
+      <div class="group">入门</div>
+      <a href="index.html">软件简介</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="activation.html">激活与授权</a>
+      <div class="group">功能详解</div>
+      <a href="image-split.html">拆图</a>
+      <a href="image-combine.html">拼图</a>
+      <a href="image-trim.html">去白边</a>
+      <a href="video.html" class="active">视频生成</a>
+      <a href="soundtrack.html">配乐</a>
+      <a href="dubbing.html">配音</a>
+      <div class="group">配置与进阶</div>
+      <a href="settings.html">设置说明</a>
+      <a href="custom-workflow.html">自定义工作流</a>
+      <div class="group">支持</div>
+      <a href="faq.html">常见问题</a>
+      <a href="troubleshooting.html">故障排查</a>
+      <a href="glossary.html">术语表</a>
+    </nav>
+  <main>
+    <div class="breadcrumb"><a href="index.html">首页</a> / 功能详解 / 视频生成</div>
+    <h1>视频生成</h1>
+
+    <h2>概述</h2>
+    <p>视频生成基于 LTX 2.3 导演台工作流，从分镜图加提示词生成带运镜的视频片段。每个生成任务是一个独立窗口，可同时开多个并行处理。</p>
+
+    <h2>适用场景</h2>
+    <p>把已经处理好的分镜图变成带运镜、有节奏的视频片段，用于拼成短剧成片。</p>
+
+    <h2>操作步骤</h2>
+    <ol class="steps">
+      <li>在顶部功能条选择「视频生成」，点「新建」开启一个独立任务窗口。</li>
+      <li>把分镜图拖到任务窗的时间轴上，按片段排好顺序。</li>
+      <li>为每个分段填写提示词，描述运镜、画面内容与音效。</li>
+      <li>选择要使用的工作流（如「导演台」或「ALL IN ONE V3」）。</li>
+      <li>点「生成」提交任务，完成后在窗口内预览结果。</li>
+    </ol>
+    <figure class="shot"><span>图：视频生成任务窗与时间轴分段提示词</span></figure>
+    <p>多个任务可以并行运行，各自占用独立窗口互不干扰；若某个片段不满意，回到对应窗口调整提示词后重新生成即可。</p>
+
+    <h2>参数说明</h2>
+    <table class="params">
+      <tr><th>参数</th><th>含义</th></tr>
+      <tr><td>全局提示词</td><td>对整段视频统一生效的画面 / 风格描述。</td></tr>
+      <tr><td>时长 / 帧数</td><td>生成视频的总长度与帧数设置。</td></tr>
+      <tr><td>分段长度</td><td>每个分镜片段的时长，决定节奏与切换。</td></tr>
+      <tr><td>引导强度</td><td>提示词与分镜图对生成结果的约束强度。</td></tr>
+      <tr><td>是否自定义音频</td><td>是否使用自带音频；关闭时由工作流生成原生音频。</td></tr>
+      <tr><td>工作流选择</td><td>选用的 LTX 2.3 工作流类型（导演台 / ALL IN ONE V3 等）。</td></tr>
+    </table>
+
+    <h2>提示与技巧</h2>
+    <div class="note">提交生成前，需先在「设置 → RunningHub 配置」中填好 API Key 与各工作流的 workflow_id，否则任务无法提交到云端。</div>
+
+    <h2>常见问题</h2>
+    <h3>生成结果不遵循分镜图 / 分辨率不对怎么办？</h3>
+    <p>多为工作流选择或节点映射问题，请参阅 <a href="troubleshooting.html">故障排查</a>。</p>
+    <h3>想换用自己的工作流怎么办？</h3>
+    <p>见 <a href="custom-workflow.html">自定义工作流</a>，介绍如何填入自己的 workflow_id 与节点覆盖。</p>
+
+    <div class="pager"><a href="image-trim.html">← 上一页：去白边</a><a href="soundtrack.html">下一页：配乐 →</a></div>
+    <footer>© 2026 二进制糯米 · Drama-Shot-Master 帮助文档</footer>
+  </main>
+</div>
+</body>
+</html>
