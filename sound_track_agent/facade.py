@@ -65,9 +65,26 @@ def _build_real_stages(cfg, workflow_id, work_dir, global_style,
         seeds=list(range(1, seeds_count + 1)),
         frame_provider=lambda seg: extract_segment_frame(
             video_path, seg, frames_dir / f"seg{seg.index}.png"),
+        align_fn=_make_align_fn(video_path),
         mix_fn=partial(assemble_and_mix, video_path=video_path,
                        work_dir=work_dir),
     )
+
+
+def _make_align_fn(video_path) -> Callable:
+    """align 阶段：光流自动检测爆点填 session.accent_points。
+
+    已有 accent_points（用户编辑过 / 续跑）则不覆盖；检测失败静默跳过（不卡管线）。
+    """
+    def _align(session: ScoringSession) -> None:
+        if session.accent_points:
+            return
+        try:
+            from sound_track_agent.accent_detector import detect_accents
+            session.accent_points = detect_accents(video_path)
+        except Exception:
+            pass
+    return _align
 
 
 def _wrap_progress(stages: Stages, on_progress) -> Stages:

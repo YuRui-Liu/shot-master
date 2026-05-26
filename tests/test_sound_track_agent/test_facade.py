@@ -151,3 +151,33 @@ def test_regenerate_segment_out_of_range_raises(tmp_path):
     with pytest.raises(ValueError):
         regenerate_segment(sess, 9, tmp_path / "w", cfg=object(),
                            workflow_id="wf", stages=_S())
+
+
+from sound_track_agent.facade import _make_align_fn
+from sound_track_agent.session import AccentPoint
+
+
+def test_align_fn_fills_accents_when_empty(monkeypatch):
+    import sound_track_agent.accent_detector as ad
+    monkeypatch.setattr(ad, "detect_accents",
+                        lambda v, **k: [AccentPoint(t=1.0, intensity=0.9)])
+    sess = ScoringSession(source_mp4="/x/ep.mp4", source_hash="h",
+                          global_style="s", frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=4.0)])
+    _make_align_fn("/x/ep.mp4")(sess)
+    assert len(sess.accent_points) == 1
+    assert sess.accent_points[0].t == 1.0
+
+
+def test_align_fn_skips_when_accents_exist(monkeypatch):
+    import sound_track_agent.accent_detector as ad
+    monkeypatch.setattr(ad, "detect_accents",
+                        lambda v, **k: [AccentPoint(t=9.9, intensity=1.0)])
+    sess = ScoringSession(source_mp4="/x/ep.mp4", source_hash="h",
+                          global_style="s", frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=4.0)],
+                          accent_points=[AccentPoint(t=2.0, intensity=0.5)])
+    _make_align_fn("/x/ep.mp4")(sess)
+    # 已有不覆盖
+    assert len(sess.accent_points) == 1
+    assert sess.accent_points[0].t == 2.0
