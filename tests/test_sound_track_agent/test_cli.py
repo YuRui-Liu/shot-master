@@ -24,3 +24,14 @@ def test_run_stop_after_defaults_to_mix():
     p = build_parser()
     ns = p.parse_args(["run", "ep1.mp4", "--style", "x"])
     assert ns.stop_after == "mix"
+
+
+def test_run_parse_includes_workflow_and_seeds():
+    p = build_parser()
+    ns = p.parse_args(["run", "ep.mp4", "--style", "x"])
+    assert ns.workflow_id == "2059090557116440578"   # 默认 ACE-Step workflowId
+    assert ns.seeds_count == 2
+    ns2 = p.parse_args(["run", "ep.mp4", "--style", "x",
+                        "--workflow-id", "wf-custom", "--seeds-count", "3"])
+    assert ns2.workflow_id == "wf-custom"
+    assert ns2.seeds_count == 3
