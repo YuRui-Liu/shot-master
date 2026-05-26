@@ -584,6 +584,13 @@ def submit_ltx_task(client: RunningHubClient,
 
     # 2. 构造 nodeInfoList + 提交
     node_info_list = builder.build_node_info_list(spec, uploaded)
+    try:  # 诊断日志：记录实际发出的 nodeInfoList（失败不影响提交）
+        from drama_shot_master.core import submit_debug
+        submit_debug.write_block(
+            f"nodeInfoList (workflow_id={workflow_id}, "
+            f"{len(node_info_list)} 项):", node_info_list)
+    except Exception:  # noqa: BLE001
+        pass
     task_id = client.create_task(
         workflow_id=workflow_id,
         node_info_list=node_info_list,

@@ -347,4 +347,10 @@ class MainWindow(QMainWindow):
                 last_active_function=self.state.active_function or "inference")
         except Exception:
             pass
+        # 关闭软件时删除提交诊断日志（崩溃未正常关闭则保留，便于事后溯源）
+        try:
+            from drama_shot_master.core import submit_debug
+            submit_debug.reset()
+        except Exception:
+            pass
         super().closeEvent(e)

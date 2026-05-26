@@ -425,6 +425,22 @@ class VideoPanel(BasePanel):
         spec = self.model.to_ltx_spec(out_dir)
         self._cancel_flag["v"] = False
 
+        # ---- 诊断日志：记录 profile / workflow_id / 模板 / 上传图实际尺寸 ----
+        from drama_shot_master.core import submit_debug
+        from PIL import Image as _PILImage
+        submit_debug.write(
+            f"=== 提交 profile={profile.key}({profile.name}) "
+            f"workflow_id={wf_id} 模板={template_path}")
+        for s in self.model.segments:
+            if s.image_path is None:
+                continue
+            try:
+                w, h = _PILImage.open(s.image_path).size
+                submit_debug.write(
+                    f"  图: {s.image_path}  {w}x{h}  ratio={w / max(h, 1):.3f}")
+            except Exception as e:  # noqa: BLE001 — 仅诊断
+                submit_debug.write(f"  图: {s.image_path}  读取失败: {e}")
+
         cancel_flag = self._cancel_flag
         cfg = self.cfg
 
