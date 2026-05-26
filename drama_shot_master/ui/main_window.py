@@ -118,7 +118,10 @@ class MainWindow(QMainWindow):
         self.thumb = ThumbnailGrid()
 
         right = QWidget(); rv = QVBoxLayout(right)
-        switch = QHBoxLayout()
+        # 功能切换条：提到顶部独立一行（横跨整窗），不再塞进会变窄的右栏
+        switch_bar = QWidget()
+        switch = QHBoxLayout(switch_bar)
+        switch.setContentsMargins(6, 4, 6, 4)
         self.func_group = QButtonGroup(self)
 
         def _grp_label(text):
@@ -141,7 +144,6 @@ class MainWindow(QMainWindow):
             self.func_group.addButton(b, i)
             switch.addWidget(b)
         switch.addStretch(1)
-        rv.addLayout(switch)
 
         self.stack = QStackedWidget()
         self.panels = [
@@ -176,7 +178,14 @@ class MainWindow(QMainWindow):
         sp.setStretchFactor(0, 0); sp.setStretchFactor(1, 1)
         sp.setStretchFactor(2, 0)
         sp.setSizes([220, 800, 360])
-        self.setCentralWidget(sp)
+
+        # 顶层：功能切换条（整窗宽）在上，三栏 splitter 在下
+        central = QWidget()
+        cv = QVBoxLayout(central)
+        cv.setContentsMargins(0, 0, 0, 0)
+        cv.addWidget(switch_bar)
+        cv.addWidget(sp, 1)
+        self.setCentralWidget(central)
 
         sb = QStatusBar()
         self.status = QLabel(
