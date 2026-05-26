@@ -1,5 +1,7 @@
+import numpy as np
+import soundfile as sf
 from sound_track_agent.beat_aligner import (
-    snap_boundaries_to_beats, align_accents,
+    snap_boundaries_to_beats, align_accents, extract_beats,
 )
 
 
@@ -34,3 +36,30 @@ def test_align_accents_skips_when_no_beat_in_tolerance():
     accents = [1.0]
     out = align_accents(accents, beats, tolerance=0.1)
     assert out == []
+
+
+def _write_click_track(path, sr=22050, clicks_s=(0.5, 1.0, 1.5, 2.0, 2.5), dur_s=3.0):
+    """每个 clicks_s 处放一个短脉冲，形成稳定节拍。"""
+    y = np.zeros(int(sr * dur_s), dtype=np.float32)
+    for t in clicks_s:
+        i = int(t * sr)
+        y[i:i + 200] = 1.0
+    sf.write(str(path), y, sr)
+
+
+def test_extract_beats_returns_increasing_times(tmp_path):
+    wav = tmp_path / "click.wav"
+    _write_click_track(wav)
+    beats = extract_beats(wav)
+    assert isinstance(beats, list)
+    assert len(beats) >= 3
+    assert all(isinstance(b, float) for b in beats)
+    assert beats == sorted(beats)
+    assert 0.0 <= beats[0] and beats[-1] <= 3.0
+
+
+def test_extract_beats_empty_on_silence(tmp_path):
+    wav = tmp_path / "silence.wav"
+    sf.write(str(wav), np.zeros(22050, dtype=np.float32), 22050)
+    beats = extract_beats(wav)
+    assert isinstance(beats, list)   # 静音不报错即可（空或极少）

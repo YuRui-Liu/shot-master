@@ -34,3 +34,25 @@ def align_accents(accents: list[float],
         if abs(nb - a) <= tolerance:
             pairs.append((a, nb))
     return pairs
+
+
+def extract_beats(audio_path) -> list[float]:
+    """用 librosa 提取音乐节拍时间戳（秒，升序）。
+
+    供 snap_boundaries_to_beats / align_accents 作为 beats 输入。
+    提取失败/静音/异常 → 返回 []（降级为不卡点，不中断管线）。
+    """
+    try:
+        # Import locally to avoid lazy loader issues with pytest stubs
+        import librosa
+        import librosa.core.audio
+        import librosa.beat
+
+        y, sr = librosa.load(str(audio_path), sr=None, mono=True)
+        if y is None or len(y) == 0:
+            return []
+        tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+        times = librosa.frames_to_time(beat_frames, sr=sr)
+        return sorted([float(t) for t in times])
+    except Exception:
+        return []
