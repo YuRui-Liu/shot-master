@@ -9,8 +9,8 @@ from PySide6.QtWidgets import (
     QPushButton, QHBoxLayout, QMessageBox,
 )
 
-from shot_master.core.border_detector import detect_borders, infer_grid
-from shot_master.core.saver import save_image as sm_save_image
+from drama_shot_master.imaging.border_detector import detect_borders, infer_grid
+from drama_shot_master.imaging.saver import save_image as sm_save_image
 
 from drama_shot_master.config import Config
 from drama_shot_master.grid_ops import (

@@ -1,4 +1,4 @@
-"""shot-master 图像核心操作的薄封装层。
+"""图像核心操作的薄封装层（基于内置 drama_shot_master.imaging）。
 
 桌面 UI 直接调用这些函数（不经 HTTP），返回 PIL.Image 或落盘的 Path。
 """
@@ -12,11 +12,15 @@ from typing import Callable, Optional
 
 from PIL import Image
 
-from shot_master.core.specs import GridSpec, Margins, AspectRatio, CombineSpec, ScaleMode
-from shot_master.core.splitter import split_image
-from shot_master.core.combiner import combine_images
-from shot_master.core.aspect_ops import trim_white_edges, center_crop_to_aspect
-from shot_master.core.saver import save_image
+from drama_shot_master.imaging.specs import (
+    GridSpec, Margins, AspectRatio, CombineSpec, ScaleMode,
+)
+from drama_shot_master.imaging.splitter import split_image
+from drama_shot_master.imaging.combiner import combine_images
+from drama_shot_master.imaging.aspect_ops import (
+    trim_white_edges, center_crop_to_aspect,
+)
+from drama_shot_master.imaging.saver import save_image
 
 
 class ResampleAlgo(str, Enum):

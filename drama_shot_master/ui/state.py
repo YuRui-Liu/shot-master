@@ -1,6 +1,6 @@
 """全局 UI 状态 + 目录记忆。
 
-不依赖 PySide6（纯数据 + shot-master core），可单测。
+不依赖 PySide6（纯数据 + drama_shot_master.imaging），可单测。
 """
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from shot_master.core.loader import load_directory, ImageInfo
+from drama_shot_master.imaging.loader import load_directory, ImageInfo
 
 from drama_shot_master.config import Config
 
