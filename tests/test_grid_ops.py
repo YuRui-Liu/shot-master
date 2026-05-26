@@ -301,6 +301,8 @@ def test_inset_crop_basic():
     img = Image.new("RGB", (100, 100), (10, 20, 30))
     out = _inset_crop(img, top=5, right=10, bottom=15, left=20)
     assert out.size == (70, 80)   # w=100-20-10, h=100-5-15
+    assert out.getpixel((0, 0)) == (10, 20, 30)        # 裁后区域像素正确
+    assert out.getpixel((69, 79)) == (10, 20, 30)
 
 
 def test_inset_crop_zero_returns_same_object():
