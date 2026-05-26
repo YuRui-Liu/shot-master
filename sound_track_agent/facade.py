@@ -4,12 +4,14 @@
 """
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from sound_track_agent.shot_detector import detect_shots
 from sound_track_agent.segment_planner import plan_segments
 from sound_track_agent.session import ScoringSession, hash_file
+from sound_track_agent.pipeline import Stages, run as _pipeline_run, STAGE_ORDER
 
 
 def _read_fps(video_path) -> float:
@@ -37,3 +39,80 @@ def prepare_session(mp4, style: str, work_dir, *,
         frame_rate=_read_fps(mp4),
         segments=segments,
     )
+
+
+def _build_real_stages(cfg, workflow_id, work_dir, global_style,
+                       seeds_count, video_path) -> Stages:
+    """组装真实 Stages（豆包 provider + RunningHub client + mixdown）。
+
+    facade 唯一碰宿主依赖处，仍只读 cfg 属性、不在模块顶层 import 宿主。
+    """
+    from drama_shot_master.providers.runninghub import RunningHubClient
+    from sound_track_agent.provider import build_soundtrack_provider
+    from sound_track_agent.stages_factory import build_stages
+    from sound_track_agent.mixdown import extract_segment_frame, assemble_and_mix
+
+    provider = build_soundtrack_provider(cfg)
+    client = RunningHubClient(
+        getattr(cfg, "runninghub_api_key", ""),
+        base_url=getattr(cfg, "runninghub_base_url",
+                         "https://www.runninghub.cn"))
+    work_dir = Path(work_dir)
+    frames_dir = work_dir / "frames"
+    return build_stages(
+        provider=provider, client=client, workflow_id=workflow_id,
+        work_dir=work_dir, global_style=global_style,
+        seeds=list(range(1, seeds_count + 1)),
+        frame_provider=lambda seg: extract_segment_frame(
+            video_path, seg, frames_dir / f"seg{seg.index}.png"),
+        mix_fn=partial(assemble_and_mix, video_path=video_path,
+                       work_dir=work_dir),
+    )
+
+
+def _wrap_progress(stages: Stages, on_progress) -> Stages:
+    """包装 stages 的每段回调，调用前用 on_progress 报一句。"""
+    if on_progress is None:
+        return stages
+
+    def wrap(fn, label):
+        def inner(seg, sess):
+            on_progress(f"{label} 段 {seg.index}…")
+            return fn(seg, sess)
+        return inner
+
+    def wrap_whole(fn, label):
+        def inner(sess):
+            on_progress(f"{label}…")
+            return fn(sess)
+        return inner
+
+    return Stages(
+        tag_emotion=wrap(stages.tag_emotion, "情绪分析"),
+        compose_prompt=wrap(stages.compose_prompt, "生成 prompt"),
+        generate=wrap(stages.generate, "生成 BGM"),
+        align=wrap_whole(stages.align, "对齐卡点"),
+        mix=wrap_whole(stages.mix, "混音出片"),
+    )
+
+
+def advance(session: ScoringSession, work_dir, *, cfg, workflow_id: str,
+            seeds_count: int = 2, stop_after: str = "mix",
+            on_progress: Optional[Callable[[str], None]] = None,
+            stages: Optional[Stages] = None) -> ScoringSession:
+    """从 session 当前状态推进到 stop_after（可重复调用=续跑）。
+
+    stages 可注入（测试用 fake）；为 None 时内部组装真实 stages。
+    """
+    if stop_after not in STAGE_ORDER:
+        raise ValueError(f"未知 stop_after: {stop_after}")
+    work_dir = Path(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    real = stages or _build_real_stages(
+        cfg, workflow_id, work_dir, session.global_style,
+        seeds_count, session.source_mp4)
+    real = _wrap_progress(real, on_progress)
+    _pipeline_run(session, real,
+                  session_path=work_dir / "session.json",
+                  stop_after=stop_after)
+    return session
