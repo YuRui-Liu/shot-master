@@ -49,3 +49,38 @@ def find_accent_peaks(motion: list[float],
         for i in sorted(chosen)
     ]
     return pts
+
+
+def _motion_series(video_path) -> tuple[list[float], float]:
+    """逐帧 Farneback 光流的平均幅值序列。返回 (motion, fps)。
+
+    motion[i] = 第 i 帧到第 i+1 帧的平均运动幅值。
+    """
+    import cv2
+    import numpy as np
+    cap = cv2.VideoCapture(str(video_path))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
+    motion: list[float] = []
+    prev = None
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        if prev is not None:
+            flow = cv2.calcOpticalFlowFarneback(
+                prev, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+            mag = np.sqrt((flow ** 2).sum(-1)).mean()
+            motion.append(float(mag))
+        prev = gray
+    cap.release()
+    return motion, float(fps)
+
+
+def detect_accents(video_path,
+                   *,
+                   k: float = 1.0,
+                   min_gap_s: float = 0.3) -> list:
+    """成片 MP4 → 动作爆点 AccentPoint 列表。"""
+    motion, fps = _motion_series(video_path)
+    return find_accent_peaks(motion, fps, k=k, min_gap_s=min_gap_s)

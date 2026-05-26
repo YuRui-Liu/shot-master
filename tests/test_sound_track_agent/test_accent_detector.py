@@ -29,3 +29,44 @@ def test_find_peaks_respects_min_gap():
 def test_find_peaks_empty_or_flat():
     assert find_accent_peaks([], fps=24.0) == []
     assert find_accent_peaks([1.0, 1.0, 1.0, 1.0], fps=24.0, k=1.0) == []
+
+
+import numpy as np
+import cv2
+from sound_track_agent.accent_detector import _motion_series, detect_accents
+
+
+def _write_motion_video(path, fps=24):
+    """平移噪声纹理：前后静止、中间某帧突然大平移 → 该处运动峰值。
+
+    Farneback 需纹理梯度，纯色无效，故用随机噪声底图。
+    """
+    rng = np.random.default_rng(0)
+    base = rng.integers(0, 255, (64, 64, 3), dtype=np.uint8)
+    shifts = [0] * 20 + [10] + [0] * 19   # 第 20 帧(index19→20)突然平移 10px
+    vw = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"),
+                         float(fps), (64, 64))
+    assert vw.isOpened()
+    pos = 0
+    for s in shifts:
+        pos += s
+        vw.write(np.roll(base, pos, axis=1))
+    vw.release()
+
+
+def test_motion_series_shape(tmp_path):
+    v = tmp_path / "m.mp4"
+    _write_motion_video(v, fps=24)
+    motion, fps = _motion_series(v)
+    assert fps == 24.0
+    assert len(motion) == 39            # 40 帧 → 39 个相邻对
+    assert max(motion) > 0.0            # 噪声平移产生非零光流
+
+
+def test_detect_accents_finds_motion_spike(tmp_path):
+    v = tmp_path / "m.mp4"
+    _write_motion_video(v, fps=24)
+    pts = detect_accents(v, k=1.0, min_gap_s=0.2)
+    assert len(pts) >= 1
+    # 平移发生在 frame19→frame20（pos 0→10），即 motion index 19 → t≈20/24≈0.833s
+    assert any(abs(p.t - 20 / 24) < 0.2 for p in pts)
