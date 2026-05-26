@@ -87,6 +87,9 @@ class MainWindow(QMainWindow):
         a_rf = QAction("提示词优化配置…", self)
         a_rf.triggered.connect(self._open_refine_settings)
         sm.addAction(a_rf)
+        a_st = QAction("配乐…", self)
+        a_st.triggered.connect(self._open_soundtrack_settings)
+        sm.addAction(a_st)
 
         sp = QSplitter(Qt.Horizontal)
 
@@ -208,6 +211,11 @@ class MainWindow(QMainWindow):
 
     def _open_refine_settings(self):
         RefineSettingsDialog(self.cfg, parent=self).exec()
+
+    def _open_soundtrack_settings(self):
+        from drama_shot_master.ui.dialogs.soundtrack_settings_dialog import (
+            SoundtrackSettingsDialog)
+        SoundtrackSettingsDialog(self.cfg, parent=self).exec()
 
     def _video_manager(self):
         idx = next((i for i, (_l, k) in enumerate(FUNCS) if k == "video_gen"), -1)

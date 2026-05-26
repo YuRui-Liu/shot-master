@@ -11,3 +11,10 @@ def test_main_window_has_soundtrack_tab():
     w = MainWindow()
     w.show(); app.processEvents()
     assert len(w.panels) == len(FUNCS)
+
+
+def test_main_window_has_soundtrack_settings_method():
+    app = QApplication.instance() or QApplication([])
+    from drama_shot_master.ui.main_window import MainWindow
+    w = MainWindow()
+    assert hasattr(w, "_open_soundtrack_settings")
