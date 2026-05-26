@@ -98,6 +98,9 @@ class MainWindow(QMainWindow):
         a_st = QAction("配乐…", self)
         a_st.triggered.connect(self._open_soundtrack_settings)
         sm.addAction(a_st)
+        a_dub = QAction("配音…", self)
+        a_dub.triggered.connect(self._open_dub_settings)
+        sm.addAction(a_dub)
 
         am = menu.addMenu("关于")
         a_help = QAction("帮助文档", self)
@@ -255,6 +258,10 @@ class MainWindow(QMainWindow):
         from drama_shot_master.ui.dialogs.soundtrack_settings_dialog import (
             SoundtrackSettingsDialog)
         SoundtrackSettingsDialog(self.cfg, parent=self).exec()
+
+    def _open_dub_settings(self):
+        from drama_shot_master.ui.dialogs.dub_settings_dialog import DubSettingsDialog
+        DubSettingsDialog(self.cfg, parent=self).exec()
 
     def _open_about(self):
         from drama_shot_master.ui.dialogs.about_dialog import AboutDialog
