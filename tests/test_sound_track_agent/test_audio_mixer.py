@@ -38,3 +38,24 @@ def test_separate_vocals_raises_when_output_missing(tmp_path):
         return _R()
     with pytest.raises(FileNotFoundError):
         separate_vocals(audio, tmp_path / "o", runner=fake_runner)
+
+
+import numpy as np
+import soundfile as sf
+from sound_track_agent.audio_mixer import duck_and_mix
+
+
+def _tone(path, freq, sr=22050, dur=1.0):
+    t = np.linspace(0, dur, int(sr * dur), endpoint=False)
+    sf.write(str(path), (0.3 * np.sin(2 * np.pi * freq * t)).astype(np.float32), sr)
+
+
+def test_duck_and_mix_produces_audio(tmp_path):
+    voc = tmp_path / "voc.wav"; _tone(voc, 220)
+    bgm = tmp_path / "bgm.wav"; _tone(bgm, 440)
+    out = tmp_path / "mixed.wav"
+    res = duck_and_mix(voc, bgm, out)
+    assert res == out and out.exists()
+    y, sr = sf.read(str(out))
+    assert len(y) > 0
+    assert sr > 0
