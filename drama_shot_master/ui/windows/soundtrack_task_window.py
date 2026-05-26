@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Signal, QTimer
+from PySide6.QtCore import Signal, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPlainTextEdit, QPushButton, QSpinBox, QComboBox, QProgressBar,
@@ -85,7 +86,11 @@ class SoundtrackTaskWindow(QMainWindow):
         self.btn_start = QPushButton("🎬 开始配乐")
         self.btn_start.setObjectName("AccentButton")
         self.btn_start.clicked.connect(self._on_start)
+        self.btn_open_dir = QPushButton("📂 打开输出目录")
+        self.btn_open_dir.setEnabled(False)
+        self.btn_open_dir.clicked.connect(self._open_output_dir)
         act.addWidget(self.btn_start)
+        act.addWidget(self.btn_open_dir)
         act.addStretch(1)
         root.addLayout(act)
         # 取消功能留第二期（接 cancel_check）；不放灰按钮以免误导
@@ -93,6 +98,7 @@ class SoundtrackTaskWindow(QMainWindow):
         self.progress = QProgressBar(); self.progress.setRange(0, 0)
         self.progress.hide()
         self.progress_label = QLabel("")
+        self.progress_label.setWordWrap(True)
         root.addWidget(self.progress); root.addWidget(self.progress_label)
 
     def _browse_mp4(self):
@@ -117,6 +123,7 @@ class SoundtrackTaskWindow(QMainWindow):
         seeds = self.seeds_spin.value()
         stop_after = self.stop_combo.currentData()
         work_dir = self._work_root / self.task_id
+        self._work_dir = work_dir            # 记下供"打开输出目录"
         cfg = self.cfg
 
         def task():
@@ -143,6 +150,8 @@ class SoundtrackTaskWindow(QMainWindow):
     def _on_done(self, sess):
         self.progress.hide()
         self.btn_start.setEnabled(True)
+        self.btn_open_dir.setEnabled(True)
+        work_dir = getattr(self, "_work_dir", None)
         out = getattr(sess, "output", None)
         if out:
             self.statusChanged.emit(self.task_id, "完成")
@@ -150,7 +159,19 @@ class SoundtrackTaskWindow(QMainWindow):
             self.progress_label.setText(f"完成：{out}")
         else:
             self.statusChanged.emit(self.task_id, "空闲")
-            self.progress_label.setText("已停在选优点（候选已生成）")
+            # 明确告诉用户候选 BGM 在哪（停在选优点时）
+            n = len(sess.segments)
+            self.progress_label.setText(
+                f"已停在选优点：{n} 段候选 BGM 已生成在\n{work_dir}\n"
+                f"（各段在 seg0/seg1/… 下的 bgm_seed*.mp3；点「打开输出目录」查看）")
+
+    def _open_output_dir(self):
+        work_dir = getattr(self, "_work_dir", None)
+        if work_dir and Path(work_dir).exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(work_dir)))
+        else:
+            QMessageBox.information(self, "打开输出目录",
+                                    "还没有输出目录（先运行一次配乐）")
 
     def _on_failed(self, err: str):
         self.progress.hide()

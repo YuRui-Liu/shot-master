@@ -334,17 +334,18 @@ class MainWindow(QMainWindow):
         self.state.active_function = FUNCS[idx][1]
         panel = self.panels[idx]
         self.thumb.set_mode(panel.select_mode())
-        is_video = (FUNCS[idx][1] == "video_gen")
-        # 视频生成时：隐藏中栏 thumb + 隐藏底部 preview/execute 控制
-        self.thumb.setVisible(not is_video)
-        self.btn_preview.setVisible(not is_video and (
+        # 视频生成 / 配乐：都是独占主区的宽面板（任务列表+任务窗范式）
+        is_wide = FUNCS[idx][1] in ("video_gen", "soundtrack")
+        # 宽面板时：隐藏中栏 thumb + 隐藏底部 preview/execute 控制
+        self.thumb.setVisible(not is_wide)
+        self.btn_preview.setVisible(not is_wide and (
             panel.has_preview() or FUNCS[idx][1] == "split"))
-        self.btn_exec.setVisible(not is_video)
-        self.exec_hint.setVisible(not is_video)
-        # 视频生成模式下让右栏拓宽（取消 maxWidth）
+        self.btn_exec.setVisible(not is_wide)
+        self.exec_hint.setVisible(not is_wide)
+        # 宽面板模式下让右栏拓宽（取消 maxWidth）
         right_widget = self.btn_exec.parentWidget()
         if right_widget:
-            if is_video:
+            if is_wide:
                 right_widget.setMaximumWidth(16777215)
                 right_widget.setMinimumWidth(800)
             else:
