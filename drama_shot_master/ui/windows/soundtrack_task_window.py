@@ -1,7 +1,8 @@
-"""SoundtrackTaskWindow：单集配乐任务窗（第一期骨架）。
+"""SoundtrackTaskWindow：单集配乐任务窗（第二期，3 页签）。
 
-表单 + 段落预览 + 进度。开始 → FunctionWorker 跑 facade.prepare_session + advance。
-试听选优/卡点编辑留第二期。
+① 配置+生成（精简：去 workflow/seeds，从 cfg 读） ② 试听选优 ③ 卡点。
+构造时 load_session 续跑。输出路径：任务 output_dir → cfg.soundtrack_output_dir
+→ cfg.video_output_dir/soundtrack。
 """
 from __future__ import annotations
 
@@ -11,24 +12,23 @@ from PySide6.QtCore import Signal, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPlainTextEdit, QPushButton, QSpinBox, QComboBox, QProgressBar,
+    QPlainTextEdit, QPushButton, QComboBox, QProgressBar, QTabWidget,
     QFileDialog, QMessageBox,
 )
 
 from drama_shot_master.ui.worker import FunctionWorker
+from drama_shot_master.ui.widgets.segment_review_widget import SegmentReviewWidget
+from drama_shot_master.ui.widgets.accent_editor_widget import AccentEditorWidget
 
-DEFAULT_WORKFLOW_ID = "2059090557116440578"
 _STAGES = ["tag_emotion", "compose_prompt", "generate", "align", "mix"]
 _STAGE_LABELS = {"tag_emotion": "切段+情绪", "compose_prompt": "prompt",
                  "generate": "生成(选优点)", "align": "对齐", "mix": "出片"}
 
 
 class SoundtrackTaskWindow(QMainWindow):
-    """单集配乐任务窗。"""
-
-    statusChanged = Signal(str, str)        # (task_id, status_text)
-    resultReady = Signal(str, str)          # (task_id, output_path)
-    closed = Signal(str)                    # (task_id) 关窗 → main_window 清理引用
+    statusChanged = Signal(str, str)
+    resultReady = Signal(str, str)
+    closed = Signal(str)
 
     def __init__(self, task: dict, cfg, work_root, parent=None):
         super().__init__(parent)
@@ -36,17 +36,42 @@ class SoundtrackTaskWindow(QMainWindow):
         self.cfg = cfg
         self._work_root = Path(work_root)
         self._worker = None
+        self._session = None
+        self._review = None
+        self._accent = None
         self.setWindowTitle(f"配乐 · {task.get('name', '')}")
-        self.resize(680, 560)
+        self.resize(820, 640)
         self._build_ui()
+        self._try_load_existing()
 
     @property
     def task_id(self) -> str:
         return self._task.get("id", "")
 
+    def _work_dir(self) -> Path:
+        return self._resolve_output_base() / self.task_id
+
+    def _resolve_output_base(self) -> Path:
+        task_out = (self._task.get("output_dir") or "").strip()
+        if task_out:
+            return Path(task_out)
+        cfg_out = (getattr(self.cfg, "soundtrack_output_dir", "") or "").strip()
+        if cfg_out:
+            return Path(cfg_out)
+        vout = getattr(self.cfg, "video_output_dir", "") or "."
+        return Path(vout) / "soundtrack"
+
     def _build_ui(self):
-        central = QWidget(); self.setCentralWidget(central)
-        root = QVBoxLayout(central)
+        self.tabs = QTabWidget()
+        self.setCentralWidget(self.tabs)
+        self.tabs.addTab(self._build_config_tab(), "① 配置+生成")
+        self._review_holder = QWidget(); QVBoxLayout(self._review_holder)
+        self.tabs.addTab(self._review_holder, "② 试听选优")
+        self._accent_holder = QWidget(); QVBoxLayout(self._accent_holder)
+        self.tabs.addTab(self._accent_holder, "③ 卡点")
+
+    def _build_config_tab(self) -> QWidget:
+        page = QWidget(); root = QVBoxLayout(page)
 
         mp4_row = QHBoxLayout()
         mp4_row.addWidget(QLabel("成片 MP4:"))
@@ -60,26 +85,25 @@ class SoundtrackTaskWindow(QMainWindow):
         self.style_edit.setMaximumHeight(70)
         root.addWidget(self.style_edit)
 
-        cfg_row = QHBoxLayout()
-        cfg_row.addWidget(QLabel("Workflow ID:"))
-        self.workflow_edit = QLineEdit(
-            self._task.get("workflow_id") or DEFAULT_WORKFLOW_ID)
-        cfg_row.addWidget(self.workflow_edit, 1)
-        cfg_row.addWidget(QLabel("候选数:"))
-        self.seeds_spin = QSpinBox(); self.seeds_spin.setRange(1, 4)
-        self.seeds_spin.setValue(2)
-        cfg_row.addWidget(self.seeds_spin)
-        cfg_row.addWidget(QLabel("停在:"))
+        out_row = QHBoxLayout()
+        out_row.addWidget(QLabel("本任务输出目录(可空=用全局默认):"))
+        self.out_edit = QLineEdit(self._task.get("output_dir", ""))
+        ob = QPushButton("浏览…"); ob.clicked.connect(self._browse_out)
+        out_row.addWidget(self.out_edit, 1); out_row.addWidget(ob)
+        root.addLayout(out_row)
+
+        stop_row = QHBoxLayout()
+        stop_row.addWidget(QLabel("停在:"))
         self.stop_combo = QComboBox()
         for s in _STAGES:
             self.stop_combo.addItem(_STAGE_LABELS[s], s)
         self.stop_combo.setCurrentIndex(_STAGES.index("generate"))
-        cfg_row.addWidget(self.stop_combo)
-        root.addLayout(cfg_row)
+        stop_row.addWidget(self.stop_combo); stop_row.addStretch(1)
+        root.addLayout(stop_row)
 
         root.addWidget(QLabel("段落预览:"))
         self.seg_preview = QPlainTextEdit(); self.seg_preview.setReadOnly(True)
-        self.seg_preview.setMaximumHeight(160)
+        self.seg_preview.setMaximumHeight(140)
         root.addWidget(self.seg_preview, 1)
 
         act = QHBoxLayout()
@@ -87,25 +111,59 @@ class SoundtrackTaskWindow(QMainWindow):
         self.btn_start.setObjectName("AccentButton")
         self.btn_start.clicked.connect(self._on_start)
         self.btn_open_dir = QPushButton("📂 打开输出目录")
-        self.btn_open_dir.setEnabled(False)
         self.btn_open_dir.clicked.connect(self._open_output_dir)
-        act.addWidget(self.btn_start)
-        act.addWidget(self.btn_open_dir)
+        act.addWidget(self.btn_start); act.addWidget(self.btn_open_dir)
         act.addStretch(1)
         root.addLayout(act)
-        # 取消功能留第二期（接 cancel_check）；不放灰按钮以免误导
 
         self.progress = QProgressBar(); self.progress.setRange(0, 0)
         self.progress.hide()
-        self.progress_label = QLabel("")
-        self.progress_label.setWordWrap(True)
+        self.progress_label = QLabel(""); self.progress_label.setWordWrap(True)
         root.addWidget(self.progress); root.addWidget(self.progress_label)
+        return page
+
+    def _try_load_existing(self):
+        from sound_track_agent import facade
+        sess = facade.load_session(self._work_dir())
+        if sess is not None:
+            self._session = sess
+            self._mount_session_tabs()
+            self._post_seg_preview(sess)
+            self.progress_label.setText("已加载上次进度（可续跑/选优/编辑卡点）")
+
+    def _mount_session_tabs(self):
+        # ② 试听选优
+        lay = self._review_holder.layout()
+        while lay.count():
+            old = lay.takeAt(0).widget()
+            if old: old.deleteLater()
+        self._review = SegmentReviewWidget(self._session)
+        self._review.regenerateRequested.connect(self._on_regenerate)
+        lay.addWidget(self._review)
+        # ③ 卡点
+        lay2 = self._accent_holder.layout()
+        while lay2.count():
+            old = lay2.takeAt(0).widget()
+            if old: old.deleteLater()
+        self._accent = AccentEditorWidget(self._session)
+        self._accent.accentsChanged.connect(self._persist_session)
+        lay2.addWidget(self._accent)
+
+    def _persist_session(self):
+        if self._session is not None:
+            self._session.save(self._work_dir() / "session.json")
 
     def _browse_mp4(self):
         p, _ = QFileDialog.getOpenFileName(
             self, "选择成片 MP4", self.mp4_edit.text() or "", "视频 (*.mp4 *.mov)")
         if p:
             self.mp4_edit.setText(p)
+
+    def _browse_out(self):
+        d = QFileDialog.getExistingDirectory(
+            self, "本任务输出目录", self.out_edit.text() or "")
+        if d:
+            self.out_edit.setText(d)
 
     def _post_progress(self, msg: str):
         QTimer.singleShot(0, lambda: self.progress_label.setText(msg))
@@ -114,32 +172,51 @@ class SoundtrackTaskWindow(QMainWindow):
         mp4 = self.mp4_edit.text().strip()
         style = self.style_edit.toPlainText().strip()
         if not mp4 or not Path(mp4).exists():
-            QMessageBox.warning(self, "无法开始", "请选择存在的成片 MP4")
-            return
+            QMessageBox.warning(self, "无法开始", "请选择存在的成片 MP4"); return
         if not style:
-            QMessageBox.warning(self, "无法开始", "请填写总风格")
-            return
-        workflow_id = self.workflow_edit.text().strip() or DEFAULT_WORKFLOW_ID
-        seeds = self.seeds_spin.value()
+            QMessageBox.warning(self, "无法开始", "请填写总风格"); return
+        self._task["output_dir"] = self.out_edit.text().strip()
+        self._task["mp4"] = mp4
+        self._task["style"] = style
+        workflow_id = getattr(self.cfg, "soundtrack_workflow_id", "")
+        seeds = int(getattr(self.cfg, "soundtrack_seeds_count", 2))
         stop_after = self.stop_combo.currentData()
-        work_dir = self._work_root / self.task_id
-        self._work_dir = work_dir            # 记下供"打开输出目录"
+        work_dir = self._work_dir()
         cfg = self.cfg
 
         def task():
             from sound_track_agent import facade
-            sess = facade.prepare_session(mp4, style, work_dir)
+            sess = facade.load_session(work_dir) or facade.prepare_session(
+                mp4, style, work_dir)
             self._post_seg_preview(sess)
-            return facade.advance(
-                sess, work_dir, cfg=cfg, workflow_id=workflow_id,
-                seeds_count=seeds, stop_after=stop_after,
-                on_progress=self._post_progress)
+            facade.advance(sess, work_dir, cfg=cfg, workflow_id=workflow_id,
+                           seeds_count=seeds, stop_after=stop_after,
+                           on_progress=self._post_progress)
+            return sess
 
-        self.btn_start.setEnabled(False)
-        self.progress.show()
+        self.btn_start.setEnabled(False); self.progress.show()
         self.statusChanged.emit(self.task_id, "生成中")
         self._worker = FunctionWorker(task)
         self._worker.finished_with_result.connect(self._on_done)
+        self._worker.failed.connect(self._on_failed)
+        self._worker.start()
+
+    def _on_regenerate(self, seg_index: int):
+        if self._session is None:
+            return
+        workflow_id = getattr(self.cfg, "soundtrack_workflow_id", "")
+        seeds = int(getattr(self.cfg, "soundtrack_seeds_count", 2))
+        work_dir = self._work_dir(); cfg = self.cfg; sess = self._session
+
+        def task():
+            from sound_track_agent import facade
+            facade.regenerate_segment(sess, seg_index, work_dir, cfg=cfg,
+                                      workflow_id=workflow_id, seeds_count=seeds)
+            return sess
+
+        self.progress.show(); self.statusChanged.emit(self.task_id, "生成中")
+        self._worker = FunctionWorker(task)
+        self._worker.finished_with_result.connect(self._on_regen_done)
         self._worker.failed.connect(self._on_failed)
         self._worker.start()
 
@@ -148,10 +225,9 @@ class SoundtrackTaskWindow(QMainWindow):
         QTimer.singleShot(0, lambda: self.seg_preview.setPlainText("\n".join(lines)))
 
     def _on_done(self, sess):
-        self.progress.hide()
-        self.btn_start.setEnabled(True)
-        self.btn_open_dir.setEnabled(True)
-        work_dir = getattr(self, "_work_dir", None)
+        self.progress.hide(); self.btn_start.setEnabled(True)
+        self._session = sess
+        self._mount_session_tabs()
         out = getattr(sess, "output", None)
         if out:
             self.statusChanged.emit(self.task_id, "完成")
@@ -159,27 +235,28 @@ class SoundtrackTaskWindow(QMainWindow):
             self.progress_label.setText(f"完成：{out}")
         else:
             self.statusChanged.emit(self.task_id, "空闲")
-            # 明确告诉用户候选 BGM 在哪（停在选优点时）
-            n = len(sess.segments)
             self.progress_label.setText(
-                f"已停在选优点：{n} 段候选 BGM 已生成在\n{work_dir}\n"
-                f"（各段在 seg0/seg1/… 下的 bgm_seed*.mp3；点「打开输出目录」查看）")
+                f"已停在选优点：候选已生成在 {self._work_dir()}（切到「② 试听选优」试听选定）")
+            self.tabs.setCurrentIndex(1)
 
-    def _open_output_dir(self):
-        work_dir = getattr(self, "_work_dir", None)
-        if work_dir and Path(work_dir).exists():
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(work_dir)))
-        else:
-            QMessageBox.information(self, "打开输出目录",
-                                    "还没有输出目录（先运行一次配乐）")
+    def _on_regen_done(self, sess):
+        self.progress.hide()
+        self._mount_session_tabs()
+        self.tabs.setCurrentIndex(1)
+        self.statusChanged.emit(self.task_id, "空闲")
 
     def _on_failed(self, err: str):
-        self.progress.hide()
-        self.btn_start.setEnabled(True)
+        self.progress.hide(); self.btn_start.setEnabled(True)
         self.statusChanged.emit(self.task_id, "失败")
         QMessageBox.critical(self, "配乐失败", err)
 
+    def _open_output_dir(self):
+        wd = self._work_dir()
+        if wd.exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(wd)))
+        else:
+            QMessageBox.information(self, "打开输出目录", "还没有输出（先运行一次）")
+
     def closeEvent(self, event):
-        # 通知 main_window 清理引用，避免关窗后再开拿到已销毁对象
         self.closed.emit(self.task_id)
         super().closeEvent(event)
