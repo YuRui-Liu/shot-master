@@ -45,7 +45,7 @@ _VIDEO_KEYS = {"video_gen", "soundtrack"}
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Drama-Shot-Master · 分镜工具")
+        self.setWindowTitle("Drama-Shot-Master")
         self.resize(1360, 860)
         self.cfg = load_config()
         self.state = AppState()
