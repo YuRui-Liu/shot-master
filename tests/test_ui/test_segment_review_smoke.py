@@ -52,3 +52,22 @@ def test_review_regenerate_emits_index():
     w.regenerateRequested.connect(seen.append)
     w.request_regenerate(1)
     assert seen == [1]
+
+
+def test_player_is_lazy_not_created_on_init():
+    _app()
+    w = SegmentReviewWidget(_sess())
+    assert w._player is None          # 构造时不碰音频后端（避免 headless 卡顿/segfault）
+    assert hasattr(w, "seek") and hasattr(w, "play_btn")   # 共享 seek bar 存在
+
+
+def test_missing_file_does_not_create_player(tmp_path, monkeypatch):
+    _app()
+    # 屏蔽模态警告框（offscreen 下模态 exec 会永久阻塞）
+    import drama_shot_master.ui.widgets.segment_review_widget as m
+    monkeypatch.setattr(m.QMessageBox, "warning",
+                        staticmethod(lambda *a, **k: None))
+    w = SegmentReviewWidget(_sess())   # 候选路径 /a.wav 等都不存在
+    w._on_candidate(0, 0)              # 文件缺失 → 选定 + 警告，但不建播放器
+    assert w._session.segments[0].chosen_candidate == 0
+    assert w._player is None
