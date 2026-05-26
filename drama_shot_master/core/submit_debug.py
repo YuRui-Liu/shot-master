@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 # 项目根（cwd）下，方便溯源
-LOG_PATH = Path("video_submit_debug.log").resolve()
+LOG_PATH = Path("logs/video_submit_debug.log").resolve()
 
 
 def reset() -> None:

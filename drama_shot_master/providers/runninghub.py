@@ -378,6 +378,14 @@ def _gen_seg_id() -> str:
     return f"{ts}{rnd}"
 
 
+def _split_upload_ref(file_name: str) -> tuple[str, str]:
+    """v2 binary 上传返回形如 'openapi/<hash>.png'，文件落在 input/openapi/ 子目录。
+    拆出 (subfolder, name)，供 /view 的 filename/subfolder 参数使用；无子目录时
+    subfolder 为空串。imageFile 仍用完整 file_name（ComfyUI 'subfolder/name' 约定）。"""
+    subfolder, _, name = file_name.rpartition("/")
+    return subfolder, name
+
+
 class LTXTaskBuilder:
     """LTXDirectorSpec → workflow JSON / nodeInfoList 翻译。
 
@@ -439,10 +447,11 @@ class LTXTaskBuilder:
             }
             if seg.image_path is not None:
                 file_name = uploaded_files[seg.image_path]
-                entry["imageFile"] = Path(file_name).name
+                subfolder, name = _split_upload_ref(file_name)
+                entry["imageFile"] = file_name
                 entry["imageB64"] = (
-                    f"/view?filename={Path(file_name).name}"
-                    f"&type=input&subfolder=")
+                    f"/view?filename={name}"
+                    f"&type=input&subfolder={subfolder}")
             payload.append(entry)
             start += seg.length
         return payload
@@ -456,7 +465,7 @@ class LTXTaskBuilder:
             "id": _gen_seg_id(),
             "start": a.start_frame,
             "length": a.length_frames,
-            "audioFile": Path(uploaded_files[a.audio_path]).name,
+            "audioFile": uploaded_files[a.audio_path],
         } for a in spec.audio_segments]
 
     def build_node_info_list(self, spec: LTXDirectorSpec,

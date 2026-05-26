@@ -210,8 +210,9 @@ def test_timeline_data_json_structure(builder, tmp_path):
     assert td["segments"][0]["length"] == 33
     assert td["segments"][0]["prompt"] == "p1"
     assert td["segments"][0]["type"] == "image"
-    assert td["segments"][0]["imageFile"] == "a.png"
+    assert td["segments"][0]["imageFile"] == "openapi/a.png"
     assert "filename=a.png" in td["segments"][0]["imageB64"]
+    assert "subfolder=openapi" in td["segments"][0]["imageB64"]
     assert td["audioSegments"] == []
 
 
@@ -298,7 +299,7 @@ def test_audio_present_when_enabled(builder, tmp_path):
     m = _ninfo(builder, spec, {img: "openapi/a.png", aud: "openapi/x.mp3"})
     td = json.loads(m[(LTXNodes.DIRECTOR, "timeline_data")])
     assert len(td["audioSegments"]) == 1
-    assert td["audioSegments"][0]["audioFile"] == "x.mp3"
+    assert td["audioSegments"][0]["audioFile"] == "openapi/x.mp3"
 
 
 def test_seg_id_generated_when_blank(builder, tmp_path):
