@@ -13,3 +13,7 @@ app/.cache/
 .vscode/
 .idea/
 .superpowers/
+
+# 授权管理端私钥与台账——绝不提交
+license_admin/private_key.pem
+license_admin/issued.csv
