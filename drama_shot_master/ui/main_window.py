@@ -35,11 +35,12 @@ from drama_shot_master.ui.dialogs.refine_settings_dialog import RefineSettingsDi
 # 隐藏项（恢复时取消注释并恢复 panels[0] 与 import）： ("反推", "inference"),
 FUNCS = [("拆图", "split"),
          ("拼图", "combine"), ("去白边", "trim"),
-         ("视频生成", "video_gen"), ("配乐", "soundtrack")]
+         ("视频生成", "video_gen"), ("配乐", "soundtrack"),
+         ("配音", "dubbing")]
 
 # 切换栏分组：key 属于哪一组
 _IMAGE_KEYS = {"split", "combine", "trim"}
-_VIDEO_KEYS = {"video_gen", "soundtrack"}
+_VIDEO_KEYS = {"video_gen", "soundtrack", "dubbing"}
 
 
 class MainWindow(QMainWindow):
@@ -51,6 +52,9 @@ class MainWindow(QMainWindow):
         self.state = AppState()
         self.video_store = VideoTaskStore.from_list(self.cfg.video_tasks)
         self._open_task_windows: dict[str, VideoTaskWindow] = {}
+        from drama_shot_master.core.dub_task_store import DubTaskStore
+        self.dub_store = DubTaskStore.from_list(self.cfg.dub_tasks)
+        self._open_dub_windows: dict = {}
 
         self._build_ui()
         self._wire()
@@ -168,6 +172,7 @@ class MainWindow(QMainWindow):
                 self._open_task_window, self._close_task_window,
                 self._persist_tasks),
             self._try_make_soundtrack_panel(),
+            self._make_dub_panel(),
         ]
         for p in self.panels:
             self.stack.addWidget(p)
@@ -222,6 +227,7 @@ class MainWindow(QMainWindow):
             if hasattr(p, "statusMessage"):
                 p.statusMessage.connect(self.status.setText)
         self._video_manager().taskRenamed.connect(self._on_task_renamed)
+        self._dub_manager().taskRenamed.connect(self._on_dub_renamed)
 
     def _open_dir(self):
         start = str(self.state.current_dir or Path.home())
@@ -415,13 +421,72 @@ class MainWindow(QMainWindow):
         if hasattr(p, "refresh"):
             p.refresh()
 
+    # ------------------------------------------------------------------ #
+    # 配音 tab helpers
+    # ------------------------------------------------------------------ #
+
+    def _make_dub_panel(self):
+        from drama_shot_master.ui.panels.dub_task_manager_panel import DubTaskManagerPanel
+        return DubTaskManagerPanel(
+            self.state, self.cfg, self.dub_store,
+            self._open_dub_window, self._close_dub_window, self._persist_dub_tasks)
+
+    def _dub_manager(self):
+        idx = next(i for i, (_l, k) in enumerate(FUNCS) if k == "dubbing")
+        return self.panels[idx]
+
+    def _persist_dub_tasks(self):
+        try:
+            self.cfg.update_settings(dub_tasks=self.dub_store.to_list())
+        except Exception:
+            pass
+
+    def _open_dub_window(self, task):
+        from drama_shot_master.ui.windows.dub_task_window import DubTaskWindow
+        existing = self._open_dub_windows.get(task.id)
+        if existing is not None:
+            existing.raise_(); existing.activateWindow(); return
+        win = DubTaskWindow(task, self.cfg)
+        win.dirty.connect(self._on_dub_dirty)
+        win.statusChanged.connect(self._on_dub_status)
+        win.resultReady.connect(self._on_dub_result)
+        win.closed.connect(self._on_dub_window_closed)
+        self._open_dub_windows[task.id] = win
+        win.show()
+
+    def _close_dub_window(self, task_id: str):
+        win = self._open_dub_windows.get(task_id)
+        if win is not None:
+            win.close()
+
+    def _on_dub_dirty(self, task_id: str, payload: dict):
+        self.dub_store.update(task_id, payload=payload,
+                              mode=("design" if payload.get("mode_kind") == "design" else "clone"))
+        self._persist_dub_tasks()
+
+    def _on_dub_status(self, task_id: str, status: str):
+        self._dub_manager().set_task_status(task_id, status)
+
+    def _on_dub_result(self, task_id: str, flac: str):
+        self.dub_store.update(task_id, last_result=flac)
+        self._persist_dub_tasks(); self._dub_manager().refresh()
+
+    def _on_dub_window_closed(self, task_id: str):
+        self._open_dub_windows.pop(task_id, None)
+        self._dub_manager().clear_task_status(task_id)
+
+    def _on_dub_renamed(self, task_id: str, name: str):
+        win = self._open_dub_windows.get(task_id)
+        if win is not None:
+            win.set_title_name(name)
+
     def _on_func_changed(self, idx: int):
         self.stack.setCurrentIndex(idx)
         self.state.active_function = FUNCS[idx][1]
         panel = self.panels[idx]
         self.thumb.set_mode(panel.select_mode())
-        # 视频生成 / 配乐：都是独占主区的宽面板（任务列表+任务窗范式）
-        is_wide = FUNCS[idx][1] in ("video_gen", "soundtrack")
+        # 视频生成 / 配乐 / 配音：都是独占主区的宽面板（任务列表+任务窗范式）
+        is_wide = FUNCS[idx][1] in ("video_gen", "soundtrack", "dubbing")
         # 宽面板时：隐藏中栏 thumb + 隐藏底部 preview/execute 控制
         self.thumb.setVisible(not is_wide)
         self.btn_preview.setVisible(not is_wide and (
@@ -506,6 +571,13 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         self._persist_tasks()
+        # 让每个打开的配音任务窗存一次 payload，再整体落盘
+        for win in list(self._open_dub_windows.values()):
+            try:
+                self.dub_store.update(win.task_id, payload=win.panel.to_payload())
+            except Exception:
+                pass
+        self._persist_dub_tasks()
         # 持久化当前活跃 panel
         try:
             self.cfg.update_settings(
