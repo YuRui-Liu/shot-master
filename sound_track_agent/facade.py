@@ -116,3 +116,40 @@ def advance(session: ScoringSession, work_dir, *, cfg, workflow_id: str,
                   session_path=work_dir / "session.json",
                   stop_after=stop_after)
     return session
+
+
+def load_session(work_dir) -> Optional[ScoringSession]:
+    """work_dir/session.json 存在则加载，否则 None（供打开任务续跑/缓存）。"""
+    p = Path(work_dir) / "session.json"
+    if not p.exists():
+        return None
+    return ScoringSession.load(p)
+
+
+def set_chosen(session: ScoringSession, seg_index: int, cand_index: int) -> None:
+    """写 SegmentScore.chosen_candidate；越界抛 ValueError。"""
+    if not (0 <= seg_index < len(session.segments)):
+        raise ValueError(f"seg_index 越界: {seg_index}")
+    seg = session.segments[seg_index]
+    if not (0 <= cand_index < len(seg.candidates)):
+        raise ValueError(f"cand_index 越界: {cand_index}")
+    seg.chosen_candidate = cand_index
+
+
+def regenerate_segment(session: ScoringSession, seg_index: int, work_dir, *,
+                       cfg, workflow_id: str, seeds_count: int = 2,
+                       stages: Optional[Stages] = None) -> ScoringSession:
+    """对单段重跑 generate（换候选、清选定），不动其它段。落盘并返回 session。"""
+    if not (0 <= seg_index < len(session.segments)):
+        raise ValueError(f"seg_index 越界: {seg_index}")
+    work_dir = Path(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    real = stages or _build_real_stages(
+        cfg, workflow_id, work_dir, session.global_style,
+        seeds_count, session.source_mp4)
+    seg = session.segments[seg_index]
+    seg.candidates = real.generate(seg, session)
+    seg.chosen_candidate = None
+    seg.status = "generated"
+    session.save(work_dir / "session.json")
+    return session
