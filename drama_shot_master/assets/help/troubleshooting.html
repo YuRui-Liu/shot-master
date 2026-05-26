@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>故障排查 · Drama-Shot-Master 帮助</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- NAV_BLOCK，active = troubleshooting.html -->
+    <nav class="sidebar">
+      <div class="brand">Drama-Shot-Master<small>用户帮助文档</small></div>
+      <div class="group">入门</div>
+      <a href="index.html">软件简介</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="activation.html">激活与授权</a>
+      <div class="group">功能详解</div>
+      <a href="image-split.html">拆图</a>
+      <a href="image-combine.html">拼图</a>
+      <a href="image-trim.html">去白边</a>
+      <a href="video.html">视频生成</a>
+      <a href="soundtrack.html">配乐</a>
+      <a href="dubbing.html">配音</a>
+      <div class="group">配置与进阶</div>
+      <a href="settings.html">设置说明</a>
+      <a href="custom-workflow.html">自定义工作流</a>
+      <div class="group">支持</div>
+      <a href="faq.html">常见问题</a>
+      <a href="troubleshooting.html" class="active">故障排查</a>
+      <a href="glossary.html">术语表</a>
+    </nav>
+  <main>
+    <div class="breadcrumb"><a href="index.html">首页</a> / 支持 / 故障排查</div>
+    <h1>故障排查</h1>
+
+    <h2>ComfyUI / RunningHub 不可达</h2>
+    <ul>
+      <li>检查本机网络是否正常、能否访问外网。</li>
+      <li>确认「设置 → RunningHub 配置」里的 API Key 与 Base URL 填写正确、无多余空格。</li>
+      <li>私有部署时确认服务地址与端口可达。</li>
+    </ul>
+
+    <h2>生成失败 / 报错</h2>
+    <ul>
+      <li>先看任务窗内的状态与错误提示。</li>
+      <li>确认对应工作流的 <code>workflow_id</code> 填写正确。</li>
+      <li>确认所需素材（分镜图 / 参考音频等）已正确选好并上传。</li>
+    </ul>
+
+    <h2>视频「不遵循图 / 分辨率错」</h2>
+    <ul>
+      <li>确认选用了正确的工作流类型。</li>
+      <li>多为节点映射不匹配所致，参考 <a href="custom-workflow.html">自定义工作流</a> 校准节点号。</li>
+    </ul>
+    <div class="warn">若结果完全偏离分镜图，优先核对工作流选择与节点映射，再调整提示词。</div>
+
+    <h2>激活失败</h2>
+    <ul>
+      <li>提示「激活码非本机」：机器码不匹配，请用本机「关于」对话框里的机器码重新申请。</li>
+      <li>提示「激活码无效」：多为复制不全或含空格，重新完整复制激活码再试。</li>
+    </ul>
+
+    <h2>启动被杀毒软件拦截（打包版）</h2>
+    <ul>
+      <li>原生编译的可执行文件常被误报，属正常现象。</li>
+      <li>在杀毒软件中将程序加入信任 / 白名单，或使用已签名的发行版本。</li>
+    </ul>
+
+    <h2>找不到输出文件</h2>
+    <ul>
+      <li>确认已在「设置」里为对应功能配置了输出目录。</li>
+      <li>到该输出目录及其子目录下查找视频 / 配音 / 配乐文件。</li>
+    </ul>
+
+    <div class="pager"><a href="faq.html">← 上一页：常见问题</a><a href="glossary.html">下一页：术语表 →</a></div>
+    <footer>© 2026 二进制糯米 · Drama-Shot-Master 帮助文档</footer>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>术语表 · Drama-Shot-Master 帮助</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- NAV_BLOCK，active = glossary.html -->
+    <nav class="sidebar">
+      <div class="brand">Drama-Shot-Master<small>用户帮助文档</small></div>
+      <div class="group">入门</div>
+      <a href="index.html">软件简介</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="activation.html">激活与授权</a>
+      <div class="group">功能详解</div>
+      <a href="image-split.html">拆图</a>
+      <a href="image-combine.html">拼图</a>
+      <a href="image-trim.html">去白边</a>
+      <a href="video.html">视频生成</a>
+      <a href="soundtrack.html">配乐</a>
+      <a href="dubbing.html">配音</a>
+      <div class="group">配置与进阶</div>
+      <a href="settings.html">设置说明</a>
+      <a href="custom-workflow.html">自定义工作流</a>
+      <div class="group">支持</div>
+      <a href="faq.html">常见问题</a>
+      <a href="troubleshooting.html">故障排查</a>
+      <a href="glossary.html" class="active">术语表</a>
+    </nav>
+  <main>
+    <div class="breadcrumb"><a href="index.html">首页</a> / 支持 / 术语表</div>
+    <h1>术语表</h1>
+
+    <h2>常用术语</h2>
+    <dl>
+      <dt>分镜</dt>
+      <dd>短剧中一个独立画面 / 镜头单元，本软件以分镜图为视频生成的输入。</dd>
+
+      <dt>工作流</dt>
+      <dd>RunningHub / ComfyUI 上由若干节点连成的生成流程，决定一次任务如何运算。</dd>
+
+      <dt>workflow_id</dt>
+      <dd>RunningHub 上一份已保存工作流的唯一标识，软件按它提交任务。</dd>
+
+      <dt>节点（node）</dt>
+      <dd>工作流中的一个处理单元，带有可调输入；软件通过节点号把界面输入写进对应节点。</dd>
+
+      <dt>nodeInfoList</dt>
+      <dd>提交任务时携带的节点参数覆盖列表，把界面输入映射到工作流中各节点。</dd>
+
+      <dt>LTX 2.3</dt>
+      <dd>本软件视频生成所基于的导演台工作流 / 模型方案。</dd>
+
+      <dt>TTS</dt>
+      <dd>文本转语音（Text To Speech），配音功能即基于 TTS 工作流实现。</dd>
+
+      <dt>音色设计</dt>
+      <dd>配音方式之一：用自然语言描述想要的声线，由系统直接合成对应音色。</dd>
+
+      <dt>声音克隆</dt>
+      <dd>配音方式之一：用一段参考音频克隆特定人声，并可叠加情感控制。</dd>
+
+      <dt>机器码</dt>
+      <dd>标识本机的唯一编码，用于申请与本机绑定的激活码。</dd>
+
+      <dt>激活码</dt>
+      <dd>与某台机器绑定、带有效期的授权码，输入后软件方可使用。</dd>
+
+      <dt>卡点</dt>
+      <dd>配乐中与画面节奏对齐的时间点，配乐功能据此分析并对齐音乐。</dd>
+    </dl>
+
+    <div class="pager"><a href="troubleshooting.html">← 上一页：故障排查</a><span class="none">·</span></div>
+    <footer>© 2026 二进制糯米 · Drama-Shot-Master 帮助文档</footer>
+  </main>
+</div>
+</body>
+</html>
