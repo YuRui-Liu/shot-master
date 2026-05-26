@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QVBoxLayout, QFormLayout, QGroupBox, QSpinBox, QComboBox,
-    QLineEdit, QMessageBox,
+    QLineEdit, QMessageBox, QHBoxLayout, QWidget, QLabel,
 )
 
 from drama_shot_master.config import Config
@@ -35,6 +35,18 @@ class TrimPanel(BasePanel):
         f.addRow("最大迭代", self.max_iter)
         f.addRow("命名后缀", self.suffix)
         f.addRow("格式", self.fmt)
+        self.inset_top = _spin(0, 2000, 0)
+        self.inset_bottom = _spin(0, 2000, 0)
+        self.inset_left = _spin(0, 2000, 0)
+        self.inset_right = _spin(0, 2000, 0)
+        inset_row = QHBoxLayout()
+        for lbl, sp in (("上", self.inset_top), ("下", self.inset_bottom),
+                        ("左", self.inset_left), ("右", self.inset_right)):
+            inset_row.addWidget(QLabel(lbl))
+            inset_row.addWidget(sp)
+        inset_row.addStretch(1)
+        inset_wrap = QWidget(); inset_wrap.setLayout(inset_row)
+        f.addRow("额外向内裁剪 (px)", inset_wrap)
         root.addWidget(box)
         root.addStretch(1)
 
@@ -54,6 +66,10 @@ class TrimPanel(BasePanel):
         mi = self.max_iter.value()
         suf = self.suffix.text()
         fmt = self.fmt.currentText()
+        it = self.inset_top.value()
+        ib = self.inset_bottom.value()
+        il = self.inset_left.value()
+        ir = self.inset_right.value()
         sel = self.state.selected_paths()
         src_dir = self.state.current_dir
 
@@ -62,10 +78,14 @@ class TrimPanel(BasePanel):
                 ext = ".png" if fmt.upper() == "PNG" else ".jpg"
                 for p in sel:
                     trim_one(p, out / f"{p.stem}{suf}{ext}",
-                             threshold=th, max_iter=mi, output_format=fmt)
+                             threshold=th, max_iter=mi, output_format=fmt,
+                             inset_top=it, inset_right=ir,
+                             inset_bottom=ib, inset_left=il)
                 return len(sel)
             files = trim_batch(src_dir, out, threshold=th, max_iter=mi,
-                               output_format=fmt, name_suffix=suf)
+                               output_format=fmt, name_suffix=suf,
+                               inset_top=it, inset_right=ir,
+                               inset_bottom=ib, inset_left=il)
             return len(files)
 
         self._worker = FunctionWorker(task)
