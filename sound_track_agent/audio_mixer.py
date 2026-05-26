@@ -67,3 +67,37 @@ def duck_and_mix(vocals_path, bgm_path, out_path, *,
     if not out_path.exists():
         raise FileNotFoundError(f"ffmpeg 未产出 {out_path}")
     return out_path
+
+
+def extract_audio(video_path, out_wav, *, runner=subprocess.run) -> Path:
+    """抽出视频音轨为 wav（pcm）。"""
+    out_wav = Path(out_wav)
+    out_wav.parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["ffmpeg", "-y", "-i", str(video_path),
+           "-vn", "-c:a", "pcm_s16le", str(out_wav)]
+    result = runner(cmd, capture_output=True)
+    if getattr(result, "returncode", 0) != 0:
+        err = getattr(result, "stderr", b"")
+        msg = err.decode("utf-8", "ignore")[-400:] if isinstance(err, bytes) else str(err)[-400:]
+        raise RuntimeError(f"ffmpeg 抽音轨失败: {msg}")
+    if not out_wav.exists():
+        raise FileNotFoundError(f"ffmpeg 未产出 {out_wav}")
+    return out_wav
+
+
+def replace_video_audio(video_path, audio_path, out_video, *,
+                        runner=subprocess.run) -> Path:
+    """把视频音轨替换为 audio_path（视频流直拷，不重编码）。"""
+    out_video = Path(out_video)
+    out_video.parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["ffmpeg", "-y", "-i", str(video_path), "-i", str(audio_path),
+           "-map", "0:v:0", "-map", "1:a:0",
+           "-c:v", "copy", "-c:a", "aac", "-shortest", str(out_video)]
+    result = runner(cmd, capture_output=True)
+    if getattr(result, "returncode", 0) != 0:
+        err = getattr(result, "stderr", b"")
+        msg = err.decode("utf-8", "ignore")[-400:] if isinstance(err, bytes) else str(err)[-400:]
+        raise RuntimeError(f"ffmpeg 写回音轨失败: {msg}")
+    if not out_video.exists():
+        raise FileNotFoundError(f"ffmpeg 未产出 {out_video}")
+    return out_video
