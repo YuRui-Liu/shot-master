@@ -30,3 +30,29 @@ def test_compose_no_emotion_falls_back_to_neutral():
     assert "古风" in out
     assert "5.0s" in out
     assert "no vocal" in out
+
+
+from sound_track_agent.prompt_composer import compose_acestep_inputs
+
+
+def test_acestep_inputs_returns_triple():
+    emo = EmotionTag(labels=["tense", "eerie"], arousal=0.8)
+    tags, bpm, dur = compose_acestep_inputs("末日废土冷色调", emo, 12.5)
+    assert isinstance(tags, str) and isinstance(bpm, int) and isinstance(dur, float)
+    assert "Instrumental" in tags and "no vocals" in tags
+    assert "末日废土冷色调" in tags
+    assert "tense" in tags and "eerie" in tags
+    assert dur == 12.5
+    assert 110 <= bpm <= 140
+
+
+def test_acestep_inputs_low_arousal_slow_bpm():
+    _, bpm, _ = compose_acestep_inputs("古风", EmotionTag(labels=["calm"], arousal=0.1), 8.0)
+    assert 60 <= bpm <= 80
+
+
+def test_acestep_inputs_no_emotion_neutral():
+    tags, bpm, dur = compose_acestep_inputs("treasure", None, 5.0)
+    assert "treasure" in tags
+    assert isinstance(bpm, int)
+    assert dur == 5.0
