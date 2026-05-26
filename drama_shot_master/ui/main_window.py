@@ -8,7 +8,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSplitter, QStackedWidget, QButtonGroup, QStatusBar, QProgressBar,
-    QFileDialog, QMessageBox,
+    QFileDialog, QMessageBox, QFrame,
 )
 
 from drama_shot_master.config import load_config
@@ -17,7 +17,8 @@ import drama_shot_master.providers  # noqa: F401  触发 provider 注册
 from drama_shot_master.ui.state import AppState, restore_from_config, remember_dirs
 from drama_shot_master.ui.thumbnail_grid import ThumbnailGrid
 from drama_shot_master.ui.preview_dialog import PreviewDialog
-from drama_shot_master.ui.panels.inference_panel import InferencePanel
+# 「反推」暂时隐藏（无需求）；恢复时取消下面 import 与 FUNCS/panels 中的对应注释
+# from drama_shot_master.ui.panels.inference_panel import InferencePanel
 from drama_shot_master.ui.panels.split_panel import SplitPanel
 from drama_shot_master.ui.panels.combine_panel import CombinePanel
 from drama_shot_master.ui.panels.trim_panel import TrimPanel
@@ -30,9 +31,15 @@ from drama_shot_master.ui.dialogs.translation_settings_dialog import Translation
 from drama_shot_master.ui.dialogs.refine_settings_dialog import RefineSettingsDialog
 
 
-FUNCS = [("反推", "inference"), ("拆图", "split"),
+# 顺序须为「图像组在前、视频组在后」，切换栏按此分组插分隔线；与 self.panels 索引一一对应。
+# 隐藏项（恢复时取消注释并恢复 panels[0] 与 import）： ("反推", "inference"),
+FUNCS = [("拆图", "split"),
          ("拼图", "combine"), ("去白边", "trim"),
          ("视频生成", "video_gen"), ("配乐", "soundtrack")]
+
+# 切换栏分组：key 属于哪一组
+_IMAGE_KEYS = {"split", "combine", "trim"}
+_VIDEO_KEYS = {"video_gen", "soundtrack"}
 
 
 class MainWindow(QMainWindow):
@@ -113,17 +120,32 @@ class MainWindow(QMainWindow):
         right = QWidget(); rv = QVBoxLayout(right)
         switch = QHBoxLayout()
         self.func_group = QButtonGroup(self)
+
+        def _grp_label(text):
+            lbl = QLabel(text); lbl.setStyleSheet("color:#9aa;")
+            return lbl
+
+        switch.addWidget(_grp_label("图像："))
+        _video_grp_started = False
         for i, (label, key) in enumerate(FUNCS):
+            if key in _VIDEO_KEYS and not _video_grp_started:
+                sep = QFrame()
+                sep.setFrameShape(QFrame.VLine)
+                sep.setFrameShadow(QFrame.Sunken)
+                switch.addWidget(sep)
+                switch.addWidget(_grp_label("视频："))
+                _video_grp_started = True
             b = QPushButton(label); b.setCheckable(True)
             if i == 0:
                 b.setChecked(True)
             self.func_group.addButton(b, i)
             switch.addWidget(b)
+        switch.addStretch(1)
         rv.addLayout(switch)
 
         self.stack = QStackedWidget()
         self.panels = [
-            InferencePanel(self.state, self.cfg),
+            # InferencePanel(self.state, self.cfg),   # 「反推」暂时隐藏
             SplitPanel(self.state, self.cfg),
             CombinePanel(self.state, self.cfg),
             TrimPanel(self.state, self.cfg),
