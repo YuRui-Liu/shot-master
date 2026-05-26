@@ -64,7 +64,8 @@ class SoundtrackPanel(BasePanel):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.itemDoubleClicked.connect(lambda _it: self._on_open())
+        self.table.itemDoubleClicked.connect(self._on_double_clicked)
+        self.table.itemChanged.connect(self._on_item_changed)
         root.addWidget(self.table, 1)
 
         self.btn_new.clicked.connect(self._on_new)
@@ -87,16 +88,18 @@ class SoundtrackPanel(BasePanel):
         return it
 
     def refresh(self):
+        self.table.blockSignals(True)        # 程序填充别触发 itemChanged
         self.table.setRowCount(0)
         for t in self._tasks():
             r = self.table.rowCount()
             self.table.insertRow(r)
-            name_item = self._ro(t.get("name", "未命名"))
+            name_item = QTableWidgetItem(t.get("name", "未命名"))  # 名称列可编辑
             name_item.setData(Qt.UserRole, t.get("id"))
             self.table.setItem(r, 0, name_item)
             self.table.setItem(r, 1, self._ro(t.get("mp4", "")))
             self.table.setItem(r, 2, self._status_item(t.get("status", "空闲")))
             self.table.setItem(r, 3, self._ro(t.get("output") or "—"))
+        self.table.blockSignals(False)
 
     def _selected(self) -> dict | None:
         row = self.table.currentRow()
@@ -121,6 +124,26 @@ class SoundtrackPanel(BasePanel):
             QMessageBox.information(self, "打开", "请先选一个任务")
             return
         self._open_window_cb(t)
+
+    def _on_double_clicked(self, item):
+        # 双击名称列(0)进入内联改名；双击其它列打开任务（同视频生成）
+        if item.column() == 0:
+            return
+        self._on_open()
+
+    def _on_item_changed(self, item):
+        # 名称列编辑完成 → 写回任务 + 落盘
+        if item.column() != 0:
+            return
+        tid = item.data(Qt.UserRole)
+        new_name = item.text().strip()
+        if not tid or not new_name:
+            return
+        for t in self._tasks():
+            if t.get("id") == tid:
+                t["name"] = new_name
+                break
+        self._persist_cb()
 
     def _on_del(self):
         t = self._selected()

@@ -40,7 +40,7 @@ class SoundtrackTaskWindow(QMainWindow):
         self._review = None
         self._accent = None
         self.setWindowTitle(f"配乐 · {task.get('name', '')}")
-        self.resize(820, 640)
+        self.resize(1100, 820)        # 同视频任务窗，保持一致性
         self._build_ui()
         self._try_load_existing()
 
