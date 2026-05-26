@@ -53,6 +53,10 @@ class Config:
     video_timeline_cache: dict = field(default_factory=dict)
     video_tasks: list = field(default_factory=list)
     soundtrack_tasks: list = field(default_factory=list)
+    soundtrack_workflow_id: str = "2059090557116440578"
+    soundtrack_output_dir: str = ""
+    soundtrack_seeds_count: int = 2
+    soundtrack_crossfade: float = 0.5
     workflow_ids: dict = field(default_factory=dict)
     last_active_function: str = "inference"      # 上次退出时活跃的 panel
     # 翻译
@@ -86,6 +90,10 @@ class Config:
                 "video_timeline_cache": self.video_timeline_cache,
                 "video_tasks": self.video_tasks,
                 "soundtrack_tasks": self.soundtrack_tasks,
+                "soundtrack_workflow_id": self.soundtrack_workflow_id,
+                "soundtrack_output_dir": self.soundtrack_output_dir,
+                "soundtrack_seeds_count": self.soundtrack_seeds_count,
+                "soundtrack_crossfade": self.soundtrack_crossfade,
                 "workflow_ids": self.workflow_ids,
                 "last_active_function": self.last_active_function,
                 "deeplx_url": self.deeplx_url,
@@ -187,6 +195,14 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.video_tasks = data["video_tasks"]
                 if "soundtrack_tasks" in data and isinstance(data["soundtrack_tasks"], list):
                     cfg.soundtrack_tasks = data["soundtrack_tasks"]
+                if isinstance(data.get("soundtrack_workflow_id"), str):
+                    cfg.soundtrack_workflow_id = data["soundtrack_workflow_id"]
+                if isinstance(data.get("soundtrack_output_dir"), str):
+                    cfg.soundtrack_output_dir = data["soundtrack_output_dir"]
+                if isinstance(data.get("soundtrack_seeds_count"), int):
+                    cfg.soundtrack_seeds_count = data["soundtrack_seeds_count"]
+                if isinstance(data.get("soundtrack_crossfade"), (int, float)):
+                    cfg.soundtrack_crossfade = float(data["soundtrack_crossfade"])
                 if "workflow_ids" in data and isinstance(data["workflow_ids"], dict):
                     cfg.workflow_ids = data["workflow_ids"]
                 if "last_active_function" in data and isinstance(

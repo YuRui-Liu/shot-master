@@ -451,3 +451,28 @@ def test_config_soundtrack_tasks_roundtrip(tmp_path):
     assert data["soundtrack_tasks"][0]["name"] == "EP01"
     cfg2 = load_config(env_path=tmp_path / ".env", settings_path=sp)
     assert cfg2.soundtrack_tasks[0]["mp4"] == "/x/ep1.mp4"
+
+
+# ---------- soundtrack settings (workflow_id, output_dir, seeds_count, crossfade) ----------
+
+def test_config_default_soundtrack_settings(tmp_path):
+    cfg = load_config(env_path=tmp_path / ".env",
+                      settings_path=tmp_path / "settings.json")
+    assert cfg.soundtrack_workflow_id == "2059090557116440578"
+    assert cfg.soundtrack_output_dir == ""
+    assert cfg.soundtrack_seeds_count == 2
+    assert cfg.soundtrack_crossfade == 0.5
+
+
+def test_config_soundtrack_settings_roundtrip(tmp_path):
+    sp = tmp_path / "settings.json"
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    cfg.update_settings(soundtrack_workflow_id="wf-x",
+                        soundtrack_output_dir="/x/out",
+                        soundtrack_seeds_count=3,
+                        soundtrack_crossfade=0.8)
+    cfg2 = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    assert cfg2.soundtrack_workflow_id == "wf-x"
+    assert cfg2.soundtrack_output_dir == "/x/out"
+    assert cfg2.soundtrack_seeds_count == 3
+    assert cfg2.soundtrack_crossfade == 0.8
