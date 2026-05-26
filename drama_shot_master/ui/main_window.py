@@ -32,7 +32,7 @@ from drama_shot_master.ui.dialogs.refine_settings_dialog import RefineSettingsDi
 
 FUNCS = [("反推", "inference"), ("拆图", "split"),
          ("拼图", "combine"), ("去白边", "trim"),
-         ("视频生成", "video_gen")]
+         ("视频生成", "video_gen"), ("配乐", "soundtrack")]
 
 
 class MainWindow(QMainWindow):
@@ -128,6 +128,7 @@ class MainWindow(QMainWindow):
                 self.state, self.cfg, self.video_store,
                 self._open_task_window, self._close_task_window,
                 self._persist_tasks),
+            self._try_make_soundtrack_panel(),
         ]
         for p in self.panels:
             self.stack.addWidget(p)
@@ -171,8 +172,10 @@ class MainWindow(QMainWindow):
         self.thumb.previewRequested.connect(self._on_thumb_double)
         self.thumb.thumbSizeChanged.connect(self._on_thumb_size)
         for p in self.panels:
-            p.validityChanged.connect(self._refresh_validity)
-            p.statusMessage.connect(self.status.setText)
+            if hasattr(p, "validityChanged"):
+                p.validityChanged.connect(self._refresh_validity)
+            if hasattr(p, "statusMessage"):
+                p.statusMessage.connect(self.status.setText)
         self._video_manager().taskRenamed.connect(self._on_task_renamed)
 
     def _open_dir(self):
@@ -207,7 +210,8 @@ class MainWindow(QMainWindow):
         RefineSettingsDialog(self.cfg, parent=self).exec()
 
     def _video_manager(self):
-        return self.panels[-1]
+        idx = next((i for i, (_l, k) in enumerate(FUNCS) if k == "video_gen"), -1)
+        return self.panels[idx]
 
     def _persist_tasks(self):
         try:
@@ -254,6 +258,70 @@ class MainWindow(QMainWindow):
         win = self._open_task_windows.get(task_id)
         if win is not None:
             win.set_title_name(name)
+
+    # ------------------------------------------------------------------ #
+    # 配乐 tab helpers
+    # ------------------------------------------------------------------ #
+
+    def _try_make_soundtrack_panel(self):
+        """try-import 注册配乐面板；agent/面板缺失则返回占位空面板，宿主照常启动。"""
+        try:
+            from drama_shot_master.ui.panels.soundtrack_panel import SoundtrackPanel
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("配乐面板不可用，已跳过: %s", e)
+            from PySide6.QtWidgets import QWidget
+            return QWidget()
+        self._soundtrack_windows = {}
+        return SoundtrackPanel(
+            self.state, self.cfg,
+            open_window_cb=self._open_soundtrack_window,
+            persist_cb=self._persist_soundtrack)
+
+    def _persist_soundtrack(self):
+        try:
+            self.cfg.update_settings(soundtrack_tasks=self.cfg.soundtrack_tasks)
+        except Exception:
+            pass
+
+    def _soundtrack_panel(self):
+        idx = next((i for i, (_l, k) in enumerate(FUNCS) if k == "soundtrack"), -1)
+        return self.panels[idx] if 0 <= idx < len(self.panels) else None
+
+    def _open_soundtrack_window(self, task: dict):
+        from drama_shot_master.ui.windows.soundtrack_task_window import (
+            SoundtrackTaskWindow)
+        wins = getattr(self, "_soundtrack_windows", None)
+        if wins is None:
+            wins = self._soundtrack_windows = {}
+        tid = task.get("id")
+        existing = wins.get(tid)
+        if existing is not None:
+            existing.raise_(); existing.activateWindow(); return
+        work_root = Path(
+            getattr(self.cfg, "video_output_dir", "") or ".") / "soundtrack"
+        win = SoundtrackTaskWindow(task, self.cfg, work_root=work_root)
+        win.statusChanged.connect(self._on_soundtrack_status)
+        win.resultReady.connect(self._on_soundtrack_result)
+        wins[tid] = win
+        win.show()
+
+    def _on_soundtrack_status(self, task_id: str, status: str):
+        for t in getattr(self.cfg, "soundtrack_tasks", []):
+            if t.get("id") == task_id:
+                t["status"] = status
+        p = self._soundtrack_panel()
+        if hasattr(p, "refresh"):
+            p.refresh()
+
+    def _on_soundtrack_result(self, task_id: str, output: str):
+        for t in getattr(self.cfg, "soundtrack_tasks", []):
+            if t.get("id") == task_id:
+                t["output"] = output
+        self._persist_soundtrack()
+        p = self._soundtrack_panel()
+        if hasattr(p, "refresh"):
+            p.refresh()
 
     def _on_func_changed(self, idx: int):
         self.stack.setCurrentIndex(idx)
