@@ -13,10 +13,10 @@ from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QSlider, QPushButton,
+    QLabel, QSlider, QPushButton, QApplication,
 )
 
-from shot_master.core.loader import ImageInfo
+from drama_shot_master.imaging.loader import ImageInfo
 from drama_shot_master.ui.thumbnail_delegate import (
     ThumbnailDelegate, BADGE_ROLE, SELECTED_ROLE,
 )
@@ -34,6 +34,7 @@ class ThumbnailGrid(QWidget):
         super().__init__(parent)
         self._mode = "multi"
         self._order: list[int] = []
+        self._anchor: int | None = None   # 上次普通点击的行，作 Shift 区间锚点
         self._build_ui()
 
     def _build_ui(self):
@@ -79,6 +80,7 @@ class ThumbnailGrid(QWidget):
     def populate(self, images: list[ImageInfo]):
         self.list.clear()
         self._order = []
+        self._anchor = None
         for info in images:
             pix = QPixmap(str(info.path))
             if pix.isNull():
@@ -95,22 +97,42 @@ class ThumbnailGrid(QWidget):
 
     def _on_clicked(self, item: QListWidgetItem):
         row = self.list.row(item)
+        shift = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+        if shift and self._anchor is not None:
+            self._select_range(self._anchor, row)
+        else:
+            self._toggle(row)
+            self._anchor = row
+        self.list.viewport().update()
+        self.selectionChanged.emit(list(self._order))
+
+    def _toggle(self, row: int):
+        item = self.list.item(row)
         if self._mode == "multi":
             cur = bool(item.data(SELECTED_ROLE))
             item.setData(SELECTED_ROLE, not cur)
             if not cur:
                 self._order.append(row)
-            else:
-                if row in self._order:
-                    self._order.remove(row)
+            elif row in self._order:
+                self._order.remove(row)
         else:  # order
             if row in self._order:
                 self._order.remove(row)
             else:
                 self._order.append(row)
             self._refresh_badges()
-        self.list.viewport().update()
-        self.selectionChanged.emit(list(self._order))
+
+    def _select_range(self, anchor: int, row: int):
+        """Shift 区间选：把 [anchor, row] 区间内未选中的行按行序（升序）追加，
+        已选中的保持原有次序。锚点不变，便于继续扩选。"""
+        lo, hi = sorted((anchor, row))
+        for r in range(lo, hi + 1):
+            if r not in self._order:
+                self._order.append(r)
+                if self._mode == "multi":
+                    self.list.item(r).setData(SELECTED_ROLE, True)
+        if self._mode == "order":
+            self._refresh_badges()
 
     def _refresh_badges(self):
         for i in range(self.list.count()):
@@ -131,6 +153,7 @@ class ThumbnailGrid(QWidget):
 
     def clear_selection(self):
         self._order = []
+        self._anchor = None
         for i in range(self.list.count()):
             it = self.list.item(i)
             it.setData(BADGE_ROLE, None)
