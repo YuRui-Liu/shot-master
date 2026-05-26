@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拼图 · Drama-Shot-Master 帮助</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- NAV_BLOCK，active = image-combine.html -->
+    <nav class="sidebar">
+      <div class="brand">Drama-Shot-Master<small>用户帮助文档</small></div>
+      <div class="group">入门</div>
+      <a href="index.html">软件简介</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="activation.html">激活与授权</a>
+      <div class="group">功能详解</div>
+      <a href="image-split.html">拆图</a>
+      <a href="image-combine.html" class="active">拼图</a>
+      <a href="image-trim.html">去白边</a>
+      <a href="video.html">视频生成</a>
+      <a href="soundtrack.html">配乐</a>
+      <a href="dubbing.html">配音</a>
+      <div class="group">配置与进阶</div>
+      <a href="settings.html">设置说明</a>
+      <a href="custom-workflow.html">自定义工作流</a>
+      <div class="group">支持</div>
+      <a href="faq.html">常见问题</a>
+      <a href="troubleshooting.html">故障排查</a>
+      <a href="glossary.html">术语表</a>
+    </nav>
+  <main>
+    <div class="breadcrumb"><a href="index.html">首页</a> / 功能详解 / 拼图</div>
+    <h1>拼图</h1>
+
+    <h2>概述</h2>
+    <p>拼图功能把多张图片按指定的 R×C 网格拼接成一张大图，可控制行列数、格间距、目标比例与缩放方式。</p>
+
+    <h2>适用场景</h2>
+    <p>把多张单独分镜重新拼成一张网格大图，用于预览整组分镜、排版或对外展示。</p>
+
+    <h2>操作步骤</h2>
+    <ol class="steps">
+      <li>在左栏选好目录与输出目录，在顶部功能条选择「拼图」。</li>
+      <li>进入定序（order）模式，按目标顺序逐张点选图片确定排列次序；按 <span class="kbd">Shift</span> 可区间选择，按行序批量追加。</li>
+      <li>设置目标行列数、格间距、目标比例与缩放方式。</li>
+      <li>确认顺序无误后点「执行」导出拼接结果。</li>
+    </ol>
+    <figure class="shot"><span>图：拼图定序与网格设置面板</span></figure>
+
+    <h2>参数说明</h2>
+    <table class="params">
+      <tr><th>参数</th><th>含义</th></tr>
+      <tr><td>目标行数 / 列数</td><td>拼接后大图的网格排布。</td></tr>
+      <tr><td>间距 gap</td><td>相邻格子之间的像素间隔。</td></tr>
+      <tr><td>目标比例</td><td>每个格子的目标宽高比。</td></tr>
+      <tr><td>缩放方式</td><td>留边（保持完整、四周补背景）、裁切（铺满格子、裁掉溢出）、拉伸（强制充满、可能变形）。</td></tr>
+      <tr><td>背景色</td><td>留边时填充空白区域的颜色。</td></tr>
+    </table>
+
+    <h2>提示与技巧</h2>
+    <div class="tip">三种缩放方式区别明显：要保留完整画面选「留边」，要无空隙铺满选「裁切」，不在意变形可用「拉伸」。定序时按 <span class="kbd">Shift</span> 做区间选择，可快速按行序一次性追加多张。</div>
+
+    <h2>常见问题</h2>
+    <h3>排列顺序点错了怎么办？</h3>
+    <p>再次点击已选图片即可取消该位置，然后重新点选定序。</p>
+    <h3>用「留边」后图片四周发虚 / 留白太多？</h3>
+    <p>改用「裁切」缩放方式，让图片铺满格子，去掉多余留白。</p>
+
+    <div class="pager"><a href="image-split.html">← 上一页：拆图</a><a href="image-trim.html">下一页：去白边 →</a></div>
+    <footer>© 2026 二进制糯米 · Drama-Shot-Master 帮助文档</footer>
+  </main>
+</div>
+</body>
+</html>

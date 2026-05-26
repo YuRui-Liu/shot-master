@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>去白边 · Drama-Shot-Master 帮助</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- NAV_BLOCK，active = image-trim.html -->
+    <nav class="sidebar">
+      <div class="brand">Drama-Shot-Master<small>用户帮助文档</small></div>
+      <div class="group">入门</div>
+      <a href="index.html">软件简介</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="activation.html">激活与授权</a>
+      <div class="group">功能详解</div>
+      <a href="image-split.html">拆图</a>
+      <a href="image-combine.html">拼图</a>
+      <a href="image-trim.html" class="active">去白边</a>
+      <a href="video.html">视频生成</a>
+      <a href="soundtrack.html">配乐</a>
+      <a href="dubbing.html">配音</a>
+      <div class="group">配置与进阶</div>
+      <a href="settings.html">设置说明</a>
+      <a href="custom-workflow.html">自定义工作流</a>
+      <div class="group">支持</div>
+      <a href="faq.html">常见问题</a>
+      <a href="troubleshooting.html">故障排查</a>
+      <a href="glossary.html">术语表</a>
+    </nav>
+  <main>
+    <div class="breadcrumb"><a href="index.html">首页</a> / 功能详解 / 去白边</div>
+    <h1>去白边</h1>
+
+    <h2>概述</h2>
+    <p>去白边功能自动迭代裁掉图片四周残留的白色边框，让画面边缘干净，避免后续生成视频时带入白边。</p>
+
+    <h2>适用场景</h2>
+    <p>拆图或导出后图片四周残留白框，或素材本身带有不需要的白色边距，需要批量清理。</p>
+
+    <h2>操作步骤</h2>
+    <ol class="steps">
+      <li>在左栏选好目录与输出目录，在顶部功能条选择「去白边」。</li>
+      <li>设置白边阈值与最大迭代次数。</li>
+      <li>若白边去不干净，分别设置「额外向内裁剪」的上 / 下 / 左 / 右像素。</li>
+      <li>在中栏选择图片（用 <span class="kbd">Ctrl</span> / <span class="kbd">Shift</span> 多选），点「执行」。</li>
+    </ol>
+    <figure class="shot"><span>图：去白边参数面板与裁切预览</span></figure>
+
+    <h2>参数说明</h2>
+    <table class="params">
+      <tr><th>参数</th><th>含义</th></tr>
+      <tr><td>阈值</td><td>判定为白边的亮度阈值；越高越严格，会把更接近白的像素也视为白边裁掉。</td></tr>
+      <tr><td>最大迭代</td><td>逐层向内裁切的最大重复次数。</td></tr>
+      <tr><td>额外向内裁剪（上/下/左/右）</td><td>在自动去白边之外，对四个方向各再多裁掉的像素，用于处理不均匀的残留白框。</td></tr>
+      <tr><td>命名后缀</td><td>导出文件名追加的后缀。</td></tr>
+      <tr><td>格式</td><td>导出图片格式（如 PNG / JPG）。</td></tr>
+    </table>
+
+    <h2>提示与技巧</h2>
+    <div class="tip">遇到非均匀的白框（某一侧多、某一侧少）时，用「额外向内裁剪」对单边微调，能有效防止生成视频时画面带白边。</div>
+
+    <h2>常见问题</h2>
+    <h3>白边没去净怎么办？</h3>
+    <p>适当提高阈值，或用「额外向内裁剪」对残留较多的一侧再多裁一些。</p>
+    <h3>裁过头、画面被切掉了怎么办？</h3>
+    <p>减小对应方向的「额外向内裁剪」像素，或降低阈值后重新执行。</p>
+
+    <div class="pager"><a href="image-combine.html">← 上一页：拼图</a><a href="video.html">下一页：视频生成 →</a></div>
+    <footer>© 2026 二进制糯米 · Drama-Shot-Master 帮助文档</footer>
+  </main>
+</div>
+</body>
+</html>

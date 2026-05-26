@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拆图 · Drama-Shot-Master 帮助</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- NAV_BLOCK，active = image-split.html -->
+    <nav class="sidebar">
+      <div class="brand">Drama-Shot-Master<small>用户帮助文档</small></div>
+      <div class="group">入门</div>
+      <a href="index.html">软件简介</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="activation.html">激活与授权</a>
+      <div class="group">功能详解</div>
+      <a href="image-split.html" class="active">拆图</a>
+      <a href="image-combine.html">拼图</a>
+      <a href="image-trim.html">去白边</a>
+      <a href="video.html">视频生成</a>
+      <a href="soundtrack.html">配乐</a>
+      <a href="dubbing.html">配音</a>
+      <div class="group">配置与进阶</div>
+      <a href="settings.html">设置说明</a>
+      <a href="custom-workflow.html">自定义工作流</a>
+      <div class="group">支持</div>
+      <a href="faq.html">常见问题</a>
+      <a href="troubleshooting.html">故障排查</a>
+      <a href="glossary.html">术语表</a>
+    </nav>
+  <main>
+    <div class="breadcrumb"><a href="index.html">首页</a> / 功能详解 / 拆图</div>
+    <h1>拆图</h1>
+
+    <h2>概述</h2>
+    <p>拆图功能把一张网格大图（如 2×2、4×4 的分镜拼图）自动切分成多张子图，并按顺序导出到输出目录。它会识别图中网格的白色间隔带，把每一格单独裁出。</p>
+
+    <h2>适用场景</h2>
+    <p>AI 一次性生成的多格分镜大图，需要拆成一张张单独的分镜图，以便后续逐张处理或送去生成视频。</p>
+
+    <h2>操作步骤</h2>
+    <ol class="steps">
+      <li>在左栏「打开目录」选择存放分镜大图的文件夹，并「设置输出目录」。</li>
+      <li>在顶部功能条选择「拆图」。</li>
+      <li>在右栏填写源网格的行 / 列数与每格子图的行 / 列数。</li>
+      <li>如间隔不规则，可用「一键检测」让软件自动识别白边与网格并填入行列。</li>
+      <li>在中栏选择要拆分的图片，点「执行」。</li>
+    </ol>
+    <figure class="shot"><span>图：拆图参数面板与网格预览</span></figure>
+
+    <h2>参数说明</h2>
+    <table class="params">
+      <tr><th>参数</th><th>含义</th></tr>
+      <tr><td>源行数 / 源列数</td><td>原始大图按几行几列的网格排布。</td></tr>
+      <tr><td>子图行数 / 子图列数</td><td>每个目标子图覆盖的格子范围，通常为 1×1，即每格一张。</td></tr>
+      <tr><td>白边阈值</td><td>判定为间隔白带的亮度阈值，用于自动定位网格分界线。</td></tr>
+      <tr><td>最大迭代</td><td>自动检测白边时的最大重复次数，避免对复杂图反复计算。</td></tr>
+      <tr><td>命名后缀</td><td>导出子图文件名追加的后缀，便于区分来源。</td></tr>
+      <tr><td>格式</td><td>导出图片格式（如 PNG / JPG）。</td></tr>
+      <tr><td>重采样方式</td><td>缩放算法：Lanczos（高质量传统插值）或 AI（智能放大）。</td></tr>
+    </table>
+
+    <h2>提示与技巧</h2>
+    <div class="tip">白带检测对间距不完全均匀的网格也较鲁棒；若希望子图同时放大，可选择 AI 重采样方式。</div>
+
+    <h2>常见问题</h2>
+    <h3>拆出来的子图仍带白边怎么办？</h3>
+    <p>可在拆图后再用 <a href="image-trim.html">去白边</a> 功能逐张清理残留白边。</p>
+    <h3>格子检测不准 / 切歪了怎么办？</h3>
+    <p>关闭自动检测，手动填写正确的源行列数与子图行列数再执行。</p>
+
+    <div class="pager"><a href="activation.html">← 上一页：激活与授权</a><a href="image-combine.html">下一页：拼图 →</a></div>
+    <footer>© 2026 二进制糯米 · Drama-Shot-Master 帮助文档</footer>
+  </main>
+</div>
+</body>
+</html>
