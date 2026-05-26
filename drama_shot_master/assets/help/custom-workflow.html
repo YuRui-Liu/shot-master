@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自定义工作流 · Drama-Shot-Master 帮助</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- NAV_BLOCK，active = custom-workflow.html -->
+    <nav class="sidebar">
+      <div class="brand">Drama-Shot-Master<small>用户帮助文档</small></div>
+      <div class="group">入门</div>
+      <a href="index.html">软件简介</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="activation.html">激活与授权</a>
+      <div class="group">功能详解</div>
+      <a href="image-split.html">拆图</a>
+      <a href="image-combine.html">拼图</a>
+      <a href="image-trim.html">去白边</a>
+      <a href="video.html">视频生成</a>
+      <a href="soundtrack.html">配乐</a>
+      <a href="dubbing.html">配音</a>
+      <div class="group">配置与进阶</div>
+      <a href="settings.html">设置说明</a>
+      <a href="custom-workflow.html" class="active">自定义工作流</a>
+      <div class="group">支持</div>
+      <a href="faq.html">常见问题</a>
+      <a href="troubleshooting.html">故障排查</a>
+      <a href="glossary.html">术语表</a>
+    </nav>
+  <main>
+    <div class="breadcrumb"><a href="index.html">首页</a> / 配置与进阶 / 自定义工作流</div>
+    <h1>自定义工作流</h1>
+
+    <h2>概念</h2>
+    <p>本软件不在本地跑模型，而是把任务提交到 <b>RunningHub</b> 上你<b>已保存的工作流</b>（按 workflow_id），并用「节点参数覆盖」把界面里的输入写进工作流对应节点。因此「接入自定义工作流」= 在 RunningHub 部署你的工作流 + 在软件里填它的 ID + 必要时校准节点号。</p>
+
+    <h2>一、换用你自己的工作流（无需改代码）</h2>
+    <ol class="steps">
+      <li>在 RunningHub 部署 / 保存你的工作流，复制它的 <code>workflow_id</code>。</li>
+      <li><b>视频</b>：「设置 → RunningHub 配置」里，每个工作流（导演台 / ALL IN ONE V3）各有一个 <code>workflow_id</code> 输入框，填入即可；还可设「自定义模板路径」指向你导出的模板 JSON。</li>
+      <li><b>配音</b>：「设置 → 配音…」里填「音色设计 / 声音克隆」两个 <code>workflow_id</code>。</li>
+      <li>提交前确保「RunningHub 配置」里 API Key、Base URL 正确。</li>
+    </ol>
+
+    <h2>二、节点号不一致时（覆盖映射）</h2>
+    <p>软件靠固定的「角色→节点号」映射把输入写进工作流。若你的工作流节点号与默认不同，编辑配置文件 <code>settings.json</code> 校准即可（无需改代码）：</p>
+    <ul>
+      <li>配音：在 <code>dub_node_profiles</code> 下按工作流（<code>voice_clone</code> / <code>voice_design</code>）填「角色:节点号」覆盖。例如声音克隆默认 文本=4、说话人音频=10、情感描述=16、情感参考音频=19、情感向量=21、模式选择器=26、四个分支=1/14/17/20。</li>
+    </ul>
+    <div class="note">提示：导出 RunningHub 工作流的 <b>API 格式 JSON</b>，对照其中每个节点的 <code>class_type</code> 与输入名，即可确认要覆盖的节点号。</div>
+
+    <h2>三、新增一种工作流类型（开发者向，需改代码）</h2>
+    <p>要让软件支持一类全新工作流（新的节点结构 / 新的可调项），在代码里登记一个 profile：</p>
+    <ul>
+      <li>视频：在 <code>drama_shot_master/core/workflow_profiles.py</code> 的 <code>PROFILES</code> 增加 <code>WorkflowProfile</code>（含模板文件名 + 各节点号），把模板 JSON 放进 <code>drama_shot_master/templates/</code>。</li>
+      <li>配音 / TTS：在 <code>drama_shot_master/core/tts_profiles.py</code> 增加 <code>TTSProfile</code>（workflow_id + 角色→节点号），并按需扩展提交构造器。</li>
+    </ul>
+    <div class="note">无论哪种方式，软件只<b>覆盖工作流里的 widget / 开关</b>，不修改工作流图本身；多分支选择（如 rgthree 选组节点）通过覆盖其组开关实现。</div>
+
+    <div class="pager"><a href="settings.html">← 上一页：设置说明</a><a href="faq.html">下一页：常见问题 →</a></div>
+    <footer>© 2026 二进制糯米 · Drama-Shot-Master 帮助文档</footer>
+  </main>
+</div>
+</body>
+</html>

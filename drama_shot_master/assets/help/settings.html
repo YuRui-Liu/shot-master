@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设置说明 · Drama-Shot-Master 帮助</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- NAV_BLOCK，active = settings.html -->
+    <nav class="sidebar">
+      <div class="brand">Drama-Shot-Master<small>用户帮助文档</small></div>
+      <div class="group">入门</div>
+      <a href="index.html">软件简介</a>
+      <a href="getting-started.html">快速开始</a>
+      <a href="activation.html">激活与授权</a>
+      <div class="group">功能详解</div>
+      <a href="image-split.html">拆图</a>
+      <a href="image-combine.html">拼图</a>
+      <a href="image-trim.html">去白边</a>
+      <a href="video.html">视频生成</a>
+      <a href="soundtrack.html">配乐</a>
+      <a href="dubbing.html">配音</a>
+      <div class="group">配置与进阶</div>
+      <a href="settings.html" class="active">设置说明</a>
+      <a href="custom-workflow.html">自定义工作流</a>
+      <div class="group">支持</div>
+      <a href="faq.html">常见问题</a>
+      <a href="troubleshooting.html">故障排查</a>
+      <a href="glossary.html">术语表</a>
+    </nav>
+  <main>
+    <div class="breadcrumb"><a href="index.html">首页</a> / 配置与进阶 / 设置说明</div>
+    <h1>设置说明</h1>
+
+    <h2>概述</h2>
+    <p>菜单栏「设置」下集中了软件各项配置对话框。生成类功能（视频 / 配乐 / 配音）依赖云端 RunningHub，使用前需先在这里填好账号信息与各工作流 ID。本页逐个说明各对话框的字段含义。</p>
+    <figure class="shot"><span>图：设置菜单与各配置对话框</span></figure>
+
+    <h2>RunningHub 配置</h2>
+    <p>视频生成的云端接入配置，也是其它生成功能的账号基础。</p>
+    <table class="params">
+      <tr><th>字段</th><th>含义</th></tr>
+      <tr><td>API Key</td><td>RunningHub 账户的访问密钥，用于鉴权与提交任务。</td></tr>
+      <tr><td>Base URL</td><td>RunningHub 服务地址，一般保持默认，私有部署时按实际填写。</td></tr>
+      <tr><td>视频输出目录</td><td>生成的视频文件保存到的本地文件夹。</td></tr>
+      <tr><td>各工作流 workflow_id</td><td>每种视频工作流（导演台 / ALL IN ONE V3 等）在 RunningHub 上对应的已保存工作流 ID。</td></tr>
+      <tr><td>自定义模板路径</td><td>指向自己导出的工作流模板 JSON，留空则使用内置模板。</td></tr>
+    </table>
+
+    <h2>翻译配置</h2>
+    <p>提示词等文本的翻译服务配置。</p>
+    <table class="params">
+      <tr><th>字段</th><th>含义</th></tr>
+      <tr><td>翻译服务</td><td>所用翻译后端（如 DeepLX 等）。</td></tr>
+      <tr><td>服务地址</td><td>翻译服务的接口地址。</td></tr>
+      <tr><td>密钥 / Token</td><td>若所选服务需要鉴权，则在此填写。</td></tr>
+    </table>
+    <div class="note">具体可填字段以软件内对话框为准；不确定的字段保留默认即可。</div>
+
+    <h2>提示词优化配置</h2>
+    <p>用大模型按 meta-prompt 优化、扩写视频提示词的配置。</p>
+    <table class="params">
+      <tr><th>字段</th><th>含义</th></tr>
+      <tr><td>meta-prompt 路径</td><td>指向优化所用的元提示词文件。</td></tr>
+      <tr><td>Provider / base_url</td><td>大模型服务地址（如 Ollama 本地服务或豆包等在线服务）。</td></tr>
+      <tr><td>API Key</td><td>所选服务的访问密钥（本地服务可留空）。</td></tr>
+      <tr><td>Model</td><td>使用的模型名称。</td></tr>
+    </table>
+
+    <h2>配乐</h2>
+    <p>自动配乐相关的默认参数。</p>
+    <table class="params">
+      <tr><th>字段</th><th>含义</th></tr>
+      <tr><td>风格</td><td>生成或匹配配乐的风格倾向。</td></tr>
+      <tr><td>随机种子</td><td>控制结果可复现的随机种子。</td></tr>
+      <tr><td>交叉淡入淡出</td><td>片段衔接处的淡入淡出时长。</td></tr>
+      <tr><td>卡点参数</td><td>卡点分析的灵敏度、最大数量等。</td></tr>
+    </table>
+
+    <h2>配音</h2>
+    <p>配音（TTS）工作流的接入配置。</p>
+    <table class="params">
+      <tr><th>字段</th><th>含义</th></tr>
+      <tr><td>音色设计 workflow_id</td><td>「音色设计」方式在 RunningHub 上对应的工作流 ID。</td></tr>
+      <tr><td>声音克隆 workflow_id</td><td>「声音克隆」方式在 RunningHub 上对应的工作流 ID。</td></tr>
+      <tr><td>输出目录</td><td>生成的配音音频（FLAC）保存到的本地文件夹。</td></tr>
+    </table>
+
+    <div class="note">当线上工作流的节点编号与默认映射不一致时，可在配置文件 <code>settings.json</code> 的 <code>dub_node_profiles</code> 中做高级覆盖，详见 <a href="custom-workflow.html">自定义工作流</a>。</div>
+
+    <div class="pager"><a href="dubbing.html">← 上一页：配音</a><a href="custom-workflow.html">下一页：自定义工作流 →</a></div>
+    <footer>© 2026 二进制糯米 · Drama-Shot-Master 帮助文档</footer>
+  </main>
+</div>
+</body>
+</html>
