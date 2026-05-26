@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QVBoxLayout, QFormLayout, QGroupBox, QSpinBox, QComboBox,
-    QLineEdit, QMessageBox, QHBoxLayout, QWidget, QLabel,
+    QLineEdit, QMessageBox, QGridLayout, QWidget, QLabel,
 )
 
 from drama_shot_master.config import Config
@@ -39,13 +39,18 @@ class TrimPanel(BasePanel):
         self.inset_bottom = _spin(0, 2000, 0)
         self.inset_left = _spin(0, 2000, 0)
         self.inset_right = _spin(0, 2000, 0)
-        inset_row = QHBoxLayout()
-        for lbl, sp in (("上", self.inset_top), ("下", self.inset_bottom),
-                        ("左", self.inset_left), ("右", self.inset_right)):
-            inset_row.addWidget(QLabel(lbl))
-            inset_row.addWidget(sp)
-        inset_row.addStretch(1)
-        inset_wrap = QWidget(); inset_wrap.setLayout(inset_row)
+        # 2×2 网格，每格 标签+spin；spin 给足宽度，避免数字被挤没
+        inset_grid = QGridLayout()
+        inset_grid.setContentsMargins(0, 0, 0, 0)
+        inset_grid.setHorizontalSpacing(8)
+        cells = (("上", self.inset_top, 0, 0), ("下", self.inset_bottom, 0, 2),
+                 ("左", self.inset_left, 1, 0), ("右", self.inset_right, 1, 2))
+        for lbl, sp, r, c in cells:
+            sp.setMinimumWidth(72)
+            inset_grid.addWidget(QLabel(lbl), r, c)
+            inset_grid.addWidget(sp, r, c + 1)
+        inset_grid.setColumnStretch(4, 1)
+        inset_wrap = QWidget(); inset_wrap.setLayout(inset_grid)
         f.addRow("额外向内裁剪 (px)", inset_wrap)
         root.addWidget(box)
         root.addStretch(1)
