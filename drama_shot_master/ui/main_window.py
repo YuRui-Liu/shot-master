@@ -303,8 +303,14 @@ class MainWindow(QMainWindow):
         win = SoundtrackTaskWindow(task, self.cfg, work_root=work_root)
         win.statusChanged.connect(self._on_soundtrack_status)
         win.resultReady.connect(self._on_soundtrack_result)
+        win.closed.connect(self._on_soundtrack_window_closed)
         wins[tid] = win
         win.show()
+
+    def _on_soundtrack_window_closed(self, task_id: str):
+        wins = getattr(self, "_soundtrack_windows", None)
+        if wins is not None:
+            wins.pop(task_id, None)
 
     def _on_soundtrack_status(self, task_id: str, status: str):
         for t in getattr(self.cfg, "soundtrack_tasks", []):

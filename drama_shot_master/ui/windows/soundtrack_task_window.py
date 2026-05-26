@@ -27,6 +27,7 @@ class SoundtrackTaskWindow(QMainWindow):
 
     statusChanged = Signal(str, str)        # (task_id, status_text)
     resultReady = Signal(str, str)          # (task_id, output_path)
+    closed = Signal(str)                    # (task_id) 关窗 → main_window 清理引用
 
     def __init__(self, task: dict, cfg, work_root, parent=None):
         super().__init__(parent)
@@ -84,10 +85,10 @@ class SoundtrackTaskWindow(QMainWindow):
         self.btn_start = QPushButton("🎬 开始配乐")
         self.btn_start.setObjectName("AccentButton")
         self.btn_start.clicked.connect(self._on_start)
-        self.btn_cancel = QPushButton("取消"); self.btn_cancel.setEnabled(False)
-        act.addWidget(self.btn_start); act.addWidget(self.btn_cancel)
+        act.addWidget(self.btn_start)
         act.addStretch(1)
         root.addLayout(act)
+        # 取消功能留第二期（接 cancel_check）；不放灰按钮以免误导
 
         self.progress = QProgressBar(); self.progress.setRange(0, 0)
         self.progress.hide()
@@ -156,3 +157,8 @@ class SoundtrackTaskWindow(QMainWindow):
         self.btn_start.setEnabled(True)
         self.statusChanged.emit(self.task_id, "失败")
         QMessageBox.critical(self, "配乐失败", err)
+
+    def closeEvent(self, event):
+        # 通知 main_window 清理引用，避免关窗后再开拿到已销毁对象
+        self.closed.emit(self.task_id)
+        super().closeEvent(event)

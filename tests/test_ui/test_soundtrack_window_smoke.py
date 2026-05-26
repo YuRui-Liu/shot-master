@@ -18,3 +18,14 @@ def test_window_constructs_with_task_defaults():
     assert win.style_edit.toPlainText() == "末日废土"
     assert win.mp4_edit.text() == "/x/ep1.mp4"
     assert win.workflow_edit.text() == DEFAULT_WORKFLOW_ID
+
+
+def test_window_emits_closed_on_close():
+    _app()
+    task = {"id": "t9", "name": "EP09", "mp4": "", "style": "x",
+            "workflow_id": "", "status": "空闲", "output": ""}
+    win = SoundtrackTaskWindow(task, cfg=type("C", (), {})(), work_root="/tmp/stk")
+    seen = []
+    win.closed.connect(seen.append)
+    win.close()
+    assert seen == ["t9"]               # 关窗发 closed(task_id)，供 main_window 清引用
