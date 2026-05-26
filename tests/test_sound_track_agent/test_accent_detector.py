@@ -70,3 +70,20 @@ def test_detect_accents_finds_motion_spike(tmp_path):
     assert len(pts) >= 1
     # 平移发生在 frame19→frame20（pos 0→10），即 motion index 19 → t≈20/24≈0.833s
     assert any(abs(p.t - 20 / 24) < 0.2 for p in pts)
+
+
+def test_find_peaks_min_intensity_and_max_count():
+    # 一个强峰(=10) + 多个弱峰(=2)，背景 0
+    motion = [0, 10, 0, 2, 0, 2, 0, 2, 0, 2, 0]
+    # min_intensity=0.3 → 弱峰(2/10=0.2)被滤掉，只剩强峰
+    pts = find_accent_peaks(motion, fps=10.0, k=0.1, min_gap_s=0.05,
+                            min_intensity=0.3)
+    assert len(pts) == 1
+    assert round(pts[0].intensity, 2) == 1.0
+    # max_count=2 → 即便很多候选也只留最强 2 个
+    motion2 = [0, 9, 0, 8, 0, 7, 0, 6, 0, 5, 0]
+    pts2 = find_accent_peaks(motion2, fps=10.0, k=0.1, min_gap_s=0.05,
+                             max_count=2)
+    assert len(pts2) == 2
+    ints = sorted(p.intensity for p in pts2)
+    assert round(ints[-1], 2) == 1.0          # 含最强(9/9)
