@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import Signal, QUrl
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
+    QMessageBox,
 )
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 
@@ -74,6 +75,8 @@ class SegmentReviewWidget(QWidget):
             self._player.stop()
             self._player.setSource(QUrl.fromLocalFile(path))
             self._player.play()
+        else:
+            QMessageBox.warning(self, "无法播放", f"候选文件缺失：{path}")
         self.choose(seg_index, cand_index)
 
     def choose(self, seg_index: int, cand_index: int):

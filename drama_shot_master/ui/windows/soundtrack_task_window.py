@@ -139,6 +139,7 @@ class SoundtrackTaskWindow(QMainWindow):
             if old: old.deleteLater()
         self._review = SegmentReviewWidget(self._session)
         self._review.regenerateRequested.connect(self._on_regenerate)
+        self._review.chosenChanged.connect(self._on_chosen_changed)
         lay.addWidget(self._review)
         # ③ 卡点
         lay2 = self._accent_holder.layout()
@@ -152,6 +153,22 @@ class SoundtrackTaskWindow(QMainWindow):
     def _persist_session(self):
         if self._session is not None:
             self._session.save(self._work_dir() / "session.json")
+
+    def _on_chosen_changed(self):
+        """试听选优变化 → 选定进度提示 + 落盘选定。"""
+        if self._session is None:
+            return
+        self._persist_session()
+        if self._review is not None and not self._review.all_chosen():
+            n = sum(1 for s in self._session.segments
+                    if s.chosen_candidate is not None)
+            total = len(self._session.segments)
+            self.progress_label.setText(
+                f"已选定 {n}/{total} 段；全部选定后「停在」选「出片」可出成片")
+
+    def _worker_busy(self) -> bool:
+        """有 worker 在跑则 True（防并发改同一 session）。"""
+        return self._worker is not None and self._worker.isRunning()
 
     def _browse_mp4(self):
         p, _ = QFileDialog.getOpenFileName(
@@ -169,18 +186,27 @@ class SoundtrackTaskWindow(QMainWindow):
         QTimer.singleShot(0, lambda: self.progress_label.setText(msg))
 
     def _on_start(self):
+        if self._worker_busy():
+            QMessageBox.information(self, "请稍候", "当前有任务在运行"); return
         mp4 = self.mp4_edit.text().strip()
         style = self.style_edit.toPlainText().strip()
         if not mp4 or not Path(mp4).exists():
             QMessageBox.warning(self, "无法开始", "请选择存在的成片 MP4"); return
         if not style:
             QMessageBox.warning(self, "无法开始", "请填写总风格"); return
+        stop_after = self.stop_combo.currentData()
+        # 出片门控：到 mix 阶段需所有段已选定候选
+        if stop_after == "mix" and self._session is not None and \
+                self._review is not None and not self._review.all_chosen():
+            QMessageBox.warning(self, "无法出片",
+                                "还有段未选定候选，请先到「② 试听选优」全部选定")
+            self.tabs.setCurrentIndex(1)
+            return
         self._task["output_dir"] = self.out_edit.text().strip()
         self._task["mp4"] = mp4
         self._task["style"] = style
         workflow_id = getattr(self.cfg, "soundtrack_workflow_id", "")
         seeds = int(getattr(self.cfg, "soundtrack_seeds_count", 2))
-        stop_after = self.stop_combo.currentData()
         work_dir = self._work_dir()
         cfg = self.cfg
 
@@ -204,6 +230,8 @@ class SoundtrackTaskWindow(QMainWindow):
     def _on_regenerate(self, seg_index: int):
         if self._session is None:
             return
+        if self._worker_busy():
+            QMessageBox.information(self, "请稍候", "当前有任务在运行"); return
         workflow_id = getattr(self.cfg, "soundtrack_workflow_id", "")
         seeds = int(getattr(self.cfg, "soundtrack_seeds_count", 2))
         work_dir = self._work_dir(); cfg = self.cfg; sess = self._session
