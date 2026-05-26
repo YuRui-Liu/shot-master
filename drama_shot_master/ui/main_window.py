@@ -71,6 +71,7 @@ class MainWindow(QMainWindow):
         if btn is not None:
             btn.setChecked(True)
         self._on_func_changed(start_idx)
+        self._install_license_watch()
 
     def _build_ui(self):
         menu = self.menuBar()
@@ -256,6 +257,24 @@ class MainWindow(QMainWindow):
     def _open_about(self):
         from drama_shot_master.ui.dialogs.about_dialog import AboutDialog
         AboutDialog(self.cfg, parent=self).exec()
+
+    def _install_license_watch(self):
+        from drama_shot_master.licensing import manager
+        st = manager.status()
+        if st.state is manager.LicenseState.VALID and st.days_left <= 7:
+            self.status.setText(f"授权将于 {st.days_left} 天后到期，请及时续期")
+        from PySide6.QtCore import QTimer
+        self._lic_timer = QTimer(self)
+        self._lic_timer.setInterval(24 * 3600 * 1000)   # 每天复查
+        self._lic_timer.timeout.connect(self._check_license_runtime)
+        self._lic_timer.start()
+
+    def _check_license_runtime(self):
+        from drama_shot_master.licensing import manager
+        if manager.requires_activation(manager.status().state):
+            self._open_about()
+            if manager.requires_activation(manager.status().state):
+                self.close()
 
     def _video_manager(self):
         idx = next((i for i, (_l, k) in enumerate(FUNCS) if k == "video_gen"), -1)
@@ -443,6 +462,10 @@ class MainWindow(QMainWindow):
                       parent=self).exec()
 
     def _do_execute(self):
+        from drama_shot_master.licensing import manager
+        if manager.requires_activation(manager.status().state):
+            QMessageBox.warning(self, "需要激活", "请先在「关于」中激活。")
+            self._open_about(); return
         panel = self.panels[self.stack.currentIndex()]
         ok, why = panel.validate()
         if not ok:

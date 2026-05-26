@@ -2,12 +2,6 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
-
-# 让 shot-master 可被 import（开发期间用相对路径定位，打包发布版可走 pip install -e）
-_SHOT_MASTER = Path(__file__).resolve().parent.parent.parent.parent / "shot-master"
-if _SHOT_MASTER.exists() and str(_SHOT_MASTER) not in sys.path:
-    sys.path.insert(0, str(_SHOT_MASTER))
 
 
 def main() -> int:
@@ -19,6 +13,15 @@ def main() -> int:
     app.setApplicationName("Drama-Shot-Master")
     apply_theme(app)
     apply_app_icon(app)
+    from drama_shot_master.licensing import manager
+    from drama_shot_master.config import load_config as _lc
+    if manager.requires_activation(manager.status().state):
+        from drama_shot_master.ui.dialogs.about_dialog import AboutDialog
+        gate = AboutDialog(_lc(), activation_focus=True)
+        gate.setWindowTitle("激活 Drama-Shot-Master")
+        gate.exec()
+        if manager.requires_activation(manager.status().state):
+            return 0          # 仍未激活 → 退出，不进主界面
     w = MainWindow()
     w.show()
     return app.exec()

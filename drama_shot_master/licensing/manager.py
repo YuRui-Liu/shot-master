@@ -71,3 +71,7 @@ def activate(code: str) -> LicenseStatus:
         # 验签通过（含已过期的真码）才落盘；非法/非本机不写
         _license_path().write_text(code.strip(), encoding="utf-8")
     return st
+
+
+def requires_activation(state: LicenseState) -> bool:
+    return not gate_allows(state)

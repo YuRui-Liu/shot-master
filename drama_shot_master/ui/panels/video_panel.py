@@ -394,6 +394,11 @@ class VideoPanel(BasePanel):
     # ---------- slots: status bar / 提交链路 ----------
 
     def _on_submit(self):
+        from drama_shot_master.licensing import manager
+        if manager.requires_activation(manager.status().state):
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "需要激活", "授权无效或已过期，无法提交。")
+            return
         ok, msg = self.model.validate()
         if not ok:
             QMessageBox.warning(self, "校验失败", msg)
