@@ -293,3 +293,36 @@ def test_validate_resample_long_edge_boundaries_ok():
         ResampleSpec(enabled=True, long_edge=256))[0] is True
     assert validate_resample_spec(
         ResampleSpec(enabled=True, long_edge=8192))[0] is True
+
+
+def test_inset_crop_basic():
+    from PIL import Image
+    from drama_shot_master.grid_ops import _inset_crop
+    img = Image.new("RGB", (100, 100), (10, 20, 30))
+    out = _inset_crop(img, top=5, right=10, bottom=15, left=20)
+    assert out.size == (70, 80)   # w=100-20-10, h=100-5-15
+
+
+def test_inset_crop_zero_returns_same_object():
+    from PIL import Image
+    from drama_shot_master.grid_ops import _inset_crop
+    img = Image.new("RGB", (50, 50), (0, 0, 0))
+    assert _inset_crop(img) is img
+    assert _inset_crop(img, 0, 0, 0, 0) is img
+
+
+def test_inset_crop_overlarge_clamps_to_min_1px():
+    from PIL import Image
+    from drama_shot_master.grid_ops import _inset_crop
+    img = Image.new("RGB", (100, 100), (0, 0, 0))
+    out = _inset_crop(img, left=200, right=200, top=200, bottom=200)
+    w, h = out.size
+    assert w >= 1 and h >= 1
+
+
+def test_inset_crop_negative_treated_as_zero():
+    from PIL import Image
+    from drama_shot_master.grid_ops import _inset_crop
+    img = Image.new("RGB", (40, 40), (0, 0, 0))
+    out = _inset_crop(img, top=-5, right=-5, bottom=0, left=0)
+    assert out is img

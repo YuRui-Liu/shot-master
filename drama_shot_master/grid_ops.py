@@ -152,11 +152,30 @@ def combine_to_file(image_paths: list[Path],
 SUPPORTED_IMG_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 
 
+def _inset_crop(img: Image.Image, top: int = 0, right: int = 0,
+                bottom: int = 0, left: int = 0) -> Image.Image:
+    """四边各向内裁 N 像素；负值钳到 0；超量保底至少 1×1；全 0 时原样返回。"""
+    top = max(0, top); right = max(0, right)
+    bottom = max(0, bottom); left = max(0, left)
+    if top == right == bottom == left == 0:
+        return img
+    w, h = img.size
+    x0 = min(left, w - 1)
+    y0 = min(top, h - 1)
+    x1 = max(w - right, x0 + 1)
+    y1 = max(h - bottom, y0 + 1)
+    return img.crop((x0, y0, x1, y1))
+
+
 def trim_one(src_path: Path, out_path: Path,
              threshold: int = 240, max_iter: int = 5,
-             output_format: str = "PNG") -> Path:
+             output_format: str = "PNG",
+             inset_top: int = 0, inset_right: int = 0,
+             inset_bottom: int = 0, inset_left: int = 0) -> Path:
     img = Image.open(src_path)
     trimmed = trim_white_edges(img, threshold=threshold, max_iter=max_iter)
+    trimmed = _inset_crop(trimmed, top=inset_top, right=inset_right,
+                          bottom=inset_bottom, left=inset_left)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     save_image(trimmed, out_path, output_format)
     return out_path
@@ -165,7 +184,9 @@ def trim_one(src_path: Path, out_path: Path,
 def trim_batch(src_folder: Path, out_folder: Path,
                threshold: int = 240, max_iter: int = 5,
                output_format: str = "PNG",
-               name_suffix: str = "") -> list[Path]:
+               name_suffix: str = "",
+               inset_top: int = 0, inset_right: int = 0,
+               inset_bottom: int = 0, inset_left: int = 0) -> list[Path]:
     out_folder.mkdir(parents=True, exist_ok=True)
     ext = ".png" if output_format.upper() == "PNG" else ".jpg"
     saved = []
@@ -174,7 +195,9 @@ def trim_batch(src_folder: Path, out_folder: Path,
             continue
         out = out_folder / f"{p.stem}{name_suffix}{ext}"
         trim_one(p, out, threshold=threshold, max_iter=max_iter,
-                 output_format=output_format)
+                 output_format=output_format,
+                 inset_top=inset_top, inset_right=inset_right,
+                 inset_bottom=inset_bottom, inset_left=inset_left)
         saved.append(out)
     return saved
 
