@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drama-Shot-Master 帮助文档</title>
+<style>
+  :root{
+    --bg:#16172a; --panel:#1e2038; --ink:#e8e9f3; --muted:#9aa0c0;
+    --accent:#6d5df6; --accent2:#3aa0ff; --line:#2c2e50; --code:#0f1020;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.7;
+  }
+  /* 分栏：左侧固定导航 + 右侧内容 */
+  .layout{display:flex; min-height:100vh;}
+  nav{
+    width:240px; flex:0 0 240px; background:var(--panel);
+    border-right:1px solid var(--line); position:sticky; top:0; height:100vh;
+    overflow-y:auto; padding:24px 0;
+  }
+  nav .brand{padding:0 22px 16px; font-size:18px; font-weight:700;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;}
+  nav .ver{padding:0 22px 18px; color:var(--muted); font-size:12px;
+    margin-top:-10px;}
+  nav a{display:block; padding:9px 22px; color:var(--muted);
+    text-decoration:none; border-left:3px solid transparent; font-size:14px;}
+  nav a:hover{color:var(--ink); background:rgba(109,93,246,.10);
+    border-left-color:var(--accent);}
+  nav .group{padding:16px 22px 6px; color:#6b6f95; font-size:11px;
+    letter-spacing:1px; text-transform:uppercase;}
+  main{flex:1; padding:40px 56px; max-width:880px;}
+  section{padding:18px 0 28px; border-bottom:1px solid var(--line);}
+  section:last-child{border-bottom:none;}
+  h1{font-size:28px; margin:0 0 6px;}
+  h2{font-size:21px; margin:6px 0 12px; color:#fff;}
+  h2 .tag{font-size:12px; color:var(--muted); font-weight:400; margin-left:8px;}
+  p{margin:8px 0; color:var(--ink);}
+  .lead{color:var(--muted); font-size:15px;}
+  ul,ol{margin:8px 0; padding-left:22px;}
+  li{margin:4px 0;}
+  code{background:var(--code); padding:2px 6px; border-radius:4px;
+    font-family:Consolas,Menlo,monospace; font-size:13px; color:#c9d1ff;}
+  .note{background:rgba(58,160,255,.08); border-left:3px solid var(--accent2);
+    padding:10px 14px; border-radius:6px; margin:12px 0; color:var(--muted);
+    font-size:14px;}
+  .kbd{display:inline-block; background:#2a2c4e; border:1px solid var(--line);
+    border-radius:4px; padding:1px 7px; font-size:12px;}
+  footer{color:#5a5e85; font-size:12px; padding:24px 0 0;}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <div class="brand">Drama-Shot-Master</div>
+    <div class="ver">分镜工具 · 帮助文档</div>
+    <a href="#intro">软件简介</a>
+    <div class="group">图像处理</div>
+    <a href="#split">拆图</a>
+    <a href="#combine">拼图</a>
+    <a href="#trim">去白边</a>
+    <div class="group">视频</div>
+    <a href="#video">视频生成</a>
+    <a href="#soundtrack">配乐</a>
+    <div class="group">其它</div>
+    <a href="#license">激活与授权</a>
+  </nav>
+
+  <main>
+    <section id="intro">
+      <h1>Drama-Shot-Master</h1>
+      <p class="lead">面向短剧分镜的桌面工作台：图像处理（拆图 / 拼图 / 去白边）+ 基于
+        LTX 2.3 的视频生成与配乐，一站式完成从分镜图到成片的流程。</p>
+      <p>顶部功能切换条分两组——<b>图像</b>（拆图 / 拼图 / 去白边）与
+        <b>视频</b>（视频生成 / 配乐）。左栏管理当前目录与输出目录，中栏是缩略图，
+        右栏是当前功能的参数面板。</p>
+      <div class="note">本帮助文档随软件持续完善，后续会补充更详细的操作说明与示例。</div>
+    </section>
+
+    <section id="split">
+      <h2>拆图 <span class="tag">图像处理</span></h2>
+      <p>把一张网格大图（如 2×2、4×4 分镜）自动切成多张子图。基于白带检测定位
+        每个格子，对不均匀间距/外边距鲁棒。</p>
+      <ul>
+        <li>设置源网格行列数与目标子图行列数。</li>
+        <li>支持「一键检测」白边/网格，自动填参数。</li>
+        <li>可选重采样后处理（Lanczos / AI 放大）。</li>
+      </ul>
+    </section>
+
+    <section id="combine">
+      <h2>拼图 <span class="tag">图像处理</span></h2>
+      <p>把多张图按 R×C 网格拼接成一张大图。用 <code>order</code> 模式逐个点选确定
+        排列顺序（按 <span class="kbd">Shift</span> 可区间选，按行序追加）。</p>
+      <ul>
+        <li>可设目标比例、间距、缩放方式（留边 / 裁切 / 拉伸）。</li>
+      </ul>
+    </section>
+
+    <section id="trim">
+      <h2>去白边 <span class="tag">图像处理</span></h2>
+      <p>自动迭代裁掉图片四周残留的白边。</p>
+      <ul>
+        <li>可调阈值与最大迭代次数。</li>
+        <li>白边去不干净时，可用「额外向内裁剪（上/下/左/右）」手动微调。</li>
+        <li>选图支持 <span class="kbd">Ctrl</span>+点击多选、<span class="kbd">Shift</span> 区间选。</li>
+      </ul>
+    </section>
+
+    <section id="video">
+      <h2>视频生成 <span class="tag">视频</span></h2>
+      <p>基于 LTX 2.3 导演台工作流，从分镜图 + 提示词生成视频。支持多任务并行——
+        每个任务独立窗口，不满意可回到对应窗口重生成，无需重拖轨道。</p>
+      <ul>
+        <li>拖拽分镜到时间轴，分段写提示词（运镜 / 画面 / 音效）。</li>
+        <li>可切换「导演台」与「ALL IN ONE V3」工作流。</li>
+        <li>提交前需在 RunningHub 配置中填好凭据。</li>
+      </ul>
+    </section>
+
+    <section id="soundtrack">
+      <h2>配乐 <span class="tag">视频</span></h2>
+      <p>为成片自动分析卡点并生成/对齐配乐，独立任务窗口管理。</p>
+      <ul>
+        <li>在「设置 → 配乐…」配置相关参数。</li>
+      </ul>
+    </section>
+
+    <section id="license">
+      <h2>激活与授权 <span class="tag">其它</span></h2>
+      <p>软件需激活后使用。首次启动会要求输入激活码。</p>
+      <ol>
+        <li>在「关于」对话框复制本机<b>机器码</b>，发给作者。</li>
+        <li>作者签发与该机器绑定、带有效期的<b>激活码</b>发回。</li>
+        <li>把激活码粘进「关于」的输入框点激活即可。到期前会提示续期。</li>
+      </ol>
+      <div class="note">激活码与本机绑定，仅在本机生效；到期后需重新激活。</div>
+    </section>
+
+    <footer>© 2026 Drama-Shot-Master · 帮助文档（开发中，持续完善）</footer>
+  </main>
+</div>
+</body>
+</html>

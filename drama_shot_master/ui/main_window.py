@@ -100,6 +100,9 @@ class MainWindow(QMainWindow):
         sm.addAction(a_st)
 
         am = menu.addMenu("关于")
+        a_help = QAction("帮助文档", self)
+        a_help.triggered.connect(self._open_help)
+        am.addAction(a_help)
         a_about = QAction("关于…", self)
         a_about.triggered.connect(self._open_about)
         am.addAction(a_about)
@@ -194,8 +197,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         sb = QStatusBar()
-        self.status = QLabel(
-            f"后端: {self.cfg.current_provider} · {self.cfg.current_model}")
+        self.status = QLabel("就绪")
         self.progress = QProgressBar(); self.progress.setMaximumWidth(180)
         self.progress.hide()
         sb.addWidget(self.status, 1)
@@ -257,6 +259,16 @@ class MainWindow(QMainWindow):
     def _open_about(self):
         from drama_shot_master.ui.dialogs.about_dialog import AboutDialog
         AboutDialog(self.cfg, parent=self).exec()
+
+    def _open_help(self):
+        """用系统默认浏览器打开内置 HTML 帮助文档。"""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        help_path = Path(__file__).resolve().parent.parent / "assets" / "help" / "index.html"
+        if not help_path.exists():
+            QMessageBox.warning(self, "帮助文档缺失", f"未找到帮助文档:\n{help_path}")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(help_path)))
 
     def _install_license_watch(self):
         from drama_shot_master.licensing import manager
