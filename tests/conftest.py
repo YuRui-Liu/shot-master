@@ -8,6 +8,15 @@ SHOT_MASTER = ROOT.parent.parent / "shot-master"
 if SHOT_MASTER.exists() and str(SHOT_MASTER) not in sys.path:
     sys.path.insert(0, str(SHOT_MASTER))
 
+# Pre-import and eagerly load librosa BEFORE stubs to prevent lazy loading conflicts
+# librosa uses inspect.stack() internally which can be broken by our stub modules
+try:
+    import librosa  # noqa: F401
+    import librosa.core.audio  # noqa: F401
+    import librosa.beat  # noqa: F401
+except ImportError:
+    pass
+
 # ---------------------------------------------------------------------------
 # Stub missing third-party packages that are not installed in the test
 # environment (no network access).  Only the names imported by
