@@ -431,3 +431,23 @@ def test_migrate_old_workflow_id(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     cfg = load_config(env_path=env_file, settings_path=settings_file)
     assert cfg.workflow_ids.get("director") == "OLD"
+
+
+# ---------- soundtrack_tasks ----------
+
+def test_config_default_soundtrack_tasks_empty(tmp_path):
+    cfg = load_config(env_path=tmp_path / ".env",
+                      settings_path=tmp_path / "settings.json")
+    assert cfg.soundtrack_tasks == []
+
+
+def test_config_soundtrack_tasks_roundtrip(tmp_path):
+    sp = tmp_path / "settings.json"
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    cfg.update_settings(soundtrack_tasks=[{"id": "t1", "name": "EP01",
+                                           "mp4": "/x/ep1.mp4", "style": "冷色调"}])
+    import json
+    data = json.loads(sp.read_text(encoding="utf-8"))
+    assert data["soundtrack_tasks"][0]["name"] == "EP01"
+    cfg2 = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    assert cfg2.soundtrack_tasks[0]["mp4"] == "/x/ep1.mp4"
