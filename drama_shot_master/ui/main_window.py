@@ -98,6 +98,11 @@ class MainWindow(QMainWindow):
         a_st.triggered.connect(self._open_soundtrack_settings)
         sm.addAction(a_st)
 
+        am = menu.addMenu("关于")
+        a_about = QAction("关于…", self)
+        a_about.triggered.connect(self._open_about)
+        am.addAction(a_about)
+
         sp = QSplitter(Qt.Horizontal)
 
         left = QWidget(); lv = QVBoxLayout(left)
@@ -247,6 +252,10 @@ class MainWindow(QMainWindow):
         from drama_shot_master.ui.dialogs.soundtrack_settings_dialog import (
             SoundtrackSettingsDialog)
         SoundtrackSettingsDialog(self.cfg, parent=self).exec()
+
+    def _open_about(self):
+        from drama_shot_master.ui.dialogs.about_dialog import AboutDialog
+        AboutDialog(self.cfg, parent=self).exec()
 
     def _video_manager(self):
         idx = next((i for i, (_l, k) in enumerate(FUNCS) if k == "video_gen"), -1)
