@@ -7,9 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Signal, Qt, QRectF
+from PySide6.QtCore import Signal, QRectF, QPointF
 from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
-from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget,
     QDoubleSpinBox, QMessageBox,
@@ -40,9 +39,9 @@ class _AccentTimeline(QWidget):
         return sorted(self._session.accent_points, key=lambda a: a.t)
 
     def _total(self) -> float:
-        segs = self._session.segments
-        t = max((s.t_end for s in segs), default=0.0)
-        t = max([t] + [a.t for a in self._session.accent_points] or [t])
+        ts = [s.t_end for s in self._session.segments]
+        ts += [a.t for a in self._session.accent_points]
+        t = max(ts, default=0.0)
         return t if t > 0 else 1.0
 
     def _x(self, t: float, w: int) -> float:
