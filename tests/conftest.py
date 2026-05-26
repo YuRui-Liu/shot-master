@@ -4,9 +4,6 @@ import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SHOT_MASTER = ROOT.parent.parent / "shot-master"
-if SHOT_MASTER.exists() and str(SHOT_MASTER) not in sys.path:
-    sys.path.insert(0, str(SHOT_MASTER))
 
 # Pre-import and eagerly load librosa BEFORE stubs to prevent lazy loading conflicts
 # librosa uses inspect.stack() internally which can be broken by our stub modules
@@ -36,7 +33,18 @@ class _PermissiveModule(types.ModuleType):
 
 
 def _stub(*names: str) -> None:
+    """仅在真包无法 import 时才注册 permissive stub。
+
+    有真库的环境（如装齐依赖的 conda）用真库——否则 stub 会覆盖真 openai 等，
+    导致 pytest 内省 stub 对象时无限递归（RecursionError）。
+    """
+    import importlib
     for name in names:
+        try:
+            importlib.import_module(name)
+            continue          # 真库可用，不 stub
+        except Exception:
+            pass
         parts = name.split(".")
         for i in range(1, len(parts) + 1):
             pkg = ".".join(parts[:i])
