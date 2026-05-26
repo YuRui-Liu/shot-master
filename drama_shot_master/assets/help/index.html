@@ -39,6 +39,7 @@
   h1{font-size:28px; margin:0 0 6px;}
   h2{font-size:21px; margin:6px 0 12px; color:#fff;}
   h2 .tag{font-size:12px; color:var(--muted); font-weight:400; margin-left:8px;}
+  h3{font-size:16px; margin:18px 0 6px; color:var(--accent2);}
   p{margin:8px 0; color:var(--ink);}
   .lead{color:var(--muted); font-size:15px;}
   ul,ol{margin:8px 0; padding-left:22px;}
@@ -66,6 +67,9 @@
     <div class="group">视频</div>
     <a href="#video">视频生成</a>
     <a href="#soundtrack">配乐</a>
+    <a href="#dubbing">配音</a>
+    <div class="group">高级</div>
+    <a href="#custom-workflow">自定义工作流</a>
     <div class="group">其它</div>
     <a href="#license">激活与授权</a>
   </nav>
@@ -128,6 +132,59 @@
       <ul>
         <li>在「设置 → 配乐…」配置相关参数。</li>
       </ul>
+    </section>
+
+    <section id="dubbing">
+      <h2>配音 <span class="tag">视频</span></h2>
+      <p>基于 RunningHub TTS 工作流为台词配音，独立任务窗口管理。任务窗顶部切换两种方式：</p>
+      <ul>
+        <li><b>音色设计</b>：填「要合成文本 + 音色描述（自然语言）+ 语言」，由模型按描述生成音色。</li>
+        <li><b>声音克隆</b>：填「文本 + 说话人参考音频 + 情感强度」，并按需选 4 种情感模式之一——
+          默认（随参考音频）/ 文本情绪（写情感描述）/ 语音情绪模仿（传情感参考音频）/ 情感向量
+          （8 维 Happy/Angry/Sad/Fear/Hate/Low/Surprise/Neutral）。</li>
+        <li>生成完点「打开结果」试听 FLAC。</li>
+        <li>在「设置 → 配音…」配置两个工作流 ID 与输出目录。</li>
+      </ul>
+    </section>
+
+    <section id="custom-workflow">
+      <h2>自定义工作流 <span class="tag">高级</span></h2>
+      <p>本软件不在本地跑模型，而是把任务提交到 <b>RunningHub</b> 上你<b>已保存的工作流</b>
+        （按 workflow_id），并用「节点参数覆盖」把界面里的输入写进工作流对应节点。
+        因此「接入自定义工作流」= 在 RunningHub 部署你的工作流 + 在软件里填它的 ID + 必要时校准节点号。</p>
+
+      <h3>一、换用你自己的工作流（无需改代码）</h3>
+      <ol>
+        <li>在 RunningHub 部署/保存你的工作流，复制它的 <code>workflow_id</code>。</li>
+        <li><b>视频</b>：「设置 → RunningHub 配置」里，每个工作流（导演台 / ALL IN ONE V3）各有一个
+          <code>workflow_id</code> 输入框，填入即可；还可设「自定义模板路径」指向你导出的模板 JSON。</li>
+        <li><b>配音</b>：「设置 → 配音…」里填「音色设计 / 声音克隆」两个 <code>workflow_id</code>。</li>
+        <li>提交前确保「RunningHub 配置」里 API Key、Base URL 正确。</li>
+      </ol>
+
+      <h3>二、节点号不一致时（覆盖映射）</h3>
+      <p>软件靠固定的「角色→节点号」映射把输入写进工作流。若你的工作流节点号与默认不同，
+        编辑配置文件 <code>settings.json</code> 校准即可（无需改代码）：</p>
+      <ul>
+        <li>配音：在 <code>dub_node_profiles</code> 下按工作流（<code>voice_clone</code> /
+          <code>voice_design</code>）填「角色:节点号」覆盖。例如声音克隆默认
+          文本=4、说话人音频=10、情感描述=16、情感参考音频=19、情感向量=21、模式选择器=26、
+          四个分支=1/14/17/20。</li>
+      </ul>
+      <div class="note">提示：导出 RunningHub 工作流的 <b>API 格式 JSON</b>，对照其中每个节点的
+        <code>class_type</code> 与输入名，即可确认要覆盖的节点号。</div>
+
+      <h3>三、新增一种工作流类型（开发者向，需改代码）</h3>
+      <p>要让软件支持一类全新工作流（新的节点结构 / 新的可调项），在代码里登记一个 profile：</p>
+      <ul>
+        <li>视频：在 <code>drama_shot_master/core/workflow_profiles.py</code> 的 <code>PROFILES</code>
+          增加 <code>WorkflowProfile</code>（含模板文件名 + 各节点号），把模板 JSON 放进
+          <code>drama_shot_master/templates/</code>。</li>
+        <li>配音/TTS：在 <code>drama_shot_master/core/tts_profiles.py</code> 增加 <code>TTSProfile</code>
+          （workflow_id + 角色→节点号），并按需扩展提交构造器。</li>
+      </ul>
+      <div class="note">无论哪种方式，软件只<b>覆盖工作流里的 widget / 开关</b>，不修改工作流图本身；
+        多分支选择（如 rgthree 选组节点）通过覆盖其组开关实现。</div>
     </section>
 
     <section id="license">
