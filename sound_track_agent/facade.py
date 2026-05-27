@@ -67,7 +67,9 @@ def _build_real_stages(cfg, workflow_id, work_dir, global_style,
             video_path, seg, frames_dir / f"seg{seg.index}.png"),
         align_fn=_make_align_fn(video_path),
         mix_fn=partial(assemble_and_mix, video_path=video_path,
-                       work_dir=work_dir),
+                       work_dir=work_dir,
+                       big_threshold=float(getattr(cfg, "accent_big_threshold", 0.7)),
+                       snap_window=float(getattr(cfg, "accent_snap_window", 0.6))),
     )
 
 
