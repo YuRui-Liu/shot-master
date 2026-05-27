@@ -47,3 +47,30 @@ def test_assemble_bgm_clip_durations_length_mismatch_raises(tmp_path):
     b0 = tmp_path / "b0.wav"; _tone(b0, 440)
     with pytest.raises(ValueError):
         assemble_bgm([b0], tmp_path / "o.wav", clip_durations=[0.4, None])
+
+
+def test_assemble_bgm_clip_gains_attenuates(tmp_path):
+    import numpy as np, soundfile as sf
+    from sound_track_agent.bgm_assembler import assemble_bgm
+
+    def _tone(p, f, dur=1.0, sr=22050):
+        t = np.linspace(0, dur, int(sr * dur), endpoint=False)
+        sf.write(str(p), (0.5 * np.sin(2 * np.pi * f * t)).astype(np.float32), sr)
+
+    b0 = tmp_path / "b0.wav"; _tone(b0, 440)
+    out_loud = tmp_path / "loud.wav"; out_quiet = tmp_path / "quiet.wav"
+    assemble_bgm([b0], out_loud, crossfade=0.1)                       # 原音量
+    assemble_bgm([b0], out_quiet, crossfade=0.1, clip_gains=[0.25])   # 1/4 音量
+    a, _ = sf.read(str(out_loud)); b, _ = sf.read(str(out_quiet))
+    assert float(np.abs(b).max()) < float(np.abs(a).max()) * 0.5      # 明显更小
+
+
+def test_assemble_bgm_clip_gains_length_mismatch_raises(tmp_path):
+    import numpy as np, soundfile as sf
+    from sound_track_agent.bgm_assembler import assemble_bgm
+    import pytest
+    b0 = tmp_path / "b0.wav"
+    t = np.linspace(0, 1.0, 22050, endpoint=False)
+    sf.write(str(b0), (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32), 22050)
+    with pytest.raises(ValueError):
+        assemble_bgm([b0], tmp_path / "o.wav", clip_gains=[1.0, 0.5])

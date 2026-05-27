@@ -8,32 +8,42 @@ from pathlib import Path
 def assemble_bgm(bgm_paths: list, out_path, *,
                  crossfade: float = 0.5,
                  clip_durations: list | None = None,
+                 clip_gains: list | None = None,
                  runner=subprocess.run) -> Path:
     """把分段 BGM 按顺序 crossfade 拼成整条。
 
-    clip_durations(可选,长度需 == bgm_paths):元素为目标秒数则把对应 clip 先
-    裁到该时长(trim-only:`-t` 比内容长则等于整段);为 None 不裁。裁剪失败降级用原片。
-
-    1 段：直接转码到 out。≥2 段：链式 acrossfade（每对重叠 crossfade 秒）。
+    clip_durations / clip_gains(可选,长度需 == bgm_paths):分别把对应 clip 先裁到
+    目标秒数(trim-only)、按线性倍数调音量(ffmpeg volume=)。二者可同时给;某段都不需要
+    则用原片。处理失败降级用原片。
     """
     if not bgm_paths:
         raise ValueError("assemble_bgm 需要至少 1 段 BGM")
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     paths = [str(p) for p in bgm_paths]
+    if clip_durations is not None and len(clip_durations) != len(paths):
+        raise ValueError("clip_durations 长度需与 bgm_paths 一致")
+    if clip_gains is not None and len(clip_gains) != len(paths):
+        raise ValueError("clip_gains 长度需与 bgm_paths 一致")
 
-    if clip_durations is not None:
-        if len(clip_durations) != len(paths):
-            raise ValueError("clip_durations 长度需与 bgm_paths 一致")
+    if clip_durations is not None or clip_gains is not None:
         resolved = []
         for i, p in enumerate(paths):
-            dur = clip_durations[i]
-            if dur is None:
+            dur = clip_durations[i] if clip_durations is not None else None
+            gain = clip_gains[i] if clip_gains is not None else None
+            need_trim = dur is not None
+            need_gain = gain is not None and abs(float(gain) - 1.0) > 1e-6
+            if not need_trim and not need_gain:
                 resolved.append(p)
                 continue
-            tp = str(out_path.parent / f"_trim{i}.wav")
-            r = runner(["ffmpeg", "-y", "-i", p, "-t", f"{float(dur):.3f}",
-                        "-c:a", "pcm_s16le", tp], capture_output=True)
+            tp = str(out_path.parent / f"_proc{i}.wav")
+            cmd = ["ffmpeg", "-y", "-i", p]
+            if need_trim:
+                cmd += ["-t", f"{float(dur):.3f}"]
+            if need_gain:
+                cmd += ["-af", f"volume={float(gain):.4f}"]
+            cmd += ["-c:a", "pcm_s16le", tp]
+            r = runner(cmd, capture_output=True)
             resolved.append(tp if getattr(r, "returncode", 0) == 0
                             and Path(tp).exists() else p)
         paths = resolved
