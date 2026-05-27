@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QPushButton,
     QPlainTextEdit, QComboBox, QButtonGroup, QRadioButton, QStackedWidget,
     QLineEdit, QFileDialog, QDoubleSpinBox, QGroupBox, QMessageBox, QSizePolicy,
+    QToolButton, QScrollArea, QGridLayout,
 )
 
 from drama_shot_master.config import Config
@@ -15,6 +16,35 @@ from drama_shot_master.core import tts_profiles as P
 from drama_shot_master.providers import tts_builder as B
 from drama_shot_master.providers import tts_submit
 from drama_shot_master.ui.worker import FunctionWorker
+
+
+class _CollapsibleGroup(QWidget):
+    """折叠分组：标题 QToolButton 切换内容显隐；set_buttons 建 4 列流式网格。"""
+
+    def __init__(self, title: str, expanded: bool = False, parent=None):
+        super().__init__(parent)
+        v = QVBoxLayout(self); v.setContentsMargins(0, 0, 0, 0); v.setSpacing(2)
+        self.head = QToolButton()
+        self.head.setText(title)
+        self.head.setCheckable(True)
+        self.head.setChecked(expanded)
+        self.head.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.head.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self.head.setStyleSheet("QToolButton{border:none; font-weight:600; color:#9aa;}")
+        self.body = QWidget()
+        self._grid = QGridLayout(self.body)
+        self._grid.setContentsMargins(8, 2, 0, 6); self._grid.setSpacing(4)
+        self.body.setVisible(expanded)
+        v.addWidget(self.head); v.addWidget(self.body)
+        self.head.toggled.connect(self._on_toggle)
+
+    def _on_toggle(self, on: bool):
+        self.head.setArrowType(Qt.DownArrow if on else Qt.RightArrow)
+        self.body.setVisible(on)
+
+    def set_buttons(self, widgets: list):
+        for i, w in enumerate(widgets):
+            self._grid.addWidget(w, i // 4, i % 4)   # 4 列流式
 
 
 class DubPanel(QWidget):
@@ -49,10 +79,14 @@ class DubPanel(QWidget):
         self.stack.addWidget(self._build_design_form())   # idx0
         self.stack.addWidget(self._build_clone_form())    # idx1
         self.stack.setCurrentIndex(1)
-        root.addWidget(self.stack, 1)
         self.mode_group.idClicked.connect(self.stack.setCurrentIndex)
         self.mode_group.idClicked.connect(lambda *_: self.dirty.emit())
         self._wire_dirty()
+
+        cols = QHBoxLayout()
+        cols.addWidget(self.stack, 3)                     # 左栏：输入
+        cols.addWidget(self._build_palette(), 0)          # 右栏：快捷词
+        root.addLayout(cols, 1)
 
         bar = QHBoxLayout()
         self.btn_gen = QPushButton("生成"); self.btn_gen.setObjectName("AccentButton")
@@ -63,7 +97,10 @@ class DubPanel(QWidget):
         self.status_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.btn_open = QPushButton("打开结果"); self.btn_open.setEnabled(False)
         self.btn_open.clicked.connect(self._open_result)
+        self.btn_open_dir = QPushButton("打开输出文件夹")
+        self.btn_open_dir.clicked.connect(self._open_output_dir)
         bar.addWidget(self.btn_gen); bar.addWidget(self.btn_open)
+        bar.addWidget(self.btn_open_dir)
         bar.addWidget(self.status_lbl, 1)
         root.addLayout(bar)
         self._last_result = ""
@@ -145,6 +182,44 @@ class DubPanel(QWidget):
         self.emo_group.idClicked.connect(lambda mid: self.emo_stack.setCurrentIndex(mid - 1))
         self.emo_group.idClicked.connect(lambda *_: self.dirty.emit())
         return w
+
+    def _build_palette(self) -> QWidget:
+        from drama_shot_master.core.voice_presets import load_presets
+        cats, note = load_presets()
+        wrap = QWidget(); wrap.setFixedWidth(300)
+        outer = QVBoxLayout(wrap); outer.setContentsMargins(6, 0, 0, 0)
+        outer.addWidget(QLabel("快捷音色提示词"))
+        scroll = QScrollArea(); scroll.setWidgetResizable(True)
+        inner = QWidget(); iv = QVBoxLayout(inner); iv.setContentsMargins(0, 0, 0, 0)
+        note_lbl = QLabel(note); note_lbl.setWordWrap(True)
+        note_lbl.setStyleSheet("color:#888; font-size:9pt;")
+        iv.addWidget(note_lbl)
+        expand_default = {"方言", "情感语调"}
+        for name, items in cats:
+            grp = _CollapsibleGroup(name, expanded=(name in expand_default))
+            btns = []
+            for label, text in items:
+                b = QPushButton(label)
+                b.clicked.connect(lambda _=False, t=text: self._insert_preset(t))
+                btns.append(b)
+            grp.set_buttons(btns)
+            iv.addWidget(grp)
+        iv.addStretch(1)
+        scroll.setWidget(inner)
+        outer.addWidget(scroll, 1)
+        return wrap
+
+    def _insert_preset(self, text: str):
+        # 音色设计→音色描述；声音克隆→情感描述
+        target = self.d_style if self.current_mode() == "design" else self.c_emo_text
+        target.insertPlainText(text)
+
+    def _open_output_dir(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        d = Path(self.cfg.dub_output_dir or ".") / "dub"
+        d.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(d)))
 
     def _wire_dirty(self):
         """所有输入变化都标脏 → 实时持久化（避免只在关窗时保存而丢内容）。"""

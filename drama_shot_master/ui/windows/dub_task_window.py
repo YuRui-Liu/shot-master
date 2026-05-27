@@ -21,7 +21,7 @@ class DubTaskWindow(QMainWindow):
         self.task_id = task.id
         self.cfg = cfg
         self.setWindowTitle(f"配音 · {task.name}")
-        self.resize(620, 720)
+        self.resize(1100, 820)        # 与视频/配乐任务窗一致
         self.panel = DubPanel(cfg, payload=task.payload)
         self.setCentralWidget(self.panel)
         self.panel.statusChanged.connect(lambda s: self.statusChanged.emit(self.task_id, s))
