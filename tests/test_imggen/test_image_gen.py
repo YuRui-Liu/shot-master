@@ -9,6 +9,14 @@ def test_doubao_payload_no_refs():
     assert body["model"] == "seedream" and body["prompt"] == "画一只猫"
     assert body["size"] == "2304x1296" and body["n"] == 2
     assert "image" not in body          # 无参考图=文生图
+    assert body["watermark"] is False   # 默认无水印
+
+
+def test_doubao_watermark_flag():
+    on = IG.DoubaoImageProvider("k", "u", "m", watermark=True)
+    off = IG.DoubaoImageProvider("k", "u", "m", watermark=False)
+    assert on._build_payload("p", [], size=None, n=1)["watermark"] is True
+    assert off._build_payload("p", [], size=None, n=1)["watermark"] is False
 
 
 def test_doubao_payload_with_refs(tmp_path):

@@ -1,4 +1,7 @@
-"""画质×比例 → 像素 size 字符串。'自动' 返回 None（不向模型指定尺寸）。"""
+"""画质×比例 → ARK size 参数。
+- 指定比例 → 精确 "宽x高"（锁画布纵横比，适合 N×N 宫格合图）。
+- '自动' → 返回画质关键字 "2K"/"1K"（ARK 接受；纵横比交给提示词/参考图推断，
+  与豆包官方 size="2K" 调用一致，避免无 size 时退化成方图导致宫格比例错）。"""
 from __future__ import annotations
 
 QUALITIES = ["2K", "1K"]
@@ -13,6 +16,7 @@ _SIZES = {
 
 
 def resolve_size(quality: str, ratio: str) -> str | None:
+    q = quality if quality in _SIZES else "2K"
     if ratio == "自动":
-        return None
-    return _SIZES.get(quality, _SIZES["2K"]).get(ratio)
+        return q                       # 关键字 "2K"/"1K"，纵横比由提示词决定
+    return _SIZES[q].get(ratio)

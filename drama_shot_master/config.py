@@ -70,6 +70,7 @@ class Config:
     imggen_model: str = ""
     imggen_api_key: str = ""
     imggen_output_dir: str = ""
+    imggen_watermark: bool = False
     soundtrack_workflow_id: str = "2059090557116440578"
     soundtrack_output_dir: str = ""
     soundtrack_seeds_count: int = 2
@@ -118,6 +119,7 @@ class Config:
                 "imggen_model": self.imggen_model,
                 "imggen_api_key": self.imggen_api_key,
                 "imggen_output_dir": self.imggen_output_dir,
+                "imggen_watermark": self.imggen_watermark,
                 "soundtrack_workflow_id": self.soundtrack_workflow_id,
                 "soundtrack_output_dir": self.soundtrack_output_dir,
                 "soundtrack_seeds_count": self.soundtrack_seeds_count,
@@ -245,6 +247,8 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.imggen_api_key = data["imggen_api_key"]
                 if "imggen_output_dir" in data and isinstance(data["imggen_output_dir"], str):
                     cfg.imggen_output_dir = data["imggen_output_dir"]
+                if "imggen_watermark" in data and isinstance(data["imggen_watermark"], bool):
+                    cfg.imggen_watermark = data["imggen_watermark"]
                 if isinstance(data.get("soundtrack_workflow_id"), str):
                     cfg.soundtrack_workflow_id = data["soundtrack_workflow_id"]
                 if isinstance(data.get("soundtrack_output_dir"), str):

@@ -25,23 +25,43 @@ class ImageGenProvider(ABC):
                  size: str | None, n: int) -> list[bytes]:
         ...
 
+    def test_connection(self) -> tuple[bool, str]:
+        """轻量连通性/鉴权探测，不生成图片。返回 (ok, 说明)。"""
+        return (False, "该提供方不支持测试")
+
 
 class DoubaoImageProvider(ImageGenProvider):
     """火山引擎 ARK images/generations（Seedream）。"""
 
-    def __init__(self, api_key: str, base_url: str, model: str):
+    def __init__(self, api_key: str, base_url: str, model: str,
+                 watermark: bool = False):
         self.api_key = api_key
         self.base_url = (base_url or "https://ark.cn-beijing.volces.com").rstrip("/")
         self.model = model
+        self.watermark = watermark
 
     def _build_payload(self, prompt, references, *, size, n) -> dict:
         body: dict = {"model": self.model, "prompt": prompt, "n": n,
-                      "response_format": "b64_json"}
+                      "response_format": "b64_json", "watermark": self.watermark}
         if size:
             body["size"] = size
         if references:
             body["image"] = [_to_data_url(p) for p in references]
         return body
+
+    def test_connection(self) -> tuple[bool, str]:
+        if not self.api_key:
+            return (False, "未填 API Key")
+        try:
+            r = httpx.get(self.base_url,
+                          headers={"Authorization": f"Bearer {self.api_key}"},
+                          timeout=8)
+        except httpx.HTTPError as e:
+            return (False, f"连不上：{e}")
+        if r.status_code in (401, 403):
+            return (False, f"鉴权失败(HTTP {r.status_code})，请检查 API Key")
+        tail = "" if self.model else "（注意：模型 id 尚未填写）"
+        return (True, f"链路正常(HTTP {r.status_code}){tail}")
 
     def _parse_response(self, data: dict) -> list[bytes]:
         items = data.get("data") or []
@@ -81,6 +101,21 @@ class OpenAIImageProvider(ImageGenProvider):
         self.api_key = api_key
         self.base_url = (base_url or "https://api.openai.com").rstrip("/")
         self.model = model or "gpt-image-1"
+
+    def test_connection(self) -> tuple[bool, str]:
+        if not self.api_key:
+            return (False, "未填 API Key")
+        try:
+            r = httpx.get(f"{self.base_url}/v1/models",
+                          headers={"Authorization": f"Bearer {self.api_key}"},
+                          timeout=8)
+        except httpx.HTTPError as e:
+            return (False, f"连不上：{e}")
+        if r.status_code in (401, 403):
+            return (False, f"鉴权失败(HTTP {r.status_code})，请检查 API Key")
+        if r.status_code >= 400:
+            return (False, f"HTTP {r.status_code}")
+        return (True, "链路与鉴权正常")
 
     def generate(self, prompt, references, *, size, n) -> list[bytes]:
         if not self.api_key:
@@ -124,6 +159,9 @@ class RunningHubImageProvider(ImageGenProvider):
     def generate(self, prompt, references, *, size, n) -> list[bytes]:
         raise ImageGenError("RunningHub 图片工作流暂未接入，待提供工作流后通过插件接入")
 
+    def test_connection(self) -> tuple[bool, str]:
+        return (False, "RunningHub 图片工作流暂未接入")
+
 
 def make_image_provider(cfg) -> ImageGenProvider:
     prov = getattr(cfg, "imggen_provider", "doubao")
@@ -135,4 +173,5 @@ def make_image_provider(cfg) -> ImageGenProvider:
         return OpenAIImageProvider(key, base, model)
     if prov == "runninghub":
         return RunningHubImageProvider()
-    return DoubaoImageProvider(key, base, model)
+    return DoubaoImageProvider(key, base, model,
+                               watermark=bool(getattr(cfg, "imggen_watermark", False)))

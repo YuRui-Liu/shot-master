@@ -13,9 +13,9 @@ def test_resolve_size_1k():
     assert S.resolve_size("1K", "9:16") == "648x1152"
 
 
-def test_resolve_size_auto_is_none():
-    assert S.resolve_size("2K", "自动") is None
-    assert S.resolve_size("1K", "自动") is None
+def test_resolve_size_auto_returns_quality_keyword():
+    assert S.resolve_size("2K", "自动") == "2K"
+    assert S.resolve_size("1K", "自动") == "1K"
 
 
 def test_quick_prompts():
