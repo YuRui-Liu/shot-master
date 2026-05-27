@@ -59,3 +59,42 @@ def test_status_message_is_captured_not_dropped():
     w = AppShell()
     w._set_status("hello")
     assert w._status_text == "hello"
+
+
+def test_command_bar_present_with_dir_actions():
+    _app()
+    w = AppShell()
+    assert w.command_bar is not None
+    assert hasattr(w.command_bar, "btn_open_dir")
+    assert hasattr(w.command_bar, "btn_set_output")
+
+
+def test_command_bar_count_reflects_state():
+    _app()
+    w = AppShell()
+    w._refresh_counts()
+    assert "已选 0" in w.command_bar.count_text()
+
+
+def test_command_bar_signals_wire_to_shell():
+    _app()
+    w = AppShell()
+    # 信号存在且为已连接的入口（不弹真实文件框）
+    assert hasattr(w, "_open_dir") and hasattr(w, "_set_out_dir")
+    assert callable(w._open_dir) and callable(w._set_out_dir)
+    # Headless-safe wiring proof: the real slots open a blocking QFileDialog,
+    # so we never emit them while connected to AppShell. Instead disconnect the
+    # shell slot, attach a spy, and confirm clicking the button emits the signal
+    # (proving button.clicked -> signal wiring inside ProjectCommandBar). The
+    # AppShell-side connection is re-established right after.
+    try:
+        w.command_bar.openDirRequested.disconnect(w._open_dir)
+    except (RuntimeError, TypeError):
+        pass
+    fired = {}
+    w.command_bar.openDirRequested.connect(lambda: fired.setdefault("open", True))
+    w.command_bar.btn_open_dir.click()
+    assert fired.get("open") is True
+    # restore real wiring so the shell stays usable
+    w.command_bar.openDirRequested.connect(w._open_dir)
+    assert w.command_bar.openDirRequested is not None

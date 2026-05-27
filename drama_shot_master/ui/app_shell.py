@@ -10,11 +10,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
 from qfluentwidgets import (
     FluentWindow, FluentIcon, NavigationItemPosition,
 )
 from drama_shot_master.ui.nav_config import FUNCS, PHASES, ICONS, LABELS
+from drama_shot_master.ui.widgets.project_command_bar import ProjectCommandBar
 
 
 def _icon(key: str):
@@ -36,6 +37,7 @@ class AppShell(FluentWindow):
         self._phase_of: dict[str, str] = {}
         self._status_text = ""
         self._build_pages()
+        self._build_command_bar()
         self._build_nav()
         self._wire()
         self._restore_state()
@@ -83,6 +85,41 @@ class AppShell(FluentWindow):
             page.setObjectName(f"page_{key}")   # FluentWindow 要求唯一 objectName
             self.pages[key] = page
 
+    def _build_command_bar(self):
+        """全局顶部命令栏：横跨内容区，位于标题栏之下、导航+堆栈行之上。
+
+        FluentWindow 的根布局 self.hBoxLayout 是 [navigationInterface | widgetLayout]，
+        其中 widgetLayout(HBox, 上边距 48 给标题栏) 装着 stackedWidget。标题栏是
+        无边框窗口里绝对定位的子控件，由其自身 resizeEvent 维护（move(46,0)+全宽）。
+
+        这里把 [nav | widgetLayout] 这一整行包进一个内部 QHBoxLayout(row)，再用一个
+        竖直列 [command_bar][row] 放回根布局，并把原来 widgetLayout 的 48px 顶边距
+        转移到竖直列上——这样命令栏全宽横跨（含导航上方），且不触碰标题栏/无边框行为。
+        """
+        self.command_bar = ProjectCommandBar()
+
+        hb = self.hBoxLayout
+        hb.removeWidget(self.navigationInterface)
+        hb.removeItem(self.widgetLayout)
+
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+        row.addWidget(self.navigationInterface)
+        row.addLayout(self.widgetLayout)
+        row.setStretchFactor(self.widgetLayout, 1)
+
+        # 顶边距从 widgetLayout 转移到竖直列（避免标题栏空间被算两次）。
+        self.widgetLayout.setContentsMargins(0, 0, 0, 0)
+
+        col = QVBoxLayout()
+        col.setContentsMargins(0, self.titleBar.height(), 0, 0)
+        col.setSpacing(0)
+        col.addWidget(self.command_bar)
+        col.addLayout(row, 1)
+
+        hb.addLayout(col)
+
     def _build_nav(self):
         for phase_title, keys in PHASES:
             # Phase section header: non-selectable label item.
@@ -116,10 +153,14 @@ class AppShell(FluentWindow):
 
     def _wire(self):
         from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
+        self.command_bar.openDirRequested.connect(self._open_dir)
+        self.command_bar.setOutputRequested.connect(self._set_out_dir)
         for page in self.pages.values():
             panel = page.panel if isinstance(page, BatchToolPage) else page
             if hasattr(panel, "statusMessage"):
                 panel.statusMessage.connect(self._set_status)
+            if isinstance(page, BatchToolPage):
+                page.thumb.selectionChanged.connect(self._refresh_counts)
         self._video_manager().taskRenamed.connect(self._on_task_renamed)
         self._dub_manager().taskRenamed.connect(self._on_dub_renamed)
         self._imggen_manager().taskRenamed.connect(self._on_imggen_renamed)
@@ -130,10 +171,19 @@ class AppShell(FluentWindow):
         restore_from_config(self.state, self.cfg)
         if self.state.current_dir:
             self._populate_batch_pages()
+        if self.state.current_dir:
+            self.command_bar.set_dir(str(self.state.current_dir))
+        if self.state.output_dir:
+            self.command_bar.set_output(str(self.state.output_dir))
+        self._refresh_counts()
         # 恢复上次活跃功能页
         target_key = self.cfg.last_active_function
         key = target_key if target_key in self.pages else FUNCS[0][1]
         self.switchTo(self.pages[key])
+
+    def _refresh_counts(self, *args):
+        self.command_bar.set_count(
+            f"{len(self.state.images)} 张  已选 {len(self.state.selected)}")
 
     def _populate_batch_pages(self):
         from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
@@ -199,6 +249,8 @@ class AppShell(FluentWindow):
         self.state.load_dir(Path(d))
         self._populate_batch_pages()
         remember_dirs(self.state, self.cfg)
+        self.command_bar.set_dir(f"{self.state.current_dir}")
+        self._refresh_counts()
         self._set_status(f"已加载 {len(self.state.images)} 张")
 
     def _set_out_dir(self):
@@ -211,6 +263,7 @@ class AppShell(FluentWindow):
         self.state.output_dir = Path(d)
         remember_dirs(self.state, self.cfg)
         self._refresh_batch_validity()
+        self.command_bar.set_output(f"{self.state.output_dir}")
 
     def _open_runninghub_settings(self):
         from drama_shot_master.ui.dialogs.runninghub_settings_dialog import RunningHubSettingsDialog
