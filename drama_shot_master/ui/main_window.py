@@ -35,11 +35,12 @@ from drama_shot_master.ui.dialogs.refine_settings_dialog import RefineSettingsDi
 # 隐藏项（恢复时取消注释并恢复 panels[0] 与 import）： ("反推", "inference"),
 FUNCS = [("拆图", "split"),
          ("拼图", "combine"), ("去白边", "trim"),
+         ("图片生成", "imggen"),
          ("视频生成", "video_gen"), ("配乐", "soundtrack"),
          ("配音", "dubbing")]
 
 # 切换栏分组：key 属于哪一组
-_IMAGE_KEYS = {"split", "combine", "trim"}
+_IMAGE_KEYS = {"split", "combine", "trim", "imggen"}
 _VIDEO_KEYS = {"video_gen", "soundtrack", "dubbing"}
 
 
@@ -55,6 +56,9 @@ class MainWindow(QMainWindow):
         from drama_shot_master.core.dub_task_store import DubTaskStore
         self.dub_store = DubTaskStore.from_list(self.cfg.dub_tasks)
         self._open_dub_windows: dict = {}
+        from drama_shot_master.core.imggen_task_store import ImgGenTaskStore
+        self.imggen_store = ImgGenTaskStore.from_list(self.cfg.imggen_tasks)
+        self._open_imggen_windows: dict = {}
 
         self._build_ui()
         self._wire()
@@ -170,6 +174,7 @@ class MainWindow(QMainWindow):
             SplitPanel(self.state, self.cfg),
             CombinePanel(self.state, self.cfg),
             TrimPanel(self.state, self.cfg),
+            self._make_imggen_panel(),                 # index 3 = 图片生成
             VideoTaskManagerPanel(
                 self.state, self.cfg, self.video_store,
                 self._open_task_window, self._close_task_window,
@@ -231,6 +236,7 @@ class MainWindow(QMainWindow):
                 p.statusMessage.connect(self.status.setText)
         self._video_manager().taskRenamed.connect(self._on_task_renamed)
         self._dub_manager().taskRenamed.connect(self._on_dub_renamed)
+        self._imggen_manager().taskRenamed.connect(self._on_imggen_renamed)
 
     def _open_dir(self):
         start = str(self.state.current_dir or Path.home())
@@ -487,13 +493,72 @@ class MainWindow(QMainWindow):
         if win is not None:
             win.set_title_name(name)
 
+    # ------------------------------------------------------------------ #
+    # 图片生成 tab helpers
+    # ------------------------------------------------------------------ #
+
+    def _make_imggen_panel(self):
+        from drama_shot_master.ui.panels.imggen_task_manager_panel import ImgGenTaskManagerPanel
+        return ImgGenTaskManagerPanel(
+            self.state, self.cfg, self.imggen_store,
+            self._open_imggen_window, self._close_imggen_window,
+            self._persist_imggen_tasks)
+
+    def _imggen_manager(self):
+        idx = next(i for i, (_l, k) in enumerate(FUNCS) if k == "imggen")
+        return self.panels[idx]
+
+    def _persist_imggen_tasks(self):
+        try:
+            self.cfg.update_settings(imggen_tasks=self.imggen_store.to_list())
+        except Exception:
+            pass
+
+    def _open_imggen_window(self, task):
+        from drama_shot_master.ui.windows.imggen_task_window import ImgGenTaskWindow
+        existing = self._open_imggen_windows.get(task.id)
+        if existing is not None:
+            existing.raise_(); existing.activateWindow(); return
+        win = ImgGenTaskWindow(task, self.cfg)
+        win.dirty.connect(self._on_imggen_dirty)
+        win.statusChanged.connect(self._on_imggen_status)
+        win.resultReady.connect(self._on_imggen_result)
+        win.closed.connect(self._on_imggen_window_closed)
+        self._open_imggen_windows[task.id] = win
+        win.show()
+
+    def _close_imggen_window(self, task_id: str):
+        win = self._open_imggen_windows.get(task_id)
+        if win is not None:
+            win.close()
+
+    def _on_imggen_dirty(self, task_id: str, payload: dict):
+        self.imggen_store.update(task_id, payload=payload)
+        self._persist_imggen_tasks()
+
+    def _on_imggen_status(self, task_id: str, status: str):
+        self._imggen_manager().set_task_status(task_id, status)
+
+    def _on_imggen_result(self, task_id: str, path: str):
+        self.imggen_store.update(task_id, last_result=path)
+        self._persist_imggen_tasks(); self._imggen_manager().refresh()
+
+    def _on_imggen_window_closed(self, task_id: str):
+        self._open_imggen_windows.pop(task_id, None)
+        self._imggen_manager().clear_task_status(task_id)
+
+    def _on_imggen_renamed(self, task_id: str, name: str):
+        win = self._open_imggen_windows.get(task_id)
+        if win is not None:
+            win.set_title_name(name)
+
     def _on_func_changed(self, idx: int):
         self.stack.setCurrentIndex(idx)
         self.state.active_function = FUNCS[idx][1]
         panel = self.panels[idx]
         self.thumb.set_mode(panel.select_mode())
-        # 视频生成 / 配乐 / 配音：都是独占主区的宽面板（任务列表+任务窗范式）
-        is_wide = FUNCS[idx][1] in ("video_gen", "soundtrack", "dubbing")
+        # 图片生成 / 视频生成 / 配乐 / 配音：都是独占主区的宽面板（任务列表+任务窗范式）
+        is_wide = FUNCS[idx][1] in ("imggen", "video_gen", "soundtrack", "dubbing")
         # 宽面板时：隐藏中栏 thumb + 隐藏底部 preview/execute 控制
         self.thumb.setVisible(not is_wide)
         self.btn_preview.setVisible(not is_wide and (
@@ -585,6 +650,13 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         self._persist_dub_tasks()
+        # 让每个打开的图片生成任务窗存一次 payload，再整体落盘
+        for win in list(self._open_imggen_windows.values()):
+            try:
+                self.imggen_store.update(win.task_id, payload=win.panel.to_payload())
+            except Exception:
+                pass
+        self._persist_imggen_tasks()
         # 持久化当前活跃 panel
         try:
             self.cfg.update_settings(
