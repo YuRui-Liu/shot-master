@@ -33,11 +33,7 @@ from drama_shot_master.ui.dialogs.refine_settings_dialog import RefineSettingsDi
 
 # 顺序须为「图像组在前、视频组在后」，切换栏按此分组插分隔线；与 self.panels 索引一一对应。
 # 隐藏项（恢复时取消注释并恢复 panels[0] 与 import）： ("反推", "inference"),
-FUNCS = [("拆图", "split"),
-         ("拼图", "combine"), ("去白边", "trim"),
-         ("图片生成", "imggen"),
-         ("视频生成", "video_gen"), ("配乐", "soundtrack"),
-         ("配音", "dubbing")]
+from drama_shot_master.ui.nav_config import FUNCS  # 单一事实源；旧测试仍从本模块导入
 
 # 切换栏分组：key 属于哪一组
 _IMAGE_KEYS = {"split", "combine", "trim", "imggen"}
