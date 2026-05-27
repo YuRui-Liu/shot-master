@@ -6,7 +6,7 @@
 QWidget {
     background-color: #1e1f22;
     color: #e8eaed;
-    font-size: 13px;
+    font-size: 10pt;   /* 用 pt 而非 px：避免 pointSize()=-1 触发 QFont setPointSize 警告 */
     selection-background-color: #2f5e96;
     selection-color: #ffffff;
 }
