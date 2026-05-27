@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 from drama_shot_master.config import load_config
 import drama_shot_master.providers  # noqa: F401  触发 provider 注册
 
+from drama_shot_master.ui.nav_config import FUNCS  # 单一事实源；旧测试仍从本模块导入
 from drama_shot_master.ui.state import AppState, restore_from_config, remember_dirs
 from drama_shot_master.ui.thumbnail_grid import ThumbnailGrid
 from drama_shot_master.ui.preview_dialog import PreviewDialog
@@ -29,11 +30,6 @@ from drama_shot_master.ui.theme import apply_dark_titlebar
 from drama_shot_master.ui.dialogs.runninghub_settings_dialog import RunningHubSettingsDialog
 from drama_shot_master.ui.dialogs.translation_settings_dialog import TranslationSettingsDialog
 from drama_shot_master.ui.dialogs.refine_settings_dialog import RefineSettingsDialog
-
-
-# 顺序须为「图像组在前、视频组在后」，切换栏按此分组插分隔线；与 self.panels 索引一一对应。
-# 隐藏项（恢复时取消注释并恢复 panels[0] 与 import）： ("反推", "inference"),
-from drama_shot_master.ui.nav_config import FUNCS  # 单一事实源；旧测试仍从本模块导入
 
 # 切换栏分组：key 属于哪一组
 _IMAGE_KEYS = {"split", "combine", "trim", "imggen"}

@@ -18,6 +18,10 @@ def test_phases_are_three_numbered_stages():
     assert titles == ["① 素材准备", "② 分镜创作", "③ 视频出片"]
 
 
+def test_funcs_keys_are_unique():
+    keys = [key for _label, key in FUNCS]
+    assert len(set(keys)) == len(keys)
+
+
 def test_every_func_key_has_icon():
-    for _label, key in FUNCS:
-        assert key in ICONS
+    assert set(ICONS) == {key for _label, key in FUNCS}
