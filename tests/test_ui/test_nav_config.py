@@ -25,3 +25,16 @@ def test_funcs_keys_are_unique():
 
 def test_every_func_key_has_icon():
     assert set(ICONS) == {key for _label, key in FUNCS}
+
+
+def test_icons_are_svg_filenames():
+    assert all(v.endswith(".svg") for v in ICONS.values())
+
+
+def test_icon_path_resolves_existing_files():
+    from drama_shot_master.ui.nav_config import icon_path, ICON_SETTINGS, ICON_HELP
+    for key in ICONS:
+        p = icon_path(ICONS[key])
+        assert p is not None and p.exists(), f"missing icon for {key}"
+    assert icon_path(ICON_SETTINGS).exists()
+    assert icon_path(ICON_HELP).exists()

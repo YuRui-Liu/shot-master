@@ -1,10 +1,11 @@
 """导航配置单一事实源：功能列表、流程阶段分组、图标映射。
 
 新旧外壳（main_window / app_shell）共享，避免顺序/分组出现两份。
-图标用 qfluentwidgets.FluentIcon 名称字符串，装配时再解析为枚举，
+图标用本地 SVG 文件名，由 icon_path() 解析为绝对路径，
 保持本模块 Qt-free 以便纯逻辑单测。
 """
 from __future__ import annotations
+from pathlib import Path
 
 # (显示名, key)；顺序即侧栏从上到下顺序，须与 PHASES 展平后一致。
 FUNCS = [
@@ -28,16 +29,26 @@ PHASES = [
 BATCH_KEYS = {"split", "combine", "trim"}
 TASK_KEYS = {"imggen", "video_gen", "soundtrack", "dubbing"}
 
-# key → FluentIcon 成员名（装配时 getattr(FluentIcon, name)）
+_ICON_DIR = Path(__file__).resolve().parent.parent / "assets" / "icons"
+
+# key → SVG 文件名（icon_path() 解析为绝对路径）
 ICONS = {
-    "split": "CUT",
-    "combine": "PHOTO",
-    "trim": "ERASE_TOOL",
-    "imggen": "PALETTE",
-    "video_gen": "VIDEO",
-    "soundtrack": "MUSIC",
-    "dubbing": "MICROPHONE",
+    "split": "cut.svg",
+    "combine": "photo.svg",
+    "trim": "erase.svg",
+    "imggen": "palette.svg",
+    "video_gen": "video.svg",
+    "soundtrack": "music.svg",
+    "dubbing": "mic.svg",
 }
+ICON_SETTINGS = "settings.svg"
+ICON_HELP = "help.svg"
+
+
+def icon_path(filename: str):
+    """assets/icons/<filename> 的绝对 Path；缺失返回 None。"""
+    p = _ICON_DIR / filename
+    return p if p.exists() else None
 
 # 功能名映射（key → 显示名），便于面包屑/标题查询
 LABELS = {key: label for label, key in FUNCS}
