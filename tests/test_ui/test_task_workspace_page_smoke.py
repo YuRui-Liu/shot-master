@@ -121,3 +121,17 @@ def test_update_task_name_updates_inline_header():
     mgr.taskSelected.emit(a)
     page.update_task_name("a", "新名字")
     assert page.lbl_task.text() == "新名字"
+
+
+def test_pop_out_editor_is_shown_not_blank():
+    """回归：浮出后编辑器被 reparent 隐藏会导致窗内空白；须可见。"""
+    _app()
+    page, mgr, made = _page()
+    a = _Task("a", "A")
+    mgr.taskSelected.emit(a)
+    ed = made["a"]
+    page.pop_out()
+    QApplication.instance().processEvents()
+    win = page._detached["a"]
+    assert win.centralWidget() is ed
+    assert not ed.isHidden()        # 非空白

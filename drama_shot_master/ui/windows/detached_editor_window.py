@@ -20,6 +20,9 @@ class DetachedEditorWindow(QMainWindow):
         self.setWindowTitle(title)
         self.resize(1100, 820)
         self.setCentralWidget(editor)
+        # 从 QStackedWidget 浮出的编辑器在 setParent 时被 Qt 标记为隐藏；
+        # setCentralWidget/窗 show() 都不会自动取消，故必须显式 show 否则窗内空白。
+        editor.show()
 
     @property
     def task_id(self) -> str:
