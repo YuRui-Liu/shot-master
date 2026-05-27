@@ -24,6 +24,7 @@ class DubTaskManagerPanel(BasePanel):
         self._close_cb = close_window_cb
         self._persist = persist_cb
         self._live_status: dict[str, str] = {}
+        self._loading = False
         self._build_ui()
         self.refresh()
 
@@ -37,17 +38,17 @@ class DubTaskManagerPanel(BasePanel):
         root = QVBoxLayout(self)
         bar = QHBoxLayout()
         for txt, slot in (("新建", self._new), ("打开", self._open),
-                          ("复制", self._dup), ("删除", self._del),
-                          ("重命名", self._rename)):
+                          ("复制", self._dup), ("删除", self._del)):
             b = QPushButton(txt); b.clicked.connect(slot); bar.addWidget(b)
         bar.addStretch(1)
         root.addLayout(bar)
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["名称", "模式", "状态", "最近输出", "更新时间"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setEditTriggers(QTableWidget.DoubleClicked)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.doubleClicked.connect(lambda *_: self._open())
+        self.table.doubleClicked.connect(self._on_double)
+        self.table.itemChanged.connect(self._on_item_changed)
         root.addWidget(self.table, 1)
 
     def _selected_id(self):
@@ -59,10 +60,12 @@ class DubTaskManagerPanel(BasePanel):
 
     def refresh(self):
         import time
+        self._loading = True
         tasks = self.store.all()
         self.table.setRowCount(len(tasks))
         for r, t in enumerate(tasks):
             name = QTableWidgetItem(t.name); name.setData(Qt.UserRole, t.id)
+            name.setFlags(name.flags() | Qt.ItemIsEditable)
             mode = "音色设计" if t.mode == "design" else "声音克隆"
             status = self._live_status.get(t.id, "—")
             updated = time.strftime("%m-%d %H:%M", time.localtime(t.updated_at)) if t.updated_at else ""
@@ -70,7 +73,24 @@ class DubTaskManagerPanel(BasePanel):
                                      QTableWidgetItem(status),
                                      QTableWidgetItem(t.last_result),
                                      QTableWidgetItem(updated)]):
+                if c != 0:
+                    val.setFlags(val.flags() & ~Qt.ItemIsEditable)
                 self.table.setItem(r, c, val)
+        self._loading = False
+
+    def _on_double(self, index):
+        # 双击名称栏(0)进入内联改名；双击其他栏才打开任务
+        if index.column() != 0:
+            self._open()
+
+    def _on_item_changed(self, item):
+        if self._loading or item.column() != 0:
+            return
+        tid = item.data(Qt.UserRole)
+        new_name = item.text().strip()
+        if tid and new_name:
+            self.store.update(tid, name=new_name); self._persist()
+            self.taskRenamed.emit(tid, new_name)
 
     def set_task_status(self, task_id: str, status: str):
         self._live_status[task_id] = status
@@ -103,13 +123,3 @@ class DubTaskManagerPanel(BasePanel):
             return
         if QMessageBox.question(self, "删除", "确定删除该任务？") == QMessageBox.Yes:
             self._close_cb(tid); self.store.remove(tid); self._persist(); self.refresh()
-
-    def _rename(self):
-        tid = self._selected_id()
-        if not tid:
-            return
-        t = self.store.get(tid)
-        name, ok = QInputDialog.getText(self, "重命名", "名称:", text=t.name)
-        if ok and name.strip():
-            self.store.update(tid, name=name.strip()); self._persist()
-            self.refresh(); self.taskRenamed.emit(tid, name.strip())
