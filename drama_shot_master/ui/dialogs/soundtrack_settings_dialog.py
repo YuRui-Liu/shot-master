@@ -44,6 +44,16 @@ class SoundtrackSettingsDialog(QDialog):
         self.crossfade_spin.setDecimals(1); self.crossfade_spin.setSuffix(" s")
         form.addRow("crossfade 时长", self.crossfade_spin)
 
+        self.big_thresh_spin = QDoubleSpinBox()
+        self.big_thresh_spin.setRange(0.0, 1.0); self.big_thresh_spin.setSingleStep(0.05)
+        self.big_thresh_spin.setDecimals(2)
+        form.addRow("大卡点强度阈值", self.big_thresh_spin)
+
+        self.snap_window_spin = QDoubleSpinBox()
+        self.snap_window_spin.setRange(0.0, 3.0); self.snap_window_spin.setSingleStep(0.1)
+        self.snap_window_spin.setDecimals(1); self.snap_window_spin.setSuffix(" s")
+        form.addRow("段切吸附窗口", self.snap_window_spin)
+
         root.addLayout(form)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
@@ -58,6 +68,10 @@ class SoundtrackSettingsDialog(QDialog):
             int(getattr(self.cfg, "soundtrack_seeds_count", 2)))
         self.crossfade_spin.setValue(
             float(getattr(self.cfg, "soundtrack_crossfade", 0.5)))
+        self.big_thresh_spin.setValue(
+            float(getattr(self.cfg, "accent_big_threshold", 0.7)))
+        self.snap_window_spin.setValue(
+            float(getattr(self.cfg, "accent_snap_window", 0.6)))
 
     def _browse_out(self):
         d = QFileDialog.getExistingDirectory(
@@ -71,5 +85,7 @@ class SoundtrackSettingsDialog(QDialog):
             soundtrack_output_dir=self.out_edit.text().strip(),
             soundtrack_seeds_count=self.seeds_spin.value(),
             soundtrack_crossfade=self.crossfade_spin.value(),
+            accent_big_threshold=self.big_thresh_spin.value(),
+            accent_snap_window=self.snap_window_spin.value(),
         )
         super().accept()
