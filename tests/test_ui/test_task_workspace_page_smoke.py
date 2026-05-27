@@ -84,6 +84,7 @@ def test_flush_all_persists_every_editor():
     page, mgr, made = _page(persist_spy=lambda tid, p: calls.append((tid, p)))
     mgr.taskSelected.emit(_Task("a", "A"))
     mgr.taskSelected.emit(_Task("b", "B"))
+    calls.clear()
     page.flush_all()
     assert {tid for tid, _ in calls} == {"a", "b"}
 
@@ -96,4 +97,18 @@ def test_discard_current_editor_shows_placeholder():
     assert page.stack.currentWidget() is made["a"]
     page.discard_editor("a")
     assert "a" not in page._editors
+    assert page.stack.currentWidget() is page._placeholder
+
+
+def test_discard_detached_task_cleans_up():
+    _app()
+    page, mgr, made = _page()
+    a = _Task("a", "A")
+    mgr.taskSelected.emit(a)
+    page.pop_out()
+    assert "a" in page._detached
+    page.discard_editor("a")
+    assert "a" not in page._detached
+    assert "a" not in page._editors
+    # 不应崩；当前无任务 → 占位
     assert page.stack.currentWidget() is page._placeholder

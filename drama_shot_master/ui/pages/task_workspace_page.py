@@ -69,6 +69,8 @@ class TaskWorkspacePage(QWidget):
         root.addWidget(splitter)
 
     def _on_task_selected(self, task):
+        if self._current_task is not None and self._current_task.id == task.id:
+            return
         self._persist_current()
         self._current_task = task
         tid = task.id
@@ -128,6 +130,7 @@ class TaskWorkspacePage(QWidget):
             win.deleteLater()
 
     def flush_all(self):
+        """落盘所有缓存编辑器（含已浮出的——其 widget 仍存活可读）。"""
         for tid, ed in self._editors.items():
             self._on_persist(tid, self._payload_of(ed))
 
@@ -135,7 +138,12 @@ class TaskWorkspacePage(QWidget):
         """任务被删时清理其缓存编辑器与浮出窗；若正显示它则切回占位。"""
         win = self._detached.pop(task_id, None)
         if win is not None:
+            try:
+                win.closed.disconnect(self._dock_back)
+            except (RuntimeError, TypeError):
+                pass
             win.close()
+            win.deleteLater()
         ed = self._editors.pop(task_id, None)
         was_current = (self._current_task is not None
                        and self._current_task.id == task_id)
