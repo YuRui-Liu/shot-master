@@ -7,7 +7,7 @@ from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QPushButton,
     QPlainTextEdit, QComboBox, QButtonGroup, QRadioButton, QStackedWidget,
-    QLineEdit, QFileDialog, QDoubleSpinBox, QGroupBox, QMessageBox,
+    QLineEdit, QFileDialog, QDoubleSpinBox, QGroupBox, QMessageBox, QSizePolicy,
 )
 
 from drama_shot_master.config import Config
@@ -57,6 +57,9 @@ class DubPanel(QWidget):
         self.btn_gen = QPushButton("生成"); self.btn_gen.setObjectName("AccentButton")
         self.btn_gen.clicked.connect(self._generate)
         self.status_lbl = QLabel(""); self.status_lbl.setStyleSheet("color:#888")
+        # 状态文字不撑窗：忽略内容宽度+换行，长报错只进弹窗
+        self.status_lbl.setWordWrap(True)
+        self.status_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.btn_open = QPushButton("打开结果"); self.btn_open.setEnabled(False)
         self.btn_open.clicked.connect(self._open_result)
         bar.addWidget(self.btn_gen); bar.addWidget(self.btn_open)
@@ -68,8 +71,12 @@ class DubPanel(QWidget):
         w = QWidget(); f = QFormLayout(w)
         self.d_text = QPlainTextEdit(); self.d_text.setFixedHeight(90)
         self.d_style = QPlainTextEdit(); self.d_style.setFixedHeight(70)
-        self.d_lang = QComboBox(); self.d_lang.addItems(["Auto", "中文", "English", "日本語"])
-        f.addRow("要合成文本", self.d_text)
+        # 取值必须与工作流 TDQwen3TTSVoiceDesign(节点22) 的 language 枚举完全一致
+        self.d_lang = QComboBox()
+        self.d_lang.addItems([
+            "Auto", "Chinese", "English", "Japanese", "Korean", "German",
+            "French", "Russian", "Portuguese", "Spanish", "Italian"])
+        f.addRow("要生成文本", self.d_text)
         f.addRow("音色描述", self.d_style)
         f.addRow("语言", self.d_lang)
         return w
@@ -85,7 +92,7 @@ class DubPanel(QWidget):
         spk_wrap = QWidget(); spk_wrap.setLayout(spk_row)
         self.c_alpha = QDoubleSpinBox(); self.c_alpha.setRange(0.0, 2.0)
         self.c_alpha.setSingleStep(0.05); self.c_alpha.setValue(1.0)
-        f.addRow("要合成文本", self.c_text)
+        f.addRow("要生成文本", self.c_text)
         f.addRow("说话人参考音频", spk_wrap)
         f.addRow("情感强度", self.c_alpha)
         v.addLayout(f)
@@ -258,7 +265,7 @@ class DubPanel(QWidget):
 
     def _on_fail(self, err: str):
         self.btn_gen.setEnabled(True)
-        self.status_lbl.setText(f"失败: {err}")
+        self.status_lbl.setText("生成失败（详见弹窗）")
         self.statusChanged.emit("FAILED")
         QMessageBox.critical(self, "生成失败", err)
 
