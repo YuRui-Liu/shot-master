@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Signal, QRectF, QPointF
+from PySide6.QtCore import Signal, QRectF, QPointF, Qt
 from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget,
-    QDoubleSpinBox, QMessageBox,
+    QDoubleSpinBox, QMessageBox, QCheckBox, QSlider,
 )
 
 from sound_track_agent.session import AccentPoint
@@ -25,10 +25,11 @@ class _AccentTimeline(QWidget):
 
     selectionChanged = Signal(int)        # sorted_index（-1=未选）
 
-    def __init__(self, session, parent=None):
+    def __init__(self, session, parent=None, *, big_threshold: float = 0.7):
         super().__init__(parent)
         self._session = session
         self._selected = -1
+        self._big_threshold = big_threshold
         self.setMinimumHeight(96)
 
     def set_selected(self, sorted_index: int):
@@ -80,8 +81,9 @@ class _AccentTimeline(QWidget):
             x = self._x(a.t, w)
             sel = (idx == self._selected)
             color = QColor("#ff8c42") if sel else QColor("#ff5c5c")
-            poly = QPolygonF([QPointF(x, my - 7), QPointF(x + 6, my),
-                              QPointF(x, my + 7), QPointF(x - 6, my)])
+            rad = 9 if a.intensity >= self._big_threshold else 6
+            poly = QPolygonF([QPointF(x, my - rad - 1), QPointF(x + rad, my),
+                              QPointF(x, my + rad + 1), QPointF(x - rad, my)])
             p.setBrush(color); p.setPen(QPen(color, 1))
             p.drawPolygon(poly)
             p.setPen(QColor("#9aa0a6"))
@@ -111,10 +113,11 @@ class AccentEditorWidget(QWidget):
 
     accentsChanged = Signal()
 
-    def __init__(self, session, parent=None):
+    def __init__(self, session, parent=None, *, big_threshold: float = 0.7):
         super().__init__(parent)
         self._session = session
         self._worker = None
+        self._big_threshold = big_threshold
         self._build_ui()
         self._refresh()
 
@@ -130,12 +133,24 @@ class AccentEditorWidget(QWidget):
         top = QHBoxLayout()
         top.addWidget(QLabel("爆点（出片时音乐重音吸附到这些时间点）："))
         top.addStretch(1)
+        self.chk_mix = QCheckBox("卡点混音")
+        self.chk_mix.setChecked(bool(getattr(self._session, "accent_mix_enabled", True)))
+        self.chk_mix.toggled.connect(self._on_mix_toggled)
+        top.addWidget(self.chk_mix)
+        top.addWidget(QLabel("泵感"))
+        self.pump_slider = QSlider(Qt.Horizontal)
+        self.pump_slider.setRange(0, 100)
+        self.pump_slider.setFixedWidth(120)
+        self.pump_slider.setValue(int(round(float(getattr(self._session, "pump_strength", 0.6)) * 100)))
+        self.pump_slider.valueChanged.connect(self._on_pump_changed)
+        top.addWidget(self.pump_slider)
         self.btn_detect = QPushButton("🎬 自动检测")
         self.btn_detect.clicked.connect(self._on_auto_detect)
         top.addWidget(self.btn_detect)
         root.addLayout(top)
 
-        self.timeline = _AccentTimeline(self._session)
+        self.timeline = _AccentTimeline(self._session,
+                                        big_threshold=self._big_threshold)
         self.timeline.selectionChanged.connect(self._on_timeline_select)
         root.addWidget(self.timeline)
 
@@ -210,6 +225,15 @@ class AccentEditorWidget(QWidget):
         self.btn_detect.setEnabled(True)
         self.status_label.setText("检测失败")
         QMessageBox.critical(self, "检测失败", err)
+
+    # ---------- 卡点混音 / 泵感 ----------
+    def _on_mix_toggled(self, checked: bool):
+        self._session.accent_mix_enabled = bool(checked)
+        self.accentsChanged.emit()
+
+    def _on_pump_changed(self, val: int):
+        self._session.pump_strength = val / 100.0
+        self.accentsChanged.emit()
 
     # ---------- 增删微调 ----------
     def add_accent(self, t: float):

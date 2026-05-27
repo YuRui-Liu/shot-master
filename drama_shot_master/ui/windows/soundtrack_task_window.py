@@ -146,7 +146,9 @@ class SoundtrackTaskWindow(QMainWindow):
         while lay2.count():
             old = lay2.takeAt(0).widget()
             if old: old.deleteLater()
-        self._accent = AccentEditorWidget(self._session)
+        self._accent = AccentEditorWidget(
+            self._session,
+            big_threshold=float(getattr(self.cfg, "accent_big_threshold", 0.7)))
         self._accent.accentsChanged.connect(self._persist_session)
         lay2.addWidget(self._accent)
 

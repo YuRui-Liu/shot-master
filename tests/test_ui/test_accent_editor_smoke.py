@@ -91,3 +91,22 @@ def test_timeline_selection_syncs_list():
     w = AccentEditorWidget(_sess())
     w._on_timeline_select(1)
     assert w.listw.currentRow() == 1
+
+
+def test_mix_toggle_and_pump_slider_write_session():
+    _app()
+    sess = _sess()
+    w = AccentEditorWidget(sess)
+    seen = []
+    w.accentsChanged.connect(lambda: seen.append(1))
+    assert w.chk_mix.isChecked() is True            # 默认开
+    w.chk_mix.setChecked(False)
+    assert sess.accent_mix_enabled is False and seen
+    w.pump_slider.setValue(30)
+    assert abs(sess.pump_strength - 0.30) < 1e-6
+
+
+def test_big_threshold_param_kept():
+    _app()
+    w = AccentEditorWidget(_sess(), big_threshold=0.4)
+    assert w.timeline._big_threshold == 0.4
