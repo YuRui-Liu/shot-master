@@ -45,10 +45,11 @@ ICON_SETTINGS = "settings.svg"
 ICON_HELP = "help.svg"
 
 
-def icon_path(filename: str):
+def icon_path(filename: str) -> "Path | None":
     """assets/icons/<filename> 的绝对 Path；缺失返回 None。"""
     p = _ICON_DIR / filename
     return p if p.exists() else None
+
 
 # 功能名映射（key → 显示名），便于面包屑/标题查询
 LABELS = {key: label for label, key in FUNCS}

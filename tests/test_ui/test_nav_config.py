@@ -36,5 +36,7 @@ def test_icon_path_resolves_existing_files():
     for key in ICONS:
         p = icon_path(ICONS[key])
         assert p is not None and p.exists(), f"missing icon for {key}"
-    assert icon_path(ICON_SETTINGS).exists()
-    assert icon_path(ICON_HELP).exists()
+    ps = icon_path(ICON_SETTINGS)
+    ph = icon_path(ICON_HELP)
+    assert ps is not None and ps.exists()
+    assert ph is not None and ph.exists()
