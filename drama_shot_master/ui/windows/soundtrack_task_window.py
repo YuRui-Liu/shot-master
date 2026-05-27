@@ -115,8 +115,11 @@ class SoundtrackTaskWindow(QMainWindow):
         self.btn_export.clicked.connect(self._on_export)
         self.btn_open_dir = QPushButton("📂 打开输出目录")
         self.btn_open_dir.clicked.connect(self._open_output_dir)
+        self.btn_preview = QPushButton("▶ 预览成片")
+        self.btn_preview.clicked.connect(self._on_preview)
+        self.btn_preview.setEnabled(False)
         act.addWidget(self.btn_start); act.addWidget(self.btn_export)
-        act.addWidget(self.btn_open_dir)
+        act.addWidget(self.btn_open_dir); act.addWidget(self.btn_preview)
         act.addStretch(1)
         root.addLayout(act)
 
@@ -134,6 +137,7 @@ class SoundtrackTaskWindow(QMainWindow):
             self._mount_session_tabs()
             self._post_seg_preview(sess)
             self.progress_label.setText("已加载上次进度（可续跑/选优/编辑卡点）")
+            self._update_preview_enabled()
 
     def _mount_session_tabs(self):
         # ② 试听选优
@@ -277,6 +281,7 @@ class SoundtrackTaskWindow(QMainWindow):
             self.progress_label.setText(
                 f"已停在选优点：候选已生成在 {self._work_dir()}（切到「② 试听选优」试听选定）")
             self.tabs.setCurrentIndex(1)
+        self._update_preview_enabled()
 
     def _on_regen_done(self, sess):
         self.progress.hide()
@@ -288,6 +293,17 @@ class SoundtrackTaskWindow(QMainWindow):
         self.progress.hide(); self.btn_start.setEnabled(True)
         self.statusChanged.emit(self.task_id, "失败")
         QMessageBox.critical(self, "配乐失败", err)
+
+    def _update_preview_enabled(self):
+        out = getattr(self._session, "output", None) if self._session else None
+        self.btn_preview.setEnabled(bool(out) and Path(out).exists())
+
+    def _on_preview(self):
+        out = getattr(self._session, "output", None) if self._session else None
+        if out and Path(out).exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(out)))
+        else:
+            QMessageBox.information(self, "预览成片", "还没有成片,请先导出成片")
 
     def _open_output_dir(self):
         wd = self._work_dir()
