@@ -85,6 +85,9 @@ class SplitPanel(BasePanel):
         root.addWidget(out)
         root.addStretch(1)
 
+    def has_preview(self) -> bool:
+        return True
+
     def select_mode(self) -> str:
         return "multi"
 

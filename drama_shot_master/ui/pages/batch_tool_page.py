@@ -40,8 +40,10 @@ class BatchToolPage(QWidget):
         act.addWidget(self.btn_exec)
         act.addWidget(self.exec_hint, 1)
         right.addLayout(act)
-        right_w = QWidget(); right_w.setLayout(right)
-        right_w.setMinimumWidth(340); right_w.setMaximumWidth(420)
+        right_w = QWidget()
+        right_w.setLayout(right)
+        right_w.setMinimumWidth(340)
+        right_w.setMaximumWidth(420)
 
         root = QHBoxLayout(self)
         root.addWidget(self.thumb, 1)
@@ -50,6 +52,7 @@ class BatchToolPage(QWidget):
         self.btn_preview.clicked.connect(self._do_preview)
         self.btn_exec.clicked.connect(self._do_execute)
         self.thumb.selectionChanged.connect(self._on_selection)
+        self.thumb.previewRequested.connect(self._on_thumb_double)
         if hasattr(panel, "validityChanged"):
             panel.validityChanged.connect(self.refresh_validity)
         self.btn_preview.setVisible(panel.has_preview())
@@ -57,6 +60,7 @@ class BatchToolPage(QWidget):
 
     def populate(self, images):
         self.thumb.populate(images)
+        self.refresh_validity()
 
     def _on_selection(self, order):
         self.state.selected = list(order)
@@ -75,7 +79,18 @@ class BatchToolPage(QWidget):
         PreviewDialog(sel[0], overlay_spec=self.panel.overlay_spec(),
                       parent=self).exec()
 
+    def _on_thumb_double(self, row: int):
+        if not (0 <= row < len(self.state.images)):
+            return
+        path = self.state.images[row].path
+        PreviewDialog(path, overlay_spec=self.panel.overlay_spec(),
+                      parent=self).exec()
+
     def _do_execute(self):
+        from drama_shot_master.licensing import manager
+        if manager.requires_activation(manager.status().state):
+            QMessageBox.warning(self, "需要激活", "请先在「关于」中激活。")
+            return
         ok, why = self.panel.validate()
         if not ok:
             QMessageBox.warning(self, "无法执行", why)

@@ -29,3 +29,21 @@ def test_exec_button_disabled_when_panel_invalid():
     # 未选目录/图片 → 不可执行
     ok, _why = page.panel.validate()
     assert page.btn_exec.isEnabled() == ok
+
+
+def test_split_panel_preview_button_visible():
+    _app()
+    from drama_shot_master.ui.panels.split_panel import SplitPanel
+    state, cfg = AppState(), load_config()
+    page = BatchToolPage(SplitPanel(state, cfg), state, cfg)
+    # SplitPanel.has_preview() must return True (Fix 1).
+    # Under offscreen Qt a never-shown widget may report isVisible()==False
+    # even when not explicitly hidden; the real contract is has_preview()==True.
+    assert page.panel.has_preview(), "SplitPanel.has_preview() must return True"
+    # The button must NOT be force-hidden: setVisible(True) was called,
+    # so isVisible() should match (True in a shown window; may be False in
+    # headless because the top-level was never shown — that's acceptable).
+    # What is NOT acceptable is the button being explicitly hidden:
+    assert not page.btn_preview.isHidden(), (
+        "btn_preview must not be force-hidden for SplitPanel"
+    )
