@@ -46,3 +46,20 @@ def test_envelope_negative_time_accent_does_not_contaminate():
     env = build_pump_envelope(100, 1000, [AccentPoint(t=-0.001, intensity=1.0)],
                               strength=1.0)
     assert np.allclose(env, 1.0)        # 负时间卡点被忽略,不留 release 余尾
+
+
+import soundfile as sf
+from sound_track_agent.accent_mixer import apply_pump
+
+
+def test_apply_pump_attenuates_at_accent(tmp_path):
+    sr = 8000
+    t = np.linspace(0, 1.0, sr, endpoint=False)
+    sig = (0.5 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
+    inp = tmp_path / "in.wav"; sf.write(str(inp), sig, sr)
+    out = tmp_path / "out.wav"
+    res = apply_pump(inp, out, [AccentPoint(t=0.5, intensity=1.0)], strength=1.0)
+    assert res == out and out.exists()
+    data, _sr = sf.read(str(out))
+    assert abs(data[4000]) < 1e-3                 # 卡点(idx=4000)处被压到近 0
+    assert abs(abs(data[100]) - abs(sig[100])) < 1e-3   # 远处基本不变

@@ -44,3 +44,23 @@ def build_pump_envelope(n_samples: int, sr: int, accents: list[AccentPoint],
             ramp = np.linspace(floor, 1.0, r_hi - (idx + 1), dtype=np.float32)
             env[idx + 1:r_hi] = np.minimum(env[idx + 1:r_hi], ramp)
     return env
+
+
+def apply_pump(bgm_in, bgm_out, accents: list, *, strength: float,
+               attack: float = 0.012, release: float = 0.35) -> Path:
+    """读 wav → 乘泵感包络 → 写出。返回输出路径。读/写失败抛 RuntimeError。"""
+    import soundfile as sf
+    try:
+        data, sr = sf.read(str(bgm_in), always_2d=True)       # (n, ch)
+    except Exception as e:
+        raise RuntimeError(f"apply_pump 读取失败 {bgm_in}: {e}")
+    env = build_pump_envelope(data.shape[0], sr, accents, strength=strength,
+                              attack=attack, release=release)
+    out = (data * env[:, None]).astype(data.dtype, copy=False)
+    bgm_out = Path(bgm_out)
+    bgm_out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        sf.write(str(bgm_out), out, sr)
+    except Exception as e:
+        raise RuntimeError(f"apply_pump 写出失败 {bgm_out}: {e}")
+    return bgm_out
