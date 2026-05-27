@@ -142,7 +142,8 @@ def test_sidebar_click_switches_page():
     w = AppShell()
     w.sidebar.currentChanged.emit("video_gen")
     assert w.stack.currentWidget() is w.pages["video_gen"]
-    assert w.breadcrumb_text() == "③ 视频出片 › 视频生成"
+    # 阶段标题与格式为独立断言；标签从 nav_config 单一源读取（标签可由用户改名）
+    assert w.breadcrumb_text() == f"③ 视频出片 › {LABELS['video_gen']}"
 
 
 def test_video_page_is_task_workspace():
