@@ -148,7 +148,7 @@ class AppShell(FluentWindow):
             position=NavigationItemPosition.BOTTOM)
         self.navigationInterface.addItem(
             routeKey="about", icon=FluentIcon.INFO, text="帮助 / 关于",
-            onClick=self._open_about, selectable=False,
+            onClick=self._open_help_menu, selectable=False,
             position=NavigationItemPosition.BOTTOM)
 
     def _wire(self):
@@ -217,7 +217,11 @@ class AppShell(FluentWindow):
         self._status_text = msg
 
     def _on_page_changed(self, *args):
-        self._current_breadcrumb = self.breadcrumb_text()
+        from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
+        page = self.stackedWidget.currentWidget()
+        if isinstance(page, BatchToolPage):
+            self.state.selected = page.selected_order()
+        self._refresh_counts()
 
     def _open_settings_menu(self):
         from qfluentwidgets import RoundMenu, Action
@@ -293,6 +297,15 @@ class AppShell(FluentWindow):
     def _open_about(self):
         from drama_shot_master.ui.dialogs.about_dialog import AboutDialog
         AboutDialog(self.cfg, parent=self).exec()
+
+    def _open_help_menu(self):
+        from qfluentwidgets import RoundMenu, Action
+        from PySide6.QtGui import QCursor
+        menu = RoundMenu(parent=self)
+        a_help = Action("帮助文档", self); a_help.triggered.connect(self._open_help)
+        a_about = Action("关于…", self); a_about.triggered.connect(self._open_about)
+        menu.addAction(a_help); menu.addAction(a_about)
+        menu.exec(QCursor.pos())
 
     def _open_help(self):
         """用系统默认浏览器打开内置 HTML 帮助文档。"""

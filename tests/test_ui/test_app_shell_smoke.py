@@ -86,15 +86,33 @@ def test_command_bar_signals_wire_to_shell():
     # so we never emit them while connected to AppShell. Instead disconnect the
     # shell slot, attach a spy, and confirm clicking the button emits the signal
     # (proving button.clicked -> signal wiring inside ProjectCommandBar). The
-    # AppShell-side connection is re-established right after.
+    # AppShell-side connection is re-established right after, with the spy
+    # disconnected first so the signal ends with exactly its original wiring.
     try:
         w.command_bar.openDirRequested.disconnect(w._open_dir)
     except (RuntimeError, TypeError):
         pass
     fired = {}
-    w.command_bar.openDirRequested.connect(lambda: fired.setdefault("open", True))
+    spy = lambda: fired.setdefault("open", True)
+    w.command_bar.openDirRequested.connect(spy)
     w.command_bar.btn_open_dir.click()
     assert fired.get("open") is True
-    # restore real wiring so the shell stays usable
+    # disconnect spy before re-attaching real slot → exactly 1 receiver
+    try:
+        w.command_bar.openDirRequested.disconnect(spy)
+    except (RuntimeError, TypeError):
+        pass
     w.command_bar.openDirRequested.connect(w._open_dir)
     assert w.command_bar.openDirRequested is not None
+
+
+def test_switching_to_batch_page_syncs_selection_and_count():
+    _app()
+    w = AppShell()
+    w.switchTo(w.pages["split"])
+    # 新构造、未选任何图 → 全局 selected 同步为空、计数为 0
+    w._on_page_changed()
+    assert w.state.selected == []
+    assert "已选 0" in w.command_bar.count_text()
+    # selected_order 暴露在页与网格上
+    assert w.pages["split"].selected_order() == []

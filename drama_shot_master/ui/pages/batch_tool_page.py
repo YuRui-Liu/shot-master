@@ -62,6 +62,9 @@ class BatchToolPage(QWidget):
         self.thumb.populate(images)
         self.refresh_validity()
 
+    def selected_order(self) -> list[int]:
+        return self.thumb.selected_order()
+
     def _on_selection(self, order):
         self.state.selected = list(order)
         self.refresh_validity()

@@ -160,3 +160,7 @@ class ThumbnailGrid(QWidget):
             it.setData(SELECTED_ROLE, False)
         self.list.viewport().update()
         self.selectionChanged.emit([])
+
+    def selected_order(self) -> list[int]:
+        """当前选择（按点击顺序的行号列表）。"""
+        return list(self._order)
