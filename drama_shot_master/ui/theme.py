@@ -96,16 +96,18 @@ def apply_app_icon(app, name: str = "app_icon") -> None:
             app.setWindowIcon(QIcon(str(p)))
             return
 
+
 # 影视冷蓝（spec §5）；浅色切换在 Phase 3 设置页接入
 THEME_ACCENT = "#2563EB"
 
 
-def init_fluent_theme(app, dark: bool = True, accent: str = THEME_ACCENT):
+def init_fluent_theme(app, dark: bool = True, accent: str = THEME_ACCENT) -> "QColor":
     """初始化 PyQt-Fluent-Widgets 全局主题：深/浅 + 主题色。
 
     返回设置后的主题色 QColor。在 apply_theme(app) 之后调用，
     让 Fluent 控件接管自身配色（QSS 仍可覆盖非 Fluent 控件）。
     """
+    # app 形参保留以与 apply_theme(app) 调用点对称；当前 Fluent 全局 API 不需要它
     from qfluentwidgets import setTheme, setThemeColor, Theme
     from PySide6.QtGui import QColor
     setTheme(Theme.DARK if dark else Theme.LIGHT)
