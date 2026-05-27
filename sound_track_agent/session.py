@@ -59,6 +59,7 @@ class SegmentScore:
     candidates: list[BGMCandidate] = field(default_factory=list)
     chosen_candidate: Optional[int] = None
     status: Status = "pending"
+    volume: float = 1.0
 
     @property
     def duration(self) -> float:
@@ -75,6 +76,7 @@ class SegmentScore:
             "candidates": [c.to_dict() for c in self.candidates],
             "chosen_candidate": self.chosen_candidate,
             "status": self.status,
+            "volume": self.volume,
         }
 
     @classmethod
@@ -90,6 +92,7 @@ class SegmentScore:
             candidates=[BGMCandidate(**c) for c in d.get("candidates", [])],
             chosen_candidate=d.get("chosen_candidate"),
             status=d.get("status", "pending"),
+            volume=float(d.get("volume", 1.0)),
         )
 
 

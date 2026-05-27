@@ -103,3 +103,20 @@ def test_from_dict_missing_accent_mix_fields_uses_defaults():
          "frame_rate": 24.0, "segments": [], "accent_points": [], "output": None}
     s = ScoringSession.from_dict(d)
     assert s.accent_mix_enabled is True and abs(s.pump_strength - 0.6) < 1e-9
+
+
+def test_segment_volume_default_and_roundtrip():
+    from sound_track_agent.session import SegmentScore
+    s = SegmentScore(index=0, t_start=0.0, t_end=1.0)
+    assert abs(s.volume - 1.0) < 1e-9
+    d = s.to_dict()
+    assert d["volume"] == 1.0
+    s2 = SegmentScore.from_dict(d)
+    assert abs(s2.volume - 1.0) < 1e-9
+
+
+def test_segment_from_dict_missing_volume_defaults():
+    from sound_track_agent.session import SegmentScore
+    d = {"index": 0, "t_start": 0.0, "t_end": 2.0}
+    s = SegmentScore.from_dict(d)
+    assert abs(s.volume - 1.0) < 1e-9
