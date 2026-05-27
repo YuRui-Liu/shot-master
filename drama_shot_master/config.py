@@ -64,6 +64,12 @@ class Config:
         "top_k": 30, "top_p": 0.8, "temperature": 0.8, "num_beams": 3,
         "max_mel_tokens": 1500,
     })
+    imggen_tasks: list = field(default_factory=list)
+    imggen_provider: str = "doubao"
+    imggen_base_url: str = "https://ark.cn-beijing.volces.com"
+    imggen_model: str = ""
+    imggen_api_key: str = ""
+    imggen_output_dir: str = ""
     soundtrack_workflow_id: str = "2059090557116440578"
     soundtrack_output_dir: str = ""
     soundtrack_seeds_count: int = 2
@@ -106,6 +112,12 @@ class Config:
                 "dub_node_profiles": self.dub_node_profiles,
                 "dub_output_dir": self.dub_output_dir,
                 "dub_sampling": self.dub_sampling,
+                "imggen_tasks": self.imggen_tasks,
+                "imggen_provider": self.imggen_provider,
+                "imggen_base_url": self.imggen_base_url,
+                "imggen_model": self.imggen_model,
+                "imggen_api_key": self.imggen_api_key,
+                "imggen_output_dir": self.imggen_output_dir,
                 "soundtrack_workflow_id": self.soundtrack_workflow_id,
                 "soundtrack_output_dir": self.soundtrack_output_dir,
                 "soundtrack_seeds_count": self.soundtrack_seeds_count,
@@ -221,6 +233,18 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.dub_output_dir = data["dub_output_dir"]
                 if "dub_sampling" in data and isinstance(data["dub_sampling"], dict):
                     cfg.dub_sampling = data["dub_sampling"]
+                if "imggen_tasks" in data and isinstance(data["imggen_tasks"], list):
+                    cfg.imggen_tasks = data["imggen_tasks"]
+                if "imggen_provider" in data and isinstance(data["imggen_provider"], str):
+                    cfg.imggen_provider = data["imggen_provider"]
+                if "imggen_base_url" in data and isinstance(data["imggen_base_url"], str):
+                    cfg.imggen_base_url = data["imggen_base_url"]
+                if "imggen_model" in data and isinstance(data["imggen_model"], str):
+                    cfg.imggen_model = data["imggen_model"]
+                if "imggen_api_key" in data and isinstance(data["imggen_api_key"], str):
+                    cfg.imggen_api_key = data["imggen_api_key"]
+                if "imggen_output_dir" in data and isinstance(data["imggen_output_dir"], str):
+                    cfg.imggen_output_dir = data["imggen_output_dir"]
                 if isinstance(data.get("soundtrack_workflow_id"), str):
                     cfg.soundtrack_workflow_id = data["soundtrack_workflow_id"]
                 if isinstance(data.get("soundtrack_output_dir"), str):
