@@ -24,6 +24,7 @@ class ImgGenTaskManagerPanel(BasePanel):
         self._close_cb = close_window_cb
         self._persist = persist_cb
         self._live_status: dict[str, str] = {}
+        self._loading = False
         self._build_ui()
         self.refresh()
 
@@ -45,9 +46,10 @@ class ImgGenTaskManagerPanel(BasePanel):
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["名称", "状态", "最近输出", "更新时间"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setEditTriggers(QTableWidget.DoubleClicked)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.doubleClicked.connect(lambda *_: self._open())
+        self.table.doubleClicked.connect(self._on_double)
+        self.table.itemChanged.connect(self._on_item_changed)
         root.addWidget(self.table, 1)
 
     def _selected_id(self):
@@ -59,17 +61,36 @@ class ImgGenTaskManagerPanel(BasePanel):
 
     def refresh(self):
         import time
+        self._loading = True
         tasks = self.store.all()
         self.table.setRowCount(len(tasks))
         for r, t in enumerate(tasks):
             name = QTableWidgetItem(t.name); name.setData(Qt.UserRole, t.id)
+            name.setFlags(name.flags() | Qt.ItemIsEditable)
             status = self._live_status.get(t.id, "—")
             updated = time.strftime("%m-%d %H:%M", time.localtime(t.updated_at)) if t.updated_at else ""
             for c, val in enumerate([name,
                                      QTableWidgetItem(status),
                                      QTableWidgetItem(t.last_result),
                                      QTableWidgetItem(updated)]):
+                if c != 0:
+                    val.setFlags(val.flags() & ~Qt.ItemIsEditable)
                 self.table.setItem(r, c, val)
+        self._loading = False
+
+    def _on_double(self, index):
+        # 双击名称栏(0)进入内联改名；双击其他栏才打开任务
+        if index.column() != 0:
+            self._open()
+
+    def _on_item_changed(self, item):
+        if self._loading or item.column() != 0:
+            return
+        tid = item.data(Qt.UserRole)
+        new_name = item.text().strip()
+        if tid and new_name:
+            self.store.update(tid, name=new_name); self._persist()
+            self.taskRenamed.emit(tid, new_name)
 
     def set_task_status(self, task_id: str, status: str):
         self._live_status[task_id] = status
