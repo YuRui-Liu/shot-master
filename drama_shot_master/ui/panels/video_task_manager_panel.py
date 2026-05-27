@@ -30,6 +30,7 @@ class VideoTaskManagerPanel(BasePanel):
     """任务列表 + 新建/打开/复制/删除。开窗与持久化由回调交给 main_window。"""
 
     taskRenamed = Signal(str, str)   # (task_id, new_name) → main_window 同步已开窗标题
+    taskSelected = Signal(object)    # 选中的 VideoTask（主-详用）
 
     def __init__(self, state: AppState, cfg: Config,
                  store: VideoTaskStore,
@@ -81,6 +82,7 @@ class VideoTaskManagerPanel(BasePanel):
         self.btn_open.clicked.connect(self._on_open)
         self.btn_dup.clicked.connect(self._on_dup)
         self.btn_del.clicked.connect(self._on_del)
+        self.table.itemSelectionChanged.connect(self._on_selection_changed)
 
     def refresh(self):
         self.table.blockSignals(True)
@@ -132,13 +134,27 @@ class VideoTaskManagerPanel(BasePanel):
         self._live_status.pop(task_id, None)
         self.refresh()
 
+    def _on_selection_changed(self):
+        tid = self._selected_task_id()
+        if not tid:
+            return
+        t = self.store.get(tid)
+        if t is not None:
+            self.taskSelected.emit(t)
+
+    def task_for_row(self):
+        """当前选中行对应的 task（无选中返回 None）。"""
+        tid = self._selected_task_id()
+        return self.store.get(tid) if tid else None
+
     # ---------- slots ----------
     def _on_new(self):
         n = len(self.store.all()) + 1
         t = self.store.add(f"任务 {n}", TimelineModel().to_dict())
         self._persist_cb()
         self.refresh()
-        self._open_window_cb(t)
+        if self._open_window_cb:
+            self._open_window_cb(t)
 
     def _on_open(self):
         tid = self._selected_task_id()
@@ -146,7 +162,7 @@ class VideoTaskManagerPanel(BasePanel):
             QMessageBox.information(self, "打开", "请先选一个任务")
             return
         t = self.store.get(tid)
-        if t:
+        if t and self._open_window_cb:
             self._open_window_cb(t)
 
     def _on_double_clicked(self, item):
@@ -154,7 +170,7 @@ class VideoTaskManagerPanel(BasePanel):
             return
         tid = self._selected_task_id()
         t = self.store.get(tid) if tid else None
-        if t:
+        if t and self._open_window_cb:
             self._open_window_cb(t)
 
     def _on_dup(self):
@@ -173,7 +189,8 @@ class VideoTaskManagerPanel(BasePanel):
                 self, "删除任务", "确定删除该任务？不可恢复。",
                 QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
             return
-        self._close_window_cb(tid)
+        if self._close_window_cb:
+            self._close_window_cb(tid)
         self.store.remove(tid)
         self._live_status.pop(tid, None)
         self._persist_cb()
