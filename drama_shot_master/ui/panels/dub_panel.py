@@ -52,6 +52,7 @@ class DubPanel(QWidget):
         root.addWidget(self.stack, 1)
         self.mode_group.idClicked.connect(self.stack.setCurrentIndex)
         self.mode_group.idClicked.connect(lambda *_: self.dirty.emit())
+        self._wire_dirty()
 
         bar = QHBoxLayout()
         self.btn_gen = QPushButton("生成"); self.btn_gen.setObjectName("AccentButton")
@@ -144,6 +145,16 @@ class DubPanel(QWidget):
         self.emo_group.idClicked.connect(lambda mid: self.emo_stack.setCurrentIndex(mid - 1))
         self.emo_group.idClicked.connect(lambda *_: self.dirty.emit())
         return w
+
+    def _wire_dirty(self):
+        """所有输入变化都标脏 → 实时持久化（避免只在关窗时保存而丢内容）。"""
+        d = self.dirty.emit
+        for te in (self.d_text, self.d_style, self.c_text, self.c_emo_text):
+            te.textChanged.connect(lambda *_: d())
+        self.d_lang.currentIndexChanged.connect(lambda *_: d())
+        self.c_alpha.valueChanged.connect(lambda *_: d())
+        for sb in self.c_vec:
+            sb.valueChanged.connect(lambda *_: d())
 
     def _pick_file(self, line: QLineEdit):
         p, _ = QFileDialog.getOpenFileName(

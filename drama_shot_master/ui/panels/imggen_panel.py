@@ -88,6 +88,10 @@ class ImgGenPanel(QWidget):
         self.quality = QComboBox(); self.quality.addItems(QUALITIES)
         self.ratio = QComboBox(); self.ratio.addItems(RATIOS)
         self.count = QSpinBox(); self.count.setRange(1, 4); self.count.setValue(1)
+        # 画质/比例/数量变化也实时存(否则只在关窗时保存)
+        self.quality.currentIndexChanged.connect(lambda *_: self.dirty.emit())
+        self.ratio.currentIndexChanged.connect(lambda *_: self.dirty.emit())
+        self.count.valueChanged.connect(lambda *_: self.dirty.emit())
         for w in (QLabel("画质"), self.quality, QLabel("比例"), self.ratio,
                   QLabel("数量"), self.count):
             opt.addWidget(w)
