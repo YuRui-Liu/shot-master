@@ -1,8 +1,8 @@
-"""AppShell：基于 qfluentwidgets.FluentWindow 的流程式外壳。
+"""AppShell：基于原生 QMainWindow 的流程式外壳。
 
-侧栏按 nav_config.PHASES 分阶段注册 7 个真实功能页，并把原 MainWindow 的
-控制器逻辑（任务窗回调、设置/帮助入口、授权巡检、状态恢复/落盘）整体移植过来，
-使 AppShell 成为 MainWindow 的完整 drop-in 替代。
+侧栏(FlowSidebar)按 nav_config.PHASES 分阶段渲染 7 个真实功能页，顶部全局命令栏
+横跨内容区；并把原 MainWindow 的控制器逻辑（任务窗回调、设置/帮助入口、授权巡检、
+状态恢复/落盘）整体移植过来，使 AppShell 成为 MainWindow 的完整 drop-in 替代。
 
 main_window.py 暂作为 fallback 保留（后续阶段移除），逻辑事实源仍以其为准。
 """
@@ -10,35 +10,26 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
-from qfluentwidgets import (
-    FluentWindow, FluentIcon, NavigationItemPosition,
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QMenu,
 )
-from drama_shot_master.ui.nav_config import FUNCS, PHASES, ICONS, LABELS
+from PySide6.QtGui import QAction
+from drama_shot_master.ui.widgets.flow_sidebar import FlowSidebar
 from drama_shot_master.ui.widgets.project_command_bar import ProjectCommandBar
+from drama_shot_master.ui.theme import apply_window_icon, apply_dark_titlebar
+from drama_shot_master.ui.nav_config import FUNCS, PHASES, LABELS
 
 
-def _icon(key: str):
-    """Resolve a nav_config ICONS string to a FluentIcon member.
-
-    Falls back to FluentIcon.TAG if the name is not found in this version of
-    qfluentwidgets (all current names verified present in 1.11.2; kept as
-    safety net for future icon renames).
-    """
-    return getattr(FluentIcon, ICONS[key], FluentIcon.TAG)
-
-
-class AppShell(FluentWindow):
+class AppShell(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Drama-Shot-Master")
         self.resize(1360, 860)
-        self.pages: dict[str, QWidget] = {}
-        self._phase_of: dict[str, str] = {}
+        self.pages = {}
+        self._phase_of = {k: t for t, ks in PHASES for k in ks}
         self._status_text = ""
         self._build_pages()
-        self._build_command_bar()
-        self._build_nav()
+        self._build_ui()
         self._wire()
         self._restore_state()
         self._install_license_watch()
@@ -85,76 +76,32 @@ class AppShell(FluentWindow):
             page.setObjectName(f"page_{key}")   # FluentWindow 要求唯一 objectName
             self.pages[key] = page
 
-    def _build_command_bar(self):
-        """全局顶部命令栏：横跨内容区，位于标题栏之下、导航+堆栈行之上。
-
-        FluentWindow 的根布局 self.hBoxLayout 是 [navigationInterface | widgetLayout]，
-        其中 widgetLayout(HBox, 上边距 48 给标题栏) 装着 stackedWidget。标题栏是
-        无边框窗口里绝对定位的子控件，由其自身 resizeEvent 维护（move(46,0)+全宽）。
-
-        这里把 [nav | widgetLayout] 这一整行包进一个内部 QHBoxLayout(row)，再用一个
-        竖直列 [command_bar][row] 放回根布局，并把原来 widgetLayout 的 48px 顶边距
-        转移到竖直列上——这样命令栏全宽横跨（含导航上方），且不触碰标题栏/无边框行为。
-        """
+    def _build_ui(self):
         self.command_bar = ProjectCommandBar()
+        self.sidebar = FlowSidebar()
+        self.stack = QStackedWidget()
+        for _label, key in FUNCS:
+            self.stack.addWidget(self.pages[key])
 
-        hb = self.hBoxLayout
-        hb.removeWidget(self.navigationInterface)
-        hb.removeItem(self.widgetLayout)
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+        body.addWidget(self.sidebar)
+        body.addWidget(self.stack, 1)
+        body_w = QWidget()
+        body_w.setLayout(body)
 
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(0)
-        row.addWidget(self.navigationInterface)
-        row.addLayout(self.widgetLayout)
-        row.setStretchFactor(self.widgetLayout, 1)
-
-        # 顶边距从 widgetLayout 转移到竖直列（避免标题栏空间被算两次）。
-        self.widgetLayout.setContentsMargins(0, 0, 0, 0)
-
-        col = QVBoxLayout()
-        col.setContentsMargins(0, self.titleBar.height(), 0, 0)
-        col.setSpacing(0)
-        col.addWidget(self.command_bar)
-        col.addLayout(row, 1)
-
-        hb.addLayout(col)
-
-    def _build_nav(self):
-        for phase_title, keys in PHASES:
-            # Phase section header: non-selectable label item.
-            self.navigationInterface.addItem(
-                routeKey=f"phase::{phase_title}",
-                icon=FluentIcon.TAG,
-                text=phase_title,
-                onClick=None,
-                selectable=False,
-                position=NavigationItemPosition.SCROLL,
-            )
-            for key in keys:
-                self.addSubInterface(
-                    self.pages[key], _icon(key), LABELS[key],
-                    position=NavigationItemPosition.SCROLL,
-                )
-                self._phase_of[key] = phase_title
-            # Visual separator after each phase group.
-            self.navigationInterface.addSeparator(
-                position=NavigationItemPosition.SCROLL,
-            )
-
-        self.navigationInterface.addItem(
-            routeKey="settings", icon=FluentIcon.SETTING, text="设置",
-            onClick=self._open_settings_menu, selectable=False,
-            position=NavigationItemPosition.BOTTOM)
-        self.navigationInterface.addItem(
-            routeKey="about", icon=FluentIcon.INFO, text="帮助 / 关于",
-            onClick=self._open_help_menu, selectable=False,
-            position=NavigationItemPosition.BOTTOM)
+        root = QVBoxLayout()
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        root.addWidget(self.command_bar)
+        root.addWidget(body_w, 1)
+        central = QWidget()
+        central.setLayout(root)
+        self.setCentralWidget(central)
 
     def _wire(self):
         from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
-        self.command_bar.openDirRequested.connect(self._open_dir)
-        self.command_bar.setOutputRequested.connect(self._set_out_dir)
         for page in self.pages.values():
             panel = page.panel if isinstance(page, BatchToolPage) else page
             if hasattr(panel, "statusMessage"):
@@ -164,7 +111,27 @@ class AppShell(FluentWindow):
         self._video_manager().taskRenamed.connect(self._on_task_renamed)
         self._dub_manager().taskRenamed.connect(self._on_dub_renamed)
         self._imggen_manager().taskRenamed.connect(self._on_imggen_renamed)
-        self.stackedWidget.currentChanged.connect(self._on_page_changed)
+        self.sidebar.currentChanged.connect(self._on_nav_changed)
+        self.sidebar.settingsRequested.connect(self._open_settings_menu)
+        self.sidebar.helpRequested.connect(self._open_help_menu)
+        self.command_bar.openDirRequested.connect(self._open_dir)
+        self.command_bar.setOutputRequested.connect(self._set_out_dir)
+        self.stack.currentChanged.connect(self._on_page_changed)
+
+    def _on_nav_changed(self, key: str):
+        self.switchTo(self.pages[key])
+
+    def switchTo(self, page):
+        self.stack.setCurrentWidget(page)
+        key = self._key_of(page)
+        if key:
+            self.sidebar.set_active(key)
+
+    def _key_of(self, page):
+        for k, p in self.pages.items():
+            if p is page:
+                return k
+        return None
 
     def _restore_state(self):
         from drama_shot_master.ui.state import restore_from_config
@@ -202,12 +169,7 @@ class AppShell(FluentWindow):
     # ------------------------------------------------------------------ #
 
     def _current_key(self) -> str:
-        cur = self.stackedWidget.currentWidget()
-        for key, page in self.pages.items():
-            if page is cur:
-                return key
-        # Default to first functional key if nothing matches yet.
-        return FUNCS[0][1]
+        return self._key_of(self.stack.currentWidget()) or FUNCS[0][1]
 
     def breadcrumb_text(self) -> str:
         key = self._current_key()
@@ -218,15 +180,14 @@ class AppShell(FluentWindow):
 
     def _on_page_changed(self, *args):
         from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
-        page = self.stackedWidget.currentWidget()
+        page = self.stack.currentWidget()
         if isinstance(page, BatchToolPage):
             self.state.selected = page.selected_order()
         self._refresh_counts()
 
     def _open_settings_menu(self):
-        from qfluentwidgets import RoundMenu, Action
         from PySide6.QtGui import QCursor
-        menu = RoundMenu(parent=self)
+        menu = QMenu(self)
         for text, fn in [
             ("RunningHub 配置…", self._open_runninghub_settings),
             ("翻译配置…", self._open_translation_settings),
@@ -235,7 +196,8 @@ class AppShell(FluentWindow):
             ("配音…", self._open_dub_settings),
             ("图片生成…", self._open_imggen_settings),
         ]:
-            act = Action(text, self); act.triggered.connect(fn)
+            act = QAction(text, self)
+            act.triggered.connect(fn)
             menu.addAction(act)
         menu.exec(QCursor.pos())
 
@@ -299,11 +261,10 @@ class AppShell(FluentWindow):
         AboutDialog(self.cfg, parent=self).exec()
 
     def _open_help_menu(self):
-        from qfluentwidgets import RoundMenu, Action
         from PySide6.QtGui import QCursor
-        menu = RoundMenu(parent=self)
-        a_help = Action("帮助文档", self); a_help.triggered.connect(self._open_help)
-        a_about = Action("关于…", self); a_about.triggered.connect(self._open_about)
+        menu = QMenu(self)
+        a_help = QAction("帮助文档", self); a_help.triggered.connect(self._open_help)
+        a_about = QAction("关于…", self); a_about.triggered.connect(self._open_about)
         menu.addAction(a_help); menu.addAction(a_about)
         menu.exec(QCursor.pos())
 
@@ -587,7 +548,7 @@ class AppShell(FluentWindow):
         super().showEvent(e)
         if not getattr(self, "_titlebar_themed", False):
             self._titlebar_themed = True
-            from drama_shot_master.ui.theme import apply_dark_titlebar
+            apply_window_icon(self)
             apply_dark_titlebar(self)
 
     def closeEvent(self, e):

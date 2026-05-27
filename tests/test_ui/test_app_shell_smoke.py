@@ -116,3 +116,28 @@ def test_switching_to_batch_page_syncs_selection_and_count():
     assert "已选 0" in w.command_bar.count_text()
     # selected_order 暴露在页与网格上
     assert w.pages["split"].selected_order() == []
+
+
+def test_appshell_is_qmainwindow_and_fluent_free():
+    import inspect
+    from PySide6.QtWidgets import QMainWindow
+    import drama_shot_master.ui.app_shell as m
+    assert "qfluentwidgets" not in inspect.getsource(m)
+    _app()
+    w = m.AppShell()
+    assert isinstance(w, QMainWindow)
+
+
+def test_appshell_has_flow_sidebar():
+    _app()
+    from drama_shot_master.ui.widgets.flow_sidebar import FlowSidebar
+    w = AppShell()
+    assert isinstance(w.sidebar, FlowSidebar)
+
+
+def test_sidebar_click_switches_page():
+    _app()
+    w = AppShell()
+    w.sidebar.currentChanged.emit("video_gen")
+    assert w.stack.currentWidget() is w.pages["video_gen"]
+    assert w.breadcrumb_text() == "③ 视频出片 › 视频生成"
