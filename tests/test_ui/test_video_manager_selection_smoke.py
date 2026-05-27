@@ -24,7 +24,8 @@ def test_selecting_row_emits_task_selected():
     seen = []
     panel.taskSelected.connect(seen.append)
     panel.table.setCurrentCell(0, 0)
-    assert seen and seen[-1].id == store.all()[0].id
+    assert len(seen) == 1
+    assert seen[-1].id == store.all()[0].id
 
 
 def test_open_close_cb_optional_none_safe():

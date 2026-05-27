@@ -142,7 +142,7 @@ class VideoTaskManagerPanel(BasePanel):
         if t is not None:
             self.taskSelected.emit(t)
 
-    def task_for_row(self):
+    def selected_task(self):
         """当前选中行对应的 task（无选中返回 None）。"""
         tid = self._selected_task_id()
         return self.store.get(tid) if tid else None
