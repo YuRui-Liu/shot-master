@@ -141,6 +141,12 @@ class AppShell(FluentWindow):
             if isinstance(page, BatchToolPage):
                 page.populate(self.state.images)
 
+    def _refresh_batch_validity(self):
+        from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
+        for page in self.pages.values():
+            if isinstance(page, BatchToolPage):
+                page.refresh_validity()
+
     # ------------------------------------------------------------------ #
     # 导航 / 面包屑 / 状态面
     # ------------------------------------------------------------------ #
@@ -204,6 +210,7 @@ class AppShell(FluentWindow):
             return
         self.state.output_dir = Path(d)
         remember_dirs(self.state, self.cfg)
+        self._refresh_batch_validity()
 
     def _open_runninghub_settings(self):
         from drama_shot_master.ui.dialogs.runninghub_settings_dialog import RunningHubSettingsDialog

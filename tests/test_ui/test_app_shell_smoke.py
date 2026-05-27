@@ -2,17 +2,11 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 from drama_shot_master.ui.app_shell import AppShell
-from drama_shot_master.ui.nav_config import FUNCS, PHASES, LABELS
+from drama_shot_master.ui.nav_config import FUNCS, LABELS
 
 
 def _app():
     return QApplication.instance() or QApplication([])
-
-
-def _expected_breadcrumb(key):
-    """Compute the breadcrumb the same way AppShell does, for the given key."""
-    phase = next(t for t, keys in PHASES if key in keys)
-    return f"{phase} › {LABELS[key]}"
 
 
 def test_shell_constructs_and_registers_seven_pages():
@@ -23,16 +17,13 @@ def test_shell_constructs_and_registers_seven_pages():
     assert len(w.pages) == len(FUNCS)
 
 
-def test_shell_breadcrumb_reflects_initial_function():
-    # After Task 5, _restore_state switches to cfg.last_active_function (falling
-    # back to FUNCS[0] / "split" when unset or unknown). The breadcrumb therefore
-    # reflects whichever page was restored — compute the expected value the same
-    # way AppShell does instead of hard-coding "拆图".
+def test_breadcrumb_for_known_pages():
     _app()
     w = AppShell()
-    target = w.cfg.last_active_function
-    key = target if target in w.pages else FUNCS[0][1]
-    assert w.breadcrumb_text() == _expected_breadcrumb(key)
+    w.switchTo(w.pages["split"])
+    assert w.breadcrumb_text() == "① 素材准备 › 拆图"
+    w.switchTo(w.pages["dubbing"])
+    assert w.breadcrumb_text() == "③ 视频出片 › 配音"
 
 
 def test_batch_pages_are_batch_tool_page():
