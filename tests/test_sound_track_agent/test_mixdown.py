@@ -52,3 +52,60 @@ def test_assemble_and_mix_end_to_end(tmp_path):
     out = assemble_and_mix(sess, v, tmp_path / "work", separate=fake_separate)
     assert Path(out).exists()
     assert Path(out).stat().st_size > 0
+
+
+from sound_track_agent.session import AccentPoint
+
+
+def _two_seg_sess(v, b0, b1, *, enabled, accents):
+    s = ScoringSession(
+        source_mp4=str(v), source_hash="h", global_style="x", frame_rate=24.0,
+        segments=[
+            SegmentScore(index=0, t_start=0.0, t_end=1.0,
+                         candidates=[BGMCandidate(path=str(b0), seed=1, prompt="t")],
+                         chosen_candidate=0),
+            SegmentScore(index=1, t_start=1.0, t_end=2.0,
+                         candidates=[BGMCandidate(path=str(b1), seed=1, prompt="t")],
+                         chosen_candidate=0)])
+    s.accent_mix_enabled = enabled
+    s.accent_points = list(accents)
+    return s
+
+
+def _fake_separate(audio_path, out_dir, **kw):
+    return Path(audio_path), Path(audio_path)
+
+
+def test_accent_path_calls_pump_when_enabled(tmp_path, monkeypatch):
+    import sound_track_agent.mixdown as m
+    v = tmp_path / "clip.mp4"; _make_video_with_audio(v, dur=2.0)
+    b0 = tmp_path / "b0.wav"; _tone(b0, 440, dur=1.0)
+    b1 = tmp_path / "b1.wav"; _tone(b1, 550, dur=1.0)
+    seen = {}
+
+    def fake_pump(inp, outp, accents, **kw):
+        seen["n"] = len(accents)
+        import shutil; shutil.copy(str(inp), str(outp))
+        return Path(outp)
+
+    monkeypatch.setattr(m, "apply_pump", fake_pump)
+    sess = _two_seg_sess(v, b0, b1, enabled=True,
+                         accents=[AccentPoint(t=0.5, intensity=0.9)])
+    out = m.assemble_and_mix(sess, v, tmp_path / "w", separate=_fake_separate)
+    assert seen.get("n") == 1 and Path(out).exists()
+
+
+def test_disabled_bypasses_pump(tmp_path, monkeypatch):
+    import sound_track_agent.mixdown as m
+    v = tmp_path / "clip.mp4"; _make_video_with_audio(v, dur=2.0)
+    b0 = tmp_path / "b0.wav"; _tone(b0, 440, dur=1.0)
+    b1 = tmp_path / "b1.wav"; _tone(b1, 550, dur=1.0)
+
+    def boom(*a, **k):
+        raise AssertionError("关闭时不应调用 apply_pump")
+
+    monkeypatch.setattr(m, "apply_pump", boom)
+    sess = _two_seg_sess(v, b0, b1, enabled=False,
+                         accents=[AccentPoint(t=0.5, intensity=0.9)])
+    out = m.assemble_and_mix(sess, v, tmp_path / "w2", separate=_fake_separate)
+    assert Path(out).exists()

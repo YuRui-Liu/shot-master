@@ -8,6 +8,7 @@ from sound_track_agent.session import ScoringSession, SegmentScore
 from sound_track_agent.bgm_assembler import assemble_bgm
 from sound_track_agent.audio_mixer import (
     separate_vocals, duck_and_mix, extract_audio, replace_video_audio)
+from sound_track_agent.accent_mixer import apply_pump, clip_targets
 
 
 def extract_segment_frame(video_path, seg: SegmentScore, out_png, *,
@@ -34,14 +35,31 @@ def _chosen_bgm(seg: SegmentScore) -> str:
 def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
                      crossfade: float = 0.5,
                      separate=separate_vocals,
-                     target_lufs: float = -14.0) -> str:
-    """段 BGM 拼接 → 分离对白 → ducking → 写回视频。返回成片路径。"""
+                     target_lufs: float = -14.0,
+                     big_threshold: float = 0.7,
+                     snap_window: float = 0.6) -> str:
+    """段 BGM 拼接 →(可选)段切对齐+泵感 → 分离对白 → ducking → 写回视频。
+
+    当 sess.accent_mix_enabled 且有卡点时启用卡点路径;否则等同原逻辑(零回归)。
+    """
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
 
     seg_bgms = [_chosen_bgm(s) for s in sess.segments]
-    full_bgm = assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
-                            crossfade=crossfade)
+    accents = list(getattr(sess, "accent_points", []) or [])
+    use_accent = bool(getattr(sess, "accent_mix_enabled", True)) and bool(accents)
+
+    if use_accent:
+        targets = clip_targets([s.duration for s in sess.segments], accents,
+                               big_threshold=big_threshold, window=snap_window)
+        full_bgm = assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
+                                crossfade=crossfade, clip_durations=targets)
+        full_bgm = apply_pump(full_bgm, work_dir / "full_bgm_pumped.wav",
+                              accents,
+                              strength=float(getattr(sess, "pump_strength", 0.6)))
+    else:
+        full_bgm = assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
+                                crossfade=crossfade)
 
     src_audio = extract_audio(video_path, work_dir / "src_audio.wav")
     vocals, _rest = separate(src_audio, work_dir / "sep")
