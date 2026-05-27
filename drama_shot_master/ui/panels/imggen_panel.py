@@ -5,12 +5,45 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import (
+    QPixmap, QSyntaxHighlighter, QTextCharFormat, QColor, QFont,
+)
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QPlainTextEdit,
     QComboBox, QSpinBox, QScrollArea, QFrame, QInputDialog, QFileDialog,
-    QMessageBox, QGridLayout,
+    QMessageBox, QGridLayout, QSizePolicy,
 )
+
+
+class _AtRefHighlighter(QSyntaxHighlighter):
+    """把 @标签 标蓝——仅当标签是当前已添加的参考图标签时才高亮。"""
+
+    def __init__(self, document):
+        super().__init__(document)
+        self._labels: list[str] = []
+        self._fmt = QTextCharFormat()
+        self._fmt.setForeground(QColor("#3aa0ff"))
+        self._fmt.setFontWeight(QFont.Bold)
+
+    def set_labels(self, labels):
+        # 长标签优先，避免 @图1 命中 @图10 前缀
+        self._labels = sorted({s for s in labels if s}, key=len, reverse=True)
+        self.rehighlight()
+
+    def highlightBlock(self, text: str):
+        for lab in self._labels:
+            token = "@" + lab
+            n = len(token)
+            start = 0
+            while True:
+                i = text.find(token, start)
+                if i < 0:
+                    break
+                end = i + n
+                nxt = text[end] if end < len(text) else ""
+                if not nxt.isalnum():        # 边界：后接字母/数字则不算(防前缀误匹配)
+                    self.setFormat(i, n, self._fmt)
+                start = end
 
 from drama_shot_master.config import Config
 from drama_shot_master.core.imggen_sizes import QUALITIES, RATIOS, resolve_size
@@ -71,6 +104,7 @@ class ImgGenPanel(QWidget):
         root.addWidget(qwrap)
 
         self.prompt = QPlainTextEdit(); self.prompt.setPlaceholderText("提示词…")
+        self._highlighter = _AtRefHighlighter(self.prompt.document())
         self.prompt.textChanged.connect(self._update_mode)
         self.prompt.textChanged.connect(lambda: self.dirty.emit())
         root.addWidget(self.prompt, 1)
@@ -79,6 +113,9 @@ class ImgGenPanel(QWidget):
         self.btn_gen = QPushButton("生成"); self.btn_gen.setObjectName("AccentButton")
         self.btn_gen.clicked.connect(self._generate)
         self.status_lbl = QLabel(""); self.status_lbl.setStyleSheet("color:#888")
+        # 状态文字不撑窗：忽略内容宽度、允许换行，长报错只进弹窗
+        self.status_lbl.setWordWrap(True)
+        self.status_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         bar.addWidget(self.btn_gen); bar.addWidget(self.status_lbl, 1)
         root.addLayout(bar)
 
@@ -105,6 +142,8 @@ class ImgGenPanel(QWidget):
                 w.deleteLater()
         for i, r in enumerate(self._refs):
             self.ref_bar.insertWidget(1 + i, self._ref_card(i, r))
+        if hasattr(self, "_highlighter"):
+            self._highlighter.set_labels([r["label"] for r in self._refs])
 
     def _ref_card(self, idx: int, r: dict) -> QWidget:
         card = QFrame(); card.setFrameShape(QFrame.StyledPanel)
@@ -203,7 +242,7 @@ class ImgGenPanel(QWidget):
 
     def _on_fail(self, err: str):
         self.btn_gen.setEnabled(True)
-        self.status_lbl.setText(f"失败：{err}")
+        self.status_lbl.setText("生成失败（详见弹窗）")   # 短状态，避免长报错撑窗
         self.statusChanged.emit("FAILED")
         QMessageBox.critical(self, "生成失败", err)
 
