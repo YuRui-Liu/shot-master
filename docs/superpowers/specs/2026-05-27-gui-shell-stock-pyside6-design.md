@@ -35,8 +35,10 @@ QWidget(central) / QVBoxLayout(0 margin)
 
 - `switchTo(page)`：`self.stack.setCurrentWidget(page)` + `self.sidebar.set_active(key)`。
 - `_current_key()` / `breadcrumb_text()`：基于 `self.stack.currentWidget()`，逻辑不变。
-- 标题栏：原生（QMainWindow）→ 应用图标自动显示；`showEvent` 中 `apply_window_icon(self)` 显式设窗口图标 +
-  `apply_dark_titlebar(self)`（Win11 深色，已有）。
+- 标题栏：原生（QMainWindow）。**标题栏左侧必须同时显示 应用图标 + 软件名**，即
+  `[图标] Drama-Shot-Master`（任务栏图标已正常；本条专指标题栏内、软件名紧邻左侧的图标）。
+  通过 `showEvent` 中 `apply_window_icon(self)` 显式设窗口图标实现（仅设 QApplication 图标不足以保证标题栏内图标）；
+  叠加 `apply_dark_titlebar(self)`（Win11 深色，已有）。
 - 菜单：底部「设置」「帮助/关于」改用原生 `QMenu`（替换 `RoundMenu`）。
 - 所有 `_open_*`/`_on_*`/`_persist_*`/`closeEvent`/license 方法**保持不变**。
 
@@ -140,7 +142,8 @@ def apply_window_icon(widget, name="app_icon"):
   面包屑确定值、`switchTo` 生效、`_refresh_counts`、`statusMessage` 不丢、页切换同步选择）。
 - 删 `test_fluent_theme_smoke.py`；更新 `test_main_window_soundtrack_smoke.py`。
 - 验收：`grep -rl qfluentwidgets drama_shot_master/ tests/` 为空；`python -m pytest tests/` 全绿；
-  `python -m drama_shot_master.main` 在 Windows 真机肉眼通过（侧栏/命令栏/折叠/标题栏图标/深色/蓝）。
+  `python -m drama_shot_master.main` 在 Windows 真机肉眼通过（侧栏/命令栏/折叠/深色/蓝，
+  且标题栏左侧显示 `[图标] Drama-Shot-Master`）。
 
 ## 9. 非目标（YAGNI）
 
