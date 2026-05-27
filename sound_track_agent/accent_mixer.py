@@ -82,22 +82,28 @@ def snapped_boundaries(seg_durations: list, accents: list,
 
 def clip_targets(seg_durations: list, accents: list,
                  *, big_threshold: float, window: float) -> list:
-    """把吸附后的接缝换算成每段 clip 的目标时长(秒)。trim-only:接缝只允许
-    比自然位置更早(裁短),更晚则忽略(保留自然 → None)。末段恒为 None(整段不裁)。
-    返回 len = 段数 的列表,元素为 float(裁到该时长) 或 None(不裁)。"""
+    """把吸附后的接缝换算成每段 clip 的目标时长(秒)。trim-only(逐 clip):每段只能
+    裁短到不超过自身自然时长,接缝只允许更早。无需裁则该段为 None;末段恒为 None。
+    返回 len = 段数 的列表。"""
     n = len(seg_durations)
     if n <= 1:
         return [None] * n
     snapped = snapped_boundaries(seg_durations, accents,
                                  big_threshold=big_threshold, window=window)
-    targets, prev, cum = [], 0.0, 0.0
+    targets, prev, natural_cum = [], 0.0, 0.0
     for i in range(n):
         if i == n - 1:
             targets.append(None)
             continue
-        natural = cum + float(seg_durations[i])
-        b = min(snapped[i], natural)              # trim-only:不许更晚
-        b = max(b, prev + 0.05)                   # 防止 ≤0 / 越过前一接缝
-        targets.append(None if abs(b - natural) < 1e-6 else round(b - prev, 6))
-        prev, cum = b, natural
+        natural_cum += float(seg_durations[i])
+        seam = min(snapped[i], natural_cum)        # 接缝不许晚于自然位置
+        dur = seam - prev
+        natural_dur = float(seg_durations[i])
+        if dur >= natural_dur - 1e-6:              # 需要整段(或更多)→ 不裁
+            targets.append(None)
+            prev += natural_dur                    # 该 clip 播满,接缝按自然推进
+        else:
+            dur = max(dur, 0.05)                   # 防零/负长
+            targets.append(round(dur, 6))
+            prev += dur                            # 接缝按裁后推进
     return targets

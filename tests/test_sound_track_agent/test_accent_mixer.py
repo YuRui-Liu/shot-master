@@ -96,3 +96,13 @@ def test_clip_targets_ignores_below_threshold():
 def test_clip_targets_single_segment_is_noop():
     assert clip_targets([2.0], [AccentPoint(t=1.0, intensity=1.0)],
                         big_threshold=0.7, window=0.6) == [None]
+
+
+def test_clip_targets_consecutive_snaps_no_extension():
+    segs = [2.0, 2.0, 2.0]                         # 自然接缝 [2.0, 4.0]
+    accents = [AccentPoint(t=1.5, intensity=0.9),  # 接缝0 2.0→1.5
+               AccentPoint(t=3.8, intensity=0.9)]  # 接缝1 4.0→3.8
+    t = clip_targets(segs, accents, big_threshold=0.7, window=1.0)
+    assert t[0] == 1.5                              # 段0 裁到 1.5
+    assert t[1] is None                             # 段1 不能拉长(3.8-1.5=2.3>2.0)→播满
+    assert t[2] is None
