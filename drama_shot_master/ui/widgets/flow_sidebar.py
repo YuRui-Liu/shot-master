@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal, QPropertyAnimation
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QToolButton, QButtonGroup, QFrame, QSizePolicy,
@@ -100,11 +100,7 @@ class FlowSidebar(QWidget):
         for lbl in self._phase_labels:
             lbl.setVisible(not collapsed)
         target = COLLAPSED_W if collapsed else EXPANDED_W
-        self._anim = QPropertyAnimation(self, b"maximumWidth", self)
-        self._anim.setDuration(140)
-        self._anim.setStartValue(self.maximumWidth())
-        self._anim.setEndValue(target)
-        self._anim.start()
+        # 即时收放（平滑动画留待后续精修阶段）；同步定宽保证布局与测试确定。
         self.setMinimumWidth(target)
         self.setMaximumWidth(target)
 
