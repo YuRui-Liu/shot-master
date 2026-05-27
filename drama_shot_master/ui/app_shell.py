@@ -49,14 +49,12 @@ class AppShell(QMainWindow):
         from drama_shot_master.ui.panels.split_panel import SplitPanel
         from drama_shot_master.ui.panels.combine_panel import CombinePanel
         from drama_shot_master.ui.panels.trim_panel import TrimPanel
-        from drama_shot_master.ui.panels.video_task_manager_panel import VideoTaskManagerPanel
 
         self.cfg = load_config()
         self.state = AppState()
         self.video_store = VideoTaskStore.from_list(self.cfg.video_tasks)
         self.dub_store = DubTaskStore.from_list(self.cfg.dub_tasks)
         self.imggen_store = ImgGenTaskStore.from_list(self.cfg.imggen_tasks)
-        self._open_task_windows = {}
         self._open_dub_windows = {}
         self._open_imggen_windows = {}
 
@@ -65,9 +63,7 @@ class AppShell(QMainWindow):
             "combine": lambda: BatchToolPage(CombinePanel(self.state, self.cfg), self.state, self.cfg),
             "trim":    lambda: BatchToolPage(TrimPanel(self.state, self.cfg), self.state, self.cfg),
             "imggen":  self._make_imggen_panel,
-            "video_gen": lambda: VideoTaskManagerPanel(
-                self.state, self.cfg, self.video_store,
-                self._open_task_window, self._close_task_window, self._persist_tasks),
+            "video_gen": self._make_video_page,
             "soundtrack": self._try_make_soundtrack_panel,
             "dubbing": self._make_dub_panel,
         }
@@ -103,12 +99,13 @@ class AppShell(QMainWindow):
     def _wire(self):
         from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
         for page in self.pages.values():
-            panel = page.panel if isinstance(page, BatchToolPage) else page
-            if hasattr(panel, "statusMessage"):
-                panel.statusMessage.connect(self._set_status)
+            # BatchToolPage→page.panel；TaskWorkspacePage→page.manager；manager 页→page 本身
+            panel = getattr(page, "panel", None)
+            src = panel if panel is not None else getattr(page, "manager", page)
+            if hasattr(src, "statusMessage"):
+                src.statusMessage.connect(self._set_status)
             if isinstance(page, BatchToolPage):
                 page.thumb.selectionChanged.connect(self._refresh_counts)
-        self._video_manager().taskRenamed.connect(self._on_task_renamed)
         self._dub_manager().taskRenamed.connect(self._on_dub_renamed)
         self._imggen_manager().taskRenamed.connect(self._on_imggen_renamed)
         self.sidebar.currentChanged.connect(self._on_nav_changed)
@@ -303,33 +300,47 @@ class AppShell(QMainWindow):
     # 视频任务窗回调（移植自 MainWindow）
     # ------------------------------------------------------------------ #
 
+    def _make_video_page(self):
+        from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
+        from drama_shot_master.ui.panels.video_task_manager_panel import VideoTaskManagerPanel
+        from drama_shot_master.ui.panels.video_panel import VideoPanel
+        from drama_shot_master.core.video_timeline_model import TimelineModel
+
+        manager = VideoTaskManagerPanel(
+            self.state, self.cfg, self.video_store, None, None, self._persist_tasks)
+
+        def editor_factory(task):
+            return VideoPanel(self.state, self.cfg,
+                              TimelineModel.from_dict(task.timeline))
+
+        def wire_editor(editor, task):
+            tid = task.id
+            editor.submitStarted.connect(lambda: self._on_task_status(tid, "生成中"))
+            editor.submitDone.connect(
+                lambda mp4: (self._on_task_status(tid, "完成"),
+                             self._on_task_result(tid, mp4)))
+            editor.submitFailed.connect(lambda e: self._on_task_status(tid, "失败"))
+
+        page = TaskWorkspacePage(
+            manager=manager,
+            editor_factory=editor_factory,
+            wire_editor=wire_editor,
+            payload_of=lambda ed: ed.model.to_dict(),
+            on_persist=self._on_task_dirty,
+            title_for=lambda task: f"视频任务 · {task.name}",
+        )
+        manager.taskRenamed.connect(self._on_task_renamed)
+        manager.taskDeleted.connect(page.discard_editor)
+        return page
+
     def _video_manager(self):
-        return self.pages["video_gen"]
+        return self.pages["video_gen"].manager
 
     def _persist_tasks(self):
         try:
             self.cfg.update_settings(video_tasks=self.video_store.to_list())
         except Exception:
             pass
-
-    def _open_task_window(self, task):
-        from drama_shot_master.ui.windows.video_task_window import VideoTaskWindow
-        existing = self._open_task_windows.get(task.id)
-        if existing is not None:
-            existing.raise_(); existing.activateWindow()
-            return
-        win = VideoTaskWindow(task, self.state, self.cfg)
-        win.timelineDirty.connect(self._on_task_dirty)
-        win.statusChanged.connect(self._on_task_status)
-        win.resultReady.connect(self._on_task_result)
-        win.closed.connect(self._on_task_window_closed)
-        self._open_task_windows[task.id] = win
-        win.show()
-
-    def _close_task_window(self, task_id: str):
-        win = self._open_task_windows.get(task_id)
-        if win is not None:
-            win.close()
 
     def _on_task_dirty(self, task_id: str, timeline: dict):
         self.video_store.update(task_id, timeline=timeline)
@@ -343,15 +354,11 @@ class AppShell(QMainWindow):
         self._persist_tasks()
         self._video_manager().refresh()
 
-    def _on_task_window_closed(self, task_id: str):
-        self._open_task_windows.pop(task_id, None)
-        self._video_manager().clear_task_status(task_id)
-        self._video_manager().refresh()
-
     def _on_task_renamed(self, task_id: str, name: str):
-        win = self._open_task_windows.get(task_id)
+        page = self.pages.get("video_gen")
+        win = getattr(page, "_detached", {}).get(task_id) if page else None
         if win is not None:
-            win.set_title_name(name)
+            win.set_title(f"视频任务 · {name}")
 
     # ------------------------------------------------------------------ #
     # 配乐 tab helpers（移植自 MainWindow）
@@ -550,12 +557,10 @@ class AppShell(QMainWindow):
             apply_dark_titlebar(self)
 
     def closeEvent(self, e):
-        # 让每个打开的任务窗口存一次 timeline，再整体落盘
-        for win in list(self._open_task_windows.values()):
-            try:
-                self.video_store.update(win.task_id, timeline=win.model.to_dict())
-            except Exception:
-                pass
+        # 让视频任务页落盘所有缓存编辑器（含已浮出窗），再整体持久化
+        vp = self.pages.get("video_gen")
+        if vp is not None and hasattr(vp, "flush_all"):
+            vp.flush_all()
         self._persist_tasks()
         # 让每个打开的配音任务窗存一次 payload，再整体落盘
         for win in list(self._open_dub_windows.values()):

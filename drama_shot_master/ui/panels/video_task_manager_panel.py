@@ -31,6 +31,7 @@ class VideoTaskManagerPanel(BasePanel):
 
     taskRenamed = Signal(str, str)   # (task_id, new_name) → main_window 同步已开窗标题
     taskSelected = Signal(object)    # 选中的 VideoTask（主-详用）
+    taskDeleted = Signal(str)        # 删除任务后通知页面清理其缓存编辑器
 
     def __init__(self, state: AppState, cfg: Config,
                  store: VideoTaskStore,
@@ -60,10 +61,9 @@ class VideoTaskManagerPanel(BasePanel):
         root = QVBoxLayout(self)
         bar = QHBoxLayout()
         self.btn_new = QPushButton("+ 新建任务")
-        self.btn_open = QPushButton("打开")
         self.btn_dup = QPushButton("复制")
         self.btn_del = QPushButton("删除")
-        for b in (self.btn_new, self.btn_open, self.btn_dup, self.btn_del):
+        for b in (self.btn_new, self.btn_dup, self.btn_del):
             bar.addWidget(b)
         bar.addStretch(1)
         root.addLayout(bar)
@@ -75,11 +75,9 @@ class VideoTaskManagerPanel(BasePanel):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.itemChanged.connect(self._on_item_changed)
-        self.table.itemDoubleClicked.connect(self._on_double_clicked)
         root.addWidget(self.table, 1)
 
         self.btn_new.clicked.connect(self._on_new)
-        self.btn_open.clicked.connect(self._on_open)
         self.btn_dup.clicked.connect(self._on_dup)
         self.btn_del.clicked.connect(self._on_del)
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
@@ -153,25 +151,14 @@ class VideoTaskManagerPanel(BasePanel):
         t = self.store.add(f"任务 {n}", TimelineModel().to_dict())
         self._persist_cb()
         self.refresh()
-        if self._open_window_cb:
-            self._open_window_cb(t)
+        self._select_task(t.id)
 
-    def _on_open(self):
-        tid = self._selected_task_id()
-        if not tid:
-            QMessageBox.information(self, "打开", "请先选一个任务")
-            return
-        t = self.store.get(tid)
-        if t and self._open_window_cb:
-            self._open_window_cb(t)
-
-    def _on_double_clicked(self, item):
-        if item.column() == 0:
-            return
-        tid = self._selected_task_id()
-        t = self.store.get(tid) if tid else None
-        if t and self._open_window_cb:
-            self._open_window_cb(t)
+    def _select_task(self, task_id: str):
+        for r in range(self.table.rowCount()):
+            it = self.table.item(r, 0)
+            if it and it.data(Qt.UserRole) == task_id:
+                self.table.setCurrentCell(r, 0)
+                break
 
     def _on_dup(self):
         tid = self._selected_task_id()
@@ -189,12 +176,11 @@ class VideoTaskManagerPanel(BasePanel):
                 self, "删除任务", "确定删除该任务？不可恢复。",
                 QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
             return
-        if self._close_window_cb:
-            self._close_window_cb(tid)
         self.store.remove(tid)
         self._live_status.pop(tid, None)
         self._persist_cb()
         self.refresh()
+        self.taskDeleted.emit(tid)
 
     def _on_item_changed(self, item):
         if item.column() != 0:

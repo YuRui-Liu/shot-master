@@ -36,9 +36,11 @@ def test_batch_pages_are_batch_tool_page():
 
 def test_task_pages_are_manager_panels():
     _app()
-    from drama_shot_master.ui.panels.video_task_manager_panel import VideoTaskManagerPanel
+    from drama_shot_master.ui.panels.dub_task_manager_panel import DubTaskManagerPanel
+    from drama_shot_master.ui.panels.imggen_task_manager_panel import ImgGenTaskManagerPanel
     w = AppShell()
-    assert isinstance(w.pages["video_gen"], VideoTaskManagerPanel)
+    assert isinstance(w.pages["dubbing"], DubTaskManagerPanel)
+    assert isinstance(w.pages["imggen"], ImgGenTaskManagerPanel)
 
 
 def test_open_dir_method_exists():
@@ -141,3 +143,32 @@ def test_sidebar_click_switches_page():
     w.sidebar.currentChanged.emit("video_gen")
     assert w.stack.currentWidget() is w.pages["video_gen"]
     assert w.breadcrumb_text() == "③ 视频出片 › 视频生成"
+
+
+def test_video_page_is_task_workspace():
+    _app()
+    from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
+    from drama_shot_master.ui.panels.video_task_manager_panel import VideoTaskManagerPanel
+    w = AppShell()
+    page = w.pages["video_gen"]
+    assert isinstance(page, TaskWorkspacePage)
+    assert isinstance(page.manager, VideoTaskManagerPanel)
+
+
+def test_video_manager_accessor_returns_page_manager():
+    _app()
+    w = AppShell()
+    assert w._video_manager() is w.pages["video_gen"].manager
+
+
+def test_video_select_creates_editor_inline():
+    _app()
+    w = AppShell()
+    page = w.pages["video_gen"]
+    mgr = page.manager
+    if not mgr.store.all():
+        mgr.store.add("T1", {}); mgr.refresh()
+    t = mgr.store.all()[0]
+    mgr.taskSelected.emit(t)
+    from drama_shot_master.ui.panels.video_panel import VideoPanel
+    assert isinstance(page._editors[t.id], VideoPanel)
