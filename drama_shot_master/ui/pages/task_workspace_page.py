@@ -26,7 +26,7 @@ class _NamedTask:
 
 class TaskWorkspacePage(QWidget):
     def __init__(self, manager, editor_factory, wire_editor, payload_of,
-                 on_persist, title_for, parent=None):
+                 on_persist, title_for, detached_size=(1100, 820), parent=None):
         super().__init__(parent)
         self.manager = manager
         self._editor_factory = editor_factory
@@ -34,6 +34,7 @@ class TaskWorkspacePage(QWidget):
         self._payload_of = payload_of
         self._on_persist = on_persist
         self._title_for = title_for
+        self._detached_size = detached_size
 
         self._editors: dict[str, QWidget] = {}
         self._detached: dict[str, DetachedEditorWindow] = {}
@@ -117,7 +118,7 @@ class TaskWorkspacePage(QWidget):
             return
         self._persist_current()
         ed.setParent(None)
-        win = DetachedEditorWindow(ed, self._title_for(t), t.id)
+        win = DetachedEditorWindow(ed, self._title_for(t), t.id, size=self._detached_size)
         win.closed.connect(self._dock_back)
         self._detached[t.id] = win
         self.stack.setCurrentWidget(self._placeholder)

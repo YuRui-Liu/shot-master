@@ -135,3 +135,14 @@ def test_pop_out_editor_is_shown_not_blank():
     win = page._detached["a"]
     assert win.centralWidget() is ed
     assert not ed.isHidden()        # 非空白
+
+
+def test_detached_size_threaded_to_window():
+    _app()
+    page, mgr, made = _page()
+    page._detached_size = (720, 780)
+    a = _Task("a", "A")
+    mgr.taskSelected.emit(a)
+    page.pop_out()
+    win = page._detached["a"]
+    assert (win.width(), win.height()) == (720, 780)

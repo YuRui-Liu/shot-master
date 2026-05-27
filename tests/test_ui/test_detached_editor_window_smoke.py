@@ -48,3 +48,9 @@ def test_central_widget_shown_after_reparent_from_stack():
     QApplication.instance().processEvents()
     assert win.centralWidget() is ed
     assert not ed.isHidden()        # 关键：内容可见，非空白
+
+
+def test_size_param_applied():
+    _app()
+    win = DetachedEditorWindow(QWidget(), "T", "t1", size=(720, 780))
+    assert win.width() == 720 and win.height() == 780

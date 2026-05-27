@@ -14,11 +14,12 @@ from drama_shot_master.ui.theme import apply_window_icon, apply_dark_titlebar
 class DetachedEditorWindow(QMainWindow):
     closed = Signal(str)              # task_id
 
-    def __init__(self, editor, title: str, task_id: str, parent=None):
+    def __init__(self, editor, title: str, task_id: str, parent=None,
+                 size: tuple[int, int] = (1100, 820)):
         super().__init__(parent)
         self._task_id = task_id
         self.setWindowTitle(title)
-        self.resize(1100, 820)
+        self.resize(*size)
         self.setCentralWidget(editor)
         # 从 QStackedWidget 浮出的编辑器在 setParent 时被 Qt 标记为隐藏；
         # setCentralWidget/窗 show() 都不会自动取消，故必须显式 show 否则窗内空白。
