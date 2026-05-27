@@ -13,7 +13,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QMenu,
 )
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QCursor
 from drama_shot_master.ui.widgets.flow_sidebar import FlowSidebar
 from drama_shot_master.ui.widgets.project_command_bar import ProjectCommandBar
 from drama_shot_master.ui.theme import apply_window_icon, apply_dark_titlebar
@@ -73,7 +73,7 @@ class AppShell(QMainWindow):
         }
         for _label, key in FUNCS:
             page = builders[key]()
-            page.setObjectName(f"page_{key}")   # FluentWindow 要求唯一 objectName
+            page.setObjectName(f"page_{key}")   # 稳定 objectName，便于 QSS 选择与 findChild
             self.pages[key] = page
 
     def _build_ui(self):
@@ -186,7 +186,6 @@ class AppShell(QMainWindow):
         self._refresh_counts()
 
     def _open_settings_menu(self):
-        from PySide6.QtGui import QCursor
         menu = QMenu(self)
         for text, fn in [
             ("RunningHub 配置…", self._open_runninghub_settings),
@@ -261,7 +260,6 @@ class AppShell(QMainWindow):
         AboutDialog(self.cfg, parent=self).exec()
 
     def _open_help_menu(self):
-        from PySide6.QtGui import QCursor
         menu = QMenu(self)
         a_help = QAction("帮助文档", self); a_help.triggered.connect(self._open_help)
         a_about = QAction("关于…", self); a_about.triggered.connect(self._open_about)
