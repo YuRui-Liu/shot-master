@@ -17,3 +17,6 @@ app/.cache/
 # 授权管理端私钥与台账——绝不提交
 license_admin/private_key.pem
 license_admin/issued.csv
+
+# 图片生成默认输出目录(生成产物，勿提交)
+/imggen/
