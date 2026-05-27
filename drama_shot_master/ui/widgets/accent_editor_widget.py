@@ -113,11 +113,18 @@ class AccentEditorWidget(QWidget):
 
     accentsChanged = Signal()
 
-    def __init__(self, session, parent=None, *, big_threshold: float = 0.7):
+    def __init__(self, session, parent=None, *, big_threshold: float = 0.7,
+                 work_dir=None, crossfade: float = 0.5, snap_window: float = 0.6):
         super().__init__(parent)
         self._session = session
         self._worker = None
         self._big_threshold = big_threshold
+        self._work_dir = work_dir
+        self._crossfade = crossfade
+        self._snap_window = snap_window
+        self._player = None
+        self._audio = None
+        self._preview_worker = None
         self._build_ui()
         self._refresh()
 
@@ -147,6 +154,10 @@ class AccentEditorWidget(QWidget):
         self.btn_detect = QPushButton("🎬 自动检测")
         self.btn_detect.clicked.connect(self._on_auto_detect)
         top.addWidget(self.btn_detect)
+        self.btn_preview_mix = QPushButton("🎧 试听卡点效果")
+        self.btn_preview_mix.setEnabled(bool(self._work_dir))
+        self.btn_preview_mix.clicked.connect(self._on_preview_mix)
+        top.addWidget(self.btn_preview_mix)
         root.addLayout(top)
 
         self.timeline = _AccentTimeline(self._session,
@@ -225,6 +236,55 @@ class AccentEditorWidget(QWidget):
         self.btn_detect.setEnabled(True)
         self.status_label.setText("检测失败")
         QMessageBox.critical(self, "检测失败", err)
+
+    # ---------- 卡点试听预览 ----------
+    def _ensure_player(self):
+        if self._player is None:
+            from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+            self._player = QMediaPlayer(self)
+            self._audio = QAudioOutput(self)
+            self._player.setAudioOutput(self._audio)
+        return self._player
+
+    def _play_path(self, path: str):
+        from PySide6.QtCore import QUrl
+        player = self._ensure_player()
+        player.stop()
+        player.setSource(QUrl.fromLocalFile(path))
+        player.play()
+
+    def _on_preview_mix(self):
+        if self._preview_worker is not None and self._preview_worker.isRunning():
+            return
+        if not self._work_dir:
+            QMessageBox.information(self, "试听卡点", "无工作目录,无法试听"); return
+        if not self._session.segments:
+            QMessageBox.information(self, "试听卡点", "还没有段落/候选,先在①生成"); return
+        self.btn_preview_mix.setEnabled(False)
+        self.status_label.setText("正在合成卡点试听…")
+        sess = self._session
+        work = str(self._work_dir); cf = self._crossfade
+        bt = self._big_threshold; sw = self._snap_window
+
+        def task():
+            from sound_track_agent import facade
+            return facade.build_accent_preview(
+                sess, work, crossfade=cf, big_threshold=bt, snap_window=sw)
+
+        self._preview_worker = FunctionWorker(task)
+        self._preview_worker.finished_with_result.connect(self._on_preview_done)
+        self._preview_worker.failed.connect(self._on_preview_failed)
+        self._preview_worker.start()
+
+    def _on_preview_done(self, path: str):
+        self.btn_preview_mix.setEnabled(True)
+        self.status_label.setText("▶ 卡点试听播放中")
+        self._play_path(path)
+
+    def _on_preview_failed(self, err: str):
+        self.btn_preview_mix.setEnabled(True)
+        self.status_label.setText("试听失败")
+        QMessageBox.critical(self, "试听失败", err)
 
     # ---------- 卡点混音 / 泵感 ----------
     def _on_mix_toggled(self, checked: bool):

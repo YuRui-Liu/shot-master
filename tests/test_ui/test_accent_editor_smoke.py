@@ -110,3 +110,22 @@ def test_big_threshold_param_kept():
     _app()
     w = AccentEditorWidget(_sess(), big_threshold=0.4)
     assert w.timeline._big_threshold == 0.4
+
+
+def test_accent_preview_button_present_and_lazy_player():
+    _app()
+    w = AccentEditorWidget(_sess(), work_dir="/tmp/none", crossfade=0.5,
+                           snap_window=0.6, big_threshold=0.7)
+    assert hasattr(w, "btn_preview_mix")
+    assert w._player is None                 # 懒创建:构造时不碰音频后端
+
+
+def test_accent_preview_apply_plays(tmp_path, monkeypatch):
+    _app()
+    w = AccentEditorWidget(_sess(), work_dir=str(tmp_path), crossfade=0.5,
+                           snap_window=0.6, big_threshold=0.7)
+    played = {}
+    monkeypatch.setattr(w, "_play_path", lambda p: played.setdefault("p", p))
+    fake_wav = tmp_path / "preview_accent_bgm.wav"; fake_wav.write_bytes(b"x")
+    w._on_preview_done(str(fake_wav))
+    assert played.get("p") == str(fake_wav)

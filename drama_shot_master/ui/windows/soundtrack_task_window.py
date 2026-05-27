@@ -156,7 +156,10 @@ class SoundtrackTaskWindow(QMainWindow):
             if old: old.deleteLater()
         self._accent = AccentEditorWidget(
             self._session,
-            big_threshold=float(getattr(self.cfg, "accent_big_threshold", 0.7)))
+            big_threshold=float(getattr(self.cfg, "accent_big_threshold", 0.7)),
+            work_dir=str(self._work_dir()),
+            crossfade=float(getattr(self.cfg, "soundtrack_crossfade", 0.5)),
+            snap_window=float(getattr(self.cfg, "accent_snap_window", 0.6)))
         self._accent.accentsChanged.connect(self._persist_session)
         lay2.addWidget(self._accent)
 
