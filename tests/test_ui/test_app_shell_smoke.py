@@ -34,11 +34,13 @@ def test_batch_pages_are_batch_tool_page():
         assert isinstance(w.pages[key], BatchToolPage)
 
 
-def test_task_pages_are_manager_panels():
+def test_soundtrack_page_is_soundtrack_panel():
+    # video/imggen/dub 均已迁移到 TaskWorkspacePage（各有专属测试）；
+    # 配乐页保持不变，仍为 SoundtrackPanel。
     _app()
-    from drama_shot_master.ui.panels.dub_task_manager_panel import DubTaskManagerPanel
+    from drama_shot_master.ui.panels.soundtrack_panel import SoundtrackPanel
     w = AppShell()
-    assert isinstance(w.pages["dubbing"], DubTaskManagerPanel)
+    assert isinstance(w.pages["soundtrack"], SoundtrackPanel)
 
 
 def test_open_dir_method_exists():

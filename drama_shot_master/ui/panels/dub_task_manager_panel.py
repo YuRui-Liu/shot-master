@@ -39,7 +39,7 @@ class DubTaskManagerPanel(BasePanel):
     def _build_ui(self):
         root = QVBoxLayout(self)
         bar = QHBoxLayout()
-        for txt, slot in (("新建", self._new), ("打开", self._open),
+        for txt, slot in (("新建", self._new),
                           ("复制", self._dup), ("删除", self._del)):
             b = QPushButton(txt); b.clicked.connect(slot); bar.addWidget(b)
         bar.addStretch(1)
@@ -49,7 +49,6 @@ class DubTaskManagerPanel(BasePanel):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.setEditTriggers(QTableWidget.DoubleClicked)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.doubleClicked.connect(self._on_double)
         self.table.itemChanged.connect(self._on_item_changed)
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
         root.addWidget(self.table, 1)
@@ -91,11 +90,6 @@ class DubTaskManagerPanel(BasePanel):
                 self.table.setItem(r, c, val)
         self._loading = False
 
-    def _on_double(self, index):
-        # 双击名称栏(0)进入内联改名；双击其他栏才打开任务
-        if index.column() != 0:
-            self._open()
-
     def _on_item_changed(self, item):
         if self._loading or item.column() != 0:
             return
@@ -118,12 +112,14 @@ class DubTaskManagerPanel(BasePanel):
         if not ok or not name.strip():
             return
         t = self.store.add(name.strip(), mode="clone", payload={"mode_kind": "clone"})
-        self._persist(); self.refresh(); self._open_cb(t)
+        self._persist(); self.refresh(); self._select_task(t.id)
 
-    def _open(self):
-        tid = self._selected_id()
-        if tid:
-            self._open_cb(self.store.get(tid))
+    def _select_task(self, task_id):
+        for r in range(self.table.rowCount()):
+            it = self.table.item(r, 0)
+            if it and it.data(Qt.UserRole) == task_id:
+                self.table.setCurrentCell(r, 0)
+                break
 
     def _dup(self):
         tid = self._selected_id()
@@ -135,5 +131,5 @@ class DubTaskManagerPanel(BasePanel):
         if not tid:
             return
         if QMessageBox.question(self, "删除", "确定删除该任务？") == QMessageBox.Yes:
-            self._close_cb(tid); self.store.remove(tid); self._persist(); self.refresh()
+            self.store.remove(tid); self._persist(); self.refresh()
             self.taskDeleted.emit(tid)

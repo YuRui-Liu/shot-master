@@ -55,7 +55,6 @@ class AppShell(QMainWindow):
         self.video_store = VideoTaskStore.from_list(self.cfg.video_tasks)
         self.dub_store = DubTaskStore.from_list(self.cfg.dub_tasks)
         self.imggen_store = ImgGenTaskStore.from_list(self.cfg.imggen_tasks)
-        self._open_dub_windows = {}
 
         builders = {
             "split":   lambda: BatchToolPage(SplitPanel(self.state, self.cfg), self.state, self.cfg),
@@ -64,7 +63,7 @@ class AppShell(QMainWindow):
             "imggen":  self._make_imggen_page,
             "video_gen": self._make_video_page,
             "soundtrack": self._try_make_soundtrack_panel,
-            "dubbing": self._make_dub_panel,
+            "dubbing": self._make_dub_page,
         }
         for _label, key in FUNCS:
             page = builders[key]()
@@ -105,7 +104,6 @@ class AppShell(QMainWindow):
                 src.statusMessage.connect(self._set_status)
             if isinstance(page, BatchToolPage):
                 page.thumb.selectionChanged.connect(self._refresh_counts)
-        self._dub_manager().taskRenamed.connect(self._on_dub_renamed)
         self.sidebar.currentChanged.connect(self._on_nav_changed)
         self.sidebar.settingsRequested.connect(self._open_settings_menu)
         self.sidebar.helpRequested.connect(self._open_help_menu)
@@ -430,38 +428,43 @@ class AppShell(QMainWindow):
     # 配音 tab helpers（移植自 MainWindow）
     # ------------------------------------------------------------------ #
 
-    def _make_dub_panel(self):
+    def _make_dub_page(self):
+        from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
         from drama_shot_master.ui.panels.dub_task_manager_panel import DubTaskManagerPanel
-        return DubTaskManagerPanel(
-            self.state, self.cfg, self.dub_store,
-            self._open_dub_window, self._close_dub_window, self._persist_dub_tasks)
+        from drama_shot_master.ui.panels.dub_panel import DubPanel
+
+        manager = DubTaskManagerPanel(
+            self.state, self.cfg, self.dub_store, None, None, self._persist_dub_tasks)
+
+        def editor_factory(task):
+            return DubPanel(self.cfg, payload=task.payload)
+
+        def wire_editor(editor, task):
+            tid = task.id
+            editor.statusChanged.connect(lambda s: self._on_dub_status(tid, s))
+            editor.resultReady.connect(lambda p: self._on_dub_result(tid, p))
+            editor.dirty.connect(lambda: self._on_dub_dirty(tid, editor.to_payload()))
+
+        page = TaskWorkspacePage(
+            manager=manager,
+            editor_factory=editor_factory,
+            wire_editor=wire_editor,
+            payload_of=lambda ed: ed.to_payload(),
+            on_persist=self._on_dub_dirty,
+            title_for=lambda task: f"配音 · {task.name}",
+        )
+        manager.taskRenamed.connect(self._on_dub_renamed)
+        manager.taskDeleted.connect(page.discard_editor)
+        return page
 
     def _dub_manager(self):
-        return self.pages["dubbing"]
+        return self.pages["dubbing"].manager
 
     def _persist_dub_tasks(self):
         try:
             self.cfg.update_settings(dub_tasks=self.dub_store.to_list())
         except Exception:
             pass
-
-    def _open_dub_window(self, task):
-        from drama_shot_master.ui.windows.dub_task_window import DubTaskWindow
-        existing = self._open_dub_windows.get(task.id)
-        if existing is not None:
-            existing.raise_(); existing.activateWindow(); return
-        win = DubTaskWindow(task, self.cfg)
-        win.dirty.connect(self._on_dub_dirty)
-        win.statusChanged.connect(self._on_dub_status)
-        win.resultReady.connect(self._on_dub_result)
-        win.closed.connect(self._on_dub_window_closed)
-        self._open_dub_windows[task.id] = win
-        win.show()
-
-    def _close_dub_window(self, task_id: str):
-        win = self._open_dub_windows.get(task_id)
-        if win is not None:
-            win.close()
 
     def _on_dub_dirty(self, task_id: str, payload: dict):
         self.dub_store.update(task_id, payload=payload,
@@ -475,14 +478,8 @@ class AppShell(QMainWindow):
         self.dub_store.update(task_id, last_result=flac)
         self._persist_dub_tasks(); self._dub_manager().refresh()
 
-    def _on_dub_window_closed(self, task_id: str):
-        self._open_dub_windows.pop(task_id, None)
-        self._dub_manager().clear_task_status(task_id)
-
-    def _on_dub_renamed(self, task_id: str, name: str):
-        win = self._open_dub_windows.get(task_id)
-        if win is not None:
-            win.set_title_name(name)
+    def _on_dub_renamed(self, task_id, name):
+        self.pages["dubbing"].update_task_name(task_id, name)
 
     # ------------------------------------------------------------------ #
     # 图片生成 tab helpers（移植自 MainWindow）
@@ -558,12 +555,10 @@ class AppShell(QMainWindow):
         if vp is not None and hasattr(vp, "flush_all"):
             vp.flush_all()
         self._persist_tasks()
-        # 让每个打开的配音任务窗存一次 payload，再整体落盘
-        for win in list(self._open_dub_windows.values()):
-            try:
-                self.dub_store.update(win.task_id, payload=win.panel.to_payload())
-            except Exception:
-                pass
+        # 让配音任务页落盘所有缓存编辑器（含已浮出窗），再整体持久化
+        dp = self.pages.get("dubbing")
+        if dp is not None and hasattr(dp, "flush_all"):
+            dp.flush_all()
         self._persist_dub_tasks()
         # 让图片生成页落盘所有缓存编辑器（含已浮出窗），再整体持久化
         ip = self.pages.get("imggen")
