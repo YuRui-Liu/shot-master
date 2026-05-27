@@ -15,6 +15,8 @@ from drama_shot_master.ui.state import AppState
 
 class DubTaskManagerPanel(BasePanel):
     taskRenamed = Signal(str, str)
+    taskSelected = Signal(object)
+    taskDeleted = Signal(str)
 
     def __init__(self, state: AppState, cfg: Config, store: DubTaskStore,
                  open_window_cb, close_window_cb, persist_cb, parent=None):
@@ -49,7 +51,18 @@ class DubTaskManagerPanel(BasePanel):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.doubleClicked.connect(self._on_double)
         self.table.itemChanged.connect(self._on_item_changed)
+        self.table.itemSelectionChanged.connect(self._on_selection_changed)
         root.addWidget(self.table, 1)
+
+    def _on_selection_changed(self):
+        if self._loading:            # refresh 重建表期间不误发
+            return
+        tid = self._selected_id()
+        if not tid:
+            return
+        t = self.store.get(tid)
+        if t is not None:
+            self.taskSelected.emit(t)
 
     def _selected_id(self):
         r = self.table.currentRow()
@@ -123,3 +136,4 @@ class DubTaskManagerPanel(BasePanel):
             return
         if QMessageBox.question(self, "删除", "确定删除该任务？") == QMessageBox.Yes:
             self._close_cb(tid); self.store.remove(tid); self._persist(); self.refresh()
+            self.taskDeleted.emit(tid)
