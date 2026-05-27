@@ -7,12 +7,11 @@ import sys
 def main() -> int:
     from PySide6.QtWidgets import QApplication
     from drama_shot_master.ui.app_shell import AppShell
-    from drama_shot_master.ui.theme import apply_theme, apply_app_icon, init_fluent_theme
+    from drama_shot_master.ui.theme import apply_theme, apply_app_icon
 
     app = QApplication(sys.argv)
     app.setApplicationName("Drama-Shot-Master")
     apply_theme(app)
-    init_fluent_theme(app)
     apply_app_icon(app)
     from drama_shot_master.licensing import manager
     from drama_shot_master.config import load_config as _lc
