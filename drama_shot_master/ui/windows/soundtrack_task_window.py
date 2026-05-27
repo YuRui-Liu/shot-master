@@ -110,9 +110,13 @@ class SoundtrackTaskWindow(QMainWindow):
         self.btn_start = QPushButton("🎬 开始配乐")
         self.btn_start.setObjectName("AccentButton")
         self.btn_start.clicked.connect(self._on_start)
+        self.btn_export = QPushButton("🎬 导出成片")
+        self.btn_export.setObjectName("AccentButton")
+        self.btn_export.clicked.connect(self._on_export)
         self.btn_open_dir = QPushButton("📂 打开输出目录")
         self.btn_open_dir.clicked.connect(self._open_output_dir)
-        act.addWidget(self.btn_start); act.addWidget(self.btn_open_dir)
+        act.addWidget(self.btn_start); act.addWidget(self.btn_export)
+        act.addWidget(self.btn_open_dir)
         act.addStretch(1)
         root.addLayout(act)
 
@@ -188,6 +192,12 @@ class SoundtrackTaskWindow(QMainWindow):
         QTimer.singleShot(0, lambda: self.progress_label.setText(msg))
 
     def _on_start(self):
+        self._run_pipeline(self.stop_combo.currentData())
+
+    def _on_export(self):
+        self._run_pipeline("mix")
+
+    def _run_pipeline(self, stop_after):
         if self._worker_busy():
             QMessageBox.information(self, "请稍候", "当前有任务在运行"); return
         mp4 = self.mp4_edit.text().strip()
@@ -196,7 +206,6 @@ class SoundtrackTaskWindow(QMainWindow):
             QMessageBox.warning(self, "无法开始", "请选择存在的成片 MP4"); return
         if not style:
             QMessageBox.warning(self, "无法开始", "请填写总风格"); return
-        stop_after = self.stop_combo.currentData()
         # 出片门控：到 mix 阶段需所有段已选定候选
         if stop_after == "mix" and self._session is not None and \
                 self._review is not None and not self._review.all_chosen():
