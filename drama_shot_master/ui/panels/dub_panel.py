@@ -1,4 +1,4 @@
-"""配音编辑器：顶部单选 音色设计/声音克隆 + 对应表单 + 生成。内嵌于 DubTaskWindow。"""
+"""配音编辑器：顶部单选 音色设计/声音克隆 + 对应表单 + 生成。内嵌于配音任务工作区。"""
 from __future__ import annotations
 
 from pathlib import Path
