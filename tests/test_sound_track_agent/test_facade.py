@@ -181,3 +181,52 @@ def test_align_fn_skips_when_accents_exist(monkeypatch):
     # 已有不覆盖
     assert len(sess.accent_points) == 1
     assert sess.accent_points[0].t == 2.0
+
+
+def test_build_accent_preview_outputs_wav(tmp_path):
+    import numpy as np, soundfile as sf
+    from sound_track_agent import facade
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, BGMCandidate, AccentPoint)
+
+    def _tone(p, f, dur=1.0, sr=22050):
+        t = np.linspace(0, dur, int(sr * dur), endpoint=False)
+        sf.write(str(p), (0.3 * np.sin(2 * np.pi * f * t)).astype(np.float32), sr)
+
+    b0 = tmp_path / "b0.wav"; _tone(b0, 440)
+    b1 = tmp_path / "b1.wav"; _tone(b1, 550)
+    sess = ScoringSession(
+        source_mp4="x", source_hash="h", global_style="g", frame_rate=24.0,
+        segments=[
+            SegmentScore(index=0, t_start=0.0, t_end=1.0,
+                         candidates=[BGMCandidate(path=str(b0), seed=1, prompt="t")],
+                         chosen_candidate=0),
+            SegmentScore(index=1, t_start=1.0, t_end=2.0,
+                         candidates=[BGMCandidate(path=str(b1), seed=1, prompt="t")],
+                         chosen_candidate=None)],   # 未选 → 用候选0
+        accent_points=[AccentPoint(t=0.5, intensity=0.9)])
+    out = facade.build_accent_preview(sess, tmp_path / "w", crossfade=0.1)
+    from pathlib import Path
+    assert Path(out).exists() and Path(out).stat().st_size > 0
+
+
+def test_build_accent_preview_disabled_still_outputs(tmp_path):
+    import numpy as np, soundfile as sf
+    from sound_track_agent import facade
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, BGMCandidate)
+
+    def _tone(p, f, dur=1.0, sr=22050):
+        t = np.linspace(0, dur, int(sr * dur), endpoint=False)
+        sf.write(str(p), (0.3 * np.sin(2 * np.pi * f * t)).astype(np.float32), sr)
+
+    b0 = tmp_path / "b0.wav"; _tone(b0, 440)
+    sess = ScoringSession(
+        source_mp4="x", source_hash="h", global_style="g", frame_rate=24.0,
+        segments=[SegmentScore(index=0, t_start=0.0, t_end=1.0,
+                  candidates=[BGMCandidate(path=str(b0), seed=1, prompt="t")],
+                  chosen_candidate=0)])
+    sess.accent_mix_enabled = False
+    out = facade.build_accent_preview(sess, tmp_path / "w2", crossfade=0.1)
+    from pathlib import Path
+    assert Path(out).exists()

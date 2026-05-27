@@ -155,6 +155,38 @@ def set_chosen(session: ScoringSession, seg_index: int, cand_index: int) -> None
     seg.chosen_candidate = cand_index
 
 
+def build_accent_preview(session: ScoringSession, work_dir, *,
+                         crossfade: float = 0.5,
+                         big_threshold: float = 0.7,
+                         snap_window: float = 0.6) -> str:
+    """轻量卡点试听：段切对齐 + BGM 拼接 + 泵感,产出一条 BGM wav(不含 demucs/
+    ducking/视频混流),供 ③卡点页出片前快速听卡点效果。返回 wav 路径。
+
+    各段用选定候选,未选则用候选0(_chosen_bgm 行为)。enabled 关或无卡点 → 仅拼接。
+    """
+    from sound_track_agent.mixdown import _chosen_bgm
+    from sound_track_agent.bgm_assembler import assemble_bgm
+    from sound_track_agent.accent_mixer import clip_targets, apply_pump
+
+    work_dir = Path(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    seg_bgms = [_chosen_bgm(s) for s in session.segments]
+    accents = list(getattr(session, "accent_points", []) or [])
+    out = work_dir / "preview_accent_bgm.wav"
+
+    if bool(getattr(session, "accent_mix_enabled", True)) and accents:
+        targets = clip_targets([s.duration for s in session.segments], accents,
+                               big_threshold=big_threshold, window=snap_window,
+                               min_clip=crossfade)
+        raw = assemble_bgm(seg_bgms, work_dir / "_preview_raw.wav",
+                           crossfade=crossfade, clip_durations=targets)
+        out = apply_pump(raw, out, accents,
+                         strength=float(getattr(session, "pump_strength", 0.6)))
+    else:
+        out = assemble_bgm(seg_bgms, out, crossfade=crossfade)
+    return str(out)
+
+
 def regenerate_segment(session: ScoringSession, seg_index: int, work_dir, *,
                        cfg, workflow_id: str, seeds_count: int = 2,
                        stages: Optional[Stages] = None) -> ScoringSession:
