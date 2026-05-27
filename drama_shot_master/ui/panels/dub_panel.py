@@ -44,7 +44,7 @@ class _CollapsibleGroup(QWidget):
 
     def set_buttons(self, widgets: list):
         for i, w in enumerate(widgets):
-            self._grid.addWidget(w, i // 4, i % 4)   # 4 列流式
+            self._grid.addWidget(w, i // 3, i % 3)   # 3 列(窄栏放得下 4 字标签)
 
 
 class DubPanel(QWidget):
@@ -186,7 +186,7 @@ class DubPanel(QWidget):
     def _build_palette(self) -> QWidget:
         from drama_shot_master.core.voice_presets import load_presets
         cats, note = load_presets()
-        wrap = QWidget(); wrap.setFixedWidth(300)
+        wrap = QWidget(); wrap.setFixedWidth(360)
         outer = QVBoxLayout(wrap); outer.setContentsMargins(6, 0, 0, 0)
         outer.addWidget(QLabel("快捷音色提示词"))
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
