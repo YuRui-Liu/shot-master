@@ -34,3 +34,15 @@ def test_envelope_zero_strength_is_flat():
 def test_envelope_no_accents_is_flat():
     env = build_pump_envelope(100, 1000, [], strength=1.0)
     assert np.allclose(env, 1.0)
+
+
+def test_envelope_accent_past_end_is_ignored():
+    env = build_pump_envelope(100, 1000, [AccentPoint(t=5.0, intensity=1.0)],
+                              strength=1.0)
+    assert np.allclose(env, 1.0)        # idx=5000 远超缓冲 → 整段不变
+
+
+def test_envelope_negative_time_accent_does_not_contaminate():
+    env = build_pump_envelope(100, 1000, [AccentPoint(t=-0.001, intensity=1.0)],
+                              strength=1.0)
+    assert np.allclose(env, 1.0)        # 负时间卡点被忽略,不留 release 余尾
