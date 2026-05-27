@@ -2,9 +2,12 @@ from drama_shot_master.ui.nav_config import FUNCS, PHASES, ICONS
 
 
 def test_funcs_has_seven_functions():
+    # 不硬编码顺序（用户可重排）；只校验数量与键集合，顺序一致性由
+    # test_phases_cover_all_func_keys_in_order 保证（FUNCS↔PHASES 同序）。
     keys = [key for _label, key in FUNCS]
-    assert keys == ["split", "combine", "trim", "imggen",
-                    "video_gen", "soundtrack", "dubbing"]
+    assert len(keys) == 7
+    assert set(keys) == {"split", "combine", "trim", "imggen",
+                         "video_gen", "soundtrack", "dubbing"}
 
 
 def test_phases_cover_all_func_keys_in_order():
