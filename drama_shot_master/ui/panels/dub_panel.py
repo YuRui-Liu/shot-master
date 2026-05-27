@@ -71,11 +71,15 @@ class DubPanel(QWidget):
         w = QWidget(); f = QFormLayout(w)
         self.d_text = QPlainTextEdit(); self.d_text.setFixedHeight(90)
         self.d_style = QPlainTextEdit(); self.d_style.setFixedHeight(70)
-        # 取值必须与工作流 TDQwen3TTSVoiceDesign(节点22) 的 language 枚举完全一致
+        # 显示中文标签，但实际取值(itemData)必须与工作流
+        # TDQwen3TTSVoiceDesign(节点22) 的 language 枚举完全一致
         self.d_lang = QComboBox()
-        self.d_lang.addItems([
-            "Auto", "Chinese", "English", "Japanese", "Korean", "German",
-            "French", "Russian", "Portuguese", "Spanish", "Italian"])
+        for label, value in (
+                ("自动", "Auto"), ("中文", "Chinese"), ("英语", "English"),
+                ("日语", "Japanese"), ("韩语", "Korean"), ("德语", "German"),
+                ("法语", "French"), ("俄语", "Russian"), ("葡萄牙语", "Portuguese"),
+                ("西班牙语", "Spanish"), ("意大利语", "Italian")):
+            self.d_lang.addItem(label, value)
         f.addRow("要生成文本", self.d_text)
         f.addRow("音色描述", self.d_style)
         f.addRow("语言", self.d_lang)
@@ -156,7 +160,7 @@ class DubPanel(QWidget):
             return {"mode_kind": "design",
                     "text": self.d_text.toPlainText(),
                     "style": self.d_style.toPlainText(),
-                    "language": self.d_lang.currentText()}
+                    "language": self.d_lang.currentData()}
         return {"mode_kind": "clone",
                 "text": self.c_text.toPlainText(),
                 "speaker": self.c_speaker.text(),
@@ -172,9 +176,8 @@ class DubPanel(QWidget):
             self.rb_design.setChecked(True); self.stack.setCurrentIndex(0)
             self.d_text.setPlainText(p.get("text", ""))
             self.d_style.setPlainText(p.get("style", ""))
-            i = self.d_lang.findText(p.get("language", "Auto"))
-            if i >= 0:
-                self.d_lang.setCurrentIndex(i)
+            i = self.d_lang.findData(p.get("language", "Auto"))
+            self.d_lang.setCurrentIndex(i if i >= 0 else 0)
         else:
             self.rb_clone.setChecked(True); self.stack.setCurrentIndex(1)
             self.c_text.setPlainText(p.get("text", ""))
