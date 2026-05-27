@@ -17,6 +17,13 @@ from PySide6.QtCore import Qt
 from drama_shot_master.ui.windows.detached_editor_window import DetachedEditorWindow
 
 
+class _NamedTask:
+    """轻量占位，仅供 title_for 取 id/name（重命名同步用）。"""
+    def __init__(self, tid, name):
+        self.id = tid
+        self.name = name
+
+
 class TaskWorkspacePage(QWidget):
     def __init__(self, manager, editor_factory, wire_editor, payload_of,
                  on_persist, title_for, parent=None):
@@ -128,6 +135,14 @@ class TaskWorkspacePage(QWidget):
                 self.btn_popout.setEnabled(True)
         if win is not None:
             win.deleteLater()
+
+    def update_task_name(self, task_id: str, name: str):
+        """重命名后同步：当前内嵌详情头标题 + 已浮出窗标题。"""
+        if self._current_task is not None and self._current_task.id == task_id:
+            self.lbl_task.setText(name)
+        win = self._detached.get(task_id)
+        if win is not None:
+            win.set_title(self._title_for(_NamedTask(task_id, name)))
 
     def flush_all(self):
         """落盘所有缓存编辑器（含已浮出的——其 widget 仍存活可读）。"""

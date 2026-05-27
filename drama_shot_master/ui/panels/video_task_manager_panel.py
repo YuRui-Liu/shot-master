@@ -27,7 +27,11 @@ from drama_shot_master.ui.state import AppState
 
 
 class VideoTaskManagerPanel(BasePanel):
-    """任务列表 + 新建/打开/复制/删除。开窗与持久化由回调交给 main_window。"""
+    """任务列表 + 新建/复制/删除/重命名。
+
+    主-详模式下由 TaskWorkspacePage 承载：选中行发 taskSelected、删除发 taskDeleted。
+    open_window_cb/close_window_cb 为历史参数，传 None 即忽略（dub/imggen 迁移前仍用）。
+    """
 
     taskRenamed = Signal(str, str)   # (task_id, new_name) → main_window 同步已开窗标题
     taskSelected = Signal(object)    # 选中的 VideoTask（主-详用）

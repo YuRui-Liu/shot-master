@@ -112,3 +112,12 @@ def test_discard_detached_task_cleans_up():
     assert "a" not in page._editors
     # 不应崩；当前无任务 → 占位
     assert page.stack.currentWidget() is page._placeholder
+
+
+def test_update_task_name_updates_inline_header():
+    _app()
+    page, mgr, made = _page()
+    a = _Task("a", "A")
+    mgr.taskSelected.emit(a)
+    page.update_task_name("a", "新名字")
+    assert page.lbl_task.text() == "新名字"

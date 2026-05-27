@@ -356,9 +356,8 @@ class AppShell(QMainWindow):
 
     def _on_task_renamed(self, task_id: str, name: str):
         page = self.pages.get("video_gen")
-        win = getattr(page, "_detached", {}).get(task_id) if page else None
-        if win is not None:
-            win.set_title(f"视频任务 · {name}")
+        if page is not None and hasattr(page, "update_task_name"):
+            page.update_task_name(task_id, name)
 
     # ------------------------------------------------------------------ #
     # 配乐 tab helpers（移植自 MainWindow）
