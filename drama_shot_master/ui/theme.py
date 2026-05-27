@@ -83,6 +83,23 @@ def apply_theme(app, name: str = "dark") -> None:
         app.setStyleSheet(qss)
 
 
+def _find_app_icon_path(name: str = "app_icon"):
+    """在 assets/ 下按 .ico→.png→.svg 找图标，返回 Path 或 None。"""
+    for ext in (".ico", ".png", ".svg"):
+        p = _ASSET_DIR / f"{name}{ext}"
+        if p.exists():
+            return p
+    return None
+
+
+def apply_window_icon(widget, name: str = "app_icon") -> None:
+    """给窗口自身设图标——原生标题栏据此在软件名左侧显示 [图标]。"""
+    p = _find_app_icon_path(name)
+    if p:
+        from PySide6.QtGui import QIcon
+        widget.setWindowIcon(QIcon(str(p)))
+
+
 def apply_app_icon(app, name: str = "app_icon") -> None:
     """设置全局窗口图标（所有窗口/对话框继承）。
 
@@ -90,11 +107,9 @@ def apply_app_icon(app, name: str = "app_icon") -> None:
     找不到则静默跳过（保持 Qt 默认图标）。Windows 任务栏首选 .ico（多尺寸）。
     """
     from PySide6.QtGui import QIcon
-    for ext in (".ico", ".png", ".svg"):
-        p = _ASSET_DIR / f"{name}{ext}"
-        if p.exists():
-            app.setWindowIcon(QIcon(str(p)))
-            return
+    p = _find_app_icon_path(name)
+    if p:
+        app.setWindowIcon(QIcon(str(p)))
 
 
 # 影视冷蓝（spec §5）；浅色切换在 Phase 3 设置页接入
