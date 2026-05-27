@@ -75,6 +75,8 @@ class Config:
     soundtrack_output_dir: str = ""
     soundtrack_seeds_count: int = 2
     soundtrack_crossfade: float = 0.5
+    accent_big_threshold: float = 0.7
+    accent_snap_window: float = 0.6
     workflow_ids: dict = field(default_factory=dict)
     last_active_function: str = "inference"      # 上次退出时活跃的 panel
     # 翻译
@@ -124,6 +126,8 @@ class Config:
                 "soundtrack_output_dir": self.soundtrack_output_dir,
                 "soundtrack_seeds_count": self.soundtrack_seeds_count,
                 "soundtrack_crossfade": self.soundtrack_crossfade,
+                "accent_big_threshold": self.accent_big_threshold,
+                "accent_snap_window": self.accent_snap_window,
                 "workflow_ids": self.workflow_ids,
                 "last_active_function": self.last_active_function,
                 "deeplx_url": self.deeplx_url,
@@ -257,6 +261,10 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.soundtrack_seeds_count = data["soundtrack_seeds_count"]
                 if isinstance(data.get("soundtrack_crossfade"), (int, float)):
                     cfg.soundtrack_crossfade = float(data["soundtrack_crossfade"])
+                if isinstance(data.get("accent_big_threshold"), (int, float)):
+                    cfg.accent_big_threshold = float(data["accent_big_threshold"])
+                if isinstance(data.get("accent_snap_window"), (int, float)):
+                    cfg.accent_snap_window = float(data["accent_snap_window"])
                 if "workflow_ids" in data and isinstance(data["workflow_ids"], dict):
                     cfg.workflow_ids = data["workflow_ids"]
                 if "last_active_function" in data and isinstance(
