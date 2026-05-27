@@ -1,0 +1,73 @@
+# 配音音色设计快捷提示词（开发者可编辑更新；缺失/损坏时回退代码内置默认）
+dialect_note: 提示：方言靠音色描述不一定生效（Qwen3-TTS 方言走预置音色）；湖南话官方未列出。
+categories:
+- name: 方言
+  items:
+  - label: 北京话
+    text: 用北京话朗读，京味儿胡同腔，自然地道，
+  - label: 上海话
+    text: 用上海话朗读，吴侬软语，语调婉转，
+  - label: 四川话
+    text: 用四川话朗读，川渝口音轻快诙谐，
+  - label: 粤语
+    text: 用粤语朗读，口音正宗自然，
+  - label: 南京话
+    text: 用南京话朗读，耐心温和，
+  - label: 陕西话
+    text: 用陕西话朗读，秦腔老陕味道，
+  - label: 天津话
+    text: 用天津话朗读，相声捧哏味十足，
+  - label: 闽南语
+    text: 用闽南语/台湾腔朗读，亲切直爽，
+  - label: 湖南话
+    text: 用湖南话（长沙话）朗读，口音自然浓郁，
+- name: 人物身份
+  items:
+  - label: 旁白大叔
+    text: 沉稳磁性的中年大叔旁白音，
+  - label: 少女
+    text: 清亮俏皮的少女声，音调偏高，
+  - label: 青年男
+    text: 阳光朝气的青年男声，中频清晰，
+  - label: 老者
+    text: 苍老醇厚的老者声，语速缓慢，
+  - label: 御姐
+    text: 慵懒高冷的御姐音，气声明显，
+  - label: 萝莉
+    text: 稚嫩软糯的萝莉音，
+  - label: 知性女
+    text: 温柔知性的成熟女声，
+  - label: 威严男
+    text: 低沉威严的男性权威嗓音，
+- name: 场合
+  items:
+  - label: 新闻播报
+    text: 标准新闻播报腔，吐字清晰语速平稳，
+  - label: 有声书
+    text: 有声书旁白，娓娓道来富感染力，
+  - label: 广告配音
+    text: 广告配音，节奏明快富煽动力，
+  - label: 客服
+    text: 客服音色，亲切耐心微笑感，
+  - label: 纪录片
+    text: 纪录片解说，沉稳厚重，
+  - label: 动画配音
+    text: 动画角色配音，夸张生动，
+- name: 情感语调
+  items:
+  - label: 温柔
+    text: 语气温柔舒缓，
+  - label: 激昂
+    text: 情绪激昂高亢，语速偏快，
+  - label: 悲伤
+    text: 悲伤低沉，语速放慢带哽咽感，
+  - label: 俏皮
+    text: 俏皮活泼，语调上扬，
+  - label: 严肃
+    text: 严肃郑重，吐字铿锵，
+  - label: 慵懒
+    text: 慵懒随性，气声放松，
+  - label: 紧张
+    text: 紧张急促，语速加快，
+  - label: 诙谐
+    text: 幽默诙谐，带笑意，
