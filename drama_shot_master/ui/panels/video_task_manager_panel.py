@@ -64,7 +64,7 @@ class VideoTaskManagerPanel(BasePanel):
     def _build_ui(self):
         root = QVBoxLayout(self)
         bar = QHBoxLayout()
-        self.btn_new = QPushButton("+ 新建任务")
+        self.btn_new = QPushButton("新建")
         self.btn_dup = QPushButton("复制")
         self.btn_del = QPushButton("删除")
         for b in (self.btn_new, self.btn_dup, self.btn_del):

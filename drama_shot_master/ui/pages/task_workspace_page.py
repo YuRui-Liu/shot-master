@@ -46,6 +46,7 @@ class TaskWorkspacePage(QWidget):
     def _build_ui(self):
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(self.manager)
+        self.manager.setMaximumWidth(300)
 
         right = QWidget()
         rv = QVBoxLayout(right)

@@ -1,6 +1,8 @@
 """配音任务栏：任务表 + 新建/打开/复制/删除。镜像 VideoTaskManagerPanel。"""
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
@@ -83,7 +85,7 @@ class DubTaskManagerPanel(BasePanel):
             updated = time.strftime("%m-%d %H:%M", time.localtime(t.updated_at)) if t.updated_at else ""
             for c, val in enumerate([name, QTableWidgetItem(mode),
                                      QTableWidgetItem(status),
-                                     QTableWidgetItem(t.last_result),
+                                     QTableWidgetItem(Path(t.last_result).name if t.last_result else ""),
                                      QTableWidgetItem(updated)]):
                 if c != 0:
                     val.setFlags(val.flags() & ~Qt.ItemIsEditable)

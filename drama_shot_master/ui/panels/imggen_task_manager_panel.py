@@ -40,8 +40,7 @@ class ImgGenTaskManagerPanel(BasePanel):
         root = QVBoxLayout(self)
         bar = QHBoxLayout()
         for txt, slot in (("新建", self._new),
-                          ("复制", self._dup), ("删除", self._del),
-                          ("重命名", self._rename)):
+                          ("复制", self._dup), ("删除", self._del)):
             b = QPushButton(txt); b.clicked.connect(slot); bar.addWidget(b)
         bar.addStretch(1)
         root.addLayout(bar)
@@ -134,12 +133,3 @@ class ImgGenTaskManagerPanel(BasePanel):
             self.store.remove(tid); self._persist(); self.refresh()
             self.taskDeleted.emit(tid)
 
-    def _rename(self):
-        tid = self._selected_id()
-        if not tid:
-            return
-        t = self.store.get(tid)
-        name, ok = QInputDialog.getText(self, "重命名", "名称:", text=t.name)
-        if ok and name.strip():
-            self.store.update(tid, name=name.strip()); self._persist()
-            self.refresh(); self.taskRenamed.emit(tid, name.strip())
