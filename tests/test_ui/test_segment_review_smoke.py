@@ -71,3 +71,14 @@ def test_missing_file_does_not_create_player(tmp_path, monkeypatch):
     w._on_candidate(0, 0)              # 文件缺失 → 选定 + 警告，但不建播放器
     assert w._session.segments[0].chosen_candidate == 0
     assert w._player is None
+
+
+def test_segment_volume_slider_writes_session():
+    _app()
+    sess = _sess()
+    w = SegmentReviewWidget(sess)
+    seen = []
+    w.segmentVolumeChanged.connect(lambda: seen.append(1))
+    assert hasattr(w, "_vol_sliders") and len(w._vol_sliders) == 2
+    w._vol_sliders[0].setValue(50)
+    assert abs(sess.segments[0].volume - 0.5) < 1e-6 and seen

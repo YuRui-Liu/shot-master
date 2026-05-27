@@ -28,6 +28,7 @@ class SegmentReviewWidget(QWidget):
 
     chosenChanged = Signal()
     regenerateRequested = Signal(int)
+    segmentVolumeChanged = Signal()
 
     def __init__(self, session, parent=None):
         super().__init__(parent)
@@ -37,6 +38,7 @@ class SegmentReviewWidget(QWidget):
         self._playing_key = None         # (seg_index, cand_index) 当前加载的候选
         self._user_seeking = False
         self._cards: list[dict] = []
+        self._vol_sliders: list = []
         self._build_ui()
 
     # ---------- 懒创建播放器（首次播放才碰音频后端）----------
@@ -103,6 +105,17 @@ class SegmentReviewWidget(QWidget):
         regen.clicked.connect(lambda _c=False, si=seg.index: self.request_regenerate(si))
         row.addStretch(1); row.addWidget(regen)
         v.addLayout(row)
+        vol_row = QHBoxLayout()
+        vol_row.addWidget(QLabel("🔊 音量"))
+        vslider = QSlider(Qt.Horizontal)
+        vslider.setRange(0, 150)
+        vslider.setValue(int(round(float(getattr(seg, "volume", 1.0)) * 100)))
+        vlabel = QLabel(f"{vslider.value()}%")
+        vslider.valueChanged.connect(
+            lambda val, s=seg, lb=vlabel: self._on_volume(s, val, lb))
+        vol_row.addWidget(vslider, 1); vol_row.addWidget(vlabel)
+        v.addLayout(vol_row)
+        self._vol_sliders.append(vslider)
         self._cards.append({"buttons": buttons})
         return card
 
@@ -159,3 +172,8 @@ class SegmentReviewWidget(QWidget):
 
     def request_regenerate(self, seg_index: int):
         self.regenerateRequested.emit(seg_index)
+
+    def _on_volume(self, seg, val: int, label):
+        seg.volume = val / 100.0
+        label.setText(f"{val}%")
+        self.segmentVolumeChanged.emit()

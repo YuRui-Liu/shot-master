@@ -148,6 +148,7 @@ class SoundtrackTaskWindow(QMainWindow):
         self._review = SegmentReviewWidget(self._session)
         self._review.regenerateRequested.connect(self._on_regenerate)
         self._review.chosenChanged.connect(self._on_chosen_changed)
+        self._review.segmentVolumeChanged.connect(self._persist_session)
         lay.addWidget(self._review)
         # ③ 卡点
         lay2 = self._accent_holder.layout()
