@@ -105,6 +105,9 @@ class MainWindow(QMainWindow):
         a_dub = QAction("配音…", self)
         a_dub.triggered.connect(self._open_dub_settings)
         sm.addAction(a_dub)
+        a_img = QAction("图片生成…", self)
+        a_img.triggered.connect(self._open_imggen_settings)
+        sm.addAction(a_img)
 
         am = menu.addMenu("关于")
         a_help = QAction("帮助文档", self)
@@ -268,6 +271,10 @@ class MainWindow(QMainWindow):
     def _open_dub_settings(self):
         from drama_shot_master.ui.dialogs.dub_settings_dialog import DubSettingsDialog
         DubSettingsDialog(self.cfg, parent=self).exec()
+
+    def _open_imggen_settings(self):
+        from drama_shot_master.ui.dialogs.imggen_settings_dialog import ImgGenSettingsDialog
+        ImgGenSettingsDialog(self.cfg, parent=self).exec()
 
     def _open_about(self):
         from drama_shot_master.ui.dialogs.about_dialog import AboutDialog
