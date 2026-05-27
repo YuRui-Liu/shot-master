@@ -11,12 +11,7 @@ setOutputRequested），具体动作由 AppShell 接。
 from __future__ import annotations
 
 from PySide6.QtCore import Signal, Qt
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel
-
-try:  # nicer Fluent look; falls back to plain QPushButton if unavailable
-    from qfluentwidgets import PushButton as _Button
-except Exception:  # pragma: no cover - defensive, verified present in 1.11.2
-    from PySide6.QtWidgets import QPushButton as _Button
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
 
 class ProjectCommandBar(QWidget):
@@ -25,11 +20,13 @@ class ProjectCommandBar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("ProjectCommandBar")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 6, 12, 6)
         layout.setSpacing(8)
 
-        self.btn_open_dir = _Button("打开目录")
+        self.btn_open_dir = QPushButton("打开目录")
+        self.btn_open_dir.setObjectName("cmdOpenDir")
         self.btn_open_dir.clicked.connect(self.openDirRequested)
         layout.addWidget(self.btn_open_dir)
 
@@ -40,7 +37,8 @@ class ProjectCommandBar(QWidget):
 
         layout.addSpacing(16)
 
-        self.btn_set_output = _Button("设置输出目录")
+        self.btn_set_output = QPushButton("设置输出目录")
+        self.btn_set_output.setObjectName("cmdSetOutput")
         self.btn_set_output.clicked.connect(self.setOutputRequested)
         layout.addWidget(self.btn_set_output)
 
