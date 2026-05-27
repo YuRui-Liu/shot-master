@@ -7,8 +7,12 @@ from pathlib import Path
 
 def assemble_bgm(bgm_paths: list, out_path, *,
                  crossfade: float = 0.5,
+                 clip_durations: list | None = None,
                  runner=subprocess.run) -> Path:
     """把分段 BGM 按顺序 crossfade 拼成整条。
+
+    clip_durations(可选,长度需 == bgm_paths):元素为目标秒数则把对应 clip 先
+    裁到该时长(trim-only:`-t` 比内容长则等于整段);为 None 不裁。裁剪失败降级用原片。
 
     1 段：直接转码到 out。≥2 段：链式 acrossfade（每对重叠 crossfade 秒）。
     """
@@ -17,6 +21,22 @@ def assemble_bgm(bgm_paths: list, out_path, *,
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     paths = [str(p) for p in bgm_paths]
+
+    if clip_durations is not None:
+        if len(clip_durations) != len(paths):
+            raise ValueError("clip_durations 长度需与 bgm_paths 一致")
+        resolved = []
+        for i, p in enumerate(paths):
+            dur = clip_durations[i]
+            if dur is None:
+                resolved.append(p)
+                continue
+            tp = str(out_path.parent / f"_trim{i}.wav")
+            r = runner(["ffmpeg", "-y", "-i", p, "-t", f"{float(dur):.3f}",
+                        "-c:a", "pcm_s16le", tp], capture_output=True)
+            resolved.append(tp if getattr(r, "returncode", 0) == 0
+                            and Path(tp).exists() else p)
+        paths = resolved
 
     cmd = ["ffmpeg", "-y"]
     for p in paths:

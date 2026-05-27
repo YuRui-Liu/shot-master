@@ -32,3 +32,18 @@ def test_assemble_three_segments_crossfaded(tmp_path):
 def test_assemble_empty_raises(tmp_path):
     with pytest.raises(ValueError):
         assemble_bgm([], tmp_path / "x.wav")
+
+
+def test_assemble_bgm_clip_durations_trims_first_clip(tmp_path):
+    b0 = tmp_path / "b0.wav"; _tone(b0, 440, dur=1.0)
+    b1 = tmp_path / "b1.wav"; _tone(b1, 550, dur=1.0)
+    out = tmp_path / "full.wav"
+    assemble_bgm([b0, b1], out, crossfade=0.1, clip_durations=[0.4, None])
+    info = sf.info(str(out))
+    assert 1.1 < info.duration < 1.5      # 0.4 + 1.0 - 0.1 ≈ 1.3
+
+
+def test_assemble_bgm_clip_durations_length_mismatch_raises(tmp_path):
+    b0 = tmp_path / "b0.wav"; _tone(b0, 440)
+    with pytest.raises(ValueError):
+        assemble_bgm([b0], tmp_path / "o.wav", clip_durations=[0.4, None])
