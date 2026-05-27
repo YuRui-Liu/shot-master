@@ -63,3 +63,36 @@ def test_apply_pump_attenuates_at_accent(tmp_path):
     data, _sr = sf.read(str(out))
     assert abs(data[4000]) < 1e-3                 # 卡点(idx=4000)处被压到近 0
     assert abs(abs(data[100]) - abs(sig[100])) < 1e-3   # 远处基本不变
+
+from sound_track_agent.accent_mixer import snapped_boundaries, clip_targets
+
+
+def test_snapped_boundaries_filters_small_and_snaps_near():
+    segs = [2.0, 2.0, 2.0]                       # 自然内部接缝 [2.0, 4.0]
+    accents = [AccentPoint(t=1.9, intensity=0.8),   # 大卡点,接缝 2.0 吸到 1.9
+               AccentPoint(t=3.0, intensity=0.5)]   # 小卡点,被阈值过滤
+    out = snapped_boundaries(segs, accents, big_threshold=0.7, window=0.5)
+    assert out == [1.9, 4.0]                     # 4.0 最近大卡点 1.9 距 2.1>0.5 → 保留
+
+
+def test_clip_targets_snaps_earlier_only():
+    segs = [1.0, 1.0]
+    accents = [AccentPoint(t=0.8, intensity=0.9)]   # 接缝 1.0 → 0.8(更早)
+    assert clip_targets(segs, accents, big_threshold=0.7, window=0.6) == [0.8, None]
+
+
+def test_clip_targets_never_extends():
+    segs = [1.0, 1.0]
+    accents = [AccentPoint(t=1.4, intensity=0.9)]   # 卡点在接缝之后 → trim-only 忽略
+    assert clip_targets(segs, accents, big_threshold=0.7, window=0.6) == [None, None]
+
+
+def test_clip_targets_ignores_below_threshold():
+    segs = [1.0, 1.0]
+    accents = [AccentPoint(t=0.8, intensity=0.5)]
+    assert clip_targets(segs, accents, big_threshold=0.7, window=0.6) == [None, None]
+
+
+def test_clip_targets_single_segment_is_noop():
+    assert clip_targets([2.0], [AccentPoint(t=1.0, intensity=1.0)],
+                        big_threshold=0.7, window=0.6) == [None]

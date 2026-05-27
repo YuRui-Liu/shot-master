@@ -64,3 +64,40 @@ def apply_pump(bgm_in, bgm_out, accents: list, *, strength: float,
     except Exception as e:
         raise RuntimeError(f"apply_pump 写出失败 {bgm_out}: {e}")
     return bgm_out
+
+
+def snapped_boundaries(seg_durations: list, accents: list,
+                       *, big_threshold: float, window: float) -> list:
+    """各段时长 → 内部接缝(累加,去掉末段);把接缝吸附到 window 内最近的大卡点
+    (intensity >= big_threshold)。复用 beat_aligner.snap_boundaries_to_beats。
+    返回 len = 段数-1 的接缝时间(绝对秒)。"""
+    bounds, acc = [], 0.0
+    for d in seg_durations[:-1]:
+        acc += float(d)
+        bounds.append(acc)
+    big = sorted(float(ap.t) for ap in accents
+                 if float(ap.intensity) >= big_threshold)
+    return snap_boundaries_to_beats(bounds, big, max_shift=window)
+
+
+def clip_targets(seg_durations: list, accents: list,
+                 *, big_threshold: float, window: float) -> list:
+    """把吸附后的接缝换算成每段 clip 的目标时长(秒)。trim-only:接缝只允许
+    比自然位置更早(裁短),更晚则忽略(保留自然 → None)。末段恒为 None(整段不裁)。
+    返回 len = 段数 的列表,元素为 float(裁到该时长) 或 None(不裁)。"""
+    n = len(seg_durations)
+    if n <= 1:
+        return [None] * n
+    snapped = snapped_boundaries(seg_durations, accents,
+                                 big_threshold=big_threshold, window=window)
+    targets, prev, cum = [], 0.0, 0.0
+    for i in range(n):
+        if i == n - 1:
+            targets.append(None)
+            continue
+        natural = cum + float(seg_durations[i])
+        b = min(snapped[i], natural)              # trim-only:不许更晚
+        b = max(b, prev + 0.05)                   # 防止 ≤0 / 越过前一接缝
+        targets.append(None if abs(b - natural) < 1e-6 else round(b - prev, 6))
+        prev, cum = b, natural
+    return targets
