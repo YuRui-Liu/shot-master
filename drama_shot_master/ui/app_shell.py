@@ -56,13 +56,12 @@ class AppShell(QMainWindow):
         self.dub_store = DubTaskStore.from_list(self.cfg.dub_tasks)
         self.imggen_store = ImgGenTaskStore.from_list(self.cfg.imggen_tasks)
         self._open_dub_windows = {}
-        self._open_imggen_windows = {}
 
         builders = {
             "split":   lambda: BatchToolPage(SplitPanel(self.state, self.cfg), self.state, self.cfg),
             "combine": lambda: BatchToolPage(CombinePanel(self.state, self.cfg), self.state, self.cfg),
             "trim":    lambda: BatchToolPage(TrimPanel(self.state, self.cfg), self.state, self.cfg),
-            "imggen":  self._make_imggen_panel,
+            "imggen":  self._make_imggen_page,
             "video_gen": self._make_video_page,
             "soundtrack": self._try_make_soundtrack_panel,
             "dubbing": self._make_dub_panel,
@@ -107,7 +106,6 @@ class AppShell(QMainWindow):
             if isinstance(page, BatchToolPage):
                 page.thumb.selectionChanged.connect(self._refresh_counts)
         self._dub_manager().taskRenamed.connect(self._on_dub_renamed)
-        self._imggen_manager().taskRenamed.connect(self._on_imggen_renamed)
         self.sidebar.currentChanged.connect(self._on_nav_changed)
         self.sidebar.settingsRequested.connect(self._open_settings_menu)
         self.sidebar.helpRequested.connect(self._open_help_menu)
@@ -490,39 +488,44 @@ class AppShell(QMainWindow):
     # 图片生成 tab helpers（移植自 MainWindow）
     # ------------------------------------------------------------------ #
 
-    def _make_imggen_panel(self):
+    def _make_imggen_page(self):
+        from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
         from drama_shot_master.ui.panels.imggen_task_manager_panel import ImgGenTaskManagerPanel
-        return ImgGenTaskManagerPanel(
-            self.state, self.cfg, self.imggen_store,
-            self._open_imggen_window, self._close_imggen_window,
-            self._persist_imggen_tasks)
+        from drama_shot_master.ui.panels.imggen_panel import ImgGenPanel
+
+        manager = ImgGenTaskManagerPanel(
+            self.state, self.cfg, self.imggen_store, None, None, self._persist_imggen_tasks)
+
+        def editor_factory(task):
+            return ImgGenPanel(self.cfg, payload=task.payload)
+
+        def wire_editor(editor, task):
+            tid = task.id
+            editor.statusChanged.connect(lambda s: self._on_imggen_status(tid, s))
+            editor.resultReady.connect(lambda p: self._on_imggen_result(tid, p))
+            editor.dirty.connect(lambda: self._on_imggen_dirty(tid, editor.to_payload()))
+
+        page = TaskWorkspacePage(
+            manager=manager,
+            editor_factory=editor_factory,
+            wire_editor=wire_editor,
+            payload_of=lambda ed: ed.to_payload(),
+            on_persist=self._on_imggen_dirty,
+            title_for=lambda task: f"图片生成 · {task.name}",
+            detached_size=(720, 780),
+        )
+        manager.taskRenamed.connect(self._on_imggen_renamed)
+        manager.taskDeleted.connect(page.discard_editor)
+        return page
 
     def _imggen_manager(self):
-        return self.pages["imggen"]
+        return self.pages["imggen"].manager
 
     def _persist_imggen_tasks(self):
         try:
             self.cfg.update_settings(imggen_tasks=self.imggen_store.to_list())
         except Exception:
             pass
-
-    def _open_imggen_window(self, task):
-        from drama_shot_master.ui.windows.imggen_task_window import ImgGenTaskWindow
-        existing = self._open_imggen_windows.get(task.id)
-        if existing is not None:
-            existing.raise_(); existing.activateWindow(); return
-        win = ImgGenTaskWindow(task, self.cfg)
-        win.dirty.connect(self._on_imggen_dirty)
-        win.statusChanged.connect(self._on_imggen_status)
-        win.resultReady.connect(self._on_imggen_result)
-        win.closed.connect(self._on_imggen_window_closed)
-        self._open_imggen_windows[task.id] = win
-        win.show()
-
-    def _close_imggen_window(self, task_id: str):
-        win = self._open_imggen_windows.get(task_id)
-        if win is not None:
-            win.close()
 
     def _on_imggen_dirty(self, task_id: str, payload: dict):
         self.imggen_store.update(task_id, payload=payload)
@@ -535,14 +538,8 @@ class AppShell(QMainWindow):
         self.imggen_store.update(task_id, last_result=path)
         self._persist_imggen_tasks(); self._imggen_manager().refresh()
 
-    def _on_imggen_window_closed(self, task_id: str):
-        self._open_imggen_windows.pop(task_id, None)
-        self._imggen_manager().clear_task_status(task_id)
-
-    def _on_imggen_renamed(self, task_id: str, name: str):
-        win = self._open_imggen_windows.get(task_id)
-        if win is not None:
-            win.set_title_name(name)
+    def _on_imggen_renamed(self, task_id, name):
+        self.pages["imggen"].update_task_name(task_id, name)
 
     # ------------------------------------------------------------------ #
     # 生命周期
@@ -568,12 +565,10 @@ class AppShell(QMainWindow):
             except Exception:
                 pass
         self._persist_dub_tasks()
-        # 让每个打开的图片生成任务窗存一次 payload，再整体落盘
-        for win in list(self._open_imggen_windows.values()):
-            try:
-                self.imggen_store.update(win.task_id, payload=win.panel.to_payload())
-            except Exception:
-                pass
+        # 让图片生成页落盘所有缓存编辑器（含已浮出窗），再整体持久化
+        ip = self.pages.get("imggen")
+        if ip is not None and hasattr(ip, "flush_all"):
+            ip.flush_all()
         self._persist_imggen_tasks()
         # 持久化当前活跃 panel
         try:

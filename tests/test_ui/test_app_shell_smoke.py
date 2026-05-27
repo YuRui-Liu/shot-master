@@ -37,10 +37,8 @@ def test_batch_pages_are_batch_tool_page():
 def test_task_pages_are_manager_panels():
     _app()
     from drama_shot_master.ui.panels.dub_task_manager_panel import DubTaskManagerPanel
-    from drama_shot_master.ui.panels.imggen_task_manager_panel import ImgGenTaskManagerPanel
     w = AppShell()
     assert isinstance(w.pages["dubbing"], DubTaskManagerPanel)
-    assert isinstance(w.pages["imggen"], ImgGenTaskManagerPanel)
 
 
 def test_open_dir_method_exists():
