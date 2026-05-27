@@ -20,6 +20,11 @@ from drama_shot_master.ui.worker import FunctionWorker
 _SEG_COLORS = ["#3a4a5f", "#4a3a3a", "#3a4a3a", "#4a443a", "#3a3a4a"]
 
 
+def _fmt(ms: int) -> str:
+    s = max(0, ms) // 1000
+    return f"{s // 60}:{s % 60:02d}"
+
+
 class _AccentTimeline(QWidget):
     """自绘时间轴：刻度尺 + 段落带 + 爆点菱形标记。点击选中最近爆点。"""
 
@@ -125,6 +130,10 @@ class AccentEditorWidget(QWidget):
         self._player = None
         self._audio = None
         self._preview_worker = None
+        self._preview_path = None
+        self._preview_dirty = True
+        self._user_seeking = False
+        self.accentsChanged.connect(self._mark_preview_dirty)
         self._build_ui()
         self._refresh()
 
@@ -190,6 +199,19 @@ class AccentEditorWidget(QWidget):
         self.status_label.setStyleSheet("color:#9aa0a6;")
         root.addWidget(self.status_label)
 
+        bar = QHBoxLayout()
+        self.play_btn = QPushButton("▶")
+        self.play_btn.setMaximumWidth(40)
+        self.play_btn.clicked.connect(self._toggle_play)
+        self.seek = QSlider(Qt.Horizontal)
+        self.seek.setRange(0, 0)
+        self.seek.sliderPressed.connect(lambda: setattr(self, "_user_seeking", True))
+        self.seek.sliderReleased.connect(self._on_seek_released)
+        self.time_label = QLabel("0:00 / 0:00")
+        bar.addWidget(self.play_btn); bar.addWidget(self.seek, 1)
+        bar.addWidget(self.time_label)
+        root.addLayout(bar)
+
     def _refresh(self):
         self.listw.blockSignals(True)
         self.listw.clear()
@@ -244,6 +266,9 @@ class AccentEditorWidget(QWidget):
             self._player = QMediaPlayer(self)
             self._audio = QAudioOutput(self)
             self._player.setAudioOutput(self._audio)
+            self._player.positionChanged.connect(self._on_position)
+            self._player.durationChanged.connect(self._on_duration)
+            self._player.playbackStateChanged.connect(self._on_state)
         return self._player
 
     def _play_path(self, path: str):
@@ -253,6 +278,37 @@ class AccentEditorWidget(QWidget):
         player.setSource(QUrl.fromLocalFile(path))
         player.play()
 
+    def _mark_preview_dirty(self):
+        self._preview_dirty = True
+
+    def _toggle_play(self):
+        if self._player is None:
+            return
+        from PySide6.QtMultimedia import QMediaPlayer
+        if self._player.playbackState() == QMediaPlayer.PlayingState:
+            self._player.pause()
+        else:
+            self._player.play()
+
+    def _on_position(self, ms: int):
+        if not self._user_seeking:
+            self.seek.setValue(ms)
+        self.time_label.setText(f"{_fmt(ms)} / {_fmt(self.seek.maximum())}")
+
+    def _on_duration(self, ms: int):
+        self.seek.setRange(0, ms)
+
+    def _on_state(self, _state):
+        from PySide6.QtMultimedia import QMediaPlayer
+        playing = (self._player is not None
+                   and self._player.playbackState() == QMediaPlayer.PlayingState)
+        self.play_btn.setText("⏸" if playing else "▶")
+
+    def _on_seek_released(self):
+        self._user_seeking = False
+        if self._player is not None:
+            self._player.setPosition(self.seek.value())
+
     def _on_preview_mix(self):
         if self._preview_worker is not None and self._preview_worker.isRunning():
             return
@@ -260,6 +316,9 @@ class AccentEditorWidget(QWidget):
             QMessageBox.information(self, "试听卡点", "无工作目录,无法试听"); return
         if not self._session.segments:
             QMessageBox.information(self, "试听卡点", "还没有段落/候选,先在①生成"); return
+        if self._preview_path and not self._preview_dirty:
+            self._toggle_play()
+            return
         self.btn_preview_mix.setEnabled(False)
         self.status_label.setText("正在合成卡点试听…")
         sess = self._session
@@ -278,7 +337,9 @@ class AccentEditorWidget(QWidget):
 
     def _on_preview_done(self, path: str):
         self.btn_preview_mix.setEnabled(True)
-        self.status_label.setText("▶ 卡点试听播放中")
+        self._preview_path = path
+        self._preview_dirty = False
+        self.status_label.setText("▶ 卡点试听")
         self._play_path(path)
 
     def _on_preview_failed(self, err: str):

@@ -129,3 +129,32 @@ def test_accent_preview_apply_plays(tmp_path, monkeypatch):
     fake_wav = tmp_path / "preview_accent_bgm.wav"; fake_wav.write_bytes(b"x")
     w._on_preview_done(str(fake_wav))
     assert played.get("p") == str(fake_wav)
+
+
+def test_accent_has_seekbar_and_toggle():
+    _app()
+    w = AccentEditorWidget(_sess(), work_dir="/tmp/none", crossfade=0.5,
+                           snap_window=0.6, big_threshold=0.7)
+    assert hasattr(w, "play_btn") and hasattr(w, "seek")
+    assert w._player is None                 # 懒创建
+
+
+def test_accent_preview_replay_toggles_when_not_dirty(tmp_path, monkeypatch):
+    _app()
+    w = AccentEditorWidget(_sess(), work_dir=str(tmp_path), crossfade=0.5,
+                           snap_window=0.6, big_threshold=0.7)
+    toggled = []
+    monkeypatch.setattr(w, "_play_path", lambda p: None)
+    monkeypatch.setattr(w, "_toggle_play", lambda: toggled.append(1))
+    fake = tmp_path / "preview_accent_bgm.wav"; fake.write_bytes(b"x")
+    w._on_preview_done(str(fake))            # 首次合成完成 → 记录预览路径、非脏
+    w._on_preview_mix()                      # 再点:非脏 → 应走 toggle 而非重合成
+    assert toggled == [1]
+
+
+def test_accent_edit_marks_preview_dirty(tmp_path):
+    _app()
+    w = AccentEditorWidget(_sess(), work_dir=str(tmp_path))
+    w._preview_path = "x"; w._preview_dirty = False
+    w.add_accent(1.23)                       # 任何编辑(发 accentsChanged)应标脏
+    assert w._preview_dirty is True
