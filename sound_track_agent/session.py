@@ -102,6 +102,8 @@ class ScoringSession:
     segments: list[SegmentScore] = field(default_factory=list)
     accent_points: list[AccentPoint] = field(default_factory=list)
     output: Optional[str] = None
+    accent_mix_enabled: bool = True
+    pump_strength: float = 0.6
 
     def to_dict(self) -> dict:
         return {
@@ -112,6 +114,8 @@ class ScoringSession:
             "segments": [s.to_dict() for s in self.segments],
             "accent_points": [a.to_dict() for a in self.accent_points],
             "output": self.output,
+            "accent_mix_enabled": self.accent_mix_enabled,
+            "pump_strength": self.pump_strength,
         }
 
     @classmethod
@@ -124,6 +128,8 @@ class ScoringSession:
             segments=[SegmentScore.from_dict(s) for s in d.get("segments", [])],
             accent_points=[AccentPoint(**a) for a in d.get("accent_points", [])],
             output=d.get("output"),
+            accent_mix_enabled=bool(d.get("accent_mix_enabled", True)),
+            pump_strength=float(d.get("pump_strength", 0.6)),
         )
 
     def save(self, path: Path) -> None:

@@ -85,3 +85,21 @@ def test_session_save_load_roundtrip(tmp_path):
     assert p.exists()
     loaded = ScoringSession.load(p)
     assert loaded == sess
+
+
+def test_accent_mix_fields_default_and_roundtrip():
+    s = ScoringSession(source_mp4="x", source_hash="h", global_style="g",
+                       frame_rate=24.0)
+    assert s.accent_mix_enabled is True
+    assert abs(s.pump_strength - 0.6) < 1e-9
+    d = s.to_dict()
+    assert d["accent_mix_enabled"] is True and d["pump_strength"] == 0.6
+    s2 = ScoringSession.from_dict(d)
+    assert s2.accent_mix_enabled is True and s2.pump_strength == 0.6
+
+
+def test_from_dict_missing_accent_mix_fields_uses_defaults():
+    d = {"source_mp4": "x", "source_hash": "h", "global_style": "g",
+         "frame_rate": 24.0, "segments": [], "accent_points": [], "output": None}
+    s = ScoringSession.from_dict(d)
+    assert s.accent_mix_enabled is True and abs(s.pump_strength - 0.6) < 1e-9
