@@ -172,6 +172,7 @@ def build_accent_preview(session: ScoringSession, work_dir, *,
     work_dir.mkdir(parents=True, exist_ok=True)
     seg_bgms = [_chosen_bgm(s) for s in session.segments]
     accents = list(getattr(session, "accent_points", []) or [])
+    gains = [float(getattr(s, "volume", 1.0)) for s in session.segments]
     out = work_dir / "preview_accent_bgm.wav"
 
     if bool(getattr(session, "accent_mix_enabled", True)) and accents:
@@ -179,11 +180,12 @@ def build_accent_preview(session: ScoringSession, work_dir, *,
                                big_threshold=big_threshold, window=snap_window,
                                min_clip=crossfade)
         raw = assemble_bgm(seg_bgms, work_dir / "_preview_raw.wav",
-                           crossfade=crossfade, clip_durations=targets)
+                           crossfade=crossfade, clip_durations=targets,
+                           clip_gains=gains)
         out = apply_pump(raw, out, accents,
                          strength=float(getattr(session, "pump_strength", 0.6)))
     else:
-        out = assemble_bgm(seg_bgms, out, crossfade=crossfade)
+        out = assemble_bgm(seg_bgms, out, crossfade=crossfade, clip_gains=gains)
     return str(out)
 
 

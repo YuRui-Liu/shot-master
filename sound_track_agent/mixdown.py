@@ -48,19 +48,21 @@ def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
     seg_bgms = [_chosen_bgm(s) for s in sess.segments]
     accents = list(getattr(sess, "accent_points", []) or [])
     use_accent = bool(getattr(sess, "accent_mix_enabled", True)) and bool(accents)
+    gains = [float(getattr(s, "volume", 1.0)) for s in sess.segments]
 
     if use_accent:
         targets = clip_targets([s.duration for s in sess.segments], accents,
                                big_threshold=big_threshold, window=snap_window,
                                min_clip=crossfade)
         full_bgm = assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
-                                crossfade=crossfade, clip_durations=targets)
+                                crossfade=crossfade, clip_durations=targets,
+                                clip_gains=gains)
         full_bgm = apply_pump(full_bgm, work_dir / "full_bgm_pumped.wav",
                               accents,
                               strength=float(getattr(sess, "pump_strength", 0.6)))
     else:
         full_bgm = assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
-                                crossfade=crossfade)
+                                crossfade=crossfade, clip_gains=gains)
 
     src_audio = extract_audio(video_path, work_dir / "src_audio.wav")
     vocals, _rest = separate(src_audio, work_dir / "sep")

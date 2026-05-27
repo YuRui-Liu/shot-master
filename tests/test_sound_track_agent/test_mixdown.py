@@ -109,3 +109,31 @@ def test_disabled_bypasses_pump(tmp_path, monkeypatch):
                          accents=[AccentPoint(t=0.5, intensity=0.9)])
     out = m.assemble_and_mix(sess, v, tmp_path / "w2", separate=_fake_separate)
     assert Path(out).exists()
+
+
+def test_assemble_and_mix_passes_clip_gains(tmp_path, monkeypatch):
+    import sound_track_agent.mixdown as m
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, BGMCandidate)
+    v = tmp_path / "clip.mp4"; _make_video_with_audio(v, dur=2.0)
+    b0 = tmp_path / "b0.wav"; _tone(b0, 440, dur=2.0)
+    seen = {}
+    real_assemble = m.assemble_bgm
+    def spy(paths, out, **kw):
+        seen["gains"] = kw.get("clip_gains")
+        return real_assemble(paths, out, **kw)
+    monkeypatch.setattr(m, "assemble_bgm", spy)
+    sess = ScoringSession(
+        source_mp4=str(v), source_hash="h", global_style="x", frame_rate=24.0,
+        segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0,
+                  candidates=[BGMCandidate(path=str(b0), seed=1, prompt="t")],
+                  chosen_candidate=0)])
+    sess.segments[0].volume = 0.5
+    sess.accent_mix_enabled = False        # else 分支也要带 gains
+    def _sep(a, o, **k):
+        from pathlib import Path
+        return Path(a), Path(a)
+    out = m.assemble_and_mix(sess, v, tmp_path / "w", separate=_sep)
+    from pathlib import Path
+    assert Path(out).exists()
+    assert seen.get("gains") == [0.5]
