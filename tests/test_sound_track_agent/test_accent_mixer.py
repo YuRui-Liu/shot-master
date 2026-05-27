@@ -106,3 +106,14 @@ def test_clip_targets_consecutive_snaps_no_extension():
     assert t[0] == 1.5                              # 段0 裁到 1.5
     assert t[1] is None                             # 段1 不能拉长(3.8-1.5=2.3>2.0)→播满
     assert t[2] is None
+
+
+def test_clip_targets_skips_snap_when_clip_shorter_than_min():
+    segs = [1.0, 1.0]
+    accents = [AccentPoint(t=0.3, intensity=0.9)]   # 接缝1.0→0.3 但裁后段0=0.3s
+    # min_clip=0.5：0.3 < 0.5 → 跳过吸附,保留自然(整段)
+    assert clip_targets(segs, accents, big_threshold=0.7, window=0.8,
+                        min_clip=0.5) == [None, None]
+    # 不设 min_clip(默认)时仍按原逻辑裁到 0.3
+    assert clip_targets(segs, accents, big_threshold=0.7,
+                        window=0.8) == [0.3, None]

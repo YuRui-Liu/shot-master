@@ -51,7 +51,8 @@ def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
 
     if use_accent:
         targets = clip_targets([s.duration for s in sess.segments], accents,
-                               big_threshold=big_threshold, window=snap_window)
+                               big_threshold=big_threshold, window=snap_window,
+                               min_clip=crossfade)
         full_bgm = assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
                                 crossfade=crossfade, clip_durations=targets)
         full_bgm = apply_pump(full_bgm, work_dir / "full_bgm_pumped.wav",

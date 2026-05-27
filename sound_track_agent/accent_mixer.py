@@ -81,9 +81,11 @@ def snapped_boundaries(seg_durations: list, accents: list,
 
 
 def clip_targets(seg_durations: list, accents: list,
-                 *, big_threshold: float, window: float) -> list:
+                 *, big_threshold: float, window: float,
+                 min_clip: float = 0.0) -> list:
     """把吸附后的接缝换算成每段 clip 的目标时长(秒)。trim-only(逐 clip):每段只能
     裁短到不超过自身自然时长,接缝只允许更早。无需裁则该段为 None;末段恒为 None。
+    裁后时长 < min_clip 则跳过该次吸附(保留自然,防 crossfade 越界)。
     返回 len = 段数 的列表。"""
     n = len(seg_durations)
     if n <= 1:
@@ -99,11 +101,11 @@ def clip_targets(seg_durations: list, accents: list,
         seam = min(snapped[i], natural_cum)        # 接缝不许晚于自然位置
         dur = seam - prev
         natural_dur = float(seg_durations[i])
-        if dur >= natural_dur - 1e-6:              # 需要整段(或更多)→ 不裁
+        if dur >= natural_dur - 1e-6 or dur < max(min_clip, 1e-3):
+            # 需要整段(或更多),或裁后过短(< min_clip,会撞 crossfade)→ 跳过吸附
             targets.append(None)
             prev += natural_dur                    # 该 clip 播满,接缝按自然推进
         else:
-            dur = max(dur, 0.05)                   # 防零/负长
             targets.append(round(dur, 6))
             prev += dur                            # 接缝按裁后推进
     return targets
