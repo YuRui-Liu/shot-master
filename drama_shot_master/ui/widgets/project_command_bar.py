@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 class ProjectCommandBar(QWidget):
     openDirRequested = Signal()
     setOutputRequested = Signal()
+    taskCenterToggled = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -53,6 +54,12 @@ class ProjectCommandBar(QWidget):
         layout.addWidget(self.lbl_count)
 
         layout.addStretch(1)
+
+        self.btn_task_center = QPushButton("⧉ 任务")
+        self.btn_task_center.setCheckable(True)
+        self.btn_task_center.setToolTip("打开任务中心 (跨 4 个生成功能的总览)")
+        self.btn_task_center.toggled.connect(self.taskCenterToggled)
+        layout.addWidget(self.btn_task_center)
 
     # ---------- 文本 API ----------
 

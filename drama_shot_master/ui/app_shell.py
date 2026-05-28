@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QMenu,
 )
@@ -94,6 +95,25 @@ class AppShell(QMainWindow):
         central.setLayout(root)
         self.setCentralWidget(central)
 
+        # 任务中心 dock
+        from drama_shot_master.core.task_aggregator import TaskAggregator
+        from drama_shot_master.ui.widgets.task_center_dock import TaskCenterDock
+        self._task_agg = TaskAggregator(
+            self.cfg, self.video_store, self.dub_store, self.imggen_store,
+            managers={
+                "video": self._video_manager(),
+                "dub": self._dub_manager(),
+                "imggen": self._imggen_manager(),
+            },
+        )
+        self.task_center_dock = TaskCenterDock(self._task_agg, parent=self)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.task_center_dock)
+        self.task_center_dock.setVisible(
+            bool(getattr(self.cfg, "task_center_visible", False)))
+        self.task_center_dock.taskActivated.connect(self._activate_task)
+        self.task_center_dock.visibilityChanged.connect(
+            self._on_task_center_visibility)
+
     def _wire(self):
         from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
         for page in self.pages.values():
@@ -110,6 +130,11 @@ class AppShell(QMainWindow):
         self.command_bar.openDirRequested.connect(self._open_dir)
         self.command_bar.setOutputRequested.connect(self._set_out_dir)
         self.stack.currentChanged.connect(self._on_page_changed)
+
+        # 任务中心 toggle 双向绑定
+        self.command_bar.taskCenterToggled.connect(self.task_center_dock.setVisible)
+        self.task_center_dock.visibilityChanged.connect(
+            self.command_bar.btn_task_center.setChecked)
 
     def _on_nav_changed(self, key: str):
         self.switchTo(self.pages[key])
@@ -177,6 +202,22 @@ class AppShell(QMainWindow):
         if isinstance(page, BatchToolPage):
             self.state.selected = page.selected_order()
         self._refresh_counts()
+
+    def _activate_task(self, kind: str, tid: str):
+        key = {"video": "video_gen", "dub": "dubbing",
+               "imggen": "imggen", "soundtrack": "soundtrack"}.get(kind)
+        if key is None:
+            return
+        self.switchTo(self.pages[key])
+        mgr = getattr(self.pages[key], "manager", None)
+        if mgr is not None and hasattr(mgr, "_select_task"):
+            mgr._select_task(tid)
+
+    def _on_task_center_visibility(self, v: bool):
+        try:
+            self.cfg.update_settings(task_center_visible=bool(v))
+        except Exception:
+            pass
 
     def _open_unified_settings(self):
         from drama_shot_master.ui.dialogs.unified_settings_dialog import UnifiedSettingsDialog
@@ -309,11 +350,15 @@ class AppShell(QMainWindow):
 
     def _on_task_status(self, task_id: str, status: str):
         self._video_manager().set_task_status(task_id, status)
+        if hasattr(self, 'task_center_dock'):
+            self.task_center_dock.refresh()
 
     def _on_task_result(self, task_id: str, mp4: str):
         self.video_store.update(task_id, last_result=mp4)
         self._persist_tasks()
         self._video_manager().refresh()
+        if hasattr(self, 'task_center_dock'):
+            self.task_center_dock.refresh()
 
     def _on_task_renamed(self, task_id: str, name: str):
         page = self.pages.get("video_gen")
@@ -390,6 +435,8 @@ class AppShell(QMainWindow):
         m = self._soundtrack_panel()
         if m is not None and hasattr(m, "refresh"):
             m.refresh()
+        if hasattr(self, "task_center_dock"):
+            self.task_center_dock.refresh()
 
     def _on_soundtrack_result(self, task_id: str, output: str):
         for t in getattr(self.cfg, "soundtrack_tasks", []):
@@ -400,6 +447,8 @@ class AppShell(QMainWindow):
         m = self._soundtrack_panel()
         if m is not None and hasattr(m, "refresh"):
             m.refresh()
+        if hasattr(self, "task_center_dock"):
+            self.task_center_dock.refresh()
 
     # ------------------------------------------------------------------ #
     # 配音 tab helpers（移植自 MainWindow）
@@ -450,10 +499,14 @@ class AppShell(QMainWindow):
 
     def _on_dub_status(self, task_id: str, status: str):
         self._dub_manager().set_task_status(task_id, status)
+        if hasattr(self, 'task_center_dock'):
+            self.task_center_dock.refresh()
 
     def _on_dub_result(self, task_id: str, flac: str):
         self.dub_store.update(task_id, last_result=flac)
         self._persist_dub_tasks(); self._dub_manager().refresh()
+        if hasattr(self, 'task_center_dock'):
+            self.task_center_dock.refresh()
 
     def _on_dub_renamed(self, task_id, name):
         self.pages["dubbing"].update_task_name(task_id, name)
@@ -507,10 +560,14 @@ class AppShell(QMainWindow):
 
     def _on_imggen_status(self, task_id: str, status: str):
         self._imggen_manager().set_task_status(task_id, status)
+        if hasattr(self, 'task_center_dock'):
+            self.task_center_dock.refresh()
 
     def _on_imggen_result(self, task_id: str, path: str):
         self.imggen_store.update(task_id, last_result=path)
         self._persist_imggen_tasks(); self._imggen_manager().refresh()
+        if hasattr(self, 'task_center_dock'):
+            self.task_center_dock.refresh()
 
     def _on_imggen_renamed(self, task_id, name):
         self.pages["imggen"].update_task_name(task_id, name)

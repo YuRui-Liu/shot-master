@@ -175,3 +175,41 @@ def test_video_select_creates_editor_inline():
     mgr.taskSelected.emit(t)
     from drama_shot_master.ui.panels.video_panel import VideoPanel
     assert isinstance(page._editors[t.id], VideoPanel)
+
+
+def test_task_center_dock_present_and_hidden_by_default():
+    _app()
+    from drama_shot_master.ui.widgets.task_center_dock import TaskCenterDock
+    w = AppShell()
+    assert hasattr(w, "task_center_dock")
+    assert isinstance(w.task_center_dock, TaskCenterDock)
+    # 默认隐藏
+    assert w.task_center_dock.isVisible() is False
+
+
+def test_activate_task_switches_page_and_selects():
+    _app()
+    w = AppShell()
+    # 加一个 video task 后激活
+    mgr = w._video_manager()
+    if not mgr.store.all():
+        mgr.store.add("T1", {})
+        mgr.refresh()
+    tid = mgr.store.all()[0].id
+    w._activate_task("video", tid)
+    assert w.stack.currentWidget() is w.pages["video_gen"]
+
+
+def test_command_bar_toggle_task_center():
+    _app()
+    w = AppShell()
+    w.show()
+    QApplication.instance().processEvents()
+    assert w.task_center_dock.isVisible() is False
+    w.command_bar.btn_task_center.setChecked(True)
+    QApplication.instance().processEvents()
+    # toggled → setVisible(True)
+    assert w.task_center_dock.isVisible() is True
+    w.command_bar.btn_task_center.setChecked(False)
+    QApplication.instance().processEvents()
+    assert w.task_center_dock.isVisible() is False
