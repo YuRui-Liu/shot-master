@@ -138,6 +138,7 @@ class ScoringSession:
     accent_mix_enabled: bool = True
     pump_strength: float = 0.6
     dialogue_segments: list[DialogueSegment] = field(default_factory=list)
+    segments_refined: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -151,6 +152,7 @@ class ScoringSession:
             "accent_mix_enabled": self.accent_mix_enabled,
             "pump_strength": self.pump_strength,
             "dialogue_segments": [d.to_dict() for d in self.dialogue_segments],
+            "segments_refined": self.segments_refined,
         }
 
     @classmethod
@@ -167,6 +169,7 @@ class ScoringSession:
             pump_strength=float(d.get("pump_strength", 0.6)),
             dialogue_segments=[DialogueSegment.from_dict(ds)
                                for ds in d.get("dialogue_segments", [])],
+            segments_refined=bool(d.get("segments_refined", False)),
         )
 
     def save(self, path: Path) -> None:

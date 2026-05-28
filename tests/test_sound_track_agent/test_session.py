@@ -202,3 +202,30 @@ def test_session_dialogue_segments_default_when_missing(tmp_path):
         encoding="utf-8")
     back = ScoringSession.load(p)
     assert back.dialogue_segments == []
+
+
+def test_segments_refined_default_false():
+    sess = ScoringSession(source_mp4="x", source_hash="h", global_style="s",
+                          frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0)])
+    assert sess.segments_refined is False
+
+
+def test_segments_refined_roundtrip(tmp_path):
+    sess = ScoringSession(source_mp4="x", source_hash="h", global_style="s",
+                          frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0)])
+    sess.segments_refined = True
+    p = tmp_path / "session.json"
+    sess.save(p)
+    assert ScoringSession.load(p).segments_refined is True
+
+
+def test_segments_refined_default_when_missing(tmp_path):
+    """旧 session.json 缺字段时默认 False（首次会触发 refine）。"""
+    p = tmp_path / "session.json"
+    p.write_text(
+        '{"source_mp4":"x","source_hash":"h","global_style":"s",'
+        '"frame_rate":24.0,"segments":[],"accent_points":[]}',
+        encoding="utf-8")
+    assert ScoringSession.load(p).segments_refined is False
