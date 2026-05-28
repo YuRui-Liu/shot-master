@@ -147,3 +147,20 @@ def apply_app_icon(app, name: str = "app_icon") -> None:
     if p:
         app.setWindowIcon(QIcon(str(p)))
 
+
+# 状态字符串 → token key 映射
+_STATUS_TOKEN = {
+    "空闲":   "status_idle",
+    "生成中": "status_running",
+    "完成":   "status_done",
+    "失败":   "status_failed",
+}
+
+
+def status_color(status: str, cfg=None) -> str:
+    """状态字符串 → 当前主题对应的 hex 颜色。
+    cfg 缺省时按 dark 取色（兼容 lib 调用无 cfg 上下文）。"""
+    name = current_theme(cfg) if cfg is not None else "dark"
+    tok = _STATUS_TOKEN.get(status, "status_idle")
+    return _tokens(name).get(tok, "#9aa0a6")
+

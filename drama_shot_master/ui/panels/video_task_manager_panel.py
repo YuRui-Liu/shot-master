@@ -11,13 +11,6 @@ from PySide6.QtWidgets import (
     QHeaderView, QMessageBox, QAbstractItemView,
 )
 
-# 状态 → 文字颜色（深色主题下的色标）
-_STATUS_COLORS = {
-    "空闲": "#9aa0a6",     # 灰
-    "生成中": "#4a9eff",   # 蓝（强调）
-    "完成": "#4ec98f",     # 绿
-    "失败": "#ff5c5c",     # 红
-}
 
 from drama_shot_master.config import Config
 from drama_shot_master.core.video_task_store import VideoTaskStore
@@ -131,10 +124,10 @@ class VideoTaskManagerPanel(BasePanel):
         it.setFlags(it.flags() & ~Qt.ItemIsEditable)
         return it
 
-    @classmethod
-    def _status_item(cls, status: str) -> QTableWidgetItem:
-        it = cls._readonly(status)
-        color = _STATUS_COLORS.get(status)
+    def _status_item(self, status: str) -> QTableWidgetItem:
+        it = self._readonly(status)
+        from drama_shot_master.ui.theme import status_color
+        color = status_color(status, self.cfg)
         if color:
             it.setForeground(QColor(color))
             if status in ("生成中", "失败"):

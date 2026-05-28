@@ -17,10 +17,6 @@ from PySide6.QtWidgets import (
 
 from drama_shot_master.ui.panels.base_panel import BasePanel
 
-_STATUS_COLORS = {
-    "空闲": "#9aa0a6", "生成中": "#4a9eff", "完成": "#4ec98f", "失败": "#ff5c5c",
-}
-
 
 def _gen_id() -> str:
     return f"{int(time.time() * 1000)}{token_hex(3)[:5]}"
@@ -102,7 +98,8 @@ class SoundtrackPanel(BasePanel):
 
     def _status_item(self, status: str) -> QTableWidgetItem:
         it = self._ro(status)
-        color = _STATUS_COLORS.get(status)
+        from drama_shot_master.ui.theme import status_color
+        color = status_color(status, self.cfg)
         if color:
             it.setForeground(QColor(color))
             if status in ("生成中", "失败"):
