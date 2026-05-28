@@ -7,8 +7,12 @@ from pathlib import Path
 from sound_track_agent.session import ScoringSession, SegmentScore
 from sound_track_agent.bgm_assembler import assemble_bgm
 from sound_track_agent.audio_mixer import (
-    separate_vocals, duck_and_mix, extract_audio, replace_video_audio)
+    separate_vocals, duck_and_mix, extract_audio, replace_video_audio,
+    assemble_dialogue_track,
+)
 from sound_track_agent.accent_mixer import apply_pump, clip_targets
+from sound_track_agent.beat_aligner import align_beats_to_accents
+from sound_track_agent.shot_detector import _video_duration_seconds
 
 
 def extract_segment_frame(video_path, seg: SegmentScore, out_png, *,
@@ -34,14 +38,39 @@ def _chosen_bgm(seg: SegmentScore) -> str:
 
 def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
                      crossfade: float = 0.5,
-                     separate=separate_vocals,
                      target_lufs: float = -14.0,
                      big_threshold: float = 0.7,
-                     snap_window: float = 0.6) -> str:
-    """段 BGM 拼接 →(可选)段切对齐+泵感 → 分离对白 → ducking → 写回视频。
+                     snap_window: float = 0.6,
+                     max_stretch: float = 0.10,
+                     separate=separate_vocals,
+                     assemble_dialogue=None,
+                     align_beats=None,
+                     apply_pump_fn=None,
+                     assemble_bgm_fn=None,
+                     extract_audio_fn=None,
+                     duck_and_mix_fn=None,
+                     replace_video_audio_fn=None,
+                     duration_of=None) -> str:
+    """段 BGM 拼接 → 卡点对齐+泵感（跳过对齐爆点） → 装对白轨(或 Demucs) →
+    ducking → 写回视频。所有 I/O 可注入（测试用）。"""
+    # 默认值引用模块级名称，使 monkeypatch 仍然生效
+    _assemble_dialogue = assemble_dialogue or assemble_dialogue_track
+    _align_beats = align_beats or align_beats_to_accents
+    _apply_pump = apply_pump_fn or apply_pump
+    _assemble_bgm = assemble_bgm_fn or assemble_bgm
+    _extract_audio = extract_audio_fn or extract_audio
+    _duck_and_mix = duck_and_mix_fn or duck_and_mix
+    _replace_video_audio = replace_video_audio_fn or replace_video_audio
+    if duration_of is None:
+        def _safe_duration(v):
+            try:
+                return _video_duration_seconds(v)
+            except Exception:
+                return 0.0
+        _duration_of = _safe_duration
+    else:
+        _duration_of = duration_of
 
-    当 sess.accent_mix_enabled 且有卡点时启用卡点路径;否则等同原逻辑(零回归)。
-    """
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
 
@@ -54,22 +83,33 @@ def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
         targets = clip_targets([s.duration for s in sess.segments], accents,
                                big_threshold=big_threshold, window=snap_window,
                                min_clip=crossfade)
-        full_bgm = assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
+        raw_bgm = _assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
                                 crossfade=crossfade, clip_durations=targets,
                                 clip_gains=gains)
-        full_bgm = apply_pump(full_bgm, work_dir / "full_bgm_pumped.wav",
-                              accents,
-                              strength=float(getattr(sess, "pump_strength", 0.6)))
+        stretched, aligned = _align_beats(
+            raw_bgm, accents, max_stretch=max_stretch,
+            big_threshold=big_threshold,
+            out_path=work_dir / "full_bgm_aligned.wav")
+        full_bgm = _apply_pump(stretched, work_dir / "full_bgm_pumped.wav",
+                               accents,
+                               strength=float(getattr(sess, "pump_strength", 0.6)),
+                               skip_indices=aligned)
     else:
-        full_bgm = assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
-                                crossfade=crossfade, clip_gains=gains)
+        full_bgm = _assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
+                                 crossfade=crossfade, clip_gains=gains)
 
-    src_audio = extract_audio(video_path, work_dir / "src_audio.wav")
-    vocals, _rest = separate(src_audio, work_dir / "sep")
+    if sess.dialogue_segments:
+        total_dur = float(_duration_of(video_path))
+        vocals = _assemble_dialogue(
+            sess.dialogue_segments, total_dur,
+            work_dir / "dialogue_track.wav")
+    else:
+        src_audio = _extract_audio(video_path, work_dir / "src_audio.wav")
+        vocals, _rest = separate(src_audio, work_dir / "sep")
 
-    mixed = duck_and_mix(vocals, full_bgm, work_dir / "mixed.wav",
-                         target_lufs=target_lufs)
+    mixed = _duck_and_mix(vocals, full_bgm, work_dir / "mixed.wav",
+                          target_lufs=target_lufs)
 
     out_video = work_dir / (Path(video_path).stem + "_scored.mp4")
-    replace_video_audio(video_path, mixed, out_video)
+    _replace_video_audio(video_path, mixed, out_video)
     return str(out_video)

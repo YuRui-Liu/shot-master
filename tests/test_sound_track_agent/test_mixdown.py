@@ -89,6 +89,9 @@ def test_accent_path_calls_pump_when_enabled(tmp_path, monkeypatch):
         return Path(outp)
 
     monkeypatch.setattr(m, "apply_pump", fake_pump)
+    from pathlib import Path
+    monkeypatch.setattr(m, "align_beats_to_accents",
+                        lambda bgm, accents, **k: (Path(bgm), frozenset()))
     sess = _two_seg_sess(v, b0, b1, enabled=True,
                          accents=[AccentPoint(t=0.5, intensity=0.9)])
     out = m.assemble_and_mix(sess, v, tmp_path / "w", separate=_fake_separate)
@@ -137,3 +140,122 @@ def test_assemble_and_mix_passes_clip_gains(tmp_path, monkeypatch):
     from pathlib import Path
     assert Path(out).exists()
     assert seen.get("gains") == [0.5]
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 Task 5: 新流水线编排测试
+# ---------------------------------------------------------------------------
+
+from sound_track_agent.session import DialogueSegment
+
+
+def _sess_with_bgm(tmp_path, dialogue_segments=None, accents=None):
+    bgm = tmp_path / "seg0.mp3"; bgm.write_bytes(b"BGM")
+    sess = ScoringSession(
+        source_mp4=str(tmp_path / "ep.mp4"), source_hash="h",
+        global_style="s", frame_rate=24.0,
+        segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0,
+                  candidates=[BGMCandidate(path=str(bgm), seed=1, prompt="t")],
+                  chosen_candidate=0)],
+        accent_points=accents or [],
+        dialogue_segments=dialogue_segments or [])
+    return sess
+
+
+def test_assemble_and_mix_uses_dialogue_track_skips_demucs(tmp_path):
+    (tmp_path / "ep.mp4").write_bytes(b"FAKE")
+    calls = {"separate": 0, "dialogue": 0, "duck": 0, "replace": 0}
+
+    def fake_separate(*a, **k):
+        calls["separate"] += 1
+        return tmp_path / "v.wav", tmp_path / "n.wav"
+
+    def fake_assemble_dialogue(segs, total_duration, out_path, **k):
+        calls["dialogue"] += 1
+        p = Path(out_path); p.write_bytes(b"DIA"); return p
+
+    def fake_assemble_bgm(paths, out, **k):
+        Path(out).write_bytes(b"BGM"); return Path(out)
+
+    def fake_duck(v, b, o, **k):
+        calls["duck"] += 1; Path(o).write_bytes(b"MX"); return Path(o)
+
+    def fake_replace(vid, aud, out, **k):
+        calls["replace"] += 1; Path(out).write_bytes(b"VID"); return Path(out)
+
+    def fake_extract_audio(v, o, **k):
+        Path(o).write_bytes(b"A"); return Path(o)
+
+    def fake_duration(v): return 4.0
+
+    sess = _sess_with_bgm(tmp_path, dialogue_segments=[
+        DialogueSegment(audio_path="/x/a.flac", t_start=1.0, duration=1.0)])
+    out = assemble_and_mix(
+        sess, tmp_path / "ep.mp4", tmp_path / "w",
+        separate=fake_separate,
+        assemble_dialogue=fake_assemble_dialogue,
+        assemble_bgm_fn=fake_assemble_bgm,
+        extract_audio_fn=fake_extract_audio,
+        duck_and_mix_fn=fake_duck,
+        replace_video_audio_fn=fake_replace,
+        duration_of=fake_duration)
+    assert calls["separate"] == 0                  # 不调 Demucs
+    assert calls["dialogue"] == 1
+    assert calls["duck"] == 1
+    assert calls["replace"] == 1
+    assert Path(out).exists()
+
+
+def test_assemble_and_mix_falls_back_to_demucs_when_no_dialogue(tmp_path):
+    (tmp_path / "ep.mp4").write_bytes(b"FAKE")
+    calls = {"separate": 0, "dialogue": 0}
+
+    def fake_separate(*a, **k):
+        calls["separate"] += 1
+        return tmp_path / "v.wav", tmp_path / "n.wav"
+
+    def fake_assemble_dialogue(*a, **k):
+        calls["dialogue"] += 1
+        return tmp_path / "d.wav"
+
+    sess = _sess_with_bgm(tmp_path, dialogue_segments=[])
+    assemble_and_mix(
+        sess, tmp_path / "ep.mp4", tmp_path / "w",
+        separate=fake_separate,
+        assemble_dialogue=fake_assemble_dialogue,
+        assemble_bgm_fn=lambda p, o, **k: (Path(o).write_bytes(b"B"), Path(o))[1],
+        extract_audio_fn=lambda v, o, **k: (Path(o).write_bytes(b"A"), Path(o))[1],
+        duck_and_mix_fn=lambda v, b, o, **k: (Path(o).write_bytes(b"M"), Path(o))[1],
+        replace_video_audio_fn=lambda v, a, o, **k: (Path(o).write_bytes(b"V"), Path(o))[1],
+        duration_of=lambda v: 4.0)
+    assert calls["separate"] == 1                  # 走 Demucs 回退
+    assert calls["dialogue"] == 0
+
+
+def test_assemble_and_mix_passes_aligned_indices_to_pump(tmp_path):
+    """align 返回的 aligned_set 透传给 apply_pump 的 skip_indices。"""
+    (tmp_path / "ep.mp4").write_bytes(b"FAKE")
+    captured = {}
+
+    def fake_align(bgm, accents, **k):
+        # 模拟：第 0 号 accent 已对齐
+        return Path(bgm), frozenset({0})
+
+    def fake_apply_pump(bgm_in, bgm_out, accents, **k):
+        captured["skip_indices"] = k.get("skip_indices")
+        Path(bgm_out).write_bytes(b"P"); return Path(bgm_out)
+
+    sess = _sess_with_bgm(tmp_path, accents=[AccentPoint(t=1.0, intensity=0.9)],
+                          dialogue_segments=[DialogueSegment(
+                              audio_path="/x/a.flac", t_start=0.0, duration=1.0)])
+    assemble_and_mix(
+        sess, tmp_path / "ep.mp4", tmp_path / "w",
+        align_beats=fake_align, apply_pump_fn=fake_apply_pump,
+        separate=lambda *a, **k: (tmp_path / "v.wav", tmp_path / "n.wav"),
+        assemble_dialogue=lambda s, t, o, **k: (Path(o).write_bytes(b"D"), Path(o))[1],
+        assemble_bgm_fn=lambda p, o, **k: (Path(o).write_bytes(b"B"), Path(o))[1],
+        extract_audio_fn=lambda v, o, **k: (Path(o).write_bytes(b"A"), Path(o))[1],
+        duck_and_mix_fn=lambda v, b, o, **k: (Path(o).write_bytes(b"M"), Path(o))[1],
+        replace_video_audio_fn=lambda v, a, o, **k: (Path(o).write_bytes(b"V"), Path(o))[1],
+        duration_of=lambda v: 4.0)
+    assert captured["skip_indices"] == frozenset({0})
