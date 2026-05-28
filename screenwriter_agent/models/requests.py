@@ -1,0 +1,34 @@
+"""路由请求体 schema。"""
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+
+class IdeateContext(BaseModel):
+    core_idea: str = ""
+    genre_tags: list[str] = Field(default_factory=list)
+    format: str = "短剧"
+    tone_tags: list[str] = Field(default_factory=list)
+    visual_style: str = ""
+    candidate_count: int = 3
+    duration_sec: int = 60
+    extra_constraints: str = ""
+
+
+class ChatMessage(BaseModel):
+    role: str           # "user" | "assistant" | "system"
+    content: str
+
+
+class IdeateChatReq(BaseModel):
+    project_dir: str
+    context: IdeateContext
+    messages: list[ChatMessage] = Field(default_factory=list)
+    model: str | None = None
+    reasoning_effort: str = "high"
+    auto_save_idea_json: bool = True
+
+
+class IdeateSelectReq(BaseModel):
+    project_dir: str
+    selected_id: str
