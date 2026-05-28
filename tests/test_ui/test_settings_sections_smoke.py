@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QApplication
 
 from drama_shot_master.ui.widgets.settings_sections.runninghub_section import RunningHubSection
 from drama_shot_master.ui.widgets.settings_sections.translation_section import TranslationSection
+from drama_shot_master.ui.widgets.settings_sections.refine_section import RefineSection
 
 
 def _app():
@@ -92,3 +93,28 @@ def test_translation_section_load_save_roundtrip():
     sec.url_edit.setText("http://localhost:1188/translate")
     sec.save_to(cfg)
     assert cfg.deeplx_url == "http://localhost:1188/translate"
+
+
+# ── RefineSection ─────────────────────────────────────────────────────────────
+
+def test_refine_section_class_metadata():
+    assert RefineSection.title == "提示词优化"
+    assert RefineSection.category == "辅助"
+
+
+def test_refine_section_load_save_roundtrip():
+    _app()
+    cfg = _cfg(
+        refine_provider_preset="Ollama (本地)",
+        refine_base_url="http://localhost:11434/v1",
+        refine_api_key="",
+        refine_model="qwen2.5-vl",
+        refine_meta_prompt_path="",
+    )
+    sec = RefineSection(cfg)
+    assert sec.base_url_edit.text() == "http://localhost:11434/v1"
+    sec.base_url_edit.setText("http://localhost:11434/v1")
+    sec.model_combo.setCurrentText("qwen2.5-vl:7b")
+    sec.save_to(cfg)
+    assert cfg.refine_base_url == "http://localhost:11434/v1"
+    assert cfg.refine_model == "qwen2.5-vl:7b"
