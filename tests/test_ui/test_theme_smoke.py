@@ -33,3 +33,17 @@ def test_current_theme_reads_cfg_default_dark():
 def test_current_theme_reads_cfg_value():
     cfg = type("C", (), {"theme": "light"})()
     assert theme.current_theme(cfg) == "light"
+
+
+def test_apply_theme_light_swaps_palette():
+    app = _app()
+    theme.apply_theme(app, "dark")
+    dark_css = app.styleSheet()
+    assert "#1e1f22" in dark_css and "#fafafa" not in dark_css
+    theme.apply_theme(app, "light")
+    light_css = app.styleSheet()
+    assert "#fafafa" in light_css
+    assert "#1e1f22" not in light_css
+    # 切回 dark 也要稳
+    theme.apply_theme(app, "dark")
+    assert "#1e1f22" in app.styleSheet()
