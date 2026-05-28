@@ -17,6 +17,9 @@ def build_stages(*, provider, client, workflow_id: str,
                  align_fn: Optional[Callable[[ScoringSession], None]] = None,
                  max_concurrency: int = 3,
                  score_fn: Optional[Callable] = None,
+                 video_path=None,
+                 refine_max_segments: int = 5,
+                 refine_merge_threshold: float = 0.25,
                  ) -> Stages:
     """组装 Stages：每个回调闭包捕获外部依赖。
 
@@ -56,6 +59,14 @@ def build_stages(*, provider, client, workflow_id: str,
             compose=compose, score_fn=_score, seeds_count=seeds_count,
             max_concurrency=max_concurrency)
 
+    def refine_segments_fn(sess: ScoringSession) -> bool:
+        from sound_track_agent import refine
+        return refine.refine_segments(
+            sess, video_path=video_path, work_dir=work_dir,
+            provider=provider, global_style=global_style,
+            max_segments=refine_max_segments,
+            merge_threshold=refine_merge_threshold)
+
     def _noop_align(sess: ScoringSession) -> None:
         return None
 
@@ -69,4 +80,5 @@ def build_stages(*, provider, client, workflow_id: str,
         align=align_fn or _noop_align,
         mix=mix_fn or _unconfigured_mix,
         generate_all=generate_all,
+        refine_segments=(refine_segments_fn if video_path is not None else None),
     )

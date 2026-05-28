@@ -96,3 +96,22 @@ def test_build_stages_wires_generate_all(tmp_path):
     assert sorted(client.created) == [1, 2]
     assert len(sess.segments[0].candidates) == 2
     assert sess.segments[0].chosen_candidate is not None
+
+
+def test_build_stages_wires_refine_segments_when_video_path_set(tmp_path):
+    stages = build_stages(
+        provider=None, client=None, workflow_id="wf", work_dir=tmp_path,
+        global_style="末日", seeds=[1],
+        frame_provider=lambda seg: tmp_path / "f.png",
+        video_path=tmp_path / "ep.mp4",
+        refine_max_segments=3, refine_merge_threshold=0.3)
+    assert stages.refine_segments is not None
+
+
+def test_build_stages_no_refine_when_video_path_none(tmp_path):
+    """video_path=None 时不装配 refine（向后兼容老用例）。"""
+    stages = build_stages(
+        provider=None, client=None, workflow_id="wf", work_dir=tmp_path,
+        global_style="末日", seeds=[1],
+        frame_provider=lambda seg: tmp_path / "f.png")
+    assert stages.refine_segments is None
