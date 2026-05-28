@@ -1,4 +1,4 @@
-"""成片音频处理：Demucs 分离对白 + FFmpeg ducking 混音。
+"""成片音频处理：Demucs 分离对白 + FFmpeg ducking 混音 + 对白装配。
 
 Demucs 4.0.1 无 python api，走 CLI；FFmpeg 走子进程。所有外部命令经可注入的
 runner，便于单测 mock（真跑 Demucs 需下载 ~300MB 权重）。
@@ -101,3 +101,57 @@ def replace_video_audio(video_path, audio_path, out_video, *,
     if not out_video.exists():
         raise FileNotFoundError(f"ffmpeg 未产出 {out_video}")
     return out_video
+
+
+def assemble_dialogue_track(segments: list[DialogueSegment], total_duration: float,
+                            out_path, *, runner=subprocess.run) -> Path:
+    """把 DialogueSegment 列表装配成 total_duration 秒的连续对白 wav。
+
+    空段列表 → 仅静音底轨。
+    非空 → 静音底轨 + 各段 adelay 定位 + amix 混音。
+    ffmpeg 失败或产物缺失抛错。
+    """
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    dur_str = f"{float(total_duration):.3f}"
+
+    if not segments:
+        cmd = ["ffmpeg", "-y",
+               "-f", "lavfi", "-t", dur_str,
+               "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+               "-c:a", "pcm_s16le", str(out_path)]
+        result = runner(cmd, capture_output=True)
+        if getattr(result, "returncode", 0) != 0:
+            err = getattr(result, "stderr", b"")
+            msg = err.decode("utf-8", "ignore")[-400:] if isinstance(err, bytes) else str(err)[-400:]
+            raise RuntimeError(f"ffmpeg 静音底轨失败: {msg}")
+        if not out_path.exists():
+            raise FileNotFoundError(f"ffmpeg 未产出 {out_path}")
+        return out_path
+
+    cmd = ["ffmpeg", "-y",
+           "-f", "lavfi", "-t", dur_str,
+           "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+    for seg in segments:
+        cmd += ["-i", str(seg.audio_path)]
+
+    parts = []
+    for i, seg in enumerate(segments):
+        delay_ms = int(round(float(seg.t_start) * 1000))
+        parts.append(f"[{i+1}:a]adelay={delay_ms}:all=1[a{i+1}]")
+    n = len(segments)
+    amix_input = "[0:a]" + "".join(f"[a{i+1}]" for i in range(n))
+    amix = f"{amix_input}amix=inputs={n+1}:duration=first:normalize=0[out]"
+    filter_complex = ";".join(parts + [amix])
+
+    cmd += ["-filter_complex", filter_complex, "-map", "[out]",
+            "-t", dur_str, "-c:a", "pcm_s16le", str(out_path)]
+
+    result = runner(cmd, capture_output=True)
+    if getattr(result, "returncode", 0) != 0:
+        err = getattr(result, "stderr", b"")
+        msg = err.decode("utf-8", "ignore")[-400:] if isinstance(err, bytes) else str(err)[-400:]
+        raise RuntimeError(f"ffmpeg 对白装配失败: {msg}")
+    if not out_path.exists():
+        raise FileNotFoundError(f"ffmpeg 未产出 {out_path}")
+    return out_path

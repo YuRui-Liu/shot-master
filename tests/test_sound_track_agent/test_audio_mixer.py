@@ -62,7 +62,58 @@ def test_duck_and_mix_produces_audio(tmp_path):
 
 
 import subprocess as _sp
-from sound_track_agent.audio_mixer import extract_audio, replace_video_audio
+from sound_track_agent.audio_mixer import extract_audio, replace_video_audio, assemble_dialogue_track
+from sound_track_agent.session import DialogueSegment
+
+
+class _FakeResult:
+    def __init__(self, returncode=0):
+        self.returncode = returncode
+        self.stderr = b""
+
+
+def test_assemble_dialogue_track_empty_uses_silence_only(tmp_path):
+    """空段列表 → 只生成静音底轨。"""
+    captured = {}
+    def runner(cmd, capture_output=False):
+        captured["cmd"] = cmd
+        (tmp_path / "out.wav").write_bytes(b"WAV")
+        return _FakeResult(returncode=0)
+    out = assemble_dialogue_track(
+        [], total_duration=5.0, out_path=tmp_path / "out.wav", runner=runner)
+    cmd = captured["cmd"]
+    assert "anullsrc=channel_layout=stereo:sample_rate=44100" in " ".join(cmd)
+    assert "-filter_complex" not in cmd                # 单输入路径
+    assert out == tmp_path / "out.wav"
+
+
+def test_assemble_dialogue_track_segments_adelay_and_amix(tmp_path):
+    captured = {}
+    def runner(cmd, capture_output=False):
+        captured["cmd"] = cmd
+        (tmp_path / "out.wav").write_bytes(b"WAV")
+        return _FakeResult(returncode=0)
+    segs = [DialogueSegment(audio_path="/x/a.flac", t_start=0.0, duration=1.0),
+            DialogueSegment(audio_path="/x/b.flac", t_start=1.5, duration=0.8),
+            DialogueSegment(audio_path="/x/c.flac", t_start=3.0, duration=0.5)]
+    assemble_dialogue_track(segs, total_duration=5.0,
+                            out_path=tmp_path / "out.wav", runner=runner)
+    cmd = " ".join(captured["cmd"])
+    assert "-i /x/a.flac" in cmd
+    assert "-i /x/b.flac" in cmd
+    assert "-i /x/c.flac" in cmd
+    assert "adelay=0:all=1" in cmd                     # 边界：t=0
+    assert "adelay=1500:all=1" in cmd                  # 1.5s → 1500ms
+    assert "adelay=3000:all=1" in cmd
+    assert "amix=inputs=4:duration=first:normalize=0" in cmd
+
+
+def test_assemble_dialogue_track_ffmpeg_failure_raises(tmp_path):
+    def runner(cmd, capture_output=False):
+        return _FakeResult(returncode=1)
+    with pytest.raises(RuntimeError, match="ffmpeg"):
+        assemble_dialogue_track([], total_duration=2.0,
+                                out_path=tmp_path / "out.wav", runner=runner)
 
 
 def _make_video_with_audio(path, sr=22050, dur=1.0, fps=24):
