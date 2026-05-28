@@ -27,8 +27,12 @@ def _read_fps(video_path) -> float:
 
 
 def prepare_session(mp4, style: str, work_dir, *,
+                    dialogue_segments=None,
                     detect: Callable = detect_shots) -> ScoringSession:
-    """MP4 → 切镜头 → 段落聚合 → 新建 ScoringSession（快，不调豆包/ACE-Step）。"""
+    """MP4 → 切镜头 → 段落聚合 → 新建 ScoringSession。
+
+    dialogue_segments 非 None 时落入 session.dialogue_segments（与 accent_points 同样持久化）。
+    """
     mp4 = Path(mp4)
     shots = detect(mp4)
     segments = plan_segments(shots)
@@ -38,6 +42,7 @@ def prepare_session(mp4, style: str, work_dir, *,
         global_style=style,
         frame_rate=_read_fps(mp4),
         segments=segments,
+        dialogue_segments=list(dialogue_segments or []),
     )
 
 
@@ -74,7 +79,8 @@ def _build_real_stages(cfg, workflow_id, work_dir, global_style,
         mix_fn=partial(assemble_and_mix, video_path=video_path,
                        work_dir=work_dir,
                        big_threshold=float(getattr(cfg, "accent_big_threshold", 0.7)),
-                       snap_window=float(getattr(cfg, "accent_snap_window", 0.6))),
+                       snap_window=float(getattr(cfg, "accent_snap_window", 0.6)),
+                       max_stretch=float(getattr(cfg, "accent_max_stretch", 0.10))),
         max_concurrency=int(getattr(cfg, "soundtrack_max_concurrency", 3)),
         score_fn=score_fn,
     )
@@ -127,15 +133,18 @@ def _wrap_progress(stages: Stages, on_progress) -> Stages:
 def advance(session: ScoringSession, work_dir, *, cfg, workflow_id: str,
             seeds_count: int = 2, stop_after: str = "mix",
             on_progress: Optional[Callable[[str], None]] = None,
-            stages: Optional[Stages] = None) -> ScoringSession:
+            stages: Optional[Stages] = None,
+            dialogue_segments=None) -> ScoringSession:
     """从 session 当前状态推进到 stop_after（可重复调用=续跑）。
 
-    stages 可注入（测试用 fake）；为 None 时内部组装真实 stages。
+    stages 可注入（测试用 fake）；dialogue_segments 非空时覆盖 session 字段。
     """
     if stop_after not in STAGE_ORDER:
         raise ValueError(f"未知 stop_after: {stop_after}")
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
+    if dialogue_segments:
+        session.dialogue_segments = list(dialogue_segments)
     real = stages or _build_real_stages(
         cfg, workflow_id, work_dir, session.global_style,
         seeds_count, session.source_mp4)
@@ -167,11 +176,13 @@ def set_chosen(session: ScoringSession, seg_index: int, cand_index: int) -> None
 def build_accent_preview(session: ScoringSession, work_dir, *,
                          crossfade: float = 0.5,
                          big_threshold: float = 0.7,
-                         snap_window: float = 0.6) -> str:
-    """轻量卡点试听：段切对齐 + BGM 拼接 + 泵感,产出一条 BGM wav(不含 demucs/
+                         snap_window: float = 0.6,
+                         max_stretch: float = 0.10) -> str:
+    """轻量卡点试听：段切对齐 + BGM 拼接 + align + 泵感,产出一条 BGM wav(不含 demucs/
     ducking/视频混流),供 ③卡点页出片前快速听卡点效果。返回 wav 路径。
 
     各段用选定候选,未选则用候选0(_chosen_bgm 行为)。enabled 关或无卡点 → 仅拼接。
+    预览路径与正片 mix 路径共用 align+pump，试听效果与正片一致。
     """
     from sound_track_agent.mixdown import _chosen_bgm
     from sound_track_agent.bgm_assembler import assemble_bgm
@@ -191,8 +202,15 @@ def build_accent_preview(session: ScoringSession, work_dir, *,
         raw = assemble_bgm(seg_bgms, work_dir / "_preview_raw.wav",
                            crossfade=crossfade, clip_durations=targets,
                            clip_gains=gains)
-        out = apply_pump(raw, out, accents,
-                         strength=float(getattr(session, "pump_strength", 0.6)))
+        from sound_track_agent.beat_aligner import align_beats_to_accents
+        stretched, aligned = align_beats_to_accents(
+            raw, accents,
+            max_stretch=max_stretch,
+            big_threshold=big_threshold,
+            out_path=work_dir / "_preview_aligned.wav")
+        out = apply_pump(stretched, out, accents,
+                         strength=float(getattr(session, "pump_strength", 0.6)),
+                         skip_indices=aligned)
     else:
         out = assemble_bgm(seg_bgms, out, crossfade=crossfade, clip_gains=gains)
     return str(out)

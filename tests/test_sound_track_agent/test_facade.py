@@ -334,3 +334,81 @@ def test_regenerate_total_failure_restores_state_but_advances_seed(tmp_path):
     assert seg.status == "generated"
     # next_seed 仍推进，避免下次重试卡同一种子窗口
     assert seg.next_seed == 5    # 3 -> +2
+
+
+# ── Phase 2 Task 6 新增测试 ──────────────────────────────────────────────────
+
+def test_prepare_session_accepts_and_persists_dialogue_segments(tmp_path):
+    from sound_track_agent.facade import prepare_session
+    from sound_track_agent.segment_planner import Shot
+    from sound_track_agent.session import DialogueSegment
+    mp4 = tmp_path / "ep.mp4"; mp4.write_bytes(b"f")
+    segs = [DialogueSegment(audio_path="/x/a.flac", t_start=0.0, duration=1.0),
+            DialogueSegment(audio_path="/x/b.flac", t_start=2.0, duration=1.0)]
+    sess = prepare_session(mp4, "末日", tmp_path / "w",
+                           dialogue_segments=segs,
+                           detect=lambda p: [Shot(0, 0.0, 3.0)])
+    assert len(sess.dialogue_segments) == 2
+    assert sess.dialogue_segments[1].audio_path == "/x/b.flac"
+
+
+def test_advance_overrides_dialogue_segments_when_provided(tmp_path):
+    """advance 传 dialogue_segments 非空时覆盖 session；空/None 不动。"""
+    from sound_track_agent.facade import advance
+    from sound_track_agent.pipeline import Stages
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, EmotionTag, BGMCandidate, DialogueSegment,
+    )
+    sess = ScoringSession(
+        source_mp4="x", source_hash="h", global_style="s", frame_rate=24.0,
+        segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0)],
+        dialogue_segments=[DialogueSegment(
+            audio_path="/old.flac", t_start=0.0, duration=1.0)])
+    fake = Stages(
+        tag_emotion=lambda seg, s: EmotionTag(labels=["x"]),
+        compose_prompt=lambda seg, s: "p",
+        generate=lambda seg, s: [BGMCandidate(path="/b.wav", seed=1, prompt="t")],
+        align=lambda s: None, mix=lambda s: "/out.mp4")
+    new_segs = [DialogueSegment(audio_path="/new.flac", t_start=0.5, duration=2.0)]
+    advance(sess, tmp_path / "w", cfg=object(), workflow_id="wf",
+            stop_after="mix", stages=fake, dialogue_segments=new_segs)
+    assert sess.dialogue_segments[0].audio_path == "/new.flac"
+
+
+def test_build_accent_preview_invokes_align_with_pump_skip(tmp_path, monkeypatch):
+    """预览路径与 mix 路径共用 align+pump 流程：monkeypatch align 返回固定
+    aligned set，断言 align 被调用且预览 wav 正常产出。"""
+    import numpy as np, soundfile as sf
+    from pathlib import Path
+    from sound_track_agent import facade
+    import sound_track_agent.beat_aligner as ba
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, BGMCandidate, AccentPoint)
+
+    def _tone(p, f, dur=1.0, sr=22050):
+        t = np.linspace(0, dur, int(sr * dur), endpoint=False)
+        sf.write(str(p), (0.3 * np.sin(2 * np.pi * f * t)).astype(np.float32), sr)
+
+    b0 = tmp_path / "b0.wav"; _tone(b0, 440)
+    b1 = tmp_path / "b1.wav"; _tone(b1, 550)
+    sess = ScoringSession(
+        source_mp4="x", source_hash="h", global_style="g", frame_rate=24.0,
+        segments=[
+            SegmentScore(index=0, t_start=0.0, t_end=1.0,
+                         candidates=[BGMCandidate(path=str(b0), seed=1, prompt="t")],
+                         chosen_candidate=0),
+            SegmentScore(index=1, t_start=1.0, t_end=2.0,
+                         candidates=[BGMCandidate(path=str(b1), seed=1, prompt="t")],
+                         chosen_candidate=0)],
+        accent_points=[AccentPoint(t=0.5, intensity=0.9)])
+
+    align_called = {"flag": False}
+
+    def fake_align(bgm, accents, *, max_stretch, big_threshold, out_path):
+        align_called["flag"] = True
+        return Path(bgm), frozenset({0})
+
+    monkeypatch.setattr(ba, "align_beats_to_accents", fake_align)
+    out = facade.build_accent_preview(sess, tmp_path / "w", crossfade=0.1)
+    assert Path(out).exists() and Path(out).stat().st_size > 0
+    assert align_called["flag"] is True
