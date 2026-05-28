@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 
 from drama_shot_master.config import Config
+from drama_shot_master.ui.theme import _tokens, current_theme
 
 
 class TranslationSettingsDialog(QDialog):
@@ -33,7 +34,8 @@ class TranslationSettingsDialog(QDialog):
         tip = QLabel("公共实例可能不稳定，可改为自部署 "
                      "http://localhost:1188/translate。")
         tip.setWordWrap(True)
-        tip.setStyleSheet("color:#888")
+        _t = _tokens(current_theme(self.cfg))
+        tip.setStyleSheet(f"color:{_t['fg_muted']}")
         root.addWidget(tip)
         buttons = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel)

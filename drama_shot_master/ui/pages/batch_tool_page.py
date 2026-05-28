@@ -15,6 +15,7 @@ from drama_shot_master.ui.state import AppState
 from drama_shot_master.ui.panels.base_panel import BasePanel
 from drama_shot_master.ui.thumbnail_grid import ThumbnailGrid
 from drama_shot_master.ui.preview_dialog import PreviewDialog
+from drama_shot_master.ui.theme import _tokens, current_theme
 
 
 class BatchToolPage(QWidget):
@@ -35,7 +36,8 @@ class BatchToolPage(QWidget):
         self.btn_exec = QPushButton("执行")
         self.btn_exec.setObjectName("AccentButton")
         self.exec_hint = QLabel("")
-        self.exec_hint.setStyleSheet("color:#888")
+        _t = _tokens(current_theme(self.cfg))
+        self.exec_hint.setStyleSheet(f"color:{_t['fg_muted']}")
         act.addWidget(self.btn_preview)
         act.addWidget(self.btn_exec)
         act.addWidget(self.exec_hint, 1)

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from sound_track_agent.session import AccentPoint
+from drama_shot_master.ui.theme import _tokens, current_theme
 from drama_shot_master.ui.worker import FunctionWorker
 
 _SEG_COLORS = ["#3a4a5f", "#4a3a3a", "#3a4a3a", "#4a443a", "#3a3a4a"]
@@ -54,9 +55,11 @@ class _AccentTimeline(QWidget):
         return 8 + (w - 16) * (t / self._total())
 
     def paintEvent(self, _e):
+        from drama_shot_master.ui.theme import _tokens as _tk
+        _t = _tk("dark")
         p = QPainter(self)
         w, h = self.width(), self.height()
-        p.fillRect(0, 0, w, h, QColor("#1a1b1e"))
+        p.fillRect(0, 0, w, h, QColor(_t["bg"]))
         total = self._total()
 
         # 刻度尺（约 8 格）
@@ -75,7 +78,7 @@ class _AccentTimeline(QWidget):
             x0 = self._x(s.t_start, w); x1 = self._x(s.t_end, w)
             p.fillRect(QRectF(x0, band_y, max(1.0, x1 - x0), band_h),
                        QColor(_SEG_COLORS[i % len(_SEG_COLORS)]))
-            p.setPen(QPen(QColor("#4a9eff"), 1))
+            p.setPen(QPen(QColor(_t["accent"]), 1))
             p.drawLine(int(x1), band_y, int(x1), band_y + band_h)
             p.setPen(QColor("#cdd"))
             p.drawText(int(x0) + 3, band_y + 17, f"段{s.index}")
@@ -85,13 +88,13 @@ class _AccentTimeline(QWidget):
         for idx, a in enumerate(self._sorted_points()):
             x = self._x(a.t, w)
             sel = (idx == self._selected)
-            color = QColor("#ff8c42") if sel else QColor("#ff5c5c")
+            color = QColor("#ff8c42") if sel else QColor(_t["status_failed"])
             rad = 9 if a.intensity >= self._big_threshold else 6
             poly = QPolygonF([QPointF(x, my - rad - 1), QPointF(x + rad, my),
                               QPointF(x, my + rad + 1), QPointF(x - rad, my)])
             p.setBrush(color); p.setPen(QPen(color, 1))
             p.drawPolygon(poly)
-            p.setPen(QColor("#9aa0a6"))
+            p.setPen(QColor(_t["fg_muted"]))
             p.drawText(int(x) - 12, my + 22, f"{a.t:.1f}s")
         p.end()
 
@@ -196,7 +199,8 @@ class AccentEditorWidget(QWidget):
         root.addLayout(row)
 
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color:#9aa0a6;")
+        _t = _tokens(current_theme(None))
+        self.status_label.setStyleSheet(f"color:{_t['fg_muted']};")
         root.addWidget(self.status_label)
 
         bar = QHBoxLayout()

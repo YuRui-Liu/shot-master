@@ -6,6 +6,8 @@ from pathlib import Path
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
+from drama_shot_master.ui.theme import _tokens, current_theme
+
 
 class VideoStatusBar(QWidget):
     """状态机：idle / uploading / status / done / failed。"""
@@ -25,7 +27,8 @@ class VideoStatusBar(QWidget):
 
         # 总时长 read-only 显示（VideoPanel 在 model 变化时调 set_total_length）
         self.total_label = QLabel("总时长: 0 f / 0.00 s")
-        self.total_label.setStyleSheet("color: #888; padding: 0 8px;")
+        _t = _tokens(current_theme(None))
+        self.total_label.setStyleSheet(f"color: {_t['fg_muted']}; padding: 0 8px;")
         layout.addWidget(self.total_label)
 
         self.cancel_btn = QPushButton("取消")

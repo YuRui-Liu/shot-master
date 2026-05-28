@@ -15,6 +15,7 @@ from drama_shot_master.config import Config
 from drama_shot_master.core import tts_profiles as P
 from drama_shot_master.providers import tts_builder as B
 from drama_shot_master.providers import tts_submit
+from drama_shot_master.ui.theme import _tokens, current_theme
 from drama_shot_master.ui.worker import FunctionWorker
 
 
@@ -30,7 +31,8 @@ class _CollapsibleGroup(QWidget):
         self.head.setChecked(expanded)
         self.head.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.head.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
-        self.head.setStyleSheet("QToolButton{border:none; font-weight:600; color:#9aa;}")
+        _t = _tokens(current_theme(None))
+        self.head.setStyleSheet(f"QToolButton{{border:none; font-weight:600; color:{_t['fg_muted']};}}")
         self.body = QWidget()
         self._grid = QGridLayout(self.body)
         self._grid.setContentsMargins(8, 2, 0, 6); self._grid.setSpacing(4)
@@ -61,6 +63,7 @@ class DubPanel(QWidget):
             self.load_payload(payload)
 
     def _build_ui(self):
+        _t = _tokens(current_theme(self.cfg))
         root = QVBoxLayout(self)
         # 顶部模式单选
         mode_row = QHBoxLayout()
@@ -91,7 +94,7 @@ class DubPanel(QWidget):
         bar = QHBoxLayout()
         self.btn_gen = QPushButton("生成"); self.btn_gen.setObjectName("AccentButton")
         self.btn_gen.clicked.connect(self._generate)
-        self.status_lbl = QLabel(""); self.status_lbl.setStyleSheet("color:#888")
+        self.status_lbl = QLabel(""); self.status_lbl.setStyleSheet(f"color:{_t['fg_muted']}")
         # 状态文字不撑窗：忽略内容宽度+换行，长报错只进弹窗
         self.status_lbl.setWordWrap(True)
         self.status_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
@@ -169,11 +172,14 @@ class DubPanel(QWidget):
         ea_wrap = QWidget(); ea_wrap.setLayout(ea_row)
         m3f.addRow("情感参考音频", ea_wrap)
         self.emo_stack.addWidget(m3)
-        # mode4 情感向量 8 维
+        # mode4 情感向量 8 维（IndexTTS2：0.0–1.4，各项之和建议 ≤1.5；>1.0 更夸张但可能影响音色相似度）
         m4 = QWidget(); m4f = QFormLayout(m4)
+        hint = QLabel("点击右侧「情感语调」按钮可快速套用参考向量（YAML 可调）。0–1.4，sum≤1.5。")
+        hint.setWordWrap(True); hint.setStyleSheet(f"color:{_t['fg_muted']}; font-size:9pt;")
+        m4f.addRow(hint)
         self.c_vec = []
         for lbl in P.EMO_VECTOR_LABELS:
-            sb = QDoubleSpinBox(); sb.setRange(0.0, 1.0); sb.setSingleStep(0.05)
+            sb = QDoubleSpinBox(); sb.setRange(0.0, 1.4); sb.setSingleStep(0.05)
             self.c_vec.append(sb)
             m4f.addRow(lbl, sb)
         self.emo_stack.addWidget(m4)
@@ -184,15 +190,17 @@ class DubPanel(QWidget):
         return w
 
     def _build_palette(self) -> QWidget:
-        from drama_shot_master.core.voice_presets import load_presets
+        from drama_shot_master.core.voice_presets import load_presets, load_emotion_vectors
         cats, note = load_presets()
+        self._tone_vectors = load_emotion_vectors()   # {label: 8 维 list} 仅 情感语调 项有
+        _t = _tokens(current_theme(self.cfg))
         wrap = QWidget(); wrap.setFixedWidth(360)
         outer = QVBoxLayout(wrap); outer.setContentsMargins(6, 0, 0, 0)
         outer.addWidget(QLabel("快捷音色提示词"))
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
         inner = QWidget(); iv = QVBoxLayout(inner); iv.setContentsMargins(0, 0, 0, 0)
         note_lbl = QLabel(note); note_lbl.setWordWrap(True)
-        note_lbl.setStyleSheet("color:#888; font-size:9pt;")
+        note_lbl.setStyleSheet(f"color:{_t['fg_muted']}; font-size:9pt;")
         iv.addWidget(note_lbl)
         expand_default = {"方言", "情感语调"}
         for name, items in cats:
@@ -200,7 +208,8 @@ class DubPanel(QWidget):
             btns = []
             for label, text in items:
                 b = QPushButton(label)
-                b.clicked.connect(lambda _=False, t=text: self._insert_preset(t))
+                # label 透传给 _insert_preset：情感向量模式下按 label 查 vector
+                b.clicked.connect(lambda _=False, t=text, lbl=label: self._insert_preset(t, lbl))
                 btns.append(b)
             grp.set_buttons(btns)
             iv.addWidget(grp)
@@ -209,8 +218,19 @@ class DubPanel(QWidget):
         outer.addWidget(scroll, 1)
         return wrap
 
-    def _insert_preset(self, text: str):
-        # 音色设计→音色描述；声音克隆→情感描述
+    def _insert_preset(self, text: str, label: str = ""):
+        """按钮点击分流：
+        - 声音克隆 + emo_mode==4(情感向量) + 该 label 有 YAML vector → 写 8 个 spinbox
+        - 其它情况（音色设计 / 克隆-默认/文本/语音情绪 / 无对应 vector）→ 插入提示词
+        """
+        vec = self._tone_vectors.get(label) if label else None
+        if (vec is not None
+                and self.current_mode() == "clone"
+                and self.emo_group.checkedId() == 4):
+            for sb, val in zip(self.c_vec, vec):
+                sb.setValue(float(val))
+            self.dirty.emit()
+            return
         target = self.d_style if self.current_mode() == "design" else self.c_emo_text
         target.insertPlainText(text)
 

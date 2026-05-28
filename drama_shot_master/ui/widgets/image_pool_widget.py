@@ -7,10 +7,13 @@ from PySide6.QtCore import Qt, QSize, Signal, QMimeData
 from PySide6.QtGui import QBrush, QColor, QDrag, QIcon, QPixmap
 from PySide6.QtWidgets import QListWidget, QListWidgetItem
 
+from drama_shot_master.ui.theme import _tokens, current_theme as _current_theme
 
 MIME_IMG_PATH = "application/x-spb-image-path"
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 THUMB_SIZE = QSize(64, 48)
+
+_DARK_TOKENS = _tokens("dark")
 
 
 class ImagePoolWidget(QListWidget):
@@ -49,8 +52,8 @@ class ImagePoolWidget(QListWidget):
             item = self.item(i)
             p = item.data(Qt.UserRole)
             used = usage.get(p, 0) > 0
-            item.setForeground(QBrush(QColor("#ffffff") if used
-                                        else QColor("#666666")))
+            item.setForeground(QBrush(QColor(_DARK_TOKENS["fg"]) if used
+                                        else QColor(_DARK_TOKENS["fg_muted"])))
             item.setToolTip(f"{p}\n被引用 {usage.get(p, 0)} 次")
 
     # ---------- 拖出（→ TimelineWidget） ----------
@@ -98,7 +101,7 @@ class ImagePoolWidget(QListWidget):
     def _make_icon(self, path: Path) -> QIcon:
         pix = QPixmap(str(path))
         if pix.isNull():
-            pix = QPixmap(THUMB_SIZE); pix.fill(QColor("#444"))
+            pix = QPixmap(THUMB_SIZE); pix.fill(QColor(_DARK_TOKENS["bg_elevated"]))
         else:
             pix = pix.scaled(THUMB_SIZE, Qt.KeepAspectRatio,
                               Qt.SmoothTransformation)

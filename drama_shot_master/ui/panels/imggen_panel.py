@@ -18,11 +18,11 @@ from PySide6.QtWidgets import (
 class _AtRefHighlighter(QSyntaxHighlighter):
     """把 @标签 标蓝——仅当标签是当前已添加的参考图标签时才高亮。"""
 
-    def __init__(self, document):
+    def __init__(self, document, accent_color: str = "#4a9eff"):
         super().__init__(document)
         self._labels: list[str] = []
         self._fmt = QTextCharFormat()
-        self._fmt.setForeground(QColor("#3aa0ff"))
+        self._fmt.setForeground(QColor(accent_color))
         self._fmt.setFontWeight(QFont.Bold)
 
     def set_labels(self, labels):
@@ -49,6 +49,7 @@ from drama_shot_master.config import Config
 from drama_shot_master.core.imggen_sizes import QUALITIES, RATIOS, resolve_size
 from drama_shot_master.core.imggen_presets import QUICK_PROMPTS
 from drama_shot_master.providers.image_gen import make_image_provider, ImageGenError
+from drama_shot_master.ui.theme import _tokens, current_theme
 from drama_shot_master.ui.worker import FunctionWorker
 
 
@@ -71,7 +72,8 @@ class ImgGenPanel(QWidget):
     def _build_ui(self):
         root = QVBoxLayout(self)
         self.mode_lbl = QLabel("模式：文生图")
-        self.mode_lbl.setStyleSheet("color:#9aa;")
+        _t = _tokens(current_theme(self.cfg))
+        self.mode_lbl.setStyleSheet(f"color:{_t['fg_muted']};")
         root.addWidget(self.mode_lbl)
 
         # 参考图区
@@ -108,7 +110,7 @@ class ImgGenPanel(QWidget):
         root.addWidget(qwrap)
 
         self.prompt = QPlainTextEdit(); self.prompt.setPlaceholderText("提示词…")
-        self._highlighter = _AtRefHighlighter(self.prompt.document())
+        self._highlighter = _AtRefHighlighter(self.prompt.document(), _t["accent"])
         self.prompt.textChanged.connect(self._update_mode)
         self.prompt.textChanged.connect(lambda: self.dirty.emit())
         root.addWidget(self.prompt, 1)
@@ -116,7 +118,7 @@ class ImgGenPanel(QWidget):
         bar = QHBoxLayout()
         self.btn_gen = QPushButton("生成"); self.btn_gen.setObjectName("AccentButton")
         self.btn_gen.clicked.connect(self._generate)
-        self.status_lbl = QLabel(""); self.status_lbl.setStyleSheet("color:#888")
+        self.status_lbl = QLabel(""); self.status_lbl.setStyleSheet(f"color:{_t['fg_muted']}")
         # 状态文字不撑窗：忽略内容宽度、允许换行，长报错只进弹窗
         self.status_lbl.setWordWrap(True)
         self.status_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)

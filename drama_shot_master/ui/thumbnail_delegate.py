@@ -5,6 +5,10 @@ from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QColor, QPainter, QFont, QPen
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 
+from drama_shot_master.ui.theme import _tokens
+
+_ACCENT = QColor(_tokens("dark")["accent"])
+
 
 BADGE_ROLE = Qt.UserRole + 100      # int 序号，或 None
 SELECTED_ROLE = Qt.UserRole + 101   # bool，multi 模式高亮
@@ -18,7 +22,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
         selected = index.data(SELECTED_ROLE)
         if selected:
             painter.save()
-            pen = QPen(QColor(79, 142, 220))
+            pen = QPen(_ACCENT)
             pen.setWidth(3)
             painter.setPen(pen)
             painter.drawRect(rect.adjusted(2, 2, -2, -2))
@@ -31,7 +35,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
             d = 24
             x = rect.left() + 6
             y = rect.top() + 6
-            painter.setBrush(QColor(79, 142, 220))
+            painter.setBrush(_ACCENT)
             painter.setPen(Qt.NoPen)
             painter.drawEllipse(x, y, d, d)
             painter.setPen(Qt.white)

@@ -9,6 +9,7 @@ from PySide6.QtGui import QPixmap, QPainter, QPen, QColor
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel
 
 from drama_shot_master.ui.geometry import compute_grid_lines, tile_count
+from drama_shot_master.ui.theme import _tokens, current_theme
 
 
 class PreviewDialog(QDialog):
@@ -54,7 +55,8 @@ class PreviewDialog(QDialog):
                            s["sub_rows"], s["sub_cols"])
         except ValueError as e:
             self.hint.setText(f"⚠ {e}")
-            self.hint.setStyleSheet("color:#c01b1b;font-weight:bold")
+            _t = _tokens(current_theme(None))
+            self.hint.setStyleSheet(f"color:{_t['status_failed']};font-weight:bold")
             self.canvas.setPixmap(disp)
             return
         self.hint.setStyleSheet("")
@@ -72,9 +74,10 @@ class PreviewDialog(QDialog):
             display_w=disp.width(), display_h=disp.height(),
         )
         canvas = QPixmap(disp)
+        _t = _tokens(current_theme(None))
         p = QPainter(canvas)
         for ln in lines:
-            pen = QPen(QColor(220, 30, 30))
+            pen = QPen(QColor(_t["status_failed"]))
             if ln.style == "dashed":
                 pen.setStyle(Qt.DashLine)
                 pen.setWidth(1)

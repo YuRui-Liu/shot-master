@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 
 from drama_shot_master.config import Config
 from drama_shot_master.providers.image_gen import make_image_provider
+from drama_shot_master.ui.theme import _tokens, current_theme, status_color
 from drama_shot_master.ui.worker import FunctionWorker
 
 _PROVIDERS = [("豆包 (ARK)", "doubao"), ("OpenAI", "openai"),
@@ -82,7 +83,8 @@ class ImgGenSettingsDialog(QDialog):
 
     def _on_test(self):
         self.test_result.setText("测试中…")
-        self.test_result.setStyleSheet("color:#888;")
+        _t = _tokens(current_theme(self.cfg))
+        self.test_result.setStyleSheet(f"color:{_t['fg_muted']};")
         self.test_btn.setEnabled(False)
         provider = self._current_provider()
 
@@ -98,7 +100,8 @@ class ImgGenSettingsDialog(QDialog):
         ok, msg = res
         self.test_btn.setEnabled(True)
         self.test_result.setText(("✓ " if ok else "✗ ") + msg)
-        self.test_result.setStyleSheet("color:#2BAA4A;" if ok else "color:#D9544D;")
+        _color = status_color("完成" if ok else "失败", self.cfg)
+        self.test_result.setStyleSheet(f"color:{_color};")
 
     def _save(self):
         prov = self.provider.currentData()

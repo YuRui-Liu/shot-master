@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 from drama_shot_master.config import Config
 from drama_shot_master.licensing import manager
 from drama_shot_master.licensing.fingerprint import machine_code
+from drama_shot_master.ui.theme import _tokens, current_theme
 
 _APP_NAME = "Drama-Shot-Master"
 _COPYRIGHT = "© 2026"          # 作者按需补全署名/联系方式
@@ -23,17 +24,19 @@ def _app_version() -> str:
         return "dev"
 
 
-def _status_text(st: manager.LicenseStatus) -> tuple[str, str]:
+def _status_text(st: manager.LicenseStatus, cfg=None) -> tuple[str, str]:
+    _t = _tokens(current_theme(cfg))
     S = manager.LicenseState
     if st.state is S.VALID:
-        return (f"已激活，有效期至 {st.expiry_date}（剩 {st.days_left} 天）", "#2BAA4A")
+        return (f"已激活，有效期至 {st.expiry_date}（剩 {st.days_left} 天）",
+                _t["status_done"])
     if st.state is S.EXPIRED:
-        return (f"已过期（{st.expiry_date}），请输入新激活码", "#D9544D")
+        return (f"已过期（{st.expiry_date}），请输入新激活码", _t["status_failed"])
     if st.state is S.WRONG_MACHINE:
-        return ("此激活码非本机，请用本机机器码重新申请", "#D9544D")
+        return ("此激活码非本机，请用本机机器码重新申请", _t["status_failed"])
     if st.state is S.TAMPERED:
-        return ("激活码无效或已损坏", "#D9544D")
-    return ("未激活", "#D9544D")
+        return ("激活码无效或已损坏", _t["status_failed"])
+    return ("未激活", _t["status_failed"])
 
 
 class AboutDialog(QDialog):
@@ -85,7 +88,7 @@ class AboutDialog(QDialog):
         root.addWidget(lic)
 
     def _refresh_status(self):
-        text, color = _status_text(manager.status())
+        text, color = _status_text(manager.status(), self.cfg)
         self.status_label.setText(text)
         self.status_label.setStyleSheet(f"color:{color}; font-weight:bold;")
 
@@ -102,5 +105,5 @@ class AboutDialog(QDialog):
             QMessageBox.information(self, "激活成功", "授权已生效。")
             self.accept()
         else:
-            text, _ = _status_text(st)
+            text, _ = _status_text(st, self.cfg)
             QMessageBox.warning(self, "激活失败", text)

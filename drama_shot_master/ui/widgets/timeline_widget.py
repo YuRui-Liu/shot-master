@@ -18,6 +18,9 @@ from PySide6.QtWidgets import (
 from drama_shot_master.core.video_timeline_model import (
     TimelineModel, TimelineSegment, TimelineAudio,
 )
+from drama_shot_master.ui.theme import _tokens as _theme_tokens
+
+_TK = _theme_tokens("dark")
 
 
 # ---------- 布局常量 ----------
@@ -42,14 +45,14 @@ FRAMES_CANDIDATES = [1, 5, 10, 30, 60, 120, 300, 600]            # 帧
 
 # ---------- 刻度尺 / 游标配色 ----------
 
-SCENE_BG = "#1e1f22"              # 时间轴画布背景（与主题窗口底一致）
+SCENE_BG = _TK["bg"]              # 时间轴画布背景（与主题窗口底一致）
 RULER_BAND_COLOR = "#2b2f3a"      # 背景带（略亮于场景背景）
 TICK_MINOR_COLOR = "#7a8597"      # minor tick（中灰）
 TICK_MAJOR_COLOR = "#d4dae6"      # major tick（近白）
 TICK_LABEL_COLOR = "#e6ebf2"      # 标签文字（近白）
 CURSOR_LINE_COLOR = "#ff4d4d"     # 红色游标线
 CURSOR_LABEL_BG = "#ff4d4d"       # 游标标签底（红）
-CURSOR_LABEL_FG = "#ffffff"       # 游标标签字（白）
+CURSOR_LABEL_FG = _TK["accent_text"]  # 游标标签字（白）
 
 
 def _pick_tick_interval(ppf: float, frame_rate: int, display_mode: str
@@ -101,7 +104,7 @@ def _cached_thumb(path: Path, w: int = 40, h: int = 30) -> QPixmap:
         return pix
     pix = QPixmap(str(path))
     if pix.isNull():
-        pix = QPixmap(w, h); pix.fill(QColor("#444"))
+        pix = QPixmap(w, h); pix.fill(QColor(_TK["bg_elevated"]))
     else:
         pix = pix.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
     QPixmapCache.insert(key, pix)
@@ -427,7 +430,7 @@ class TimelineScene(QGraphicsScene):
         self.setSceneRect(0, 0, total_w, AUDIO_LANE_Y + AUDIO_HEIGHT + 20)
         if not self.model.segments and not self.model.audios:
             hint = QGraphicsTextItem("拖一张图到这里开始")
-            hint.setDefaultTextColor(QColor("#666"))
+            hint.setDefaultTextColor(QColor(_TK["fg_muted"]))
             hint.setPos(20, SEG_LANE_Y + SEG_HEIGHT / 2 - 10)
             self.addItem(hint)
 
