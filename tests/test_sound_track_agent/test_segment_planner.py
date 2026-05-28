@@ -106,11 +106,12 @@ def test_cluster_one_shot_one_segment():
     assert segs[0].emotion is not None
 
 
-def test_cluster_all_identical_merges_to_max_segments():
+def test_cluster_all_identical_merges_to_one():
+    # 6 个情绪完全相同的 shot，邻接距离始终 < threshold → 一路合并到 1 段
     shots = [_shot(i) for i in range(6)]
     emotions = [_et(v=0.0, a=0.3, i=0.5) for _ in range(6)]
     segs = cluster_by_emotion(shots, emotions, max_segments=5, merge_threshold=0.25)
-    assert len(segs) == 5
+    assert len(segs) == 1
 
 
 def test_cluster_all_different_returns_min_of_shots_and_max():

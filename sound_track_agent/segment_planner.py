@@ -110,10 +110,6 @@ def cluster_by_emotion(shots: list[Shot], emotions: list[EmotionTag], *,
         if len(clusters) <= max_segments and min_gap >= merge_threshold:
             break
 
-        # 继续合并：仅当 len > max_segments 时合并
-        if len(clusters) <= max_segments:
-            break
-
         # 找到相邻距离最小的对，合并
         k = gaps.index(min_gap)
         n_a, n_b = len(clusters[k]), len(clusters[k + 1])
