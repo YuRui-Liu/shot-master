@@ -73,3 +73,27 @@ def load_presets(path: Path | None = None) -> tuple[list, str]:
         return cats, (data.get("dialect_note") or _DEFAULT_NOTE)
     except Exception:
         return _DEFAULTS, _DEFAULT_NOTE
+
+
+def load_emotion_vectors(path: Path | None = None) -> dict[str, list[float]]:
+    """返回 {label: 8 维 list}，仅"情感语调"类别下显式带 vector 字段的项才进。
+    YAML 当前没填 vector → 返回空 dict（dub_panel 调用方按 None 兜底）。"""
+    p = path or _YAML_PATH
+    out: dict[str, list[float]] = {}
+    try:
+        import yaml
+        data = yaml.safe_load(p.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return out
+        for c in data.get("categories", []) or []:
+            if c.get("name") != "情感语调":
+                continue
+            for it in (c.get("items") or []):
+                if not isinstance(it, dict):
+                    continue
+                vec = it.get("vector")
+                if isinstance(vec, list) and len(vec) == 8 and it.get("label"):
+                    out[it["label"]] = [float(x) for x in vec]
+        return out
+    except Exception:
+        return out

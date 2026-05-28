@@ -127,6 +127,7 @@ class DubPanel(QWidget):
         return w
 
     def _build_clone_form(self):
+        _t = _tokens(current_theme(self.cfg))
         w = QWidget(); v = QVBoxLayout(w)
         f = QFormLayout()
         self.c_text = QPlainTextEdit(); self.c_text.setFixedHeight(80)

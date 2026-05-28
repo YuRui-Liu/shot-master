@@ -98,6 +98,9 @@ class Config:
         "prompts":    "deepseek-v4-flash",
     })
     screenwriter_project_root: str = ""    # 默认空，UI 提示选目录
+    # 每阶段独立配置：{"ideate":{"base_url","api_key","model"}, ...}
+    # 留空时回退到上面扁平的 screenwriter_llm_* + screenwriter_models
+    screenwriter_stage_configs: dict[str, dict] = field(default_factory=dict)
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -152,6 +155,7 @@ class Config:
                 "screenwriter_llm_base_url": self.screenwriter_llm_base_url,
                 "screenwriter_models": self.screenwriter_models,
                 "screenwriter_project_root": self.screenwriter_project_root,
+                "screenwriter_stage_configs": self.screenwriter_stage_configs,
             }
             self.settings_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
@@ -246,6 +250,9 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.screenwriter_agent_port = data["screenwriter_agent_port"]
                 if "screenwriter_models" in data and isinstance(data["screenwriter_models"], dict):
                     cfg.screenwriter_models = data["screenwriter_models"]
+                if "screenwriter_stage_configs" in data and isinstance(
+                        data["screenwriter_stage_configs"], dict):
+                    cfg.screenwriter_stage_configs = data["screenwriter_stage_configs"]
                 if "video_timeline_cache" in data and isinstance(
                         data["video_timeline_cache"], dict):
                     cfg.video_timeline_cache = data["video_timeline_cache"]
