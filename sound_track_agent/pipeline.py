@@ -21,6 +21,7 @@ class Stages:
     generate: Callable[[SegmentScore, ScoringSession], list[BGMCandidate]]
     align: Callable[[ScoringSession], None]
     mix: Callable[[ScoringSession], str]
+    generate_all: Optional[Callable[[ScoringSession], None]] = None
 
 
 def _save(sess: ScoringSession, path: Optional[Path]) -> None:
@@ -60,10 +61,17 @@ def run(sess: ScoringSession,
             return None
 
     if limit >= STAGE_ORDER.index("generate"):
-        for seg in sess.segments:
-            if seg.status == "prompted":
-                seg.candidates = stages.generate(seg, sess)
-                seg.status = "generated"
+        prompted = [s for s in sess.segments if s.status == "prompted"]
+        if stages.generate_all is not None:
+            stages.generate_all(sess)
+            for seg in prompted:
+                if seg.candidates:                 # 0 候选段留 prompted 待续跑
+                    seg.status = "generated"
+        else:
+            for seg in sess.segments:
+                if seg.status == "prompted":
+                    seg.candidates = stages.generate(seg, sess)
+                    seg.status = "generated"
         _save(sess, session_path)
         if limit == STAGE_ORDER.index("generate"):
             return None
