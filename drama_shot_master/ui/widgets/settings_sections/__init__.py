@@ -5,5 +5,9 @@ from .runninghub_section import RunningHubSection
 from .translation_section import TranslationSection
 from .refine_section import RefineSection
 from .imggen_section import ImgGenSection
+from .dub_section import DubSection
 
-__all__ = ["RunningHubSection", "TranslationSection", "RefineSection", "ImgGenSection"]
+__all__ = [
+    "RunningHubSection", "TranslationSection", "RefineSection",
+    "ImgGenSection", "DubSection",
+]

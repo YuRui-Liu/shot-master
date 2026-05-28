@@ -6,6 +6,7 @@ from drama_shot_master.ui.widgets.settings_sections.runninghub_section import Ru
 from drama_shot_master.ui.widgets.settings_sections.translation_section import TranslationSection
 from drama_shot_master.ui.widgets.settings_sections.refine_section import RefineSection
 from drama_shot_master.ui.widgets.settings_sections.imggen_section import ImgGenSection
+from drama_shot_master.ui.widgets.settings_sections.dub_section import DubSection
 
 
 def _app():
@@ -145,3 +146,24 @@ def test_imggen_section_load_save_roundtrip():
     sec.save_to(cfg)
     assert cfg.imggen_model == "seedream-new"
     assert cfg.imggen_output_dir == "/tmp/imgs"
+
+
+# ── DubSection ────────────────────────────────────────────────────────────────
+
+def test_dub_section_class_metadata():
+    assert DubSection.title == "配音"
+    assert DubSection.category == "生成功能"
+
+
+def test_dub_section_load_save_roundtrip():
+    _app()
+    cfg = _cfg(
+        dub_workflow_ids={"voice_design": "wf-design-1", "voice_clone": "wf-clone-1"},
+        dub_output_dir="/tmp/dub",
+    )
+    sec = DubSection(cfg)
+    assert sec.wf_design.text() == "wf-design-1"
+    sec.wf_clone.setText("wf-clone-new")
+    sec.save_to(cfg)
+    assert cfg.dub_workflow_ids["voice_clone"] == "wf-clone-new"
+    assert cfg.dub_output_dir == "/tmp/dub"
