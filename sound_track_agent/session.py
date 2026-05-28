@@ -32,9 +32,18 @@ class BGMCandidate:
     path: str
     seed: int
     prompt: str
+    score: float | None = None
+    subscores: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
-        return {"path": self.path, "seed": self.seed, "prompt": self.prompt}
+        return {"path": self.path, "seed": self.seed, "prompt": self.prompt,
+                "score": self.score, "subscores": dict(self.subscores)}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "BGMCandidate":
+        return cls(path=d["path"], seed=d["seed"], prompt=d["prompt"],
+                   score=d.get("score"),
+                   subscores=dict(d.get("subscores", {})))
 
 
 @dataclass
@@ -60,6 +69,7 @@ class SegmentScore:
     chosen_candidate: Optional[int] = None
     status: Status = "pending"
     volume: float = 1.0
+    next_seed: int = 1
 
     @property
     def duration(self) -> float:
@@ -77,6 +87,7 @@ class SegmentScore:
             "chosen_candidate": self.chosen_candidate,
             "status": self.status,
             "volume": self.volume,
+            "next_seed": self.next_seed,
         }
 
     @classmethod
@@ -89,10 +100,11 @@ class SegmentScore:
             shot_ids=list(d.get("shot_ids", [])),
             emotion=(EmotionTag(**emo) if emo else None),
             music_prompt=d.get("music_prompt", ""),
-            candidates=[BGMCandidate(**c) for c in d.get("candidates", [])],
+            candidates=[BGMCandidate.from_dict(c) for c in d.get("candidates", [])],
             chosen_candidate=d.get("chosen_candidate"),
             status=d.get("status", "pending"),
             volume=float(d.get("volume", 1.0)),
+            next_seed=int(d.get("next_seed", 1)),
         )
 
 

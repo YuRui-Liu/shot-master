@@ -120,3 +120,49 @@ def test_segment_from_dict_missing_volume_defaults():
     d = {"index": 0, "t_start": 0.0, "t_end": 2.0}
     s = SegmentScore.from_dict(d)
     assert abs(s.volume - 1.0) < 1e-9
+
+
+def test_bgm_candidate_score_fields_roundtrip():
+    c = BGMCandidate(path="a.mp3", seed=3, prompt="p",
+                     score=0.8, subscores={"health": 0.9, "headroom": 0.7, "beat": 0.5})
+    d = c.to_dict()
+    assert d["score"] == 0.8 and d["subscores"]["health"] == 0.9
+    c2 = BGMCandidate(**d)
+    assert c2.score == 0.8 and c2.subscores == {"health": 0.9, "headroom": 0.7, "beat": 0.5}
+
+
+def test_bgm_candidate_defaults_when_missing():
+    c = BGMCandidate(path="a.mp3", seed=1, prompt="p")
+    assert c.score is None and c.subscores == {}
+
+
+def test_segment_next_seed_roundtrip_and_default():
+    seg = SegmentScore(index=0, t_start=0.0, t_end=2.0, next_seed=5)
+    assert seg.to_dict()["next_seed"] == 5
+    # 旧 json 缺字段 → 默认 1
+    d = seg.to_dict(); del d["next_seed"]
+    assert SegmentScore.from_dict(d).next_seed == 1
+
+
+def test_session_roundtrip_preserves_new_fields(tmp_path):
+    sess = ScoringSession(source_mp4="x.mp4", source_hash="h",
+                          global_style="s", frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0,
+                                                 next_seed=7,
+                                                 candidates=[BGMCandidate(
+                                                     path="b.mp3", seed=7, prompt="p",
+                                                     score=0.6, subscores={"health": 1.0})])])
+    p = tmp_path / "session.json"
+    sess.save(p)
+    back = ScoringSession.load(p)
+    assert back.segments[0].next_seed == 7
+    assert back.segments[0].candidates[0].score == 0.6
+    assert back.segments[0].candidates[0].subscores == {"health": 1.0}
+
+
+def test_from_dict_does_not_alias_subscores():
+    raw = {"path": "a.mp3", "seed": 1, "prompt": "p",
+           "score": 0.8, "subscores": {"health": 0.9}}
+    c = BGMCandidate.from_dict(raw)
+    raw["subscores"]["health"] = 0.0
+    assert c.subscores["health"] == 0.9
