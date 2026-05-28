@@ -24,9 +24,32 @@ def main() -> int:
         gate.exec()
         if manager.requires_activation(manager.status().state):
             return 0          # 仍未激活 → 退出，不进主界面
+    from drama_shot_master.agents.screenwriter_lifecycle import ScreenwriterLifecycle
+    from drama_shot_master.agents.screenwriter_client import ScreenwriterClient
+
+    lifecycle = ScreenwriterLifecycle(base_port=_early_cfg.screenwriter_agent_port)
+    lifecycle.spawn()
+    client = ScreenwriterClient(lifecycle.base_url())
+
     w = AppShell()
+    w.screenwriter_lifecycle = lifecycle
+    w.screenwriter_client = client
+    # 注入到已构建的 panel（_build_pages 时 client/lifecycle 还是 None）
+    if "screenwriter" in w.pages:
+        panel = w.pages["screenwriter"]
+        panel._client = client
+        panel._lifecycle = lifecycle
+        panel.refresh()
+
     w.show()
-    return app.exec()
+    try:
+        ret = app.exec()
+    finally:
+        try:
+            lifecycle.terminate()
+        except Exception:
+            pass
+    return ret
 
 
 if __name__ == "__main__":

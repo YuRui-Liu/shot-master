@@ -9,6 +9,7 @@ from pathlib import Path
 
 # (显示名, key)；顺序即侧栏从上到下顺序，须与 PHASES 展平后一致。
 FUNCS = [
+    ("编剧", "screenwriter"),
     ("拆图", "split"),
     ("拼图", "combine"),
     ("裁边", "trim"),
@@ -20,6 +21,7 @@ FUNCS = [
 
 # 流程阶段：(阶段标题, [key, ...])。标题带编号体现制作管线先后。
 PHASES = [
+    ("⓪ 剧本创作", ["screenwriter"]),
     ("① 素材准备", ["split", "combine", "trim"]),
     ("② 分镜创作", ["imggen"]),
     ("③ 视频出片", ["video_gen", "dubbing", "soundtrack"]),
@@ -27,12 +29,13 @@ PHASES = [
 
 # 批处理类（主区：网格+参数+执行）vs 任务管理类（主区：任务列表，双击开窗）
 BATCH_KEYS = {"split", "combine", "trim"}
-TASK_KEYS = {"imggen", "video_gen", "soundtrack", "dubbing"}
+TASK_KEYS = {"imggen", "video_gen", "soundtrack", "dubbing", "screenwriter"}
 
 _ICON_DIR = Path(__file__).resolve().parent.parent / "assets" / "icons"
 
 # key → SVG 文件名（icon_path() 解析为绝对路径）
 ICONS = {
+    "screenwriter": "pen.svg",
     "split": "cut.svg",
     "combine": "photo.svg",
     "trim": "erase.svg",

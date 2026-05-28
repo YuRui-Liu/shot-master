@@ -1,6 +1,6 @@
 """AppShell：基于原生 QMainWindow 的流程式外壳。
 
-侧栏(FlowSidebar)按 nav_config.PHASES 分阶段渲染 7 个真实功能页，顶部全局命令栏
+侧栏(FlowSidebar)按 nav_config.PHASES 分阶段渲染 8 个真实功能页，顶部全局命令栏
 横跨内容区；并把原 MainWindow 的控制器逻辑（任务窗回调、设置/帮助入口、授权巡检、
 状态恢复/落盘）整体移植过来，使 AppShell 成为 MainWindow 的完整 drop-in 替代。
 
@@ -58,6 +58,7 @@ class AppShell(QMainWindow):
         self.imggen_store = ImgGenTaskStore.from_list(self.cfg.imggen_tasks)
 
         builders = {
+            "screenwriter": self._make_screenwriter_page,    # 编剧 Agent
             "split":   lambda: BatchToolPage(SplitPanel(self.state, self.cfg), self.state, self.cfg),
             "combine": lambda: BatchToolPage(CombinePanel(self.state, self.cfg), self.state, self.cfg),
             "trim":    lambda: BatchToolPage(TrimPanel(self.state, self.cfg), self.state, self.cfg),
@@ -510,6 +511,20 @@ class AppShell(QMainWindow):
 
     def _on_dub_renamed(self, task_id, name):
         self.pages["dubbing"].update_task_name(task_id, name)
+
+    # ------------------------------------------------------------------ #
+    # 编剧 Agent page（Task 22）
+    # ------------------------------------------------------------------ #
+
+    def _make_screenwriter_page(self):
+        from drama_shot_master.ui.panels.screenwriter_panel import ScreenwriterPanel
+        # client/lifecycle 由 main.py 注入到 self；面板可能在两者未就绪时被构建（启动竞速）
+        return ScreenwriterPanel(
+            cfg=self.cfg,
+            client=getattr(self, "screenwriter_client", None),
+            lifecycle=getattr(self, "screenwriter_lifecycle", None),
+            state=self.state,
+        )
 
     # ------------------------------------------------------------------ #
     # 图片生成 tab helpers（移植自 MainWindow）
