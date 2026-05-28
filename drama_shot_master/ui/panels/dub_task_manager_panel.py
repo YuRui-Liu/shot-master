@@ -129,6 +129,10 @@ class DubTaskManagerPanel(BasePanel):
         self._live_status[task_id] = status
         self.refresh()
 
+    def get_status(self, task_id: str) -> str:
+        """暴露 live_status；任务中心聚合用。空闲=未跑过/已重置。"""
+        return self._live_status.get(task_id, "空闲")
+
     def clear_task_status(self, task_id: str):
         self._live_status.pop(task_id, None)
         self.refresh()
