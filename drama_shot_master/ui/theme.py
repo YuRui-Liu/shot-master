@@ -67,20 +67,47 @@ def apply_dark_titlebar(widget,
         pass
 
 
+def _tokens(name: str) -> dict:
+    """name='dark'|'light' → token 字典；未知回退 dark。"""
+    if name == "light":
+        try:
+            from drama_shot_master.ui.styles.tokens_light import LIGHT
+            return LIGHT
+        except ImportError:
+            pass
+    from drama_shot_master.ui.styles.tokens_dark import DARK
+    return DARK
+
+
 def load_stylesheet(name: str = "dark") -> str:
-    """读取 styles/{name}.qss 内容；文件缺失时返回空串（退回 Qt 默认外观）。"""
-    p = _QSS_DIR / f"{name}.qss"
+    """渲染 theme.qss.tpl + 对应 token；模板缺失返回空串。"""
+    tpl_path = _QSS_DIR / "theme.qss.tpl"
     try:
-        return p.read_text(encoding="utf-8")
+        tpl = tpl_path.read_text(encoding="utf-8")
     except OSError:
         return ""
+    try:
+        return tpl.format(**_tokens(name))
+    except KeyError:
+        # token 缺失 → 退到 dark 兜底以免空白窗
+        return tpl.format(**_tokens("dark"))
 
 
 def apply_theme(app, name: str = "dark") -> None:
-    """把主题样式表应用到 QApplication。"""
+    """切主题样式表并强制 repolish 所有顶层窗（含 dock/对话框）。"""
     qss = load_stylesheet(name)
-    if qss:
-        app.setStyleSheet(qss)
+    if not qss:
+        return
+    app.setStyleSheet(qss)
+    for w in app.topLevelWidgets():
+        w.style().unpolish(w)
+        w.style().polish(w)
+        w.update()
+
+
+def current_theme(cfg) -> str:
+    """从 cfg 读 theme（默认 dark）。"""
+    return getattr(cfg, "theme", "dark") or "dark"
 
 
 def _find_app_icon_path(name: str = "app_icon"):
