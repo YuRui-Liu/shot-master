@@ -34,13 +34,15 @@ def test_batch_pages_are_batch_tool_page():
         assert isinstance(w.pages[key], BatchToolPage)
 
 
-def test_soundtrack_page_is_soundtrack_panel():
-    # video/imggen/dub 均已迁移到 TaskWorkspacePage（各有专属测试）；
-    # 配乐页保持不变，仍为 SoundtrackPanel。
+def test_soundtrack_page_is_task_workspace():
+    # 配乐已随 video/imggen/dub 迁移到 TaskWorkspacePage（详见 test_soundtrack_workspace_smoke）。
     _app()
+    from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
     from drama_shot_master.ui.panels.soundtrack_panel import SoundtrackPanel
     w = AppShell()
-    assert isinstance(w.pages["soundtrack"], SoundtrackPanel)
+    page = w.pages["soundtrack"]
+    assert isinstance(page, TaskWorkspacePage)
+    assert isinstance(page.manager, SoundtrackPanel)
 
 
 def test_open_dir_method_exists():
