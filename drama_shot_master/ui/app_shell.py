@@ -105,7 +105,7 @@ class AppShell(QMainWindow):
             if isinstance(page, BatchToolPage):
                 page.thumb.selectionChanged.connect(self._refresh_counts)
         self.sidebar.currentChanged.connect(self._on_nav_changed)
-        self.sidebar.settingsRequested.connect(self._open_settings_menu)
+        self.sidebar.settingsRequested.connect(self._open_unified_settings)
         self.sidebar.helpRequested.connect(self._open_help_menu)
         self.command_bar.openDirRequested.connect(self._open_dir)
         self.command_bar.setOutputRequested.connect(self._set_out_dir)
@@ -178,20 +178,10 @@ class AppShell(QMainWindow):
             self.state.selected = page.selected_order()
         self._refresh_counts()
 
-    def _open_settings_menu(self):
-        menu = QMenu(self)
-        for text, fn in [
-            ("RunningHub 配置…", self._open_runninghub_settings),
-            ("翻译配置…", self._open_translation_settings),
-            ("提示词优化配置…", self._open_refine_settings),
-            ("配乐…", self._open_soundtrack_settings),
-            ("配音…", self._open_dub_settings),
-            ("图片生成…", self._open_imggen_settings),
-        ]:
-            act = QAction(text, self)
-            act.triggered.connect(fn)
-            menu.addAction(act)
-        menu.exec(QCursor.pos())
+    def _open_unified_settings(self):
+        from drama_shot_master.ui.dialogs.unified_settings_dialog import UnifiedSettingsDialog
+        from PySide6.QtWidgets import QApplication
+        UnifiedSettingsDialog(QApplication.instance(), self.cfg, parent=self).exec()
 
     # ------------------------------------------------------------------ #
     # 目录 / 设置 / 帮助（移植自 MainWindow）
@@ -222,31 +212,6 @@ class AppShell(QMainWindow):
         remember_dirs(self.state, self.cfg)
         self._refresh_batch_validity()
         self.command_bar.set_output(f"{self.state.output_dir}")
-
-    def _open_runninghub_settings(self):
-        from drama_shot_master.ui.dialogs.runninghub_settings_dialog import RunningHubSettingsDialog
-        RunningHubSettingsDialog(self.cfg, parent=self).exec()
-
-    def _open_translation_settings(self):
-        from drama_shot_master.ui.dialogs.translation_settings_dialog import TranslationSettingsDialog
-        TranslationSettingsDialog(self.cfg, parent=self).exec()
-
-    def _open_refine_settings(self):
-        from drama_shot_master.ui.dialogs.refine_settings_dialog import RefineSettingsDialog
-        RefineSettingsDialog(self.cfg, parent=self).exec()
-
-    def _open_soundtrack_settings(self):
-        from drama_shot_master.ui.dialogs.soundtrack_settings_dialog import (
-            SoundtrackSettingsDialog)
-        SoundtrackSettingsDialog(self.cfg, parent=self).exec()
-
-    def _open_dub_settings(self):
-        from drama_shot_master.ui.dialogs.dub_settings_dialog import DubSettingsDialog
-        DubSettingsDialog(self.cfg, parent=self).exec()
-
-    def _open_imggen_settings(self):
-        from drama_shot_master.ui.dialogs.imggen_settings_dialog import ImgGenSettingsDialog
-        ImgGenSettingsDialog(self.cfg, parent=self).exec()
 
     def _open_about(self):
         from drama_shot_master.ui.dialogs.about_dialog import AboutDialog

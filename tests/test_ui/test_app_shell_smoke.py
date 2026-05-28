@@ -54,7 +54,7 @@ def test_open_dir_method_exists():
 def test_shell_exposes_settings_and_about_entries():
     _app()
     w = AppShell()
-    assert hasattr(w, "_open_settings_menu")
+    assert hasattr(w, "_open_unified_settings")
     assert hasattr(w, "_open_about")
 
 

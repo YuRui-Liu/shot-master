@@ -16,7 +16,7 @@ from sound_track_agent.beat_aligner import snap_boundaries_to_beats
 def build_pump_envelope(n_samples: int, sr: int, accents: list[AccentPoint],
                         *, strength: float,
                         attack: float = 0.012, release: float = 0.35,
-                        skip_indices: frozenset = frozenset()):
+                        skip_indices: frozenset[int] = frozenset()):
     """基线 1.0 的逐样本增益。每个卡点处下压到 (1 - strength*intensity)：
     attack 秒内 1.0→floor、release 秒内 floor→1.0。多卡点重叠取逐样本 min。
 
@@ -53,7 +53,7 @@ def build_pump_envelope(n_samples: int, sr: int, accents: list[AccentPoint],
 
 def apply_pump(bgm_in, bgm_out, accents: list, *, strength: float,
                attack: float = 0.012, release: float = 0.35,
-               skip_indices: frozenset = frozenset()) -> Path:
+               skip_indices: frozenset[int] = frozenset()) -> Path:
     """读 wav → 乘泵感包络 → 写出。返回输出路径。读/写失败抛 RuntimeError。"""
     import soundfile as sf
     try:
