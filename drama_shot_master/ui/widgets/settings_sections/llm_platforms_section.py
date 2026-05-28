@@ -34,10 +34,12 @@ class _PlatformBlock(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(box)
-        f = QFormLayout(box)
+        v = QVBoxLayout(box)
+        v.setContentsMargins(10, 8, 10, 8); v.setSpacing(6)
+        f = QFormLayout()
         f.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         f.setHorizontalSpacing(12); f.setVerticalSpacing(8)
-        f.setContentsMargins(10, 8, 10, 8)
+        f.setContentsMargins(0, 0, 0, 0)
         f.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
         self.base_url_edit = QLineEdit()
@@ -48,46 +50,47 @@ class _PlatformBlock(QWidget):
         self.api_key_edit.setMaximumWidth(480)
         f.addRow("Base URL", self.base_url_edit)
         f.addRow("API Key", self.api_key_edit)
+        v.addLayout(f)
 
-        # 测试行：[测试连接] [测试 model] 状态
-        bar = QHBoxLayout()
+        # 测试行：只剩按钮（不再需要"测试 model"——用 models.list 验 key）
+        test_bar = QHBoxLayout()
         self.btn_test = QPushButton("测试连接")
-        self.test_model_edit = QLineEdit()
-        self.test_model_edit.setPlaceholderText("用什么 model 测试（必填）")
-        self.test_model_edit.setMaximumWidth(240)
+        test_bar.addWidget(self.btn_test); test_bar.addStretch(1)
+        v.addLayout(test_bar)
+        # 状态独占下一行，QLabel 可换行 + 限高，避免单行过长把表单撑变形
         self.lbl_status = QLabel("")
-        bar.addWidget(self.btn_test)
-        bar.addWidget(self.test_model_edit)
-        bar.addWidget(self.lbl_status, 1)
-        wrap = QWidget(); wrap.setLayout(bar)
-        f.addRow("", wrap)
+        self.lbl_status.setWordWrap(True)
+        self.lbl_status.setMaximumHeight(60)      # 最多 ~3 行 9pt
+        self.lbl_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        v.addWidget(self.lbl_status)
+
         self.btn_test.clicked.connect(self._on_test)
 
     def _on_test(self):
+        """用 client.models.list() 验证 key —— OpenAI-compat 标准 endpoint，
+        不需要对特定 model 的权限（chat.completions 在 ARK 等平台可能因
+        model 权限返 401）；DeepSeek/ARK/OpenAI 都支持 /models 列表。"""
         self.lbl_status.setText("测试中…")
         self.lbl_status.setStyleSheet("color: #9aa0a6")
         self.lbl_status.repaint()
         base_url = self.base_url_edit.text().strip() or self._default_base_url
         api_key = self.api_key_edit.text().strip()
-        model = self.test_model_edit.text().strip()
         if not api_key:
             self.lbl_status.setText("✗ 未填 API Key")
-            self.lbl_status.setStyleSheet("color: #ff5c5c"); return
-        if not model:
-            self.lbl_status.setText("✗ 测试 model 必填")
             self.lbl_status.setStyleSheet("color: #ff5c5c"); return
         try:
             from openai import OpenAI
             c = OpenAI(api_key=api_key, base_url=base_url, timeout=15.0)
-            r = c.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": "ping"}],
-                max_tokens=4, stream=False)
-            txt = (r.choices[0].message.content or "").strip()
-            self.lbl_status.setText(f"✓ 通 · 回复 {len(txt)} 字符")
+            models = c.models.list()
+            ids = [m.id for m in (models.data or [])][:5]
+            preview = "、".join(ids) if ids else "（无可见 model）"
+            self.lbl_status.setText(f"✓ 鉴权通过 · 可见 model 示例: {preview}")
             self.lbl_status.setStyleSheet("color: #4ec98f")
         except Exception as e:
-            self.lbl_status.setText(f"✗ {str(e)[:80]}")
+            # 错误消息截断 + 工具提示带全文，避免布局变形
+            msg = str(e)
+            self.lbl_status.setText(f"✗ {msg[:200]}")
+            self.lbl_status.setToolTip(msg)
             self.lbl_status.setStyleSheet("color: #ff5c5c")
 
     def load(self, base_url: str, api_key: str):
