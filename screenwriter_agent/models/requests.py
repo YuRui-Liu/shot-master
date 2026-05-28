@@ -32,3 +32,17 @@ class IdeateChatReq(BaseModel):
 class IdeateSelectReq(BaseModel):
     project_dir: str
     selected_id: str
+
+
+class ScriptOptions(BaseModel):
+    length_preset: str = "完整版"
+    language_style: str = "口语化"
+    fps: int = 24
+    duration_sec: int = 60
+
+
+class ScriptReq(BaseModel):
+    project_dir: str
+    options: ScriptOptions = Field(default_factory=ScriptOptions)
+    model: str | None = None
+    reasoning_effort: str = "high"
