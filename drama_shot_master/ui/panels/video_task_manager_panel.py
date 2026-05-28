@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
@@ -73,9 +73,17 @@ class VideoTaskManagerPanel(BasePanel):
         root.addLayout(bar)
 
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["名称", "状态", "上次结果", "更新时间"])
-        self.table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.Stretch)
+        self.table.setHorizontalHeaderLabels(["名称", "状态", "最近输出", "更新时间"])
+        # 名称+状态默认占满可见区直接显示；最近输出/更新时间定宽，溢出靠横向滚动条查看
+        hdr = self.table.horizontalHeader()
+        hdr.setStretchLastSection(False)
+        hdr.setSectionResizeMode(0, QHeaderView.Interactive)        # 名称
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeToContents)   # 状态
+        hdr.setSectionResizeMode(2, QHeaderView.Interactive)        # 最近输出
+        hdr.setSectionResizeMode(3, QHeaderView.Interactive)        # 更新时间
+        self.table.setColumnWidth(0, 150)
+        self.table.setColumnWidth(2, 260)
+        self.table.setColumnWidth(3, 150)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.itemChanged.connect(self._on_item_changed)
@@ -85,6 +93,18 @@ class VideoTaskManagerPanel(BasePanel):
         self.btn_dup.clicked.connect(self._on_dup)
         self.btn_del.clicked.connect(self._on_del)
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
+        self.table.viewport().installEventFilter(self)   # 跟随可见宽度调名称列
+
+    def eventFilter(self, obj, ev):
+        if obj is self.table.viewport() and ev.type() == QEvent.Resize:
+            self._fit_name_col()
+        return super().eventFilter(obj, ev)
+
+    def _fit_name_col(self):
+        # 名称列吃掉"状态"右侧的剩余宽度 → 名称+状态恰好占满可见区，
+        # 最近输出/更新时间被挤到右侧，需拖横向滚动条才可见
+        vw = self.table.viewport().width()
+        self.table.setColumnWidth(0, max(120, vw - self.table.columnWidth(1)))
 
     def refresh(self):
         self.table.blockSignals(True)
@@ -103,6 +123,7 @@ class VideoTaskManagerPanel(BasePanel):
                   if t.updated_at else "—")
             self.table.setItem(r, 3, self._readonly(ts))
         self.table.blockSignals(False)
+        self._fit_name_col()             # 数据填完后按最终"状态"宽度重算名称列
 
     @staticmethod
     def _readonly(text: str) -> QTableWidgetItem:

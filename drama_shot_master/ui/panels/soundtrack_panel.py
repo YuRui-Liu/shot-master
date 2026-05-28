@@ -110,7 +110,7 @@ class SoundtrackPanel(BasePanel):
         return it
 
     def refresh(self):
-        self.table.blockSignals(True)        # 程序填充别触发 itemChanged
+        self.table.blockSignals(True)        # 程序填充别触发 itemChanged/itemSelectionChanged
         self.table.setRowCount(0)
         for t in self._tasks():
             r = self.table.rowCount()

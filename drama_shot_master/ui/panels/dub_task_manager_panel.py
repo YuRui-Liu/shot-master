@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QEvent
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
     QInputDialog, QMessageBox, QHeaderView,
@@ -48,12 +48,35 @@ class DubTaskManagerPanel(BasePanel):
         root.addLayout(bar)
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["名称", "模式", "状态", "最近输出", "更新时间"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        # 名称+模式+状态默认占满可见区直接显示；最近输出/更新时间定宽，溢出靠横向滚动条查看
+        hdr = self.table.horizontalHeader()
+        hdr.setStretchLastSection(False)
+        hdr.setSectionResizeMode(0, QHeaderView.Interactive)        # 名称
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeToContents)   # 模式
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeToContents)   # 状态
+        hdr.setSectionResizeMode(3, QHeaderView.Interactive)        # 最近输出
+        hdr.setSectionResizeMode(4, QHeaderView.Interactive)        # 更新时间
+        self.table.setColumnWidth(0, 120)
+        self.table.setColumnWidth(3, 260)
+        self.table.setColumnWidth(4, 150)
         self.table.setEditTriggers(QTableWidget.DoubleClicked)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.itemChanged.connect(self._on_item_changed)
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
         root.addWidget(self.table, 1)
+        self.table.viewport().installEventFilter(self)   # 跟随可见宽度调名称列
+
+    def eventFilter(self, obj, ev):
+        if obj is self.table.viewport() and ev.type() == QEvent.Resize:
+            self._fit_name_col()
+        return super().eventFilter(obj, ev)
+
+    def _fit_name_col(self):
+        # 名称列吃掉"模式+状态"右侧的剩余宽度 → 名称+模式+状态恰好占满可见区，
+        # 最近输出/更新时间被挤到右侧，需拖横向滚动条才可见
+        vw = self.table.viewport().width()
+        used = self.table.columnWidth(1) + self.table.columnWidth(2)
+        self.table.setColumnWidth(0, max(100, vw - used))
 
     def _on_selection_changed(self):
         if self._loading:            # refresh 重建表期间不误发
@@ -91,6 +114,7 @@ class DubTaskManagerPanel(BasePanel):
                     val.setFlags(val.flags() & ~Qt.ItemIsEditable)
                 self.table.setItem(r, c, val)
         self._loading = False
+        self._fit_name_col()             # 数据填完后按最终"模式/状态"宽度重算名称列
 
     def _on_item_changed(self, item):
         if self._loading or item.column() != 0:
