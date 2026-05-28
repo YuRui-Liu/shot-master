@@ -219,6 +219,17 @@ class AppShell(QMainWindow):
             self.cfg.update_settings(task_center_visible=bool(v))
         except Exception:
             pass
+        # 还原主窗尺寸：dock 弹出时主窗会被自动撑宽；收回时如果非最大化/全屏，恢复原宽
+        if v:
+            # 弹出前记录当前几何（仅在原值尚未记录时）
+            if not getattr(self, "_pre_dock_geom", None):
+                if not (self.isMaximized() or self.isFullScreen()):
+                    self._pre_dock_geom = self.geometry()
+        else:
+            geom = getattr(self, "_pre_dock_geom", None)
+            if geom is not None and not (self.isMaximized() or self.isFullScreen()):
+                self.setGeometry(geom)
+            self._pre_dock_geom = None
 
     def _open_unified_settings(self):
         from drama_shot_master.ui.dialogs.unified_settings_dialog import UnifiedSettingsDialog
