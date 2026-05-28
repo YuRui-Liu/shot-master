@@ -107,20 +107,30 @@ def test_refine_section_class_metadata():
 
 def test_refine_section_load_save_roundtrip():
     _app()
+    # Refine 现在共用 LLM 平台的 base_url/api_key（同步写回扁平字段供 prompt_refiner 消费）
     cfg = _cfg(
-        refine_provider_preset="Ollama (本地)",
-        refine_base_url="http://localhost:11434/v1",
+        refine_provider="deepseek",
+        refine_base_url="",
         refine_api_key="",
-        refine_model="qwen2.5-vl",
+        refine_model="deepseek-chat",
         refine_meta_prompt_path="",
+        llm_providers={"deepseek": {"base_url": "https://api.deepseek.com",
+                                     "api_key": "dummy-key"}},
     )
     sec = RefineSection(cfg)
-    assert sec.base_url_edit.text() == "http://localhost:11434/v1"
-    sec.base_url_edit.setText("http://localhost:11434/v1")
-    sec.model_combo.setCurrentText("qwen2.5-vl:7b")
+    # 切到 doubao
+    idx = sec.provider_combo.findData("doubao")
+    sec.provider_combo.setCurrentIndex(idx)
+    sec.model_edit.setText("doubao-1-5-pro-32k-241215")
+    # 添加 doubao 平台配置
+    cfg.llm_providers["doubao"] = {"base_url": "https://ark.cn-beijing.volces.com/api/v3",
+                                    "api_key": "ark-key"}
     sec.save_to(cfg)
-    assert cfg.refine_base_url == "http://localhost:11434/v1"
-    assert cfg.refine_model == "qwen2.5-vl:7b"
+    assert cfg.refine_provider == "doubao"
+    assert cfg.refine_model == "doubao-1-5-pro-32k-241215"
+    # 共用映射：save_to 把 LLM 平台的 url+key 同步回扁平字段
+    assert cfg.refine_base_url == "https://ark.cn-beijing.volces.com/api/v3"
+    assert cfg.refine_api_key == "ark-key"
 
 
 # ── ImgGenSection ─────────────────────────────────────────────────────────────

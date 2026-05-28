@@ -1,4 +1,10 @@
-"""RefineSection：提示词优化 provider 配置 section。"""
+"""RefineSection：提示词优化（精简版）。
+
+base_url + api_key 来自「平台核心 → LLM 平台」section；本 section 只
+选 provider + 填 model + 选 meta-prompt 路径。
+保存时把 refine_base_url / refine_api_key 从 LLM 平台映射写回 cfg，
+下游 prompt_refiner.py 和 video_panel.py 不变。
+"""
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
@@ -7,16 +13,14 @@ from PySide6.QtWidgets import (
     QLabel, QFileDialog, QHBoxLayout, QFrame,
 )
 
-from drama_shot_master.ui.worker import FunctionWorker
+from .llm_platforms_section import PLATFORMS
 
-# 预设名 → (base_url, [model 建议])
-_PRESETS = {
-    "Ollama (本地)": ("http://localhost:11434/v1",
-                      ["qwen2.5-vl", "qwen2.5-vl:7b", "qwen2.5-vl:32b"]),
-    "豆包 ARK": ("https://ark.cn-beijing.volces.com/api/v3",
-                 ["doubao-seed-1-6-vision-250815",
-                  "doubao-1-5-vision-pro-32k-250115"]),
-    "自定义": ("", []),
+
+# 默认 model 建议（按 provider id）
+_DEFAULT_MODELS = {
+    "deepseek": "deepseek-chat",
+    "doubao":   "doubao-seed-1-6-vision-250815",
+    "openai":   "gpt-4o-mini",
 }
 
 
@@ -27,41 +31,38 @@ class RefineSection(QWidget):
     def __init__(self, cfg, parent=None):
         super().__init__(parent)
         self._cfg = cfg
-        self._worker: FunctionWorker | None = None
         self._build_ui()
         self.load_from(cfg)
 
     def _build_ui(self):
         root = QVBoxLayout(self)
+        root.setContentsMargins(20, 12, 20, 12)
+        root.setSpacing(8)
+
+        tip = QLabel("Provider 的 base_url / API Key 在「平台核心 → LLM 平台」统一配。")
+        tip.setStyleSheet("color: #9aa0a6")
+        root.addWidget(tip)
+
         form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        form.setHorizontalSpacing(12); form.setVerticalSpacing(8)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
-        self.preset_combo = QComboBox()
-        self.preset_combo.addItems(list(_PRESETS.keys()))
-        self.preset_combo.currentTextChanged.connect(self._on_preset_changed)
-        form.addRow("Provider 预设", self.preset_combo)
+        # provider 下拉
+        self.provider_combo = QComboBox()
+        for pid, plabel, _default_base in PLATFORMS:
+            self.provider_combo.addItem(plabel, pid)
+        self.provider_combo.setMaximumWidth(480)
+        self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
+        form.addRow("Provider", self.provider_combo)
 
-        self.base_url_edit = QLineEdit()
-        form.addRow("Base URL", self.base_url_edit)
+        self.model_edit = QLineEdit()
+        self.model_edit.setMaximumWidth(480)
+        self.model_edit.setPlaceholderText("model id（按所选 provider 填）")
+        form.addRow("Model", self.model_edit)
 
-        key_row = QHBoxLayout()
-        self.api_key_edit = QLineEdit()
-        self.api_key_edit.setEchoMode(QLineEdit.Password)
-        self.show_key_btn = QPushButton("👁")
-        self.show_key_btn.setCheckable(True)
-        self.show_key_btn.setMaximumWidth(40)
-        self.show_key_btn.toggled.connect(
-            lambda on: self.api_key_edit.setEchoMode(
-                QLineEdit.Normal if on else QLineEdit.Password))
-        key_row.addWidget(self.api_key_edit, 1)
-        key_row.addWidget(self.show_key_btn)
-        key_wrap = QWidget()
-        key_wrap.setLayout(key_row)
-        form.addRow("API Key", key_wrap)
-
-        self.model_combo = QComboBox()
-        self.model_combo.setEditable(True)
-        form.addRow("Model", self.model_combo)
-
+        # Meta-prompt 路径（继承原行为）
         meta_row = QHBoxLayout()
         self.meta_edit = QLineEdit()
         self.meta_edit.setPlaceholderText(
@@ -70,35 +71,18 @@ class RefineSection(QWidget):
         meta_browse.clicked.connect(self._browse_meta)
         meta_row.addWidget(self.meta_edit, 1)
         meta_row.addWidget(meta_browse)
-        meta_wrap = QWidget()
-        meta_wrap.setLayout(meta_row)
+        meta_wrap = QWidget(); meta_wrap.setLayout(meta_row)
+        meta_wrap.setMaximumWidth(480)
         form.addRow("Meta-prompt 路径", meta_wrap)
 
         root.addLayout(form)
-
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        root.addWidget(line)
-
-        test_row = QHBoxLayout()
-        self.test_btn = QPushButton("🔌 测试连接")
-        self.test_btn.clicked.connect(self._on_test)
-        self.test_label = QLabel("")
-        self.test_label.setTextFormat(Qt.RichText)
-        test_row.addWidget(self.test_btn)
-        test_row.addWidget(self.test_label, 1)
-        root.addLayout(test_row)
         root.addStretch(1)
 
-    def _on_preset_changed(self, name: str):
-        base_url, models = _PRESETS.get(name, ("", []))
-        if base_url:
-            self.base_url_edit.setText(base_url)
-        cur = self.model_combo.currentText()
-        self.model_combo.clear()
-        self.model_combo.addItems(models)
-        if cur:
-            self.model_combo.setCurrentText(cur)
+    def _on_provider_changed(self, _name: str):
+        # 切 provider 时如果 model 为空，用默认建议填一个
+        pid = self.provider_combo.currentData()
+        if pid and not self.model_edit.text().strip():
+            self.model_edit.setText(_DEFAULT_MODELS.get(pid, ""))
 
     def _browse_meta(self):
         p, _ = QFileDialog.getOpenFileName(
@@ -107,68 +91,47 @@ class RefineSection(QWidget):
             self.meta_edit.setText(p)
 
     def load_from(self, cfg):
-        preset = getattr(cfg, "refine_provider_preset", None) or "Ollama (本地)"
-        if preset in _PRESETS:
-            self.preset_combo.setCurrentText(preset)
-            self._on_preset_changed(preset)
-        self.base_url_edit.setText(getattr(cfg, "refine_base_url", "") or "")
-        self.api_key_edit.setText(getattr(cfg, "refine_api_key", "") or "")
-        model = getattr(cfg, "refine_model", "") or ""
-        if model:
-            self.model_combo.setCurrentText(model)
+        # 优先读新字段 refine_provider；没有就按旧 base_url 反查
+        pid = getattr(cfg, "refine_provider", "") or self._guess_provider_from_url(
+            getattr(cfg, "refine_base_url", "") or "")
+        if not pid:
+            pid = "deepseek"
+        idx = self.provider_combo.findData(pid)
+        self.provider_combo.setCurrentIndex(idx if idx >= 0 else 0)
+
+        self.model_edit.setText(getattr(cfg, "refine_model", "") or "")
         self.meta_edit.setText(getattr(cfg, "refine_meta_prompt_path", "") or "")
 
+    @staticmethod
+    def _guess_provider_from_url(url: str) -> str:
+        url = (url or "").lower()
+        if "deepseek" in url:
+            return "deepseek"
+        if "volces" in url or "ark.cn" in url:
+            return "doubao"
+        if url:
+            return "openai"
+        return ""
+
     def save_to(self, cfg):
+        pid = self.provider_combo.currentData() or "deepseek"
+        # 从 LLM 平台拿 base_url + key（同步回扁平字段，下游不改）
+        providers = getattr(cfg, "llm_providers", None) or {}
+        provider_cfg = providers.get(pid) or {}
+        # 默认 base_url 兜底（用户在 LLM 平台没填时，按 platform placeholder）
+        default_base = next((b for p, _l, b in PLATFORMS if p == pid), "")
         cfg.update_settings(
-            refine_provider_preset=self.preset_combo.currentText(),
-            refine_base_url=self.base_url_edit.text().strip(),
-            refine_api_key=self.api_key_edit.text().strip(),
-            refine_model=self.model_combo.currentText().strip(),
+            refine_provider=pid,
+            refine_base_url=provider_cfg.get("base_url") or default_base,
+            refine_api_key=provider_cfg.get("api_key", ""),
+            refine_model=self.model_edit.text().strip(),
             refine_meta_prompt_path=self.meta_edit.text().strip(),
         )
 
     def validate(self):
-        base_url = self.base_url_edit.text().strip()
-        model = self.model_combo.currentText().strip()
-        if not base_url or not model:
-            return (False, "必须填 Base URL 和 Model")
+        if not self.model_edit.text().strip():
+            return (False, "Refine 的 Model 必填；base_url/key 在 LLM 平台配。")
         return (True, "")
 
     def cancel_workers(self):
-        if self._worker and self._worker.isRunning():
-            self._worker.quit()
-            self._worker.wait(500)
-            self._worker = None
-
-    def _on_test(self):
-        base_url = self.base_url_edit.text().strip()
-        model = self.model_combo.currentText().strip()
-        api_key = self.api_key_edit.text().strip() or "ollama"
-        if not base_url or not model:
-            self.test_label.setText(
-                '<span style="color:#f66">需先填 Base URL 和 Model</span>')
-            return
-        self.test_label.setText("测试中…")
-        self.test_btn.setEnabled(False)
-
-        def task():
-            from openai import OpenAI
-            client = OpenAI(api_key=api_key, base_url=base_url)
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": "ping"}],
-                timeout=20.0,
-            )
-            return resp.choices[0].message.content or "(空响应)"
-
-        self._worker = FunctionWorker(task)
-        self._worker.finished_with_result.connect(
-            lambda _: self._test_done(True, "✓ 连接成功"))
-        self._worker.failed.connect(
-            lambda e: self._test_done(False, f"✗ {e}"))
-        self._worker.start()
-
-    def _test_done(self, ok: bool, msg: str):
-        color = "#5fa" if ok else "#f66"
-        self.test_label.setText(f'<span style="color:{color}">{msg}</span>')
-        self.test_btn.setEnabled(True)
+        pass

@@ -85,7 +85,8 @@ class Config:
     refine_base_url: str = ""
     refine_api_key: str = ""
     refine_model: str = ""
-    refine_provider_preset: str = "ollama"
+    refine_provider_preset: str = "ollama"     # 旧字段，保留兼容
+    refine_provider: str = ""                  # 新字段：LLM 平台 id（deepseek/doubao/openai）
     refine_meta_prompt_path: str = ""
     # screenwriter_agent
     screenwriter_agent_port: int = 18430
@@ -151,6 +152,7 @@ class Config:
                 "refine_api_key": self.refine_api_key,
                 "refine_model": self.refine_model,
                 "refine_provider_preset": self.refine_provider_preset,
+                "refine_provider": self.refine_provider,
                 "refine_meta_prompt_path": self.refine_meta_prompt_path,
                 "screenwriter_agent_port": self.screenwriter_agent_port,
                 "screenwriter_llm_api_key": self.screenwriter_llm_api_key,
@@ -241,7 +243,7 @@ def load_config(env_path: Path = Path(".env"),
                     if key in data and isinstance(data[key], str):
                         setattr(cfg, key, data[key])
                 for key in ("deeplx_url", "refine_base_url", "refine_api_key",
-                            "refine_model", "refine_provider_preset",
+                            "refine_model", "refine_provider_preset", "refine_provider",
                             "refine_meta_prompt_path"):
                     if key in data and isinstance(data[key], str):
                         setattr(cfg, key, data[key])
