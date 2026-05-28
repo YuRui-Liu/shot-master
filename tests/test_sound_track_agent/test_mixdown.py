@@ -259,3 +259,56 @@ def test_assemble_and_mix_passes_aligned_indices_to_pump(tmp_path):
         replace_video_audio_fn=lambda v, a, o, **k: (Path(o).write_bytes(b"V"), Path(o))[1],
         duration_of=lambda v: 4.0)
     assert captured["skip_indices"] == frozenset({0})
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 Task 4: extract_frames_at 多时间点抽帧
+# ---------------------------------------------------------------------------
+
+from sound_track_agent.mixdown import extract_frames_at
+
+
+class _FakeResult:
+    def __init__(self, returncode=0):
+        self.returncode = returncode
+        self.stderr = b""
+
+
+def test_extract_frames_at_one_command_per_time(tmp_path):
+    """每个时间点一条 ffmpeg cmd，命令含 -ss <t> 与 -frames:v 1。"""
+    captured = []
+    def runner(cmd, capture_output=False):
+        captured.append(list(cmd))
+        out_path = Path(cmd[-1])
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_bytes(b"PNG")
+        return _FakeResult(returncode=0)
+
+    times = [0.5, 1.2, 2.0]
+    paths = extract_frames_at(tmp_path / "ep.mp4", times,
+                              tmp_path / "out", runner=runner)
+    assert len(paths) == 3 == len(captured)
+    for i, t in enumerate(times):
+        joined = " ".join(captured[i])
+        assert f"-ss {t:.3f}" in joined
+        assert "-frames:v 1" in joined
+
+
+def test_extract_frames_at_ffmpeg_failure_raises(tmp_path):
+    def runner(cmd, capture_output=False):
+        return _FakeResult(returncode=1)
+    import pytest
+    with pytest.raises(RuntimeError, match="ffmpeg"):
+        extract_frames_at(tmp_path / "ep.mp4", [1.0],
+                          tmp_path / "out", runner=runner)
+
+
+def test_extract_frames_at_creates_out_dir(tmp_path):
+    def runner(cmd, capture_output=False):
+        Path(cmd[-1]).parent.mkdir(parents=True, exist_ok=True)
+        Path(cmd[-1]).write_bytes(b"PNG")
+        return _FakeResult(returncode=0)
+
+    out_dir = tmp_path / "nested" / "deep"
+    extract_frames_at(tmp_path / "ep.mp4", [0.5], out_dir, runner=runner)
+    assert out_dir.exists()

@@ -113,3 +113,23 @@ def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
     out_video = work_dir / (Path(video_path).stem + "_scored.mp4")
     _replace_video_audio(video_path, mixed, out_video)
     return str(out_video)
+
+
+def extract_frames_at(video_path, times: list[float], out_dir, *,
+                      runner=subprocess.run) -> list[Path]:
+    """对每个时间点 ffmpeg -ss t -frames:v 1 抽帧。
+
+    返回 list[Path] 与 times 一一对应。任一帧抽帧失败抛 RuntimeError。
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for i, t in enumerate(times):
+        p = out_dir / f"f{i}_{float(t):.3f}.png"
+        cmd = ["ffmpeg", "-y", "-ss", f"{float(t):.3f}", "-i", str(video_path),
+               "-frames:v", "1", str(p)]
+        result = runner(cmd, capture_output=True)
+        if getattr(result, "returncode", 0) != 0 or not p.exists():
+            raise RuntimeError(f"ffmpeg 抽帧失败 @ {float(t):.3f}s")
+        paths.append(p)
+    return paths
