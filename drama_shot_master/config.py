@@ -87,6 +87,17 @@ class Config:
     refine_model: str = ""
     refine_provider_preset: str = "ollama"
     refine_meta_prompt_path: str = ""
+    # screenwriter_agent
+    screenwriter_agent_port: int = 18430
+    screenwriter_llm_api_key: str = ""
+    screenwriter_llm_base_url: str = "https://api.deepseek.com"
+    screenwriter_models: dict[str, str] = field(default_factory=lambda: {
+        "ideate":     "doubao-1-5-thinking-pro-250415",
+        "script":     "doubao-1-5-thinking-pro-250415",
+        "storyboard": "deepseek-v4-pro",
+        "prompts":    "deepseek-v4-flash",
+    })
+    screenwriter_project_root: str = ""    # 默认空，UI 提示选目录
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -136,6 +147,11 @@ class Config:
                 "refine_model": self.refine_model,
                 "refine_provider_preset": self.refine_provider_preset,
                 "refine_meta_prompt_path": self.refine_meta_prompt_path,
+                "screenwriter_agent_port": self.screenwriter_agent_port,
+                "screenwriter_llm_api_key": self.screenwriter_llm_api_key,
+                "screenwriter_llm_base_url": self.screenwriter_llm_base_url,
+                "screenwriter_models": self.screenwriter_models,
+                "screenwriter_project_root": self.screenwriter_project_root,
             }
             self.settings_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
@@ -222,6 +238,14 @@ def load_config(env_path: Path = Path(".env"),
                             "refine_meta_prompt_path"):
                     if key in data and isinstance(data[key], str):
                         setattr(cfg, key, data[key])
+                for key in ("screenwriter_llm_api_key", "screenwriter_llm_base_url",
+                            "screenwriter_project_root"):
+                    if key in data and isinstance(data[key], str):
+                        setattr(cfg, key, data[key])
+                if isinstance(data.get("screenwriter_agent_port"), int):
+                    cfg.screenwriter_agent_port = data["screenwriter_agent_port"]
+                if "screenwriter_models" in data and isinstance(data["screenwriter_models"], dict):
+                    cfg.screenwriter_models = data["screenwriter_models"]
                 if "video_timeline_cache" in data and isinstance(
                         data["video_timeline_cache"], dict):
                     cfg.video_timeline_cache = data["video_timeline_cache"]
