@@ -172,3 +172,16 @@ def test_health_check_with_credentials(stub_tmt_client):
     t = _make_translator(stub_tmt_client)
     ok, _msg = t.health_check()
     assert ok is True
+
+
+def test_health_check_reads_real_sdk_attribute_name(stub_tmt_client):
+    """Regression guard: SDK base class uses `credential` (no underscore).
+
+    If we ever rename the stub's attribute back to `_credential`, this test
+    forces an explicit decision — does the real SDK still use that name?
+    """
+    t = _make_translator(stub_tmt_client)
+    # The stub mirrors the real SDK: AbstractClient.credential (no underscore)
+    assert hasattr(t._client, "credential")
+    # And explicitly NOT the private-looking _credential
+    assert not hasattr(t._client, "_credential")

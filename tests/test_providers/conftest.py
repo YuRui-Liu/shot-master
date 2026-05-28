@@ -15,7 +15,7 @@ class _StubTmtClient:
     Individual tests override `TextTranslate` per-instance or class-wide.
     """
     def __init__(self, cred, region, profile):
-        self._credential = cred
+        self.credential = cred
         self._region = region
         self._profile = profile
 

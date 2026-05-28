@@ -102,7 +102,7 @@ class TencentTranslator(TranslationProvider):
 
     def health_check(self) -> tuple[bool, str]:
         # 不发请求（避免无谓计费），仅校验凭证字段
-        cred = self._client._credential  # noqa: SLF001 — SDK 暴露的内部属性
+        cred = self._client.credential
         if not getattr(cred, "secretId", "") or not getattr(cred, "secretKey", ""):
             return False, "凭证为空"
         return True, "凭证已配置"
