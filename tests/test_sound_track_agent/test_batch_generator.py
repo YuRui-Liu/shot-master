@@ -72,6 +72,8 @@ def test_generate_all_fills_candidates_scores_chosen_and_advances_seed(tmp_path)
     for seg in sess.segments:
         assert len(seg.candidates) == 2
         assert all(c.score is not None for c in seg.candidates)
+        assert all(c.subscores.keys() == {"health", "headroom", "beat"}
+                   for c in seg.candidates)
         assert seg.chosen_candidate is not None
         assert seg.next_seed == 3                       # 1 -> +2
     assert sorted(client.created) == [1, 1, 2, 2]       # 两段各 seed 1,2

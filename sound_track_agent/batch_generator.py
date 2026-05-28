@@ -38,7 +38,8 @@ def _run_job(job: _Job, *, client, workflow_id, cache_dir,
             job.tags, job.bpm, job.duration, job.seed))
     url = music_generator._wait_success(
         client, task_id, timeout=timeout, poll_interval=poll_interval, sleep=sleep)
-    tmp = Path(cache_dir) / f"_dl_{key}.mp3"
+    # tmp 名带 id(job) 以避免：若 caller 的 compose 退化为多段同输出 → 多 worker 撞同一 _dl_<key>
+    tmp = Path(cache_dir) / f"_dl_{key}_{id(job)}.mp3"
     client.download_file(url, tmp)
     return job, bgm_cache.store(cache_dir, key, tmp)
 
@@ -94,8 +95,13 @@ def generate_all(session: ScoringSession, *, client, workflow_id: str, cache_dir
                  timeout: float = 600.0, poll_interval: float = 5.0,
                  sleep: Optional[Callable] = None,
                  on_progress: Optional[Callable[[str], None]] = None) -> None:
-    """处理所有 prompted 段：并发生成→缓存→打分→回填→推进 next_seed。不抛。"""
-    sleep = sleep or _time.sleep
+    """处理所有 prompted 段：并发生成→缓存→打分→回填→推进 next_seed。不抛。
+
+    注：本函数不修改 seg.status；由 pipeline.run 在返回后统一把"已有候选"的 prompted 段
+    升到 generated（0 候选段留 prompted 以便续跑重试）。
+    """
+    if sleep is None:
+        sleep = _time.sleep
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     segs = [s for s in session.segments if s.status == "prompted"]
@@ -125,8 +131,12 @@ def generate_one(session: ScoringSession, seg_index: int, *, client,
                  timeout: float = 600.0, poll_interval: float = 5.0,
                  sleep: Optional[Callable] = None,
                  on_progress: Optional[Callable[[str], None]] = None) -> ScoringSession:
-    """单段重生成：新种子、清旧候选、生成、打分、pick、推进 next_seed。"""
-    sleep = sleep or _time.sleep
+    """单段重生成：新种子、清旧候选、生成、打分、pick、推进 next_seed。
+
+    seg_index 必须在 session.segments 范围内（调用方负责校验，越界抛 IndexError）。
+    """
+    if sleep is None:
+        sleep = _time.sleep
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     seg = session.segments[seg_index]
