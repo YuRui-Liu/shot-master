@@ -1239,8 +1239,8 @@ def regenerate_segment(session: ScoringSession, seg_index: int, work_dir, *,
     return session
 ```
 
-> 旧 `regenerate_segment` 的 `stages` 参数被移除；唯一调用方
-> `drama_shot_master/ui/windows/soundtrack_task_window.py` 未传 `stages`，兼容。
+> 旧 `regenerate_segment` 的 `stages` 参数被移除；当前调用方
+> `drama_shot_master/ui/widgets/soundtrack_editor.py:259` 未传 `stages`，兼容。
 
 - [ ] **Step 6: 运行，确认通过**
 

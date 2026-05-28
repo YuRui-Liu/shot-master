@@ -234,18 +234,18 @@ def regenerate_segment(session: ScoringSession, seg_index: int, work_dir, *,
         return compose_acestep_inputs(global_style, seg.emotion, seg.duration)
 
     seg = session.segments[seg_index]
-    _prev = (list(seg.candidates), seg.chosen_candidate, seg.status, seg.next_seed)
+    _prev = (list(seg.candidates), seg.chosen_candidate, seg.status)
 
     batch_generator.generate_one(
         session, seg_index, client=client, workflow_id=workflow_id,
         cache_dir=work_dir / "cache" / "bgm", compose=compose, score_fn=score_fn,
         seeds_count=seeds_count,
-        max_concurrency=int(getattr(cfg, "soundtrack_max_concurrency", 3)),
-        on_progress=on_progress)
+        max_concurrency=int(getattr(cfg, "soundtrack_max_concurrency", 3)))
 
     if not seg.candidates:
-        # 全部 job 失败：恢复重生成前的状态，避免持久化"已生成但无候选"的坏态
-        seg.candidates, seg.chosen_candidate, seg.status, seg.next_seed = _prev
+        # 全部 job 失败：恢复候选/chosen/status 防止持久化坏态；next_seed 保持已推进
+        # （契合 spec "无论成败都推进"，避免连续失败下用同一种子窗口卡住）
+        seg.candidates, seg.chosen_candidate, seg.status = _prev
 
     session.save(work_dir / "session.json")
     return session

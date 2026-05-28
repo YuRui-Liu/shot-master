@@ -308,3 +308,29 @@ def test_advance_preserves_generate_all_under_progress(tmp_path):
                    stop_after="generate", stages=stages, on_progress=lambda m: None)
     assert calls["all"] == 1
     assert sess.segments[0].status == "generated"
+
+
+def test_regenerate_total_failure_restores_state_but_advances_seed(tmp_path):
+    """全 job 失败：候选/chosen/status 回滚；next_seed 仍推进（防卡死）。"""
+    class FailClient(_FakeClient):
+        def query_task(self, task_id):
+            return {"status": "FAILED", "errorMessage": "boom"}
+
+    sess = ScoringSession(
+        source_mp4="x", source_hash="h", global_style="style", frame_rate=24.0,
+        segments=[SegmentScore(index=0, t_start=0.0, t_end=1.0, next_seed=3,
+                               status="generated",
+                               candidates=[BGMCandidate(path="/old.wav",
+                                                        seed=1, prompt="t")],
+                               chosen_candidate=0)])
+    facade.regenerate_segment(
+        sess, 0, tmp_path, cfg=_Cfg(), workflow_id="wf", seeds_count=2,
+        client=FailClient(),
+        score_fn=lambda p, expected_dur=0.0: CandidateScore(0.5, 1.0, 0.5, 0.5))
+    seg = sess.segments[0]
+    # 旧候选/chosen/status 保留
+    assert len(seg.candidates) == 1 and seg.candidates[0].path == "/old.wav"
+    assert seg.chosen_candidate == 0
+    assert seg.status == "generated"
+    # next_seed 仍推进，避免下次重试卡同一种子窗口
+    assert seg.next_seed == 5    # 3 -> +2
