@@ -12,7 +12,6 @@ from drama_shot_master.ui.widgets.settings_sections import (
     RunningHubSection, LLMPlatformsSection,
     TranslationSection, RefineSection,
     ImgGenSection, DubSection, SoundtrackSection, ScreenwriterSection,
-    ThemeSection,
 )
 
 
@@ -37,7 +36,6 @@ class UnifiedSettingsDialog(QDialog):
             DubSection(self._cfg),
             SoundtrackSection(self._cfg),
             ScreenwriterSection(self._cfg),
-            ThemeSection(self._app, self._cfg),
         ]
 
     def _build_ui(self):

@@ -52,46 +52,65 @@ class _PlatformBlock(QWidget):
         f.addRow("API Key", self.api_key_edit)
         v.addLayout(f)
 
-        # 测试行：只剩按钮（不再需要"测试 model"——用 models.list 验 key）
+        # 测试行
         test_bar = QHBoxLayout()
         self.btn_test = QPushButton("测试连接")
         test_bar.addWidget(self.btn_test); test_bar.addStretch(1)
         v.addLayout(test_bar)
-        # 状态独占下一行，QLabel 可换行 + 限高，避免单行过长把表单撑变形
+        # 状态独占下一行 —— 定高单行 + 省略号截断 + 全文挂 tooltip，
+        # 保证报错再长也不会撑变形上下挤压上面的输入框
         self.lbl_status = QLabel("")
-        self.lbl_status.setWordWrap(True)
-        self.lbl_status.setMaximumHeight(60)      # 最多 ~3 行 9pt
+        self.lbl_status.setFixedHeight(20)
         self.lbl_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.lbl_status.setTextFormat(Qt.PlainText)
+        # ElideRight 由 QLabel 单行自动截断；用 setStyleSheet 配 white-space:nowrap 难，
+        # 改用 fontMetrics 手动截字以保证视觉一致
         v.addWidget(self.lbl_status)
 
         self.btn_test.clicked.connect(self._on_test)
 
+    # 每个平台测试策略不同（ARK 的 /models 不通用，要 chat.completions）
+    _ARK_FALLBACK_MODEL = "doubao-1-5-pro-32k-241215"
+
     def _on_test(self):
-        """用 client.models.list() 验证 key —— OpenAI-compat 标准 endpoint，
-        不需要对特定 model 的权限（chat.completions 在 ARK 等平台可能因
-        model 权限返 401）；DeepSeek/ARK/OpenAI 都支持 /models 列表。"""
-        self.lbl_status.setText("测试中…")
-        self.lbl_status.setStyleSheet("color: #9aa0a6")
-        self.lbl_status.repaint()
+        self._set_status("测试中…", "#9aa0a6")
         base_url = self.base_url_edit.text().strip() or self._default_base_url
         api_key = self.api_key_edit.text().strip()
         if not api_key:
-            self.lbl_status.setText("✗ 未填 API Key")
-            self.lbl_status.setStyleSheet("color: #ff5c5c"); return
+            self._set_status("✗ 未填 API Key", "#ff5c5c"); return
         try:
             from openai import OpenAI
             c = OpenAI(api_key=api_key, base_url=base_url, timeout=15.0)
-            models = c.models.list()
-            ids = [m.id for m in (models.data or [])][:5]
-            preview = "、".join(ids) if ids else "（无可见 model）"
-            self.lbl_status.setText(f"✓ 鉴权通过 · 可见 model 示例: {preview}")
-            self.lbl_status.setStyleSheet("color: #4ec98f")
+            if self.pid == "doubao":
+                # ARK 的 /v3/models 不可用，用 chat.completions 兜底；
+                # 用一个公开 model 名做 ping（用户没开通会失败，但鉴权层会先通过）
+                resp = c.chat.completions.create(
+                    model=self._ARK_FALLBACK_MODEL,
+                    messages=[{"role": "user", "content": "ping"}],
+                    max_tokens=4, stream=False)
+                _txt = (resp.choices[0].message.content or "").strip()
+                self._set_status(
+                    f"✓ 鉴权通过 · 测试 model: {self._ARK_FALLBACK_MODEL}",
+                    "#4ec98f")
+            else:
+                # DeepSeek / OpenAI 都支持 /models 列表
+                models = c.models.list()
+                ids = [m.id for m in (models.data or [])][:5]
+                preview = "、".join(ids) if ids else "（无可见 model）"
+                self._set_status(f"✓ 鉴权通过 · 可见 model: {preview}", "#4ec98f")
         except Exception as e:
-            # 错误消息截断 + 工具提示带全文，避免布局变形
             msg = str(e)
-            self.lbl_status.setText(f"✗ {msg[:200]}")
-            self.lbl_status.setToolTip(msg)
-            self.lbl_status.setStyleSheet("color: #ff5c5c")
+            self._set_status(f"✗ {msg}", "#ff5c5c", tooltip=msg)
+
+    def _set_status(self, text: str, color: str, tooltip: str = ""):
+        """单行截断（按当前字体宽度算）+ 全文挂 tooltip，定高不撑变形。"""
+        fm = self.lbl_status.fontMetrics()
+        # 留出 8px 边距
+        avail = max(80, self.lbl_status.width() - 8)
+        elided = fm.elidedText(text, Qt.ElideRight, avail)
+        self.lbl_status.setText(elided)
+        self.lbl_status.setToolTip(tooltip or text)
+        self.lbl_status.setStyleSheet(f"color: {color}")
 
     def load(self, base_url: str, api_key: str):
         self.base_url_edit.setText(base_url or "")

@@ -22,10 +22,10 @@ from .llm_platforms_section import PLATFORMS
 
 # 阶段 key → (显示名, 默认 provider, 默认 model)
 _STAGES = (
-    ("ideate",     "创意",     "doubao",   "doubao-1-5-thinking-pro-250415"),
-    ("script",     "剧本",     "doubao",   "doubao-1-5-thinking-pro-250415"),
-    ("storyboard", "分镜",     "deepseek", "deepseek-chat"),
-    ("prompts",    "提示词",   "deepseek", "deepseek-chat"),
+    ("ideate",     "创意",     "deepseek", "deepseek-v4-flash"),
+    ("script",     "剧本",     "deepseek", "deepseek-v4-flash"),
+    ("storyboard", "分镜",     "deepseek", "deepseek-v4-flash"),
+    ("prompts",    "提示词",   "deepseek", "deepseek-v4-flash"),
 )
 
 

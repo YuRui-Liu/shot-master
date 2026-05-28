@@ -61,9 +61,9 @@ class RunningHubSection(QWidget):
         self.workflow_id_edits: dict[str, QLineEdit] = {}
         for key, prof in PROFILES.items():
             edit = QLineEdit()
-            edit.setPlaceholderText(f"{prof.name} 的 workflow_id")
+            edit.setPlaceholderText(f"{prof.name} 的 ID")
             self.workflow_id_edits[key] = edit
-            form.addRow(f"{prof.name} workflow_id", edit)
+            form.addRow(f"{prof.name}ID", edit)
 
         # ── 工作流模板 ────────────────────────────────────────────────────────
         tpl_row = QHBoxLayout()
