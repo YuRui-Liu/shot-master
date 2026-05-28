@@ -39,9 +39,10 @@ def refine_segments(session: ScoringSession, *, video_path, work_dir,
     所有 I/O 可注入；缺省走真实实现。
     """
     try:
-        # 安全护栏：已有候选 → 不动（防止重排打散已生成 BGM）
-        if any(getattr(s, "candidates", None) for s in session.segments):
-            log.info("refine_segments 跳过：session 已有候选段")
+        # 安全护栏：已有候选 OR 已生成 music_prompt（Phase 1/2 老 session 升级保护）
+        if any(getattr(s, "candidates", None) or getattr(s, "music_prompt", "")
+               for s in session.segments):
+            log.info("refine_segments 跳过：session 已进入 compose_prompt/generate 阶段")
             return False
 
         detect = detect or detect_shots
@@ -61,7 +62,7 @@ def refine_segments(session: ScoringSession, *, video_path, work_dir,
         for i, shot in enumerate(shots):
             mid = (shot.t_start + shot.t_end) / 2.0
             duration = shot.t_end - shot.t_start
-            if duration < _MIN_MULTIFRAME_DUR:
+            if duration <= _MIN_MULTIFRAME_DUR:
                 times = [mid]
             else:
                 times = [shot.t_start + 0.05, mid, shot.t_end - 0.05]

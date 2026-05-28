@@ -171,3 +171,23 @@ def test_refine_segments_default_none_no_op():
     stages = Stages(**fns)
     run(sess, stages, stop_after="generate")
     assert sess.segments[0].status == "generated"
+
+
+def test_tag_emotion_skipped_when_status_already_tagged():
+    """refine 把 seg.status 置 'tagged' 后，tag_emotion stage 自然跳过（status != pending）。"""
+    sess = ScoringSession(source_mp4="x", source_hash="h", global_style="s",
+                          frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0,
+                                                 status="tagged",
+                                                 emotion=EmotionTag())])
+    sess.segments_refined = True
+    tag_calls = {"n": 0}
+    def per_seg_tag(seg, s):
+        tag_calls["n"] += 1
+        return EmotionTag()
+    fns = _base_stage_fns()
+    fns["tag_emotion"] = per_seg_tag
+    stages = Stages(**fns)
+    from sound_track_agent.pipeline import run as run_pipeline
+    run_pipeline(sess, stages, stop_after="tag_emotion")
+    assert tag_calls["n"] == 0

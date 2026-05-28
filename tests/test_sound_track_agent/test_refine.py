@@ -111,3 +111,21 @@ def test_refine_short_shot_uses_single_mid_frame(tmp_path):
     assert len(captured_times) == 1
     assert len(captured_times[0]) == 1
     assert abs(captured_times[0][0] - 1.025) < 1e-6
+
+
+def test_refine_safety_gate_when_session_has_music_prompt(tmp_path):
+    """已填 music_prompt 的段（Phase 1/2 老 session 升级）→ 返回 False、不替换。"""
+    seg = SegmentScore(index=0, t_start=0.0, t_end=2.0,
+                       status="prompted", music_prompt="Instrumental tense")
+    sess = ScoringSession(source_mp4=str(tmp_path / "ep.mp4"), source_hash="h",
+                          global_style="末日", frame_rate=24.0, segments=[seg])
+    original_segs = list(sess.segments)
+    ok = refine_segments(
+        sess, video_path=tmp_path / "ep.mp4", work_dir=tmp_path / "w",
+        provider=None, global_style="末日",
+        detect=lambda v: [Shot(0, 0.0, 1.0)],
+        extract_frames=lambda *a, **k: [Path("/x.png")],
+        tag_fn=lambda paths: EmotionTag())
+    assert ok is False
+    assert sess.segments == original_segs
+    assert sess.segments[0].music_prompt == "Instrumental tense"
