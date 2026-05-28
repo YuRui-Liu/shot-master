@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 from secrets import token_hex
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
@@ -26,8 +26,32 @@ def _gen_id() -> str:
     return f"{int(time.time() * 1000)}{token_hex(3)[:5]}"
 
 
+class _SoundtrackTaskView:
+    """把 cfg.soundtrack_tasks 的 dict 暴露成 .id/.name/.payload（活引用），
+    供通用 TaskWorkspacePage（按属性访问）消费。"""
+
+    def __init__(self, d: dict):
+        self._d = d
+
+    @property
+    def id(self):
+        return self._d.get("id", "")
+
+    @property
+    def name(self):
+        return self._d.get("name", "")
+
+    @property
+    def payload(self):
+        return self._d
+
+
 class SoundtrackPanel(BasePanel):
     """配乐任务列表。开窗与持久化由回调交给 main_window。"""
+
+    taskSelected = Signal(object)
+    taskDeleted = Signal(str)
+    taskRenamed = Signal(str, str)
 
     def __init__(self, state, cfg, open_window_cb, persist_cb, parent=None):
         super().__init__(state, cfg, parent)
@@ -52,9 +76,8 @@ class SoundtrackPanel(BasePanel):
         root = QVBoxLayout(self)
         bar = QHBoxLayout()
         self.btn_new = QPushButton("+ 新建配乐任务")
-        self.btn_open = QPushButton("打开")
         self.btn_del = QPushButton("删除")
-        for b in (self.btn_new, self.btn_open, self.btn_del):
+        for b in (self.btn_new, self.btn_del):
             bar.addWidget(b)
         bar.addStretch(1)
         root.addLayout(bar)
@@ -64,12 +87,11 @@ class SoundtrackPanel(BasePanel):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.itemDoubleClicked.connect(self._on_double_clicked)
         self.table.itemChanged.connect(self._on_item_changed)
+        self.table.itemSelectionChanged.connect(self._on_selection_changed)
         root.addWidget(self.table, 1)
 
         self.btn_new.clicked.connect(self._on_new)
-        self.btn_open.clicked.connect(self._on_open)
         self.btn_del.clicked.connect(self._on_del)
 
     @staticmethod
@@ -109,6 +131,18 @@ class SoundtrackPanel(BasePanel):
         tid = item.data(Qt.UserRole) if item else None
         return next((t for t in self._tasks() if t.get("id") == tid), None)
 
+    def _on_selection_changed(self):
+        d = self._selected()
+        if d is not None:
+            self.taskSelected.emit(_SoundtrackTaskView(d))
+
+    def _select_task(self, tid: str):
+        for r in range(self.table.rowCount()):
+            it = self.table.item(r, 0)
+            if it is not None and it.data(Qt.UserRole) == tid:
+                self.table.setCurrentCell(r, 0)
+                return
+
     def _on_new(self):
         n = len(self._tasks()) + 1
         task = {"id": _gen_id(), "name": f"配乐任务 {n}", "mp4": "",
@@ -116,23 +150,9 @@ class SoundtrackPanel(BasePanel):
         self._tasks().append(task)
         self._persist_cb()
         self.refresh()
-        self._open_window_cb(task)
-
-    def _on_open(self):
-        t = self._selected()
-        if not t:
-            QMessageBox.information(self, "打开", "请先选一个任务")
-            return
-        self._open_window_cb(t)
-
-    def _on_double_clicked(self, item):
-        # 双击名称列(0)进入内联改名；双击其它列打开任务（同视频生成）
-        if item.column() == 0:
-            return
-        self._on_open()
+        self._select_task(task["id"])
 
     def _on_item_changed(self, item):
-        # 名称列编辑完成 → 写回任务 + 落盘
         if item.column() != 0:
             return
         tid = item.data(Qt.UserRole)
@@ -144,6 +164,7 @@ class SoundtrackPanel(BasePanel):
                 t["name"] = new_name
                 break
         self._persist_cb()
+        self.taskRenamed.emit(tid, new_name)
 
     def _on_del(self):
         t = self._selected()
@@ -152,6 +173,8 @@ class SoundtrackPanel(BasePanel):
         if QMessageBox.question(self, "删除", "确定删除该配乐任务？",
                                 QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
             return
+        tid = t.get("id")
         self._tasks().remove(t)
         self._persist_cb()
         self.refresh()
+        self.taskDeleted.emit(tid)
