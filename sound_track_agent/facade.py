@@ -119,7 +119,7 @@ def _wrap_progress(stages: Stages, on_progress) -> Stages:
         generate=wrap(stages.generate, "生成 BGM"),
         align=wrap_whole(stages.align, "对齐卡点"),
         mix=wrap_whole(stages.mix, "混音出片"),
-        generate_all=(wrap_whole(stages.generate_all, "生成 BGM")
+        generate_all=(wrap_whole(stages.generate_all, "批量生成 BGM")
                       if stages.generate_all is not None else None),
     )
 
@@ -200,10 +200,13 @@ def build_accent_preview(session: ScoringSession, work_dir, *,
 
 def regenerate_segment(session: ScoringSession, seg_index: int, work_dir, *,
                        cfg, workflow_id: str, seeds_count: int = 2,
-                       client=None, score_fn=None) -> ScoringSession:
+                       client=None, score_fn=None,
+                       on_progress: Optional[Callable[[str], None]] = None,
+                       ) -> ScoringSession:
     """对单段重跑 generate（用新种子换候选、清选定），不动其它段。落盘并返回。
 
     client/score_fn 可注入（测试用 fake）；为 None 时内部组装真实依赖。
+    全部 job 失败时恢复重生成前的状态，避免持久化"已生成但无候选"的坏态。
     """
     if not (0 <= seg_index < len(session.segments)):
         raise ValueError(f"seg_index 越界: {seg_index}")
@@ -230,10 +233,19 @@ def regenerate_segment(session: ScoringSession, seg_index: int, work_dir, *,
     def compose(seg):
         return compose_acestep_inputs(global_style, seg.emotion, seg.duration)
 
+    seg = session.segments[seg_index]
+    _prev = (list(seg.candidates), seg.chosen_candidate, seg.status, seg.next_seed)
+
     batch_generator.generate_one(
         session, seg_index, client=client, workflow_id=workflow_id,
         cache_dir=work_dir / "cache" / "bgm", compose=compose, score_fn=score_fn,
         seeds_count=seeds_count,
-        max_concurrency=int(getattr(cfg, "soundtrack_max_concurrency", 3)))
+        max_concurrency=int(getattr(cfg, "soundtrack_max_concurrency", 3)),
+        on_progress=on_progress)
+
+    if not seg.candidates:
+        # 全部 job 失败：恢复重生成前的状态，避免持久化"已生成但无候选"的坏态
+        seg.candidates, seg.chosen_candidate, seg.status, seg.next_seed = _prev
+
     session.save(work_dir / "session.json")
     return session

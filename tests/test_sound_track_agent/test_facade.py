@@ -259,6 +259,32 @@ def test_regenerate_seg_index_out_of_range_raises(tmp_path):
                                   workflow_id="wf", client=_FakeClient())
 
 
+def test_regenerate_does_not_touch_other_segments(tmp_path):
+    sess = ScoringSession(
+        source_mp4="x", source_hash="h", global_style="style", frame_rate=24.0,
+        segments=[
+            SegmentScore(index=0, t_start=0.0, t_end=1.0, next_seed=1,
+                         status="generated",
+                         candidates=[BGMCandidate(path="/old0.wav", seed=1, prompt="t")],
+                         chosen_candidate=0),
+            SegmentScore(index=1, t_start=1.0, t_end=2.0, next_seed=3,
+                         status="generated",
+                         candidates=[BGMCandidate(path="/old1.wav", seed=1, prompt="t")],
+                         chosen_candidate=0)])
+    client = _FakeClient()
+    facade.regenerate_segment(
+        sess, 1, tmp_path, cfg=_Cfg(), workflow_id="wf", seeds_count=2,
+        client=client,
+        score_fn=lambda p, expected_dur=0.0: CandidateScore(0.5, 1.0, 0.5, 0.5))
+    # 段 0 不被动
+    assert sess.segments[0].candidates[0].path == "/old0.wav"
+    assert sess.segments[0].chosen_candidate == 0
+    assert sess.segments[0].next_seed == 1
+    # 段 1 被新种子替换
+    assert sorted(client.created) == [3, 4]
+    assert sess.segments[1].next_seed == 5
+
+
 def test_advance_preserves_generate_all_under_progress(tmp_path):
     # progress 包装（on_progress 非 None）后，generate_all 钩子不能丢，否则回退到逐段
     sess = ScoringSession(source_mp4="x", source_hash="h", global_style="s",
