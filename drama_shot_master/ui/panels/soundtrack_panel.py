@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 from secrets import token_hex
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
@@ -71,7 +71,7 @@ class SoundtrackPanel(BasePanel):
     def _build_ui(self):
         root = QVBoxLayout(self)
         bar = QHBoxLayout()
-        self.btn_new = QPushButton("+ 新建配乐任务")
+        self.btn_new = QPushButton("新建")
         self.btn_del = QPushButton("删除")
         for b in (self.btn_new, self.btn_del):
             bar.addWidget(b)
@@ -79,16 +79,40 @@ class SoundtrackPanel(BasePanel):
         root.addLayout(bar)
 
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["名称", "成片 MP4", "状态", "输出"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table.setHorizontalHeaderLabels(["名称", "状态", "成片 MP4", "输出"])
+        # 与生视频/出图/配音 一致：名称+状态默认占满可见区，成片 MP4/输出 推到右侧滑动看
+        hdr = self.table.horizontalHeader()
+        hdr.setStretchLastSection(False)
+        hdr.setSectionResizeMode(0, QHeaderView.Interactive)        # 名称
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeToContents)   # 状态
+        hdr.setSectionResizeMode(2, QHeaderView.Interactive)        # 成片 MP4
+        hdr.setSectionResizeMode(3, QHeaderView.Interactive)        # 输出
+        self.table.setColumnWidth(0, 150)
+        self.table.setColumnWidth(2, 260)
+        self.table.setColumnWidth(3, 220)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.itemChanged.connect(self._on_item_changed)
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
         root.addWidget(self.table, 1)
+        self.table.viewport().installEventFilter(self)
 
         self.btn_new.clicked.connect(self._on_new)
         self.btn_del.clicked.connect(self._on_del)
+
+    def eventFilter(self, obj, ev):
+        if obj is self.table.viewport():
+            if ev.type() == QEvent.Resize:
+                self._fit_name_col()
+            elif ev.type() == QEvent.MouseButtonPress:
+                # 点空白区不要清掉行选中
+                if not self.table.indexAt(ev.pos()).isValid():
+                    return True
+        return super().eventFilter(obj, ev)
+
+    def _fit_name_col(self):
+        vw = self.table.viewport().width()
+        self.table.setColumnWidth(0, max(150, vw - self.table.columnWidth(1)))
 
     @staticmethod
     def _ro(text: str) -> QTableWidgetItem:
@@ -115,10 +139,11 @@ class SoundtrackPanel(BasePanel):
             name_item = QTableWidgetItem(t.get("name", "未命名"))  # 名称列可编辑
             name_item.setData(Qt.UserRole, t.get("id"))
             self.table.setItem(r, 0, name_item)
-            self.table.setItem(r, 1, self._ro(t.get("mp4", "")))
-            self.table.setItem(r, 2, self._status_item(t.get("status", "空闲")))
+            self.table.setItem(r, 1, self._status_item(t.get("status", "空闲")))
+            self.table.setItem(r, 2, self._ro(t.get("mp4", "")))
             self.table.setItem(r, 3, self._ro(t.get("output") or "—"))
         self.table.blockSignals(False)
+        self._fit_name_col()             # 数据填完后按最终"状态"宽度重算名称列
 
     def _selected(self) -> dict | None:
         row = self.table.currentRow()

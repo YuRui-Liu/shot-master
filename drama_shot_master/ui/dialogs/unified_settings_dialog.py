@@ -10,7 +10,8 @@ from PySide6.QtWidgets import (
 
 from drama_shot_master.ui.widgets.settings_sections import (
     RunningHubSection, TranslationSection, RefineSection,
-    ImgGenSection, DubSection, SoundtrackSection, ThemeSection,
+    ImgGenSection, DubSection, SoundtrackSection, ScreenwriterSection,
+    ThemeSection,
 )
 
 
@@ -33,6 +34,7 @@ class UnifiedSettingsDialog(QDialog):
             ImgGenSection(self._cfg),
             DubSection(self._cfg),
             SoundtrackSection(self._cfg),
+            ScreenwriterSection(self._cfg),
             ThemeSection(self._app, self._cfg),
         ]
 

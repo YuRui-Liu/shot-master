@@ -46,6 +46,8 @@ class TaskWorkspacePage(QWidget):
     def _build_ui(self):
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(self.manager)
+        # 任务列表宽度区间锁定：详情编辑器再宽也不能挤占它，避免最右"状态"列被裁
+        self.manager.setMinimumWidth(290)
         self.manager.setMaximumWidth(300)
 
         right = QWidget()
@@ -71,7 +73,8 @@ class TaskWorkspacePage(QWidget):
         splitter.addWidget(right)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([280, 900])
+        splitter.setCollapsible(0, False)   # 任务列表不可被拖没
+        splitter.setSizes([290, 900])
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)

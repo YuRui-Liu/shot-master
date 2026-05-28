@@ -7,9 +7,11 @@ from .refine_section import RefineSection
 from .imggen_section import ImgGenSection
 from .dub_section import DubSection
 from .soundtrack_section import SoundtrackSection
+from .screenwriter_section import ScreenwriterSection
 from .theme_section import ThemeSection
 
 __all__ = [
     "RunningHubSection", "TranslationSection", "RefineSection",
-    "ImgGenSection", "DubSection", "SoundtrackSection", "ThemeSection",
+    "ImgGenSection", "DubSection", "SoundtrackSection",
+    "ScreenwriterSection", "ThemeSection",
 ]

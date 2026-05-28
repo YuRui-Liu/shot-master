@@ -45,9 +45,9 @@ def test_dialog_has_tree_and_stack(dlg):
     assert isinstance(dlg.stack, QStackedWidget)
 
 
-def test_dialog_has_6_sections(dlg):
-    # 6 sections: RunningHub / Translation / Refine / ImgGen / Dub / Soundtrack
-    assert dlg.stack.count() == 6
+def test_dialog_has_8_sections(dlg):
+    # 8 sections: RunningHub / Translation / Refine / ImgGen / Dub / Soundtrack / Screenwriter / Theme
+    assert dlg.stack.count() == 8
 
 
 def test_dialog_tree_categories(dlg):

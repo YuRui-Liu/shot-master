@@ -74,6 +74,23 @@ class ScreenwriterPanel(BasePanel):
         root.addWidget(self.table, 1)
         self.table.viewport().installEventFilter(self)
 
+        # —— 4 阶段标签头（可点击手动切换；已有下一阶段文本时不必从头跑） ——
+        stage_bar = QHBoxLayout()
+        self.stage_btns: list[QPushButton] = []
+        from PySide6.QtWidgets import QButtonGroup
+        self._stage_group = QButtonGroup(self)
+        self._stage_group.setExclusive(True)
+        for i, name in enumerate(_STAGE_NAMES, start=1):
+            b = QPushButton(f"{i}. {name}")
+            b.setCheckable(True)
+            b.setObjectName("stageTab")
+            self.stage_btns.append(b)
+            self._stage_group.addButton(b, i - 1)
+            b.clicked.connect(lambda _=False, idx=i - 1: self._switch_stage(idx))
+            stage_bar.addWidget(b)
+        stage_bar.addStretch(1)
+        root.addLayout(stage_bar)
+
         # Wizard 区（4 阶段子面板）
         self.wizard = QStackedWidget()
         for name in _STAGE_NAMES:
@@ -92,6 +109,8 @@ class ScreenwriterPanel(BasePanel):
             v.addLayout(row)
             self.wizard.addWidget(w)
         root.addWidget(self.wizard, 1)
+        # 初始高亮阶段 0
+        self.stage_btns[0].setChecked(True)
 
         # 绑定
         self.btn_new.clicked.connect(self._on_new)
@@ -190,7 +209,7 @@ class ScreenwriterPanel(BasePanel):
             return
         name = self.table.item(r, 0).text()
         self._current_project = self._project_root() / name
-        # 切到 recommended_next 对应的 wizard 页
+        # 默认跳到 recommended_next；用户后续可手动切
         idx = 0
         if self._client is not None:
             try:
@@ -200,4 +219,15 @@ class ScreenwriterPanel(BasePanel):
                     st.get("recommended_next", "ideate"), 0)
             except Exception:
                 pass
+        self._switch_stage(idx)
+
+    def _switch_stage(self, idx: int):
+        """统一阶段切换入口：同步 wizard 当前页 + 阶段标签 checked 状态。
+        随时可调，不限阶段顺序——已有下一阶段文本时直接跳过来。"""
+        if not 0 <= idx < len(self.stage_btns):
+            return
         self.wizard.setCurrentIndex(idx)
+        # 同步标签 checked（QButtonGroup 是 exclusive 但 setChecked 仍要显式调一次）
+        btn = self.stage_btns[idx]
+        if not btn.isChecked():
+            btn.setChecked(True)
