@@ -15,9 +15,12 @@ from sound_track_agent.beat_aligner import snap_boundaries_to_beats
 
 def build_pump_envelope(n_samples: int, sr: int, accents: list[AccentPoint],
                         *, strength: float,
-                        attack: float = 0.012, release: float = 0.35):
+                        attack: float = 0.012, release: float = 0.35,
+                        skip_indices: frozenset = frozenset()):
     """基线 1.0 的逐样本增益。每个卡点处下压到 (1 - strength*intensity)：
     attack 秒内 1.0→floor、release 秒内 floor→1.0。多卡点重叠取逐样本 min。
+
+    skip_indices 中的爆点下标不下压（已被重拍精准命中，无需再削音量）。
     """
     n = int(n_samples)
     env = np.ones(max(0, n), dtype=np.float32)
@@ -25,7 +28,9 @@ def build_pump_envelope(n_samples: int, sr: int, accents: list[AccentPoint],
         return env
     a = max(1, int(round(attack * sr)))
     r = max(1, int(round(release * sr)))
-    for ap in accents:
+    for i, ap in enumerate(accents):
+        if i in skip_indices:
+            continue
         depth = float(strength) * max(0.0, min(1.0, float(ap.intensity)))
         if depth <= 0:
             continue
@@ -47,7 +52,8 @@ def build_pump_envelope(n_samples: int, sr: int, accents: list[AccentPoint],
 
 
 def apply_pump(bgm_in, bgm_out, accents: list, *, strength: float,
-               attack: float = 0.012, release: float = 0.35) -> Path:
+               attack: float = 0.012, release: float = 0.35,
+               skip_indices: frozenset = frozenset()) -> Path:
     """读 wav → 乘泵感包络 → 写出。返回输出路径。读/写失败抛 RuntimeError。"""
     import soundfile as sf
     try:
@@ -55,7 +61,8 @@ def apply_pump(bgm_in, bgm_out, accents: list, *, strength: float,
     except Exception as e:
         raise RuntimeError(f"apply_pump 读取失败 {bgm_in}: {e}")
     env = build_pump_envelope(data.shape[0], sr, accents, strength=strength,
-                              attack=attack, release=release)
+                              attack=attack, release=release,
+                              skip_indices=skip_indices)
     out = (data * env[:, None]).astype(data.dtype, copy=False)
     bgm_out = Path(bgm_out)
     bgm_out.parent.mkdir(parents=True, exist_ok=True)

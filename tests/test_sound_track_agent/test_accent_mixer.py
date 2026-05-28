@@ -117,3 +117,29 @@ def test_clip_targets_skips_snap_when_clip_shorter_than_min():
     # 不设 min_clip(默认)时仍按原逻辑裁到 0.3
     assert clip_targets(segs, accents, big_threshold=0.7,
                         window=0.8) == [0.3, None]
+
+
+def test_build_pump_envelope_skip_indices_no_dip():
+    sr = 22050
+    n = sr * 4
+    accents = [AccentPoint(t=1.0, intensity=0.9),
+               AccentPoint(t=2.0, intensity=0.9),
+               AccentPoint(t=3.0, intensity=0.9)]
+    # 跳过第 1 个（index=1, t=2.0）
+    env = build_pump_envelope(n, sr, accents, strength=0.6,
+                              skip_indices=frozenset({1}))
+    # t=1.0 与 t=3.0 处应有下压；t=2.0 处不应有
+    i0 = int(1.0 * sr); i1 = int(2.0 * sr); i2 = int(3.0 * sr)
+    assert env[i0] < 0.6                # 命中下压
+    assert env[i1] == 1.0               # 跳过，基线
+    assert env[i2] < 0.6                # 命中下压
+
+
+def test_build_pump_envelope_skip_empty_unchanged():
+    """skip_indices 缺省 frozenset() 时行为与旧版一致。"""
+    sr = 22050; n = sr * 2
+    a = [AccentPoint(t=1.0, intensity=0.9)]
+    env_default = build_pump_envelope(n, sr, a, strength=0.6)
+    env_empty = build_pump_envelope(n, sr, a, strength=0.6,
+                                    skip_indices=frozenset())
+    assert np.array_equal(env_default, env_empty)
