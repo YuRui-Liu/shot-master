@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QAction, QCursor
 from drama_shot_master.ui.widgets.flow_sidebar import FlowSidebar
 from drama_shot_master.ui.widgets.project_command_bar import ProjectCommandBar
-from drama_shot_master.ui.theme import apply_window_icon, apply_dark_titlebar
+from drama_shot_master.ui.theme import apply_window_icon, apply_titlebar, current_theme
 from drama_shot_master.ui.nav_config import FUNCS, PHASES, LABELS
 
 
@@ -559,7 +559,7 @@ class AppShell(QMainWindow):
         if not getattr(self, "_titlebar_themed", False):
             self._titlebar_themed = True
             apply_window_icon(self)
-            apply_dark_titlebar(self)
+            apply_titlebar(self, current_theme(self.cfg))
 
     def closeEvent(self, e):
         # 让视频任务页落盘所有缓存编辑器（含已浮出窗），再整体持久化

@@ -67,6 +67,15 @@ def apply_dark_titlebar(widget,
         pass
 
 
+def apply_titlebar(widget, name: str = "dark") -> None:
+    """按主题给原生标题栏上色（Windows DWM；其它平台静默跳过）。
+    替代 apply_dark_titlebar；从 token 读 caption/text 色。"""
+    tokens = _tokens(name)
+    apply_dark_titlebar(widget,
+                        caption_hex=tokens.get("titlebar_bg", TITLEBAR_BG),
+                        text_hex=tokens.get("titlebar_fg", TITLEBAR_FG))
+
+
 def _tokens(name: str) -> dict:
     """name='dark'|'light' → token 字典；未知回退 dark。"""
     if name == "light":
