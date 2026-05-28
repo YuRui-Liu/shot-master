@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from sound_track_agent.stages_factory import build_stages
 from sound_track_agent.session import (
     ScoringSession, SegmentScore, EmotionTag, BGMCandidate)
+from sound_track_agent.scorer import CandidateScore
 
 
 def _sess():
@@ -52,3 +53,46 @@ def test_compose_prompt_stage_sets_tags(tmp_path):
     seg.emotion = EmotionTag(labels=["calm"], arousal=0.2)
     tags = stages.compose_prompt(seg, sess)
     assert "古风" in tags and "calm" in tags
+
+
+def test_build_stages_wires_generate_all(tmp_path):
+    # 复用 test_batch_generator 的 FakeClient 思路：内联一个最小 fake
+    import threading
+
+    class FakeClient:
+        def __init__(self):
+            self.created = []
+            self._lock = threading.Lock()
+
+        def create_task(self, *, workflow_id, node_info_list=None):
+            seed = next(n["fieldValue"] for n in node_info_list if n["nodeId"] == "109")
+            with self._lock:
+                self.created.append(seed)
+            return f"t{seed}"
+
+        def query_task(self, task_id):
+            return {"status": "SUCCESS", "results": [{"url": "http://x/a.mp3"}]}
+
+        def download_file(self, url, dest):
+            from pathlib import Path
+            dest = Path(dest); dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"A")
+            return dest
+
+    client = FakeClient()
+    stages = build_stages(
+        provider=None, client=client, workflow_id="wf", work_dir=tmp_path,
+        global_style="style", seeds=[1, 2],
+        frame_provider=lambda seg: tmp_path / "f.png",
+        score_fn=lambda p, expected_dur=0.0: CandidateScore(0.5, 1.0, 0.5, 0.5),
+        max_concurrency=2)
+    assert stages.generate_all is not None
+
+    sess = ScoringSession(source_mp4="x", source_hash="h", global_style="style",
+                          frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=1.0,
+                                                 status="prompted")])
+    stages.generate_all(sess)
+    assert sorted(client.created) == [1, 2]
+    assert len(sess.segments[0].candidates) == 2
+    assert sess.segments[0].chosen_candidate is not None
