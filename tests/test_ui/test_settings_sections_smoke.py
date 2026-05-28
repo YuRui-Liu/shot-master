@@ -195,3 +195,28 @@ def test_soundtrack_section_load_save_roundtrip():
     assert cfg.soundtrack_workflow_id == "wf-ace-2"
     assert cfg.soundtrack_seeds_count == 3
     assert cfg.accent_big_threshold == 0.7
+
+
+# ── ThemeSection ──────────────────────────────────────────────────────────────
+
+def test_theme_section_metadata():
+    from drama_shot_master.ui.widgets.settings_sections.theme_section import ThemeSection
+    assert ThemeSection.title == "主题"
+    assert ThemeSection.category == "外观"
+
+
+def test_theme_section_combo_switch_calls_apply(monkeypatch):
+    _app()
+    from drama_shot_master.ui.widgets.settings_sections.theme_section import ThemeSection
+    from drama_shot_master.ui import theme as theme_mod
+    called = []
+    monkeypatch.setattr(theme_mod, "apply_theme", lambda app, name: called.append(("apply", name)))
+    monkeypatch.setattr(theme_mod, "apply_titlebar", lambda w, name: called.append(("titlebar", name)))
+    cfg = _cfg(theme="dark")
+    persisted = []
+    cfg.update_settings = lambda **kw: persisted.append(kw)
+    from PySide6.QtWidgets import QApplication
+    sec = ThemeSection(QApplication.instance(), cfg)
+    sec.combo.setCurrentText("浅色")
+    assert ("apply", "light") in called
+    assert any(k.get("theme") == "light" for k in persisted)
