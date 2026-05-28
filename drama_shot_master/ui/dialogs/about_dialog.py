@@ -55,7 +55,7 @@ class AboutDialog(QDialog):
                      f"版本：v{_app_version()}<br>"
                      "作者：二进制糯米<br>"
                      "邮箱：1062283553@qq.com<br>"
-                     "© 2026 二进制糯米 版权所有<br>"
+                     "二进制糯米 版权所有<br>"
                      "本软件仅限合法使用，禁止二次分发"))
         iv.addWidget(QLabel(_COPYRIGHT))
         root.addWidget(info)

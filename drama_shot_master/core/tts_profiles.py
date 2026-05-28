@@ -25,20 +25,22 @@ VOICE_CLONE = TTSProfile(
     nodes={
         "text": "4", "speaker_audio": "10",
         "emo_text": "16", "emo_audio": "19", "emo_vector": "21",
-        "bypasser": "26",
+        "switch": "27",
         "branch_default": "1", "branch_emo_text": "14",
         "branch_emo_audio": "17", "branch_emo_vector": "20",
     },
 )
 
-# 情感模式 -> (活动分支角色, #26 组标题)
+# 情感模式 -> (活动分支角色, Switch 选择序号)
+# 分支选择由 ImpactSwitch(节点 #switch)的 select widget 决定：input1..4 = 模式 1..4。
+# 注意：rgthree Fast Groups Bypasser 是纯界面节点、不在执行图里，RunningHub 的
+# nodeInfoList 无法寻址它，故改用真正在图中的 Switch 节点切分支。
 CLONE_MODES = {
-    1: ("branch_default", "默认声音克隆 1"),
-    2: ("branch_emo_text", "文本情绪方案 2"),
-    3: ("branch_emo_audio", "语音情绪模仿 3"),
-    4: ("branch_emo_vector", "情感向量方案 4"),
+    1: ("branch_default", 1),
+    2: ("branch_emo_text", 2),
+    3: ("branch_emo_audio", 3),
+    4: ("branch_emo_vector", 4),
 }
-ALL_GROUP_TITLES = [t for _r, t in CLONE_MODES.values()]
 
 # 情感向量分量标签（顺序固定）
 EMO_VECTOR_LABELS = ["Happy", "Angry", "Sad", "Fear", "Hate", "Low", "Surprise", "Neutral"]

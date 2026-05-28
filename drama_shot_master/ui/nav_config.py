@@ -11,18 +11,18 @@ from pathlib import Path
 FUNCS = [
     ("拆图", "split"),
     ("拼图", "combine"),
-    ("去白边", "trim"),
-    ("图片生成", "imggen"),
-    ("视频生成", "video_gen"),
-    ("配乐", "soundtrack"),
+    ("裁边", "trim"),
+    ("出图", "imggen"),
+    ("生视频", "video_gen"),
     ("配音", "dubbing"),
+    ("配乐", "soundtrack"),
 ]
 
 # 流程阶段：(阶段标题, [key, ...])。标题带编号体现制作管线先后。
 PHASES = [
     ("① 素材准备", ["split", "combine", "trim"]),
     ("② 分镜创作", ["imggen"]),
-    ("③ 视频出片", ["video_gen", "soundtrack", "dubbing"]),
+    ("③ 视频出片", ["video_gen", "dubbing", "soundtrack"]),
 ]
 
 # 批处理类（主区：网格+参数+执行）vs 任务管理类（主区：任务列表，双击开窗）

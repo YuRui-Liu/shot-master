@@ -6,6 +6,11 @@ def _kv(items):
     return {(i["nodeId"], i["fieldName"]): i["fieldValue"] for i in items}
 
 
+def _no_bypasser(items):
+    # 不再向 rgthree Fast Groups Bypasser(节点26)发任何项
+    return all(i["nodeId"] != "26" for i in items)
+
+
 def test_design_node_info():
     m = _kv(B.build_design_node_info("你好世界", "慵懒御姐音", "Auto", P.VOICE_DESIGN))
     assert m[("14", "text")] == "你好世界"
@@ -19,11 +24,9 @@ def test_clone_mode1_default():
     m = _kv(items)
     assert m[("4", "prompt")] == "台词"
     assert m[("10", "audio")] == "openapi/spk.flac"
-    # #26 仅「默认声音克隆 1」为 True，其余三组 False
-    assert m[("26", "默认声音克隆 1")] is True
-    assert m[("26", "文本情绪方案 2")] is False
-    assert m[("26", "语音情绪模仿 3")] is False
-    assert m[("26", "情感向量方案 4")] is False
+    # 用 Switch 选分支：select=1（默认）；不再发 bypasser
+    assert m[("27", "select")] == 1
+    assert _no_bypasser(items)
     assert m[("1", "emo_alpha")] == 1.0
     # 模式1 无额外情感字段
     assert ("16", "prompt") not in m and ("19", "audio") not in m and ("21", "prompt") not in m
@@ -34,8 +37,8 @@ def test_clone_mode2_emo_text():
                                     emo_text="愤怒急促", speaker_file="openapi/spk.flac",
                                     prof=P.VOICE_CLONE)
     m = _kv(items)
-    assert m[("26", "文本情绪方案 2")] is True
-    assert m[("26", "默认声音克隆 1")] is False
+    assert m[("27", "select")] == 2
+    assert _no_bypasser(items)
     assert m[("16", "prompt")] == "愤怒急促"
     assert m[("14", "emo_alpha")] == 0.8
 
@@ -45,7 +48,8 @@ def test_clone_mode3_emo_audio():
                                     speaker_file="openapi/spk.flac",
                                     emo_audio_file="openapi/emo.flac", prof=P.VOICE_CLONE)
     m = _kv(items)
-    assert m[("26", "语音情绪模仿 3")] is True
+    assert m[("27", "select")] == 3
+    assert _no_bypasser(items)
     assert m[("19", "audio")] == "openapi/emo.flac"
     assert m[("17", "emo_alpha")] == 1.0
 
@@ -55,7 +59,8 @@ def test_clone_mode4_emo_vector():
                                     emo_vector=[0, 0, 0, 0, 0, 0, 0.7, 0],
                                     speaker_file="openapi/spk.flac", prof=P.VOICE_CLONE)
     m = _kv(items)
-    assert m[("26", "情感向量方案 4")] is True
+    assert m[("27", "select")] == 4
+    assert _no_bypasser(items)
     assert m[("21", "prompt")] == "[0, 0, 0, 0, 0, 0, 0.7, 0]"
     assert m[("20", "emo_alpha")] == 1.0
 
