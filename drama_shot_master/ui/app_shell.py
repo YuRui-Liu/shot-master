@@ -62,7 +62,7 @@ class AppShell(QMainWindow):
             "trim":    lambda: BatchToolPage(TrimPanel(self.state, self.cfg), self.state, self.cfg),
             "imggen":  self._make_imggen_page,
             "video_gen": self._make_video_page,
-            "soundtrack": self._try_make_soundtrack_panel,
+            "soundtrack": self._make_soundtrack_page,
             "dubbing": self._make_dub_page,
         }
         for _label, key in FUNCS:
@@ -359,20 +359,38 @@ class AppShell(QMainWindow):
     # 配乐 tab helpers（移植自 MainWindow）
     # ------------------------------------------------------------------ #
 
-    def _try_make_soundtrack_panel(self):
-        """try-import 注册配乐面板；agent/面板缺失则返回占位空面板，宿主照常启动。"""
+    def _make_soundtrack_page(self):
+        """try-import 兜底装配配乐主-详页；agent/控件缺失则返回占位空面板。"""
         try:
             from drama_shot_master.ui.panels.soundtrack_panel import SoundtrackPanel
+            from drama_shot_master.ui.widgets.soundtrack_editor import SoundtrackEditor
+            from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning("配乐面板不可用，已跳过: %s", e)
             from PySide6.QtWidgets import QWidget
             return QWidget()
-        self._soundtrack_windows = {}
-        return SoundtrackPanel(
-            self.state, self.cfg,
-            open_window_cb=self._open_soundtrack_window,
-            persist_cb=self._persist_soundtrack)
+        work_root = Path(getattr(self.cfg, "video_output_dir", "") or ".") / "soundtrack"
+        manager = SoundtrackPanel(self.state, self.cfg, None, self._persist_soundtrack)
+
+        def editor_factory(view):
+            return SoundtrackEditor(view.payload, self.cfg, work_root)
+
+        def wire_editor(editor, view):
+            editor.statusChanged.connect(self._on_soundtrack_status)   # (task_id,status)
+            editor.resultReady.connect(self._on_soundtrack_result)     # (task_id,output)
+
+        page = TaskWorkspacePage(
+            manager=manager,
+            editor_factory=editor_factory,
+            wire_editor=wire_editor,
+            payload_of=lambda ed: ed.to_payload(),
+            on_persist=self._on_soundtrack_dirty,
+            title_for=lambda view: f"配乐 · {view.name}",
+        )
+        manager.taskRenamed.connect(self._on_soundtrack_renamed)
+        manager.taskDeleted.connect(page.discard_editor)
+        return page
 
     def _persist_soundtrack(self):
         try:
@@ -381,48 +399,38 @@ class AppShell(QMainWindow):
             pass
 
     def _soundtrack_panel(self):
-        return self.pages.get("soundtrack")
+        """返回 manager（SoundtrackPanel）；兜底裸 QWidget 时返回 None。"""
+        p = self.pages.get("soundtrack")
+        return getattr(p, "manager", None)
 
-    def _open_soundtrack_window(self, task: dict):
-        from drama_shot_master.ui.windows.soundtrack_task_window import (
-            SoundtrackTaskWindow)
-        wins = getattr(self, "_soundtrack_windows", None)
-        if wins is None:
-            wins = self._soundtrack_windows = {}
-        tid = task.get("id")
-        existing = wins.get(tid)
-        if existing is not None:
-            existing.raise_(); existing.activateWindow(); return
-        work_root = Path(
-            getattr(self.cfg, "video_output_dir", "") or ".") / "soundtrack"
-        win = SoundtrackTaskWindow(task, self.cfg, work_root=work_root)
-        win.statusChanged.connect(self._on_soundtrack_status)
-        win.resultReady.connect(self._on_soundtrack_result)
-        win.closed.connect(self._on_soundtrack_window_closed)
-        wins[tid] = win
-        win.show()
+    def _on_soundtrack_dirty(self, task_id: str, payload: dict):
+        for t in getattr(self.cfg, "soundtrack_tasks", []):
+            if t.get("id") == task_id:
+                t.update(payload)        # mp4/style/output_dir
+                break
+        self._persist_soundtrack()
 
-    def _on_soundtrack_window_closed(self, task_id: str):
-        wins = getattr(self, "_soundtrack_windows", None)
-        if wins is not None:
-            wins.pop(task_id, None)
+    def _on_soundtrack_renamed(self, task_id: str, name: str):
+        page = self.pages.get("soundtrack")
+        if page is not None and hasattr(page, "update_task_name"):
+            page.update_task_name(task_id, name)
 
     def _on_soundtrack_status(self, task_id: str, status: str):
         for t in getattr(self.cfg, "soundtrack_tasks", []):
             if t.get("id") == task_id:
                 t["status"] = status
-        p = self._soundtrack_panel()
-        if hasattr(p, "refresh"):
-            p.refresh()
+        m = self._soundtrack_panel()
+        if m is not None and hasattr(m, "refresh"):
+            m.refresh()
 
     def _on_soundtrack_result(self, task_id: str, output: str):
         for t in getattr(self.cfg, "soundtrack_tasks", []):
             if t.get("id") == task_id:
                 t["output"] = output
         self._persist_soundtrack()
-        p = self._soundtrack_panel()
-        if hasattr(p, "refresh"):
-            p.refresh()
+        m = self._soundtrack_panel()
+        if m is not None and hasattr(m, "refresh"):
+            m.refresh()
 
     # ------------------------------------------------------------------ #
     # 配音 tab helpers（移植自 MainWindow）
@@ -565,6 +573,11 @@ class AppShell(QMainWindow):
         if ip is not None and hasattr(ip, "flush_all"):
             ip.flush_all()
         self._persist_imggen_tasks()
+        # 让配乐页落盘所有缓存编辑器（含已浮出窗），再整体持久化
+        sp = self.pages.get("soundtrack")
+        if sp is not None and hasattr(sp, "flush_all"):
+            sp.flush_all()
+        self._persist_soundtrack()
         # 持久化当前活跃 panel
         try:
             self.cfg.update_settings(
