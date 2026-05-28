@@ -59,6 +59,11 @@ def _build_real_stages(cfg, workflow_id, work_dir, global_style,
                          "https://www.runninghub.cn"))
     work_dir = Path(work_dir)
     frames_dir = work_dir / "frames"
+    from sound_track_agent import scorer
+    weights = getattr(cfg, "soundtrack_score_weights", None)
+    score_fn = (None if not weights else
+                (lambda p, expected_dur=0.0:
+                 scorer.score_candidate(p, expected_dur=expected_dur, weights=weights)))
     return build_stages(
         provider=provider, client=client, workflow_id=workflow_id,
         work_dir=work_dir, global_style=global_style,
@@ -70,6 +75,8 @@ def _build_real_stages(cfg, workflow_id, work_dir, global_style,
                        work_dir=work_dir,
                        big_threshold=float(getattr(cfg, "accent_big_threshold", 0.7)),
                        snap_window=float(getattr(cfg, "accent_snap_window", 0.6))),
+        max_concurrency=int(getattr(cfg, "soundtrack_max_concurrency", 3)),
+        score_fn=score_fn,
     )
 
 
@@ -112,6 +119,8 @@ def _wrap_progress(stages: Stages, on_progress) -> Stages:
         generate=wrap(stages.generate, "生成 BGM"),
         align=wrap_whole(stages.align, "对齐卡点"),
         mix=wrap_whole(stages.mix, "混音出片"),
+        generate_all=(wrap_whole(stages.generate_all, "生成 BGM")
+                      if stages.generate_all is not None else None),
     )
 
 
@@ -191,18 +200,40 @@ def build_accent_preview(session: ScoringSession, work_dir, *,
 
 def regenerate_segment(session: ScoringSession, seg_index: int, work_dir, *,
                        cfg, workflow_id: str, seeds_count: int = 2,
-                       stages: Optional[Stages] = None) -> ScoringSession:
-    """对单段重跑 generate（换候选、清选定），不动其它段。落盘并返回 session。"""
+                       client=None, score_fn=None) -> ScoringSession:
+    """对单段重跑 generate（用新种子换候选、清选定），不动其它段。落盘并返回。
+
+    client/score_fn 可注入（测试用 fake）；为 None 时内部组装真实依赖。
+    """
     if not (0 <= seg_index < len(session.segments)):
         raise ValueError(f"seg_index 越界: {seg_index}")
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
-    real = stages or _build_real_stages(
-        cfg, workflow_id, work_dir, session.global_style,
-        seeds_count, session.source_mp4)
-    seg = session.segments[seg_index]
-    seg.candidates = real.generate(seg, session)
-    seg.chosen_candidate = None
-    seg.status = "generated"
+
+    from sound_track_agent import batch_generator, scorer
+    from sound_track_agent.prompt_composer import compose_acestep_inputs
+
+    if client is None:
+        from drama_shot_master.providers.runninghub import RunningHubClient
+        client = RunningHubClient(
+            getattr(cfg, "runninghub_api_key", ""),
+            base_url=getattr(cfg, "runninghub_base_url",
+                             "https://www.runninghub.cn"))
+    if score_fn is None:
+        weights = getattr(cfg, "soundtrack_score_weights", None)
+        score_fn = (lambda p, expected_dur=0.0:
+                    scorer.score_candidate(p, expected_dur=expected_dur,
+                                           weights=weights))
+
+    global_style = session.global_style
+
+    def compose(seg):
+        return compose_acestep_inputs(global_style, seg.emotion, seg.duration)
+
+    batch_generator.generate_one(
+        session, seg_index, client=client, workflow_id=workflow_id,
+        cache_dir=work_dir / "cache" / "bgm", compose=compose, score_fn=score_fn,
+        seeds_count=seeds_count,
+        max_concurrency=int(getattr(cfg, "soundtrack_max_concurrency", 3)))
     session.save(work_dir / "session.json")
     return session

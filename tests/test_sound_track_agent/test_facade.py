@@ -115,44 +115,6 @@ def test_set_chosen_out_of_range_raises():
 from sound_track_agent.facade import regenerate_segment
 
 
-def test_regenerate_segment_replaces_only_target(tmp_path):
-    s0 = SegmentScore(index=0, t_start=0.0, t_end=4.0)
-    s0.candidates = [BGMCandidate(path="/old0.wav", seed=1, prompt="t")]
-    s0.chosen_candidate = 0
-    s1 = SegmentScore(index=1, t_start=4.0, t_end=8.0)
-    s1.candidates = [BGMCandidate(path="/old1.wav", seed=1, prompt="t")]
-    s1.chosen_candidate = 0
-    sess = ScoringSession(source_mp4="/x", source_hash="h", global_style="s",
-                          frame_rate=24.0, segments=[s0, s1])
-
-    class _Stages:
-        def __init__(self):
-            self.generate = lambda seg, ss: [
-                BGMCandidate(path=f"/new{seg.index}.wav", seed=9, prompt="t")]
-            self.tag_emotion = self.compose_prompt = self.align = self.mix = None
-
-    out = regenerate_segment(sess, 1, tmp_path / "w", cfg=object(),
-                             workflow_id="wf", stages=_Stages())
-    assert out.segments[1].candidates[0].path == "/new1.wav"
-    assert out.segments[1].chosen_candidate is None
-    assert out.segments[1].status == "generated"
-    assert out.segments[0].candidates[0].path == "/old0.wav"
-    assert out.segments[0].chosen_candidate == 0
-    assert (tmp_path / "w" / "session.json").exists()
-
-
-def test_regenerate_segment_out_of_range_raises(tmp_path):
-    sess = ScoringSession(source_mp4="/x", source_hash="h", global_style="s",
-                          frame_rate=24.0,
-                          segments=[SegmentScore(index=0, t_start=0.0, t_end=4.0)])
-    import pytest
-    class _S:
-        generate = staticmethod(lambda seg, ss: [])
-    with pytest.raises(ValueError):
-        regenerate_segment(sess, 9, tmp_path / "w", cfg=object(),
-                           workflow_id="wf", stages=_S())
-
-
 from sound_track_agent.facade import _make_align_fn
 from sound_track_agent.session import AccentPoint
 
@@ -230,3 +192,93 @@ def test_build_accent_preview_disabled_still_outputs(tmp_path):
     out = facade.build_accent_preview(sess, tmp_path / "w2", crossfade=0.1)
     from pathlib import Path
     assert Path(out).exists()
+
+
+import threading
+
+from sound_track_agent import facade
+from sound_track_agent.pipeline import Stages
+from sound_track_agent.scorer import CandidateScore
+from sound_track_agent.session import ScoringSession, SegmentScore, BGMCandidate
+
+
+class _Cfg:
+    runninghub_api_key = "k"
+    runninghub_base_url = "https://example.test"
+    soundtrack_max_concurrency = 2
+    soundtrack_score_weights = None
+
+
+class _FakeClient:
+    def __init__(self):
+        self.created = []
+        self._lock = threading.Lock()
+
+    def create_task(self, *, workflow_id, node_info_list=None):
+        seed = next(n["fieldValue"] for n in node_info_list if n["nodeId"] == "109")
+        with self._lock:
+            self.created.append(seed)
+        return f"t{seed}"
+
+    def query_task(self, task_id):
+        return {"status": "SUCCESS", "results": [{"url": "http://x/a.mp3"}]}
+
+    def download_file(self, url, dest):
+        from pathlib import Path
+        dest = Path(dest); dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"A")
+        return dest
+
+
+def _one_seg_session():
+    return ScoringSession(
+        source_mp4="x", source_hash="h", global_style="style", frame_rate=24.0,
+        segments=[SegmentScore(index=0, t_start=0.0, t_end=1.0, next_seed=3,
+                               status="generated")])
+
+
+def test_regenerate_uses_injected_client_and_fresh_seeds(tmp_path):
+    sess = _one_seg_session()
+    client = _FakeClient()
+    facade.regenerate_segment(
+        sess, 0, tmp_path, cfg=_Cfg(), workflow_id="wf", seeds_count=2,
+        client=client,
+        score_fn=lambda p, expected_dur=0.0: CandidateScore(0.5, 1.0, 0.5, 0.5))
+    seg = sess.segments[0]
+    assert sorted(client.created) == [3, 4]          # 用 next_seed 起的新种子
+    assert seg.next_seed == 5
+    assert len(seg.candidates) == 2 and seg.chosen_candidate is not None
+    assert (tmp_path / "session.json").exists()       # 落盘
+
+
+def test_regenerate_seg_index_out_of_range_raises(tmp_path):
+    import pytest
+    sess = _one_seg_session()
+    with pytest.raises(ValueError):
+        facade.regenerate_segment(sess, 5, tmp_path, cfg=_Cfg(),
+                                  workflow_id="wf", client=_FakeClient())
+
+
+def test_advance_preserves_generate_all_under_progress(tmp_path):
+    # progress 包装（on_progress 非 None）后，generate_all 钩子不能丢，否则回退到逐段
+    sess = ScoringSession(source_mp4="x", source_hash="h", global_style="s",
+                          frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=1.0,
+                                                 status="prompted")])
+    calls = {"all": 0}
+
+    def gen_all(s):
+        calls["all"] += 1
+        s.segments[0].candidates = [BGMCandidate(path="a.mp3", seed=1, prompt="p")]
+        s.segments[0].chosen_candidate = 0
+
+    stages = Stages(
+        tag_emotion=lambda seg, s: None,
+        compose_prompt=lambda seg, s: "p",
+        generate=lambda seg, s: (_ for _ in ()).throw(AssertionError("不应走逐段")),
+        align=lambda s: None, mix=lambda s: "out.mp4",
+        generate_all=gen_all)
+    facade.advance(sess, tmp_path / "w", cfg=object(), workflow_id="wf",
+                   stop_after="generate", stages=stages, on_progress=lambda m: None)
+    assert calls["all"] == 1
+    assert sess.segments[0].status == "generated"
