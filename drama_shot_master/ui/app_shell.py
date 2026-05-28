@@ -112,8 +112,9 @@ class AppShell(QMainWindow):
         self.task_center_dock.setVisible(
             bool(getattr(self.cfg, "task_center_visible", False)))
         self.task_center_dock.taskActivated.connect(self._activate_task)
-        self.task_center_dock.visibilityChanged.connect(
-            self._on_task_center_visibility)
+        # 当用户从 dock 标题栏 X 直接关掉时，持久化 visibility（_toggle_task_center
+        # 走 toggled 信号路径，不覆盖此场景）
+        self.task_center_dock.visibilityChanged.connect(self._persist_dock_visibility)
 
     def _wire(self):
         from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
@@ -132,8 +133,10 @@ class AppShell(QMainWindow):
         self.command_bar.setOutputRequested.connect(self._set_out_dir)
         self.stack.currentChanged.connect(self._on_page_changed)
 
-        # 任务中心 toggle 双向绑定
-        self.command_bar.taskCenterToggled.connect(self.task_center_dock.setVisible)
+        # 任务中心 toggle：用户点按钮 → 我们包一层处理（先记 geom 再切显隐 → 再还原），
+        # 不直接连 dock.setVisible，避免 dock 撑窗后 visibilityChanged 抓到的几何不是用户原始尺寸。
+        self.command_bar.taskCenterToggled.connect(self._toggle_task_center)
+        # 同步按钮 checked 状态（用户从 dock 标题栏 X 关闭时也要同步按钮态）
         self.task_center_dock.visibilityChanged.connect(
             self.command_bar.btn_task_center.setChecked)
 
@@ -214,22 +217,45 @@ class AppShell(QMainWindow):
         if mgr is not None and hasattr(mgr, "_select_task"):
             mgr._select_task(tid)
 
-    def _on_task_center_visibility(self, v: bool):
+    def _persist_dock_visibility(self, v: bool):
+        """dock 标题栏 X 直接关掉时也要落盘可见性。"""
         try:
             self.cfg.update_settings(task_center_visible=bool(v))
         except Exception:
             pass
-        # 还原主窗尺寸：dock 弹出时主窗会被自动撑宽；收回时如果非最大化/全屏，恢复原宽
-        if v:
-            # 弹出前记录当前几何（仅在原值尚未记录时）
-            if not getattr(self, "_pre_dock_geom", None):
-                if not (self.isMaximized() or self.isFullScreen()):
-                    self._pre_dock_geom = self.geometry()
+
+    def _toggle_task_center(self, want_visible: bool):
+        """toggle 任务中心 dock 显隐 + 维持主窗尺寸。
+
+        Qt QMainWindow 在 dock 显示后可能自动撑宽主窗（如果 central widget
+        没有富余宽度容纳 dock），dock 隐藏时主窗 width 又不会自动缩回 ——
+        所以需要在打开前**先抓**几何、关闭后**再还原**。
+
+        关键：在 dock.setVisible(True) 之前抓 self.size()，不能在
+        visibilityChanged 信号里抓（那时主窗可能已被撑宽）。最大化/全屏窗
+        不动用户布局。
+        """
+        try:
+            self.cfg.update_settings(task_center_visible=bool(want_visible))
+        except Exception:
+            pass
+
+        if want_visible:
+            # 打开前抓尺寸（仅非最大化/全屏时）
+            if not (self.isMaximized() or self.isFullScreen()):
+                if not getattr(self, "_pre_dock_size", None):
+                    self._pre_dock_size = self.size()
+            self.task_center_dock.setVisible(True)
         else:
-            geom = getattr(self, "_pre_dock_geom", None)
-            if geom is not None and not (self.isMaximized() or self.isFullScreen()):
-                self.setGeometry(geom)
-            self._pre_dock_geom = None
+            self.task_center_dock.setVisible(False)
+            # 收回时还原原始 size（用 resize，不动 position；
+            # 走 singleShot 等 Qt 把 dock layout 真正拆掉再 resize 才生效）
+            pre = getattr(self, "_pre_dock_size", None)
+            if pre is not None and not (self.isMaximized() or self.isFullScreen()):
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(
+                    0, lambda s=pre: self.resize(s.width(), s.height()))
+            self._pre_dock_size = None
 
     def _open_unified_settings(self):
         from drama_shot_master.ui.dialogs.unified_settings_dialog import UnifiedSettingsDialog
