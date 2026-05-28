@@ -3,6 +3,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from drama_shot_master.ui.widgets.settings_sections.runninghub_section import RunningHubSection
+from drama_shot_master.ui.widgets.settings_sections.translation_section import TranslationSection
 
 
 def _app():
@@ -17,6 +18,7 @@ def _cfg(**kw):
         "workflow_ids": {},
         "runninghub_workflow_id": "",
         "runninghub_template_path": "",
+        "deeplx_url": "",
     }
     base.update(kw)
     c = type("C", (), base)()
@@ -73,3 +75,20 @@ def test_runninghub_section_validate_requires_director_workflow_id():
     ok, why = sec.validate()
     assert ok is False
     assert "director" in why.lower() or "导演台" in why
+
+
+# ── TranslationSection ────────────────────────────────────────────────────────
+
+def test_translation_section_class_metadata():
+    assert TranslationSection.title == "翻译"
+    assert TranslationSection.category == "平台核心"
+
+
+def test_translation_section_load_save_roundtrip():
+    _app()
+    cfg = _cfg(deeplx_url="https://api.deeplx.org/translate")
+    sec = TranslationSection(cfg)
+    assert sec.url_edit.text() == "https://api.deeplx.org/translate"
+    sec.url_edit.setText("http://localhost:1188/translate")
+    sec.save_to(cfg)
+    assert cfg.deeplx_url == "http://localhost:1188/translate"
