@@ -76,15 +76,12 @@ def test_preview_button_toggles_with_output(tmp_path, monkeypatch):
     assert opened
 
 
-def test_session_mount_does_not_crash(tmp_path, monkeypatch):
-    # monkeypatch facade.load_session 返回空 session（segments/accent_points 空）
-    # → _try_load_existing → _mount_session_tabs 构造 review/accent 不崩
+def test_session_mount_does_not_crash(tmp_path):
+    # 直接 smoke 测 _mount_session_tabs：给一个空 session（segments/accent_points 空），
+    # 构造 ② 试听选优 / ③ 卡点 子控件不崩（不经 facade 真加载）。
     _app()
-    import drama_shot_master.ui.widgets.soundtrack_editor as m
     stub = type("Sess", (), {"segments": [], "accent_points": [],
                              "source_mp4": "", "output": None})()
-    monkeypatch.setattr(m, "_load_session_safe", lambda wd: stub, raising=False)
-    # 直接验证 _mount_session_tabs 不崩（绕开 facade import 细节）
     ed = SoundtrackEditor(_task(), _cfg(tmp_path), tmp_path)
     ed._session = stub
     ed._mount_session_tabs()
