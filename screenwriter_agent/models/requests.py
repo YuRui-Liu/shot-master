@@ -46,3 +46,17 @@ class ScriptReq(BaseModel):
     options: ScriptOptions = Field(default_factory=ScriptOptions)
     model: str | None = None
     reasoning_effort: str = "high"
+
+
+class StoryboardOptions(BaseModel):
+    aspect_ratio: str = "9:16"
+    fps: int = 24
+    shot_duration_default: float = 3.0
+    density: str = "常规"
+
+
+class StoryboardReq(BaseModel):
+    project_dir: str
+    options: StoryboardOptions = Field(default_factory=StoryboardOptions)
+    model: str | None = None
+    reasoning_effort: str = "max"
