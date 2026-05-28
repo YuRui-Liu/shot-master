@@ -377,6 +377,8 @@ class AppShell(QMainWindow):
             return SoundtrackEditor(view.payload, self.cfg, work_root)
 
         def wire_editor(editor, view):
+            # SoundtrackEditor 信号自带 task_id（不靠 factory-time 闭包），故直接 connect
+            # 2-arg 方法；与 dub/imggen 走 lambda 的写法不同。
             editor.statusChanged.connect(self._on_soundtrack_status)   # (task_id,status)
             editor.resultReady.connect(self._on_soundtrack_result)     # (task_id,output)
 
@@ -419,6 +421,7 @@ class AppShell(QMainWindow):
         for t in getattr(self.cfg, "soundtrack_tasks", []):
             if t.get("id") == task_id:
                 t["status"] = status
+                break
         m = self._soundtrack_panel()
         if m is not None and hasattr(m, "refresh"):
             m.refresh()
@@ -427,6 +430,7 @@ class AppShell(QMainWindow):
         for t in getattr(self.cfg, "soundtrack_tasks", []):
             if t.get("id") == task_id:
                 t["output"] = output
+                break
         self._persist_soundtrack()
         m = self._soundtrack_panel()
         if m is not None and hasattr(m, "refresh"):
