@@ -114,3 +114,60 @@ def test_fallback_per_segment_when_no_hook():
     run(sess, stages, stop_after="generate")
     assert all(seg.status == "generated" for seg in sess.segments)
     assert all(seg.candidates for seg in sess.segments)
+
+
+def test_refine_segments_stage_runs_on_first_advance():
+    """注入的 refine_segments 返回 True → segments_refined=True。"""
+    sess = ScoringSession(source_mp4="x", source_hash="h", global_style="s",
+                          frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0)])
+    calls = {"refine": 0}
+
+    def fake_refine(s):
+        calls["refine"] += 1
+        return True
+
+    fns = _base_stage_fns()
+    stages = Stages(refine_segments=fake_refine, **fns)
+    run(sess, stages, stop_after="refine_segments")
+    assert calls["refine"] == 1
+    assert sess.segments_refined is True
+
+
+def test_refine_segments_skipped_when_already_refined():
+    sess = ScoringSession(source_mp4="x", source_hash="h", global_style="s",
+                          frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0)])
+    sess.segments_refined = True
+    calls = {"refine": 0}
+    fns = _base_stage_fns()
+
+    def fake_refine(s):
+        calls["refine"] += 1
+        return True
+
+    stages = Stages(refine_segments=fake_refine, **fns)
+    run(sess, stages, stop_after="refine_segments")
+    assert calls["refine"] == 0
+
+
+def test_refine_failure_does_not_set_flag():
+    sess = ScoringSession(source_mp4="x", source_hash="h", global_style="s",
+                          frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0)])
+    fns = _base_stage_fns()
+    stages = Stages(refine_segments=lambda s: False, **fns)
+    run(sess, stages, stop_after="refine_segments")
+    assert sess.segments_refined is False
+
+
+def test_refine_segments_default_none_no_op():
+    """缺省 refine_segments=None → 现有流水线零回归。"""
+    sess = ScoringSession(source_mp4="x", source_hash="h", global_style="s",
+                          frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0,
+                                                 status="prompted")])
+    fns = _base_stage_fns()
+    stages = Stages(**fns)
+    run(sess, stages, stop_after="generate")
+    assert sess.segments[0].status == "generated"

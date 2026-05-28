@@ -10,7 +10,8 @@ from sound_track_agent.session import (
 )
 
 # 阶段顺序：到达 stop_after 指定阶段后停止（含该阶段）
-STAGE_ORDER = ["tag_emotion", "compose_prompt", "generate", "align", "mix"]
+STAGE_ORDER = ["refine_segments", "tag_emotion", "compose_prompt",
+               "generate", "align", "mix"]
 
 
 @dataclass
@@ -22,6 +23,7 @@ class Stages:
     align: Callable[[ScoringSession], None]
     mix: Callable[[ScoringSession], str]
     generate_all: Optional[Callable[[ScoringSession], None]] = None
+    refine_segments: Optional[Callable[[ScoringSession], bool]] = None
 
 
 def _save(sess: ScoringSession, path: Optional[Path]) -> None:
@@ -41,6 +43,16 @@ def run(sess: ScoringSession,
     if stop_after not in STAGE_ORDER:
         raise ValueError(f"未知 stop_after: {stop_after}")
     limit = STAGE_ORDER.index(stop_after)
+
+    if limit >= STAGE_ORDER.index("refine_segments"):
+        if (stages.refine_segments is not None
+                and not getattr(sess, "segments_refined", False)):
+            ok = stages.refine_segments(sess)
+            if ok:
+                sess.segments_refined = True
+        _save(sess, session_path)
+        if limit == STAGE_ORDER.index("refine_segments"):
+            return None
 
     if limit >= STAGE_ORDER.index("tag_emotion"):
         for seg in sess.segments:
