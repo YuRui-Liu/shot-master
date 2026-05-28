@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QApplication
 from drama_shot_master.ui.widgets.settings_sections.runninghub_section import RunningHubSection
 from drama_shot_master.ui.widgets.settings_sections.translation_section import TranslationSection
 from drama_shot_master.ui.widgets.settings_sections.refine_section import RefineSection
+from drama_shot_master.ui.widgets.settings_sections.imggen_section import ImgGenSection
 
 
 def _app():
@@ -118,3 +119,29 @@ def test_refine_section_load_save_roundtrip():
     sec.save_to(cfg)
     assert cfg.refine_base_url == "http://localhost:11434/v1"
     assert cfg.refine_model == "qwen2.5-vl:7b"
+
+
+# ── ImgGenSection ─────────────────────────────────────────────────────────────
+
+def test_imggen_section_class_metadata():
+    assert ImgGenSection.title == "出图"
+    assert ImgGenSection.category == "生成功能"
+
+
+def test_imggen_section_load_save_roundtrip():
+    _app()
+    cfg = _cfg(
+        imggen_provider="doubao",
+        imggen_base_url="https://ark.cn-beijing.volces.com/api/v3",
+        imggen_model="seedream-3-0-t2i-250415",
+        imggen_api_key="key1",
+        imggen_output_dir="/tmp/imgs",
+        imggen_watermark=False,
+        api_keys={},
+    )
+    sec = ImgGenSection(cfg)
+    assert sec.model.text() == "seedream-3-0-t2i-250415"
+    sec.model.setText("seedream-new")
+    sec.save_to(cfg)
+    assert cfg.imggen_model == "seedream-new"
+    assert cfg.imggen_output_dir == "/tmp/imgs"

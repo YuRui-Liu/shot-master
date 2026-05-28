@@ -4,5 +4,6 @@ load_from/save_to/validate 三个方法，由 UnifiedSettingsDialog 编排。"""
 from .runninghub_section import RunningHubSection
 from .translation_section import TranslationSection
 from .refine_section import RefineSection
+from .imggen_section import ImgGenSection
 
-__all__ = ["RunningHubSection", "TranslationSection", "RefineSection"]
+__all__ = ["RunningHubSection", "TranslationSection", "RefineSection", "ImgGenSection"]
