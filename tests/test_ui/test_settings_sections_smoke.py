@@ -7,6 +7,7 @@ from drama_shot_master.ui.widgets.settings_sections.translation_section import T
 from drama_shot_master.ui.widgets.settings_sections.refine_section import RefineSection
 from drama_shot_master.ui.widgets.settings_sections.imggen_section import ImgGenSection
 from drama_shot_master.ui.widgets.settings_sections.dub_section import DubSection
+from drama_shot_master.ui.widgets.settings_sections.soundtrack_section import SoundtrackSection
 
 
 def _app():
@@ -167,3 +168,30 @@ def test_dub_section_load_save_roundtrip():
     sec.save_to(cfg)
     assert cfg.dub_workflow_ids["voice_clone"] == "wf-clone-new"
     assert cfg.dub_output_dir == "/tmp/dub"
+
+
+# ── SoundtrackSection ─────────────────────────────────────────────────────────
+
+def test_soundtrack_section_class_metadata():
+    assert SoundtrackSection.title == "配乐"
+    assert SoundtrackSection.category == "生成功能"
+
+
+def test_soundtrack_section_load_save_roundtrip():
+    _app()
+    cfg = _cfg(
+        soundtrack_workflow_id="wf-ace-1",
+        soundtrack_output_dir="/tmp/soundtrack",
+        soundtrack_seeds_count=2,
+        soundtrack_crossfade=0.5,
+        accent_big_threshold=0.7,
+        accent_snap_window=0.6,
+    )
+    sec = SoundtrackSection(cfg)
+    assert sec.workflow_edit.text() == "wf-ace-1"
+    sec.workflow_edit.setText("wf-ace-2")
+    sec.seeds_spin.setValue(3)
+    sec.save_to(cfg)
+    assert cfg.soundtrack_workflow_id == "wf-ace-2"
+    assert cfg.soundtrack_seeds_count == 3
+    assert cfg.accent_big_threshold == 0.7

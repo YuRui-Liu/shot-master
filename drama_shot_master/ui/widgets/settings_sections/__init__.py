@@ -6,8 +6,9 @@ from .translation_section import TranslationSection
 from .refine_section import RefineSection
 from .imggen_section import ImgGenSection
 from .dub_section import DubSection
+from .soundtrack_section import SoundtrackSection
 
 __all__ = [
     "RunningHubSection", "TranslationSection", "RefineSection",
-    "ImgGenSection", "DubSection",
+    "ImgGenSection", "DubSection", "SoundtrackSection",
 ]
