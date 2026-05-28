@@ -83,6 +83,9 @@ def _build_real_stages(cfg, workflow_id, work_dir, global_style,
                        max_stretch=float(getattr(cfg, "accent_max_stretch", 0.10))),
         max_concurrency=int(getattr(cfg, "soundtrack_max_concurrency", 3)),
         score_fn=score_fn,
+        video_path=video_path,
+        refine_max_segments=int(getattr(cfg, "refine_max_segments", 5)),
+        refine_merge_threshold=float(getattr(cfg, "refine_merge_threshold", 0.25)),
     )
 
 
@@ -127,6 +130,8 @@ def _wrap_progress(stages: Stages, on_progress) -> Stages:
         mix=wrap_whole(stages.mix, "混音出片"),
         generate_all=(wrap_whole(stages.generate_all, "批量生成 BGM")
                       if stages.generate_all is not None else None),
+        refine_segments=(wrap_whole(stages.refine_segments, "精排段落")
+                         if stages.refine_segments is not None else None),
     )
 
 

@@ -412,3 +412,32 @@ def test_build_accent_preview_invokes_align_with_pump_skip(tmp_path, monkeypatch
     out = facade.build_accent_preview(sess, tmp_path / "w", crossfade=0.1)
     assert Path(out).exists() and Path(out).stat().st_size > 0
     assert align_called["flag"] is True
+
+
+def test_advance_preserves_refine_segments_under_progress(tmp_path):
+    """progress 包装（on_progress 非 None）后，refine_segments 钩子不能丢。"""
+    from sound_track_agent import facade
+    from sound_track_agent.pipeline import Stages
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, EmotionTag, BGMCandidate)
+
+    sess = ScoringSession(source_mp4="x", source_hash="h", global_style="s",
+                          frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0)])
+    calls = {"refine": 0}
+
+    def refine_fn(s):
+        calls["refine"] += 1
+        return True
+
+    stages = Stages(
+        tag_emotion=lambda seg, s: EmotionTag(),
+        compose_prompt=lambda seg, s: "p",
+        generate=lambda seg, s: [BGMCandidate(path="/b.wav", seed=1, prompt="t")],
+        align=lambda s: None, mix=lambda s: "/out.mp4",
+        refine_segments=refine_fn)
+    facade.advance(sess, tmp_path / "w", cfg=object(), workflow_id="wf",
+                   stop_after="refine_segments", stages=stages,
+                   on_progress=lambda m: None)
+    assert calls["refine"] == 1
+    assert sess.segments_refined is True
