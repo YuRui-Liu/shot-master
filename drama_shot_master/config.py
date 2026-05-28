@@ -98,10 +98,11 @@ class Config:
         "prompts":    "deepseek-v4-flash",
     })
     screenwriter_project_root: str = ""    # 默认空，UI 提示选目录
-    # LLM 平台配置：{"deepseek":{"base_url","api_key"}, "doubao":{...}, "openai":{...}}
-    screenwriter_providers: dict[str, dict] = field(default_factory=dict)
-    # 阶段映射：{"ideate":{"provider":"deepseek","model":"deepseek-chat"}, ...}
+    # 编剧阶段映射：{"ideate":{"provider":"deepseek","model":"deepseek-chat"}, ...}
     screenwriter_stage_assignments: dict[str, dict] = field(default_factory=dict)
+    # LLM 平台配置（跨功能共享，由「设置→平台核心→LLM 平台」section 配）：
+    # {"deepseek":{"base_url","api_key"}, "doubao":{...}, "openai":{...}}
+    llm_providers: dict[str, dict] = field(default_factory=dict)
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -156,8 +157,8 @@ class Config:
                 "screenwriter_llm_base_url": self.screenwriter_llm_base_url,
                 "screenwriter_models": self.screenwriter_models,
                 "screenwriter_project_root": self.screenwriter_project_root,
-                "screenwriter_providers": self.screenwriter_providers,
                 "screenwriter_stage_assignments": self.screenwriter_stage_assignments,
+                "llm_providers": self.llm_providers,
             }
             self.settings_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
@@ -252,12 +253,15 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.screenwriter_agent_port = data["screenwriter_agent_port"]
                 if "screenwriter_models" in data and isinstance(data["screenwriter_models"], dict):
                     cfg.screenwriter_models = data["screenwriter_models"]
-                if "screenwriter_providers" in data and isinstance(
-                        data["screenwriter_providers"], dict):
-                    cfg.screenwriter_providers = data["screenwriter_providers"]
                 if "screenwriter_stage_assignments" in data and isinstance(
                         data["screenwriter_stage_assignments"], dict):
                     cfg.screenwriter_stage_assignments = data["screenwriter_stage_assignments"]
+                if "llm_providers" in data and isinstance(data["llm_providers"], dict):
+                    cfg.llm_providers = data["llm_providers"]
+                elif "screenwriter_providers" in data and isinstance(
+                        data["screenwriter_providers"], dict):
+                    # 旧字段迁移：保留兼容入口
+                    cfg.llm_providers = data["screenwriter_providers"]
                 if "video_timeline_cache" in data and isinstance(
                         data["video_timeline_cache"], dict):
                     cfg.video_timeline_cache = data["video_timeline_cache"]

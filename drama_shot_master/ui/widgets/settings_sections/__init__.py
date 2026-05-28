@@ -2,6 +2,7 @@
 load_from/save_to/validate 三个方法，由 UnifiedSettingsDialog 编排。"""
 
 from .runninghub_section import RunningHubSection
+from .llm_platforms_section import LLMPlatformsSection
 from .translation_section import TranslationSection
 from .refine_section import RefineSection
 from .imggen_section import ImgGenSection
@@ -11,7 +12,8 @@ from .screenwriter_section import ScreenwriterSection
 from .theme_section import ThemeSection
 
 __all__ = [
-    "RunningHubSection", "TranslationSection", "RefineSection",
+    "RunningHubSection", "LLMPlatformsSection",
+    "TranslationSection", "RefineSection",
     "ImgGenSection", "DubSection", "SoundtrackSection",
     "ScreenwriterSection", "ThemeSection",
 ]

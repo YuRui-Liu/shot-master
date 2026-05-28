@@ -9,7 +9,8 @@ from PySide6.QtWidgets import (
 )
 
 from drama_shot_master.ui.widgets.settings_sections import (
-    RunningHubSection, TranslationSection, RefineSection,
+    RunningHubSection, LLMPlatformsSection,
+    TranslationSection, RefineSection,
     ImgGenSection, DubSection, SoundtrackSection, ScreenwriterSection,
     ThemeSection,
 )
@@ -29,6 +30,7 @@ class UnifiedSettingsDialog(QDialog):
     def _build_sections(self):
         return [
             RunningHubSection(self._cfg),
+            LLMPlatformsSection(self._cfg),
             TranslationSection(self._cfg),
             RefineSection(self._cfg),
             ImgGenSection(self._cfg),
