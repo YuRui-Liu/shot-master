@@ -45,29 +45,30 @@ def test_dialog_has_tree_and_stack(dlg):
     assert isinstance(dlg.stack, QStackedWidget)
 
 
-def test_dialog_has_7_sections(dlg):
-    # 7 sections: RunningHub / Translation / Refine / ImgGen / Dub / Soundtrack / Theme
-    assert dlg.stack.count() == 7
+def test_dialog_has_6_sections(dlg):
+    # 6 sections: RunningHub / Translation / Refine / ImgGen / Dub / Soundtrack
+    assert dlg.stack.count() == 6
 
 
 def test_dialog_tree_categories(dlg):
     cats = []
     for i in range(dlg.tree.topLevelItemCount()):
         cats.append(dlg.tree.topLevelItem(i).text(0))
-    assert "平台核心" in cats and "生成功能" in cats and "外观" in cats and "辅助" in cats
+    # "外观" 类别已随主题切换 section 一起退役；仅余 3 个功能性类别
+    assert "平台核心" in cats and "生成功能" in cats and "辅助" in cats
 
 
 def test_select_leaf_switches_stack(dlg):
-    from drama_shot_master.ui.widgets.settings_sections.theme_section import ThemeSection
+    from drama_shot_master.ui.widgets.settings_sections.soundtrack_section import SoundtrackSection
     for i in range(dlg.tree.topLevelItemCount()):
         top = dlg.tree.topLevelItem(i)
         for j in range(top.childCount()):
             leaf = top.child(j)
-            if leaf.text(0) == "主题":
+            if leaf.text(0) == "配乐":
                 dlg.tree.setCurrentItem(leaf)
-                assert isinstance(dlg.stack.currentWidget(), ThemeSection)
+                assert isinstance(dlg.stack.currentWidget(), SoundtrackSection)
                 return
-    pytest.fail("no 主题 leaf found")
+    pytest.fail("no 配乐 leaf found")
 
 
 def test_save_calls_each_section_save(monkeypatch):
