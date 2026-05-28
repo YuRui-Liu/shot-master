@@ -60,3 +60,18 @@ class StoryboardReq(BaseModel):
     options: StoryboardOptions = Field(default_factory=StoryboardOptions)
     model: str | None = None
     reasoning_effort: str = "max"
+
+
+class PromptsOptions(BaseModel):
+    grid_mode: str = "9"                  # "single" | "4" | "9"
+    include_character_refs: bool = True
+    style_extra: str = ""
+    negative_preset: str = "标准 SDXL"
+    quality_boost: bool = True
+
+
+class PromptsReq(BaseModel):
+    project_dir: str
+    options: PromptsOptions = Field(default_factory=PromptsOptions)
+    model: str | None = None
+    reasoning_effort: str = "high"

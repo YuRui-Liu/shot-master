@@ -30,6 +30,9 @@ def create_app(cfg: AgentConfig | None = None) -> FastAPI:
     from .routes.storyboard import router as storyboard_router
     app.include_router(storyboard_router)
 
+    from .routes.prompts import router as prompts_router
+    app.include_router(prompts_router)
+
     return app
 
 
