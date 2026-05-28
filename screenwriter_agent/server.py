@@ -18,6 +18,9 @@ def create_app(cfg: AgentConfig | None = None) -> FastAPI:
     from .routes.health import router as health_router
     app.include_router(health_router)
 
+    from .routes.project import router as project_router
+    app.include_router(project_router)
+
     return app
 
 
