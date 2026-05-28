@@ -53,3 +53,18 @@ def tag_emotion(provider, frame_path: Path, global_style: str) -> EmotionTag:
     raw = provider.generate([Path(frame_path)], _SYS,
                             _USR_TMPL.format(style=global_style))
     return _parse_emotion(raw)
+
+
+def tag_emotion_multi(provider, frame_paths: list[Path],
+                      global_style: str) -> EmotionTag:
+    """多帧同 prompt 测情绪。复用 _SYS/_USR_TMPL/_parse_emotion；
+    provider.generate 原生接受 image list。
+
+    空列表 → _NEUTRAL（不调 provider）。
+    解析失败 → _NEUTRAL（不抛）。
+    """
+    if not frame_paths:
+        return _NEUTRAL
+    raw = provider.generate(list(frame_paths), _SYS,
+                            _USR_TMPL.format(style=global_style))
+    return _parse_emotion(raw)
