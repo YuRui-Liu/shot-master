@@ -28,6 +28,24 @@ class EmotionTag:
 
 
 @dataclass
+class DialogueSegment:
+    """对白音频段：绝对路径 + 秒级定位。"""
+    audio_path: str
+    t_start: float
+    duration: float
+
+    def to_dict(self) -> dict:
+        return {"audio_path": self.audio_path,
+                "t_start": self.t_start, "duration": self.duration}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "DialogueSegment":
+        return cls(audio_path=str(d["audio_path"]),
+                   t_start=float(d["t_start"]),
+                   duration=float(d["duration"]))
+
+
+@dataclass
 class BGMCandidate:
     path: str
     seed: int
@@ -119,6 +137,7 @@ class ScoringSession:
     output: Optional[str] = None
     accent_mix_enabled: bool = True
     pump_strength: float = 0.6
+    dialogue_segments: list[DialogueSegment] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -131,6 +150,7 @@ class ScoringSession:
             "output": self.output,
             "accent_mix_enabled": self.accent_mix_enabled,
             "pump_strength": self.pump_strength,
+            "dialogue_segments": [d.to_dict() for d in self.dialogue_segments],
         }
 
     @classmethod
@@ -145,6 +165,8 @@ class ScoringSession:
             output=d.get("output"),
             accent_mix_enabled=bool(d.get("accent_mix_enabled", True)),
             pump_strength=float(d.get("pump_strength", 0.6)),
+            dialogue_segments=[DialogueSegment.from_dict(ds)
+                               for ds in d.get("dialogue_segments", [])],
         )
 
     def save(self, path: Path) -> None:

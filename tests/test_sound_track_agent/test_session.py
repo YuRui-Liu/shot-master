@@ -1,5 +1,6 @@
 from sound_track_agent.session import (
     EmotionTag, BGMCandidate, AccentPoint, SegmentScore, ScoringSession,
+    DialogueSegment,
 )
 
 
@@ -166,3 +167,38 @@ def test_from_dict_does_not_alias_subscores():
     c = BGMCandidate.from_dict(raw)
     raw["subscores"]["health"] = 0.0
     assert c.subscores["health"] == 0.9
+
+
+def test_dialogue_segment_roundtrip():
+    d = DialogueSegment(audio_path="/x/a.flac", t_start=1.5, duration=3.0)
+    back = DialogueSegment.from_dict(d.to_dict())
+    assert back.audio_path == "/x/a.flac"
+    assert back.t_start == 1.5
+    assert back.duration == 3.0
+
+
+def test_session_dialogue_segments_roundtrip(tmp_path):
+    sess = ScoringSession(
+        source_mp4="x.mp4", source_hash="h", global_style="s", frame_rate=24.0,
+        segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0)],
+        dialogue_segments=[
+            DialogueSegment(audio_path="/x/d1.flac", t_start=0.0, duration=1.0),
+            DialogueSegment(audio_path="/x/d2.flac", t_start=2.5, duration=0.8),
+        ])
+    p = tmp_path / "session.json"
+    sess.save(p)
+    back = ScoringSession.load(p)
+    assert len(back.dialogue_segments) == 2
+    assert back.dialogue_segments[0].audio_path == "/x/d1.flac"
+    assert back.dialogue_segments[1].t_start == 2.5
+
+
+def test_session_dialogue_segments_default_when_missing(tmp_path):
+    """旧 session.json 缺字段时默认空列表（零回归）。"""
+    p = tmp_path / "session.json"
+    p.write_text(
+        '{"source_mp4":"x","source_hash":"h","global_style":"s",'
+        '"frame_rate":24.0,"segments":[],"accent_points":[]}',
+        encoding="utf-8")
+    back = ScoringSession.load(p)
+    assert back.dialogue_segments == []
