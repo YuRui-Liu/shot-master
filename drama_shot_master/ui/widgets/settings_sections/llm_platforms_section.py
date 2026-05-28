@@ -69,38 +69,34 @@ class _PlatformBlock(QWidget):
 
         self.btn_test.clicked.connect(self._on_test)
 
-    # 每个平台测试策略不同（ARK 的 /models 不通用，要 chat.completions）
-    _ARK_FALLBACK_MODEL = "doubao-1-5-pro-32k-241215"
-
     def _on_test(self):
+        """统一策略（学 ImgGen.DoubaoImageProvider.test_connection 已验证可行）：
+        对 base_url 直接 GET（带 Authorization: Bearer），看返回不是 401/403
+        即可——key 错的话所有 OpenAI-compat 服务都会 401/403；key 对时根路径
+        可能返 200/404/405 任意，只要不是鉴权失败就过。不依赖任何特定 endpoint
+        和 model 权限，DeepSeek/ARK/OpenAI 全适用。"""
         self._set_status("测试中…", "#9aa0a6")
         base_url = self.base_url_edit.text().strip() or self._default_base_url
         api_key = self.api_key_edit.text().strip()
         if not api_key:
             self._set_status("✗ 未填 API Key", "#ff5c5c"); return
         try:
-            from openai import OpenAI
-            c = OpenAI(api_key=api_key, base_url=base_url, timeout=15.0)
-            if self.pid == "doubao":
-                # ARK 的 /v3/models 不可用，用 chat.completions 兜底；
-                # 用一个公开 model 名做 ping（用户没开通会失败，但鉴权层会先通过）
-                resp = c.chat.completions.create(
-                    model=self._ARK_FALLBACK_MODEL,
-                    messages=[{"role": "user", "content": "ping"}],
-                    max_tokens=4, stream=False)
-                _txt = (resp.choices[0].message.content or "").strip()
-                self._set_status(
-                    f"✓ 鉴权通过 · 测试 model: {self._ARK_FALLBACK_MODEL}",
-                    "#4ec98f")
-            else:
-                # DeepSeek / OpenAI 都支持 /models 列表
-                models = c.models.list()
-                ids = [m.id for m in (models.data or [])][:5]
-                preview = "、".join(ids) if ids else "（无可见 model）"
-                self._set_status(f"✓ 鉴权通过 · 可见 model: {preview}", "#4ec98f")
+            import httpx
+            r = httpx.get(base_url,
+                          headers={"Authorization": f"Bearer {api_key}"},
+                          timeout=8)
         except Exception as e:
-            msg = str(e)
-            self._set_status(f"✗ {msg}", "#ff5c5c", tooltip=msg)
+            self._set_status(f"✗ 连不上 {base_url}：{e}", "#ff5c5c", tooltip=str(e))
+            return
+        if r.status_code in (401, 403):
+            # 截 body 帮用户判断 key 哪里错了
+            body = (r.text or "")[:200]
+            msg = f"✗ 鉴权失败 HTTP {r.status_code}：{body}"
+            self._set_status(msg, "#ff5c5c", tooltip=f"{r.status_code}\n{r.text[:600]}")
+            return
+        self._set_status(
+            f"✓ 鉴权通过（HTTP {r.status_code}）",
+            "#4ec98f")
 
     def _set_status(self, text: str, color: str, tooltip: str = ""):
         """单行截断（按当前字体宽度算）+ 全文挂 tooltip，定高不撑变形。"""
