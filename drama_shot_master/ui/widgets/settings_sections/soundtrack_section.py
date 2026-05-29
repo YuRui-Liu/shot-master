@@ -139,19 +139,6 @@ class SoundtrackSection(QWidget):
         self.w_headroom.setValue(float(w.get("headroom", 0.3)))
         self.w_beat.setValue(float(w.get("beat", 0.2)))
 
-    def apply_to(self, cfg):
-        """将控件当前值写回 cfg（Sprint 0 新增 6 项 + 原有字段）。"""
-        cfg.refine_frames_per_shot = int(self.frames_combo.currentText())
-        cfg.refine_max_segments = self.refine_max_spin.value()
-        cfg.refine_merge_threshold = float(self.refine_thresh_spin.value())
-        cfg.accent_max_stretch = float(self.stretch_spin.value())
-        cfg.soundtrack_max_concurrency = self.concurrency_spin.value()
-        cfg.soundtrack_score_weights = {
-            "health": float(self.w_health.value()),
-            "headroom": float(self.w_headroom.value()),
-            "beat": float(self.w_beat.value()),
-        }
-
     def save_to(self, cfg):
         cfg.update_settings(
             soundtrack_workflow_id=self.workflow_edit.text().strip(),
@@ -160,6 +147,17 @@ class SoundtrackSection(QWidget):
             soundtrack_crossfade=self.crossfade_spin.value(),
             accent_big_threshold=self.big_thresh_spin.value(),
             accent_snap_window=self.snap_window_spin.value(),
+            # Sprint 0：曝光 Phase 1+2+3 后端能力
+            refine_frames_per_shot=int(self.frames_combo.currentText()),
+            refine_max_segments=self.refine_max_spin.value(),
+            refine_merge_threshold=float(self.refine_thresh_spin.value()),
+            accent_max_stretch=float(self.stretch_spin.value()),
+            soundtrack_max_concurrency=self.concurrency_spin.value(),
+            soundtrack_score_weights={
+                "health": float(self.w_health.value()),
+                "headroom": float(self.w_headroom.value()),
+                "beat": float(self.w_beat.value()),
+            },
         )
 
     def validate(self):

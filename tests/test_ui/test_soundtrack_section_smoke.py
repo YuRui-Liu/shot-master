@@ -1,4 +1,4 @@
-"""SoundtrackSection 6 个新控件存在 + load_from/apply_to cfg 往返。"""
+"""SoundtrackSection 6 个新控件存在 + load_from/save_to cfg 往返。"""
 import pytest
 from PySide6.QtWidgets import QApplication
 
@@ -41,7 +41,9 @@ def test_load_from_populates_controls(app):
     assert abs(section.w_beat.value() - 0.1) < 1e-6
 
 
-def test_apply_to_writes_back_to_cfg(app):
+def test_save_to_writes_back_to_cfg(app):
+    """save_to 是 UnifiedSettingsDialog 真正调用的持久化入口；6 个新字段
+    必须走这一条路径才能在设置对话框关闭时落盘。"""
     cfg = Config()
     section = SoundtrackSection(cfg)
     section.frames_combo.setCurrentText("5")
@@ -52,7 +54,7 @@ def test_apply_to_writes_back_to_cfg(app):
     section.w_health.setValue(0.6)
     section.w_headroom.setValue(0.3)
     section.w_beat.setValue(0.1)
-    section.apply_to(cfg)
+    section.save_to(cfg)
     assert cfg.refine_frames_per_shot == 5
     assert cfg.refine_max_segments == 7
     assert abs(cfg.refine_merge_threshold - 0.40) < 1e-6
