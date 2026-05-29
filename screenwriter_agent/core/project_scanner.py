@@ -28,9 +28,11 @@ def scan_project(project_dir: Path) -> ProjectState:
 
     stages: dict[str, dict[str, Any]] = {}
 
-    # ideate
-    idea_path = project_dir / "idea.json"
-    idea_file_exists = idea_path.is_file()
+    # ideate（兼容旧名 idea.json / 新名 创意.json）
+    from screenwriter_agent.core.paths import idea_read_path, IDEA_FILE_NAME
+    idea_path = idea_read_path(project_dir)
+    idea_file_exists = idea_path is not None
+    file_label = idea_path.name if idea_path else IDEA_FILE_NAME
     if idea_file_exists:
         try:
             idea = json.loads(idea_path.read_text(encoding="utf-8"))
@@ -40,12 +42,12 @@ def scan_project(project_dir: Path) -> ProjectState:
                        if selected else f"候选 {cand_count} 个，未选定")
         except Exception:
             selected = False
-            summary = "idea.json 解析失败"
-        stages["ideate"] = {"done": selected, "file": "idea.json",
+            summary = "创意.json 解析失败"
+        stages["ideate"] = {"done": selected, "file": file_label,
                             "_file_exists": True,
                             "summary": summary if selected else None}
     else:
-        stages["ideate"] = {"done": False, "file": "idea.json",
+        stages["ideate"] = {"done": False, "file": file_label,
                             "_file_exists": False, "summary": None}
 
     # script

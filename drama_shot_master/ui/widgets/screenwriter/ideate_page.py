@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from drama_shot_master.ui.widgets.screenwriter.base_stage_page import _BaseStagePage
 from drama_shot_master.ui.widgets.screenwriter._ideate_candidate_card import _CandidateCard
 from drama_shot_master.ui.widgets.screenwriter._ideate_message_bubble import _MessageBubble
+from drama_shot_master.ui.widgets.screenwriter._paths import idea_file_in
 from drama_shot_master.ui.widgets.screenwriter.stream_worker import StreamWorker
 
 
@@ -201,8 +202,8 @@ class IdeatePage(_BaseStagePage):
             return
         self._send_btn.setEnabled(True)
         self._gen_first_btn.setEnabled(True)
-        idea_path = path / "idea.json"
-        if idea_path.is_file():
+        idea_path = idea_file_in(path)
+        if idea_path is not None:
             try:
                 idea = json.loads(idea_path.read_text(encoding="utf-8"))
                 self._messages = list(idea.get("messages", []))
@@ -449,9 +450,9 @@ class IdeatePage(_BaseStagePage):
                     "4) 看 ~/.drama_shot_master/logs/screenwriter_agent.log 末尾",
                     project_dir_str)
                 return
-            # 重读 idea.json（Agent 已落盘 + 解析候选）
-            idea_path = proj / "idea.json"
-            if idea_path.is_file():
+            # 重读创意.json（Agent 已落盘 + 解析候选；含旧名兼容）
+            idea_path = idea_file_in(proj)
+            if idea_path is not None:
                 try:
                     idea = json.loads(idea_path.read_text(encoding="utf-8"))
                     self._messages = list(idea.get("messages", []))

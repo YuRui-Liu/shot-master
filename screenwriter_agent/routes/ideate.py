@@ -10,6 +10,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from screenwriter_agent.core.atomic_write import atomic_write_text
+from screenwriter_agent.core.paths import idea_read_path, idea_write_path
 from screenwriter_agent.core.sse import sse_event
 from screenwriter_agent.core.template_loader import load_template
 from screenwriter_agent.models.requests import IdeateChatReq, IdeateSelectReq
@@ -20,11 +21,11 @@ router = APIRouter()
 @router.post("/ideate/select")
 def ideate_select(req: IdeateSelectReq):
     p = Path(req.project_dir)
-    idea_path = p / "idea.json"
-    if not idea_path.is_file():
+    idea_path = idea_read_path(p)
+    if idea_path is None:
         return JSONResponse(status_code=400, content={
             "error": {"code": "UPSTREAM_PRODUCT_MISSING",
-                      "message": "idea.json not found",
+                      "message": "创意.json not found",
                       "hint": "还没有候选，请先发起创意对话生成候选。"}})
     try:
         idea = json.loads(idea_path.read_text(encoding="utf-8"))
@@ -104,6 +105,11 @@ async def ideate_chat(req: IdeateChatReq, request: Request):
             yield sse_event("status", {"phase": "streaming"})
             acc: list[str] = []
             for chunk in client.stream_chat(messages):
+                # 客户端断连 → 立即停止迭代，不再消耗 LLM token
+                if await request.is_disconnected():
+                    print("[ideate] client disconnected; aborting LLM stream",
+                           flush=True)
+                    return
                 if chunk.kind == "delta":
                     acc.append(chunk.text)
                     yield sse_event("delta", {"text": chunk.text})
@@ -119,7 +125,7 @@ async def ideate_chat(req: IdeateChatReq, request: Request):
                     "selected_id": "",
                     "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 }
-                idea_path = project_dir / "idea.json"
+                idea_path = idea_write_path(project_dir)
                 atomic_write_text(
                     idea_path, json.dumps(idea, ensure_ascii=False, indent=2))
                 yield sse_event("done", {"saved": str(idea_path),

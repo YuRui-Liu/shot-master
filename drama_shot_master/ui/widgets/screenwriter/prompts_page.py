@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSplitter, QPlainTextEdit,
-    QComboBox, QCheckBox, QMessageBox, QWidget,
+    QComboBox, QCheckBox, QMessageBox, QWidget, QLineEdit,
 )
 
 from drama_shot_master.ui.widgets.screenwriter.base_stage_page import _BaseStagePage
@@ -64,6 +64,15 @@ class PromptsPage(_BaseStagePage):
         self._quality_chk = QCheckBox("画质增强")
         self._quality_chk.setChecked(True)
         bar.addWidget(self._quality_chk)
+        bar.addWidget(QLabel("风格补充:"))
+        self._style_extra_edit = QLineEdit()
+        self._style_extra_edit.setMaximumWidth(160)
+        self._style_extra_edit.setPlaceholderText("如：电影感/赛博朋克…")
+        bar.addWidget(self._style_extra_edit)
+        bar.addWidget(QLabel("负向:"))
+        self._negative_combo = QComboBox()
+        self._negative_combo.addItems(["标准 SDXL", "无", "禁手部", "禁文字"])
+        bar.addWidget(self._negative_combo)
         bar.addStretch(1)
         self._stream_label = QLabel("")
         self._stream_label.setStyleSheet("color: #4a9eff")
@@ -279,8 +288,8 @@ class PromptsPage(_BaseStagePage):
             "options": {
                 "grid_mode": self._grid_combo.currentText(),
                 "include_character_refs": self._char_refs_chk.isChecked(),
-                "style_extra": "",
-                "negative_preset": "标准 SDXL",
+                "style_extra": self._style_extra_edit.text().strip(),
+                "negative_preset": self._negative_combo.currentText(),
                 "quality_boost": self._quality_chk.isChecked(),
             },
         }

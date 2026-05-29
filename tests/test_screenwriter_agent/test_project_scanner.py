@@ -13,7 +13,7 @@ def test_empty_dir(tmp_path):
 
 
 def test_idea_without_selected(tmp_path):
-    (tmp_path / "idea.json").write_text(json.dumps({
+    (tmp_path / "创意.json").write_text(json.dumps({
         "input": {}, "messages": [], "candidates": [
             {"id": "c1", "title": "t1"}], "selected_id": ""}),
         encoding="utf-8")
@@ -23,7 +23,7 @@ def test_idea_without_selected(tmp_path):
 
 
 def test_idea_selected_no_script(tmp_path):
-    (tmp_path / "idea.json").write_text(json.dumps({
+    (tmp_path / "创意.json").write_text(json.dumps({
         "input": {}, "messages": [], "candidates": [
             {"id": "c1", "title": "t1"}], "selected_id": "c1"}),
         encoding="utf-8")
@@ -34,7 +34,7 @@ def test_idea_selected_no_script(tmp_path):
 
 
 def test_full_chain(tmp_path):
-    (tmp_path / "idea.json").write_text(json.dumps({
+    (tmp_path / "创意.json").write_text(json.dumps({
         "input": {}, "messages": [], "candidates": [{"id": "c1", "title": "t"}],
         "selected_id": "c1"}), encoding="utf-8")
     (tmp_path / "剧本.md").write_text("# 剧本信息\n标题: x\n", encoding="utf-8")

@@ -66,10 +66,10 @@ def test_e2e_chain(tmp_path, mock_llm, monkeypatch):
         "messages": [{"role": "user", "content": "出 2 个候选"}],
     })
     assert r.status_code == 200
-    assert (tmp_path / "idea.json").is_file()
+    assert (tmp_path / "创意.json").is_file()
 
     # 2) /ideate/select
-    idea = json.loads((tmp_path / "idea.json").read_text(encoding="utf-8"))
+    idea = json.loads((tmp_path / "创意.json").read_text(encoding="utf-8"))
     if idea.get("candidates"):
         cid = idea["candidates"][0]["id"]
         r = c.post("/ideate/select", json={

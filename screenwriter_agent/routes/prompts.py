@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from screenwriter_agent.core.atomic_write import atomic_write_text
+from screenwriter_agent.core.downstream import purge_downstream
 from screenwriter_agent.core.llm_client import LLMClient
 from screenwriter_agent.core.sse import sse_event
 from screenwriter_agent.core.template_loader import load_template
@@ -36,6 +37,9 @@ async def prompts(req: PromptsReq, request: Request):
         return JSONResponse(status_code=500, content={
             "error": {"code": "INTERNAL_ERROR",
                       "message": "分镜.json parse failed", "hint": ""}})
+    # 重生：清 prompts/（partial 落盘前先空目录，让 _ProductTree 状态点重置）
+    if request.query_params.get("purge_downstream") in ("true", "1", "yes"):
+        purge_downstream(project_dir, stage="prompts")
 
     cfg = request.app.state.cfg
     model = (req.model
@@ -78,6 +82,10 @@ async def prompts(req: PromptsReq, request: Request):
                               + f"\n## 风格补充\n{opts['style_extra']}\n")
                     acc: list[str] = []
                     for c in client.stream_chat([{"role": "user", "content": prompt}]):
+                        if await request.is_disconnected():
+                            print("[prompts] disconnected mid-char-ref",
+                                   flush=True)
+                            return
                         if c.kind == "delta":
                             acc.append(c.text)
                     out_md = "".join(acc)
@@ -107,6 +115,9 @@ async def prompts(req: PromptsReq, request: Request):
                           + "\n```\n")
                 acc: list[str] = []
                 for c in client.stream_chat([{"role": "user", "content": prompt}]):
+                    if await request.is_disconnected():
+                        print("[prompts] disconnected mid-grid", flush=True)
+                        return
                     if c.kind == "delta":
                         acc.append(c.text)
                 sheet_md = "".join(acc)

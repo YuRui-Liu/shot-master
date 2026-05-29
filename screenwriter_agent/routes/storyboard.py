@@ -10,6 +10,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from screenwriter_agent.core.atomic_write import atomic_write_text
+from screenwriter_agent.core.downstream import purge_downstream
 from screenwriter_agent.core.json_repair import repair_json_text
 from screenwriter_agent.core.llm_client import LLMClient
 from screenwriter_agent.core.schema_validator import validate_storyboard
@@ -34,6 +35,9 @@ async def storyboard(req: StoryboardReq, request: Request):
             "error": {"code": "UPSTREAM_PRODUCT_MISSING",
                       "message": "剧本.md missing",
                       "hint": "请先在「剧本」步生成剧本。"}})
+    # 重生：清下游（分镜.json / prompts/）
+    if request.query_params.get("purge_downstream") in ("true", "1", "yes"):
+        purge_downstream(project_dir, stage="storyboard")
 
     cfg = request.app.state.cfg
     model = (req.model
@@ -76,6 +80,10 @@ async def storyboard(req: StoryboardReq, request: Request):
             yield sse_event("status", {"phase": "streaming"})
             acc: list[str] = []
             for ch in client.stream_chat(messages):
+                if await request.is_disconnected():
+                    print("[storyboard] client disconnected; aborting LLM stream",
+                           flush=True)
+                    return
                 if ch.kind == "delta":
                     acc.append(ch.text)
                     yield sse_event("delta", {"text": ch.text})

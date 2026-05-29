@@ -24,6 +24,7 @@ _CANCEL = QMessageBox.Cancel
 
 
 _STAGE_FILES = (
+    # 创意.json 是新名；旧名 idea.json 也接受（_compute_status 内做兜底）
     ("创意", "创意.json"),
     ("剧本", "剧本.md"),
     ("分镜", "分镜.json"),
@@ -139,6 +140,7 @@ class ScreenwriterTaskManager(QWidget):
         self._fit_name_col()
 
     def _compute_status(self, p: Path) -> tuple[str, str]:
+        from drama_shot_master.ui.widgets.screenwriter._paths import idea_exists_in
         dots = []
         last_done_idx = -1
         for i, (_, fname) in enumerate(_STAGE_FILES):
@@ -146,6 +148,8 @@ class ScreenwriterTaskManager(QWidget):
             done = False
             if fname == "prompts":
                 done = target.is_dir() and any(target.iterdir())
+            elif fname == "创意.json":
+                done = idea_exists_in(p)   # 接受 创意.json 或 idea.json
             else:
                 done = target.is_file()
             if done:

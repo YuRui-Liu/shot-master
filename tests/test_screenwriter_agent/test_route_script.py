@@ -13,7 +13,7 @@ def test_script_missing_idea_400(tmp_path):
 
 
 def test_script_unselected_idea_400(tmp_path):
-    (tmp_path / "idea.json").write_text(json.dumps({
+    (tmp_path / "创意.json").write_text(json.dumps({
         "input": {}, "messages": [], "candidates": [{"id": "c1", "title": "t"}],
         "selected_id": ""}), encoding="utf-8")
     c = TestClient(create_app())

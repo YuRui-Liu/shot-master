@@ -9,7 +9,9 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from screenwriter_agent.core.atomic_write import atomic_write_text
+from screenwriter_agent.core.downstream import purge_downstream
 from screenwriter_agent.core.llm_client import LLMClient
+from screenwriter_agent.core.paths import idea_read_path
 from screenwriter_agent.core.sse import sse_event
 from screenwriter_agent.core.template_loader import load_template
 from screenwriter_agent.models.requests import ScriptReq
@@ -25,12 +27,15 @@ async def script(req: ScriptReq, request: Request):
             "error": {"code": "PROJECT_DIR_NOT_FOUND",
                       "message": f"path not found: {req.project_dir}",
                       "hint": "项目目录打不开。"}})
-    idea_path = project_dir / "idea.json"
-    if not idea_path.is_file():
+    idea_path = idea_read_path(project_dir)
+    if idea_path is None:
         return JSONResponse(status_code=400, content={
             "error": {"code": "UPSTREAM_PRODUCT_MISSING",
-                      "message": "idea.json missing",
+                      "message": "创意.json missing",
                       "hint": "请先在「创意」步生成候选并选定一个。"}})
+    # 重生：清下游（剧本.md / 分镜.json / prompts/）
+    if request.query_params.get("purge_downstream") in ("true", "1", "yes"):
+        purge_downstream(project_dir, stage="script")
     try:
         idea = json.loads(idea_path.read_text(encoding="utf-8"))
     except Exception:
@@ -93,6 +98,10 @@ async def script(req: ScriptReq, request: Request):
             yield sse_event("status", {"phase": "streaming"})
             acc: list[str] = []
             for ch in client.stream_chat(messages):
+                if await request.is_disconnected():
+                    print("[script] client disconnected; aborting LLM stream",
+                           flush=True)
+                    return
                 if ch.kind == "delta":
                     acc.append(ch.text)
                     yield sse_event("delta", {"text": ch.text})

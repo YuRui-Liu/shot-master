@@ -28,13 +28,20 @@ class LLMClient:
         self.timeout = timeout
 
     def _raw_stream(self, *, messages: list[dict]) -> Iterator:
-        """调底层 OpenAI SDK；测试时被 monkeypatch。"""
+        """调底层 OpenAI SDK；测试时被 monkeypatch。
+
+        reasoning_effort 通过 extra_body 透传——OpenAI 官方 o1 / DeepSeek
+        deepseek-reasoner / Doubao thinking 系列都从这个字段开 thinking 模式。
+        非 thinking 模型设了不报错（被 SDK/平台静默忽略）。
+        """
         from openai import OpenAI
         client = OpenAI(api_key=self.api_key, base_url=self.base_url,
                         timeout=self.timeout)
         kwargs = {"model": self.model, "messages": messages, "stream": True}
         if self.response_format:
             kwargs["response_format"] = self.response_format
+        if self.reasoning_effort:
+            kwargs["extra_body"] = {"reasoning_effort": self.reasoning_effort}
         return client.chat.completions.create(**kwargs)
 
     def stream_chat(self, messages: list[dict]) -> Iterator[StreamChunk]:

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from drama_shot_master.ui.widgets.screenwriter.base_stage_page import _BaseStagePage
 from drama_shot_master.ui.widgets.screenwriter.stream_worker import StreamWorker
 from drama_shot_master.ui.widgets.screenwriter._upstream_banner import _UpstreamBanner
+from drama_shot_master.ui.widgets.screenwriter._paths import idea_file_in, idea_exists_in
 from screenwriter_agent.core.atomic_write import atomic_write_text
 
 
@@ -132,9 +133,8 @@ class ScriptPage(_BaseStagePage):
                 b.setEnabled(False)
             return
         self._script_path = path / "剧本.md"
-        # 自检上游
-        upstream = path / "创意.json"
-        if not upstream.is_file():
+        # 自检上游（兼容 创意.json / idea.json 两种命名）
+        if not idea_exists_in(path):
             self._upstream_banner.show_missing(
                 stage_name="创意", expected_file="创意.json")
             self._gen_btn.setEnabled(False)
@@ -217,11 +217,10 @@ class ScriptPage(_BaseStagePage):
         self.stageAdvanceRequested.emit(2)
 
     def start_generation_if_idle(self) -> None:
-        """上游 创意.json 在 + 本阶段 剧本.md 不在 + idle → 自动跑生成。"""
+        """上游 创意.json/idea.json 在 + 本阶段 剧本.md 不在 + idle → 自动跑生成。"""
         if self._project_dir is None or self._state == "streaming":
             return
-        upstream = self._project_dir / "创意.json"
-        if not upstream.is_file():
+        if not idea_exists_in(self._project_dir):
             return
         if self._script_path is not None and self._script_path.is_file():
             return  # 已有剧本不强制覆盖，让用户手动决定
@@ -231,8 +230,8 @@ class ScriptPage(_BaseStagePage):
         if self._project_dir is None:
             return
         # 上游检查
-        idea_path = self._project_dir / "idea.json"
-        if not idea_path.is_file():
+        idea_path = idea_file_in(self._project_dir)
+        if idea_path is None:
             QMessageBox.warning(self, "上游缺失",
                                   "请先在「创意」阶段生成候选并选定一个。")
             return

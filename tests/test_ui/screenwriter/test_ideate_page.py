@@ -17,7 +17,7 @@ class _StubClient:
         self.select_calls = []
     def ideate_select(self, project_dir, selected_id):
         self.select_calls.append((Path(project_dir), selected_id))
-        return {"saved": str(Path(project_dir) / "idea.json"),
+        return {"saved": str(Path(project_dir) / "创意.json"),
                 "selected": {"id": selected_id}}
 
 
@@ -31,7 +31,7 @@ def test_set_project_none_shows_placeholder():
 
 def test_loads_idea_json_renders_candidates(tmp_path):
     _app()
-    (tmp_path / "idea.json").write_text(json.dumps({
+    (tmp_path / "创意.json").write_text(json.dumps({
         "input": {}, "messages": [
             {"role": "user", "content": "出 2 个候选"},
             {"role": "assistant", "content": "候选 1..."},
@@ -53,7 +53,7 @@ def test_loads_idea_json_renders_candidates(tmp_path):
 
 def test_click_card_marks_local_only_not_calls_client(tmp_path):
     _app()
-    (tmp_path / "idea.json").write_text(json.dumps({
+    (tmp_path / "创意.json").write_text(json.dumps({
         "input": {}, "messages": [],
         "candidates": [{"id": "c1", "title": "t1"},
                        {"id": "c2", "title": "t2"}],
@@ -71,7 +71,7 @@ def test_click_card_marks_local_only_not_calls_client(tmp_path):
 
 def test_select_button_persists_and_emits_advance(tmp_path):
     _app()
-    (tmp_path / "idea.json").write_text(json.dumps({
+    (tmp_path / "创意.json").write_text(json.dumps({
         "input": {}, "messages": [],
         "candidates": [{"id": "c1", "title": "t1"}],
         "selected_id": "",
@@ -89,7 +89,7 @@ def test_select_button_persists_and_emits_advance(tmp_path):
 
 def test_clear_chat_resets_messages_and_candidates(tmp_path, monkeypatch):
     _app()
-    (tmp_path / "idea.json").write_text(json.dumps({
+    (tmp_path / "创意.json").write_text(json.dumps({
         "input": {}, "messages": [{"role": "user", "content": "x"}],
         "candidates": [{"id": "c1", "title": "t1"}],
         "selected_id": "c1",
