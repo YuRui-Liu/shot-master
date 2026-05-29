@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from drama_shot_master.ui.worker import FunctionWorker
 from drama_shot_master.ui.widgets.segment_review_widget import SegmentReviewWidget
 from drama_shot_master.ui.widgets.accent_editor_widget import AccentEditorWidget
+from drama_shot_master.core.dialogue_segment_deriver import derive_dialogue_segments
 
 _STAGES = ["tag_emotion", "compose_prompt", "generate", "align", "mix"]
 _STAGE_LABELS = {"tag_emotion": "切段+情绪", "compose_prompt": "prompt",
@@ -109,6 +110,8 @@ class SoundtrackEditor(QWidget):
         self.btn_start = QPushButton("🎬 开始配乐")
         self.btn_start.setObjectName("AccentButton")
         self.btn_start.clicked.connect(self._on_start)
+        self.btn_resegment = QPushButton("🔄 重排段落")
+        self.btn_resegment.clicked.connect(self._on_resegment)
         self.btn_export = QPushButton("🎬 导出成片")
         self.btn_export.setObjectName("AccentButton")
         self.btn_export.clicked.connect(self._on_export)
@@ -117,7 +120,8 @@ class SoundtrackEditor(QWidget):
         self.btn_preview = QPushButton("▶ 预览成片")
         self.btn_preview.clicked.connect(self._on_preview)
         self.btn_preview.setEnabled(False)
-        act.addWidget(self.btn_start); act.addWidget(self.btn_export)
+        act.addWidget(self.btn_start); act.addWidget(self.btn_resegment)
+        act.addWidget(self.btn_export)
         act.addWidget(self.btn_open_dir); act.addWidget(self.btn_preview)
         act.addStretch(1)
         root.addLayout(act)
@@ -230,8 +234,12 @@ class SoundtrackEditor(QWidget):
 
         def task():
             from sound_track_agent import facade
-            sess = facade.load_session(work_dir) or facade.prepare_session(
-                mp4, style, work_dir)
+            sess = facade.load_session(work_dir)
+            if sess is None:
+                # 从 video_tasks 派生对白段，复用配音轨而非 Demucs 盲分离；无匹配返回 [] → 传 None → 走回退
+                dialogue_segs = derive_dialogue_segments(cfg, mp4) or None
+                sess = facade.prepare_session(
+                    mp4, style, work_dir, dialogue_segments=dialogue_segs)
             self._post_seg_preview(sess)
             facade.advance(sess, work_dir, cfg=cfg, workflow_id=workflow_id,
                            seeds_count=seeds, stop_after=stop_after,
@@ -314,6 +322,27 @@ class SoundtrackEditor(QWidget):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(wd)))
         else:
             QMessageBox.information(self, "打开输出目录", "还没有输出（先运行一次）")
+
+    def _on_resegment(self):
+        """🔄 重排段落：清空已有候选/prompt/emotion，重置 segments_refined，重跑 refine 阶段。"""
+        if not self._session:
+            QMessageBox.warning(self, "无法重排", "请先开始配乐生成 session")
+            return
+        if any(s.candidates for s in self._session.segments):
+            if QMessageBox.warning(
+                    self, "重排会清空候选",
+                    "已有 BGM 候选会被清空丢弃，确定重排？",
+                    QMessageBox.Yes | QMessageBox.Cancel) != QMessageBox.Yes:
+                return
+        for s in self._session.segments:
+            s.candidates = []
+            s.chosen_candidate = None
+            s.music_prompt = ""
+            s.status = "pending"
+            s.emotion = None
+        self._session.segments_refined = False
+        self._persist_session()
+        self._run_pipeline("refine_segments")
 
     def to_payload(self) -> dict:
         return {"mp4": self.mp4_edit.text().strip(),

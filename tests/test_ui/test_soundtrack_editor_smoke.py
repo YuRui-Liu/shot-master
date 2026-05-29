@@ -86,3 +86,152 @@ def test_session_mount_does_not_crash(tmp_path):
     ed._session = stub
     ed._mount_session_tabs()
     assert ed._review is not None and ed._accent is not None
+
+
+# ---------------------------------------------------------------------------
+# Task 7: dialogue_segments 派生接线 + 重排段落按钮
+# ---------------------------------------------------------------------------
+
+def test_editor_passes_derived_dialogue_segments_to_prepare(tmp_path, monkeypatch):
+    """SoundtrackEditor 第一次跑 pipeline 时，应从 cfg.video_tasks 派生 dialogue_segments 并传给 prepare_session。"""
+    _app()
+    from drama_shot_master.ui.widgets.soundtrack_editor import SoundtrackEditor
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, DialogueSegment,
+    )
+
+    mp4 = tmp_path / "ep.mp4"; mp4.write_bytes(b"x")
+    cfg = _cfg(tmp_path)
+    cfg.video_tasks = [{
+        "last_result": str(mp4),
+        "timeline": {
+            "frame_rate": 24.0,
+            "audios": [{"audio_path": "/x/d.flac",
+                        "start_frame": 0, "length_frames": 24}],
+        }
+    }]
+
+    captured = {"dialogue_segments": None}
+    fake_sess = ScoringSession(source_mp4=str(mp4), source_hash="h",
+                                global_style="末日", frame_rate=24.0,
+                                segments=[SegmentScore(0, 0.0, 2.0)])
+
+    def fake_prepare_session(mp4_arg, style, work_dir, **kwargs):
+        captured["dialogue_segments"] = kwargs.get("dialogue_segments")
+        return fake_sess
+
+    import sound_track_agent.facade as fac
+    monkeypatch.setattr(fac, "load_session", lambda wd: None)
+    monkeypatch.setattr(fac, "prepare_session", fake_prepare_session)
+    monkeypatch.setattr(fac, "advance",
+                        lambda sess, wd, **kw: sess)
+
+    task = {"id": "t1", "name": "测试", "mp4": str(mp4), "style": "末日",
+            "workflow_id": "wf", "output_dir": ""}
+    editor = SoundtrackEditor(task, cfg, tmp_path)
+    editor._run_pipeline("refine_segments")
+    # 等待异步 worker 线程完成
+    if editor._worker is not None:
+        editor._worker.wait(5000)
+
+    assert captured["dialogue_segments"] is not None
+    assert len(captured["dialogue_segments"]) == 1
+    assert captured["dialogue_segments"][0] == DialogueSegment(
+        audio_path="/x/d.flac", t_start=0.0, duration=1.0)
+
+
+def test_editor_no_dialogue_segments_when_no_match(tmp_path, monkeypatch):
+    """cfg.video_tasks 无匹配时不应传 dialogue_segments（=None，走 Demucs 回退）。"""
+    _app()
+    from drama_shot_master.ui.widgets.soundtrack_editor import SoundtrackEditor
+    from sound_track_agent.session import ScoringSession, SegmentScore
+
+    mp4 = tmp_path / "ep.mp4"; mp4.write_bytes(b"x")
+    cfg = _cfg(tmp_path)
+    cfg.video_tasks = [{"last_result": "/x/other.mp4", "timeline": {}}]
+
+    captured = {"dialogue_segments": "<unset>"}
+    fake_sess = ScoringSession(source_mp4=str(mp4), source_hash="h",
+                                global_style="末日", frame_rate=24.0,
+                                segments=[SegmentScore(0, 0.0, 2.0)])
+
+    def fake_prepare_session(mp4_arg, style, work_dir, **kwargs):
+        captured["dialogue_segments"] = kwargs.get("dialogue_segments", "<unset>")
+        return fake_sess
+
+    import sound_track_agent.facade as fac
+    monkeypatch.setattr(fac, "load_session", lambda wd: None)
+    monkeypatch.setattr(fac, "prepare_session", fake_prepare_session)
+    monkeypatch.setattr(fac, "advance",
+                        lambda sess, wd, **kw: sess)
+
+    task = {"id": "t1", "name": "测试", "mp4": str(mp4), "style": "末日",
+            "workflow_id": "wf", "output_dir": ""}
+    editor = SoundtrackEditor(task, cfg, tmp_path)
+    editor._run_pipeline("refine_segments")
+    # 等待异步 worker 线程完成
+    if editor._worker is not None:
+        editor._worker.wait(5000)
+    assert captured["dialogue_segments"] is None
+
+
+def test_resegment_button_resets_flag_and_runs_refine(tmp_path, monkeypatch):
+    """重排按钮：有候选 → 弹确认 + 清空候选 + segments_refined=False + 跑 refine。"""
+    _app()
+    from drama_shot_master.ui.widgets.soundtrack_editor import SoundtrackEditor
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, BGMCandidate, EmotionTag,
+    )
+    from PySide6.QtWidgets import QMessageBox
+
+    mp4 = tmp_path / "ep.mp4"; mp4.write_bytes(b"x")
+    cfg = _cfg(tmp_path)
+    task = {"id": "t1", "name": "测试", "mp4": str(mp4), "style": "末日",
+            "workflow_id": "wf", "output_dir": ""}
+    editor = SoundtrackEditor(task, cfg, tmp_path)
+
+    seg = SegmentScore(0, 0.0, 2.0)
+    seg.status = "generated"
+    seg.candidates = [BGMCandidate(path="/b.mp3", seed=1, prompt="t")]
+    seg.chosen_candidate = 0
+    seg.music_prompt = "x"
+    seg.emotion = EmotionTag()
+    sess = ScoringSession(source_mp4=str(mp4), source_hash="h",
+                          global_style="末日", frame_rate=24.0,
+                          segments=[seg])
+    sess.segments_refined = True
+    editor._session = sess
+
+    monkeypatch.setattr(QMessageBox, "warning",
+                        lambda *a, **k: QMessageBox.Yes)
+    captured = {"stop_after": None}
+    monkeypatch.setattr(editor, "_run_pipeline",
+                        lambda stop_after: captured.__setitem__("stop_after", stop_after))
+
+    editor._on_resegment()
+
+    assert sess.segments_refined is False
+    assert sess.segments[0].candidates == []
+    assert sess.segments[0].chosen_candidate is None
+    assert sess.segments[0].music_prompt == ""
+    assert sess.segments[0].emotion is None
+    assert sess.segments[0].status == "pending"
+    assert captured["stop_after"] == "refine_segments"
+
+
+def test_resegment_button_warns_when_no_session(tmp_path):
+    """没 session 时点重排按钮 → 提示，不抛。"""
+    _app()
+    from unittest.mock import patch
+    from drama_shot_master.ui.widgets.soundtrack_editor import SoundtrackEditor
+    from PySide6.QtWidgets import QMessageBox
+
+    cfg = _cfg(tmp_path)
+    task = {"id": "t1", "name": "测试", "mp4": str(tmp_path / "ep.mp4"),
+            "style": "末日", "workflow_id": "wf", "output_dir": ""}
+    editor = SoundtrackEditor(task, cfg, tmp_path)
+    editor._session = None
+
+    with patch.object(QMessageBox, "warning") as warn:
+        editor._on_resegment()
+        warn.assert_called_once()
