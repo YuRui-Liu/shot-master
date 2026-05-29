@@ -146,3 +146,26 @@ def test_detached_size_threaded_to_window():
     page.pop_out()
     win = page._detached["a"]
     assert (win.width(), win.height()) == (720, 780)
+
+
+def test_task_workspace_has_collapsible_bar():
+    _app()
+    from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
+    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
+
+    class _ManagerWithRail(_FakeManager):
+        from PySide6.QtCore import Signal as _Signal
+        icon_rail_updated = _Signal()
+        def icon_rail_items(self): return []
+
+    mgr = _ManagerWithRail()
+    page = TaskWorkspacePage(
+        manager=mgr,
+        editor_factory=lambda task: _FakeEditor(),
+        wire_editor=lambda ed, task: None,
+        payload_of=lambda ed: ed.payload,
+        on_persist=lambda tid, p: None,
+        title_for=lambda task: f"任务 · {task.name}",
+    )
+    assert hasattr(page, "_task_bar")
+    assert isinstance(page._task_bar, CollapsibleTaskBar)

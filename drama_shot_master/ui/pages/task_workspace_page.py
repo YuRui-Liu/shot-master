@@ -45,10 +45,18 @@ class TaskWorkspacePage(QWidget):
 
     def _build_ui(self):
         splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(self.manager)
-        # 任务列表宽度区间锁定：详情编辑器再宽也不能挤占它，避免最右"状态"列被裁
-        self.manager.setMinimumWidth(290)
-        self.manager.setMaximumWidth(300)
+        from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
+        self._task_bar = CollapsibleTaskBar(
+            self.manager, splitter, manager_index=0, expanded_width=290)
+        self._task_bar.setMinimumWidth(40)
+        splitter.addWidget(self._task_bar)
+        if hasattr(self.manager, "icon_rail_updated"):
+            self.manager.icon_rail_updated.connect(
+                lambda: self._task_bar._icon_rail.refresh(
+                    self.manager.icon_rail_items()))
+        self._task_bar._icon_rail.item_clicked.connect(
+            lambda iid: self.manager.select_by_id(iid)
+            if hasattr(self.manager, "select_by_id") else None)
 
         right = QWidget()
         rv = QVBoxLayout(right)
