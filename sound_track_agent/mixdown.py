@@ -50,7 +50,9 @@ def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
                      extract_audio_fn=None,
                      duck_and_mix_fn=None,
                      replace_video_audio_fn=None,
-                     duration_of=None) -> str:
+                     duration_of=None,
+                     sfx_session=None,
+                     sfx_ducking_db: float = -6.0) -> str:
     """段 BGM 拼接 → 卡点对齐+泵感（跳过对齐爆点） → 装对白轨(或 Demucs) →
     ducking → 写回视频。所有 I/O 可注入（测试用）。"""
     # 默认值引用模块级名称，使 monkeypatch 仍然生效
@@ -110,9 +112,81 @@ def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
     mixed = _duck_and_mix(vocals, full_bgm, work_dir / "mixed.wav",
                           target_lufs=target_lufs)
 
+    # Phase 4a: SFX 层接入
+    if sfx_session is not None:
+        mixed = _post_mix_sfx_layer(
+            mixed, sfx_session.shots,
+            float(sfx_ducking_db), work_dir)
+
     out_video = work_dir / (Path(video_path).stem + "_scored.mp4")
     _replace_video_audio(video_path, mixed, out_video)
     return str(out_video)
+
+
+# ---------------------------------------------------------------------------
+# Phase 4a SFX 层：assemble_sfx_track + sidechain ducking
+# ---------------------------------------------------------------------------
+
+
+def assemble_sfx_track(sfx_shots, out_path):
+    """收集 enabled+chosen 的 SFX，按 t_start adelay 后 amix。
+
+    空（无可用 SFX）→ 返回 None，调用方应跳过 SFX 混音步骤。
+    """
+    cues = [(s.t_start, s.candidates[s.chosen_candidate].path, float(s.volume))
+            for s in sfx_shots
+            if s.enabled and s.chosen_candidate is not None
+            and 0 <= s.chosen_candidate < len(s.candidates)
+            and s.candidates[s.chosen_candidate].path]
+    if not cues:
+        return None
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["ffmpeg", "-y"]
+    for _t, p, _v in cues:
+        cmd += ["-i", str(p)]
+    parts = []
+    inputs_labels = []
+    for i, (t, _p, vol) in enumerate(cues):
+        delay_ms = max(0, int(round(t * 1000)))
+        parts.append(
+            f"[{i}:a]adelay={delay_ms}|{delay_ms},volume={vol:.3f}[s{i}]")
+        inputs_labels.append(f"[s{i}]")
+    mix = "".join(inputs_labels) + f"amix=inputs={len(cues)}:duration=longest:normalize=0[mix]"
+    filter_complex = ";".join(parts + [mix])
+    cmd += ["-filter_complex", filter_complex,
+            "-map", "[mix]", "-c:a", "pcm_s16le", str(out_path)]
+    subprocess.run(cmd, check=False, capture_output=True)
+    return out_path if out_path.exists() else None
+
+
+def duck_bgm_for_sfx(bgm_path, sfx_path, out_path, *, ducking_db: float = -6.0):
+    """SFX 触发，BGM 被压缩 ducking_db。"""
+    out_path = Path(out_path)
+    makeup = max(0.0, -float(ducking_db))
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(bgm_path),
+        "-i", str(sfx_path),
+        "-filter_complex",
+        f"[0:a][1:a]sidechaincompress=threshold=0.05:ratio=4:"
+        f"attack=20:release=200:makeup={makeup}[duck];"
+        f"[duck][1:a]amix=inputs=2:duration=first:normalize=0[mix]",
+        "-map", "[mix]", "-c:a", "pcm_s16le", str(out_path),
+    ]
+    subprocess.run(cmd, check=False, capture_output=True)
+    return out_path
+
+
+def _post_mix_sfx_layer(mixed_path, sfx_shots, ducking_db: float, work_dir):
+    """mix 完成后追加 SFX 层 + ducking。返回最终 mixed path（可能就是输入路径，如果无 SFX）。"""
+    sfx_track = assemble_sfx_track(sfx_shots, Path(work_dir) / "sfx_track.wav")
+    if sfx_track is None:
+        return mixed_path
+    return duck_bgm_for_sfx(
+        Path(mixed_path), sfx_track,
+        Path(work_dir) / "mixed_with_sfx.wav",
+        ducking_db=ducking_db)
 
 
 def extract_frames_at(video_path, times: list[float], out_dir, *,
