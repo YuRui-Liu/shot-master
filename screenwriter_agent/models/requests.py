@@ -122,3 +122,17 @@ class VideoPromptReq(BaseModel):
     model: str | None = None
     reasoning_effort: str = "high"
     creds: LLMCreds | None = None
+
+
+class AudioPromptOptions(BaseModel):
+    language: str = "zh"
+    include_bgm_tags: bool = True
+
+
+class AudioPromptReq(BaseModel):
+    project_dir: str
+    episode_id: str = Field(..., pattern=r"^E[1-9]\d*$")
+    options: AudioPromptOptions = Field(default_factory=AudioPromptOptions)
+    model: str | None = None
+    reasoning_effort: str = "high"
+    creds: LLMCreds | None = None

@@ -11,7 +11,7 @@ def test_builtin_ids_set():
     assert set(tl.BUILTIN_IDS) == {"ideate", "script", "script_outline",
                                    "script_episode", "storyboard",
                                    "character_ref", "grid_prompt",
-                                   "video_prompt"}
+                                   "video_prompt", "voice_design", "sfx_cues"}
 
 
 def test_load_builtin_returns_text(tmp_path, monkeypatch):
