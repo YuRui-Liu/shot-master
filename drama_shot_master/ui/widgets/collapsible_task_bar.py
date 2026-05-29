@@ -82,3 +82,61 @@ class _RailBadge(QWidget):
         if event.button() == Qt.LeftButton:
             self.clicked.emit(self._item.item_id)
         super().mousePressEvent(event)
+
+
+# ── _IconRail ──────────────────────────────────────────────────────────────
+
+class _IconRail(QWidget):
+    """固定 40px 宽的图标轨：顶部 ▶ 展开按钮 + 下方徽章列表。"""
+
+    expand_clicked = Signal()
+    item_clicked = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedWidth(40)
+        self._badges: list[_RailBadge] = []
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 4, 0, 4)
+        layout.setSpacing(0)
+
+        self._expand_btn = QPushButton("▶")
+        self._expand_btn.setFixedSize(40, 28)
+        self._expand_btn.setToolTip("展开任务栏")
+        self._expand_btn.setObjectName("iconRailExpandBtn")
+        self._expand_btn.clicked.connect(self.expand_clicked)
+        layout.addWidget(self._expand_btn)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        self._scroll = scroll
+
+        container = QWidget()
+        self._badge_layout = QVBoxLayout(container)
+        self._badge_layout.setContentsMargins(0, 2, 0, 2)
+        self._badge_layout.setSpacing(0)
+        self._badge_layout.addStretch(1)
+        scroll.setWidget(container)
+        layout.addWidget(scroll, 1)
+
+    def refresh(self, items: list[IconRailItem]) -> None:
+        for badge in self._badges:
+            self._badge_layout.removeWidget(badge)
+            badge.deleteLater()
+        self._badges.clear()
+
+        for item in items:
+            badge = _RailBadge(item)
+            badge.clicked.connect(self.item_clicked)
+            self._badge_layout.insertWidget(
+                self._badge_layout.count() - 1, badge)
+            self._badges.append(badge)
+
+    def badge_count(self) -> int:
+        return len(self._badges)
