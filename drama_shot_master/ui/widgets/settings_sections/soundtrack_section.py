@@ -111,6 +111,37 @@ class SoundtrackSection(QWidget):
         weights_wrap.setLayout(weights_row)
         form.addRow("候选打分权重", weights_wrap)
 
+        # === Phase 4a SFX 层配置 ===
+
+        self.sfx_workflow_edit = QLineEdit()
+        self.sfx_workflow_edit.setPlaceholderText("Stable Audio 3 / RunningHub workflow id")
+        form.addRow("SFX Workflow ID", self.sfx_workflow_edit)
+
+        self.sfx_frames_combo = QComboBox()
+        self.sfx_frames_combo.addItems(["1", "3", "5"])
+        form.addRow("SFX 检测抽帧数", self.sfx_frames_combo)
+
+        self.sfx_concurrency_spin = QSpinBox()
+        self.sfx_concurrency_spin.setRange(1, 10)
+        form.addRow("SFX 并发上限", self.sfx_concurrency_spin)
+
+        self.sfx_volume_spin = QDoubleSpinBox()
+        self.sfx_volume_spin.setRange(0.0, 1.5)
+        self.sfx_volume_spin.setSingleStep(0.05)
+        self.sfx_volume_spin.setDecimals(2)
+        form.addRow("SFX 默认音量", self.sfx_volume_spin)
+
+        self.sfx_ducking_spin = QDoubleSpinBox()
+        self.sfx_ducking_spin.setRange(-20.0, 0.0)
+        self.sfx_ducking_spin.setSingleStep(0.5)
+        self.sfx_ducking_spin.setDecimals(1)
+        self.sfx_ducking_spin.setSuffix(" dB")
+        form.addRow("SFX 触发 BGM 衰减", self.sfx_ducking_spin)
+
+        self.sfx_seeds_spin = QSpinBox()
+        self.sfx_seeds_spin.setRange(1, 5)
+        form.addRow("SFX 单镜候选数", self.sfx_seeds_spin)
+
         root.addLayout(form)
         root.addStretch(1)
 
@@ -148,6 +179,18 @@ class SoundtrackSection(QWidget):
         self.w_health.setValue(float(w.get("health", 0.5)))
         self.w_headroom.setValue(float(w.get("headroom", 0.3)))
         self.w_beat.setValue(float(w.get("beat", 0.2)))
+        self.sfx_workflow_edit.setText(
+            str(getattr(cfg, "sfx_workflow_id", "") or ""))
+        self.sfx_frames_combo.setCurrentText(
+            str(int(getattr(cfg, "sfx_plan_frames_per_shot", 3))))
+        self.sfx_concurrency_spin.setValue(
+            int(getattr(cfg, "sfx_max_concurrency", 3)))
+        self.sfx_volume_spin.setValue(
+            float(getattr(cfg, "sfx_default_volume", 0.8)))
+        self.sfx_ducking_spin.setValue(
+            float(getattr(cfg, "sfx_ducking_db", -6.0)))
+        self.sfx_seeds_spin.setValue(
+            int(getattr(cfg, "sfx_seeds_count", 1)))
 
     def save_to(self, cfg):
         cfg.update_settings(
@@ -169,6 +212,12 @@ class SoundtrackSection(QWidget):
                 "beat": float(self.w_beat.value()),
             },
             soundtrack_fade_out=bool(self.fade_out_check.isChecked()),
+            sfx_workflow_id=self.sfx_workflow_edit.text().strip(),
+            sfx_plan_frames_per_shot=int(self.sfx_frames_combo.currentText()),
+            sfx_max_concurrency=self.sfx_concurrency_spin.value(),
+            sfx_default_volume=float(self.sfx_volume_spin.value()),
+            sfx_ducking_db=float(self.sfx_ducking_spin.value()),
+            sfx_seeds_count=self.sfx_seeds_spin.value(),
         )
 
     def validate(self):
