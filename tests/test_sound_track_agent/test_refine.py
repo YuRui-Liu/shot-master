@@ -1,6 +1,7 @@
 from pathlib import Path
+import pytest
 
-from sound_track_agent.refine import refine_segments
+from sound_track_agent.refine import _times_for_shot, refine_segments
 from sound_track_agent.segment_planner import Shot
 from sound_track_agent.session import (
     ScoringSession, SegmentScore, EmotionTag, BGMCandidate,
@@ -129,3 +130,57 @@ def test_refine_safety_gate_when_session_has_music_prompt(tmp_path):
     assert ok is False
     assert sess.segments == original_segs
     assert sess.segments[0].music_prompt == "Instrumental tense"
+
+
+def test_times_for_shot_short_shot_returns_single_mid():
+    """duration ≤ 0.1s 永远退化单帧 mid，无论 frames_per_shot 是几。"""
+    shot = Shot(index=0, t_start=1.000, t_end=1.050)   # 50ms
+    assert _times_for_shot(shot, frames_per_shot=3) == [1.025]
+    assert _times_for_shot(shot, frames_per_shot=5) == [1.025]
+
+
+def test_times_for_shot_one_returns_mid_only():
+    shot = Shot(index=0, t_start=0.0, t_end=4.0)
+    assert _times_for_shot(shot, frames_per_shot=1) == [2.0]
+
+
+def test_times_for_shot_three_returns_start_mid_end():
+    shot = Shot(index=0, t_start=0.0, t_end=4.0)
+    times = _times_for_shot(shot, frames_per_shot=3)
+    assert times == [0.05, 2.0, 3.95]
+
+
+def test_times_for_shot_five_returns_start_q_mid_q_end():
+    shot = Shot(index=0, t_start=0.0, t_end=4.0)
+    times = _times_for_shot(shot, frames_per_shot=5)
+    # mid=2.0, q=(2.0-0.0)/2=1.0
+    assert times == [0.05, 1.0, 2.0, 3.0, 3.95]
+
+
+def test_times_for_shot_invalid_raises():
+    shot = Shot(index=0, t_start=0.0, t_end=4.0)
+    with pytest.raises(ValueError):
+        _times_for_shot(shot, frames_per_shot=2)
+    with pytest.raises(ValueError):
+        _times_for_shot(shot, frames_per_shot=0)
+
+
+def test_refine_segments_passes_frames_per_shot_to_extract(tmp_path):
+    """注入 frames_per_shot=5，断言 extract_frames 收到 5 个时间点。"""
+    sess = ScoringSession(source_mp4=str(tmp_path / "ep.mp4"), source_hash="h",
+                          global_style="末日", frame_rate=24.0,
+                          segments=[SegmentScore(index=0, t_start=0.0, t_end=2.0)])
+    captured = {"times_lens": []}
+
+    def fake_extract(v, times, out_dir):
+        captured["times_lens"].append(len(times))
+        return [Path(out_dir) / f"f{i}.png" for i in range(len(times))]
+
+    refine_segments(
+        sess, video_path=tmp_path / "ep.mp4", work_dir=tmp_path / "w",
+        provider=None, global_style="末日",
+        frames_per_shot=5,
+        detect=lambda v: [Shot(0, 0.0, 4.0)],
+        extract_frames=fake_extract,
+        tag_fn=lambda paths: EmotionTag())
+    assert captured["times_lens"] == [5]

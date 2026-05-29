@@ -21,14 +21,32 @@ log = logging.getLogger(__name__)
 _MIN_MULTIFRAME_DUR = 0.1
 
 
+def _times_for_shot(shot, frames_per_shot: int) -> list[float]:
+    """按 frames_per_shot 出抽帧时间点；duration ≤ _MIN_MULTIFRAME_DUR 永远退化单帧 mid。
+
+    frames_per_shot 必须 ∈ {1, 3, 5}，否则抛 ValueError。
+    """
+    duration = shot.t_end - shot.t_start
+    mid = (shot.t_start + shot.t_end) / 2.0
+    if duration <= _MIN_MULTIFRAME_DUR or frames_per_shot == 1:
+        return [mid]
+    if frames_per_shot == 3:
+        return [shot.t_start + 0.05, mid, shot.t_end - 0.05]
+    if frames_per_shot == 5:
+        q = (mid - shot.t_start) / 2.0
+        return [shot.t_start + 0.05, mid - q, mid, mid + q, shot.t_end - 0.05]
+    raise ValueError(f"frames_per_shot 必须为 1/3/5（收到 {frames_per_shot}）")
+
+
 def refine_segments(session: ScoringSession, *, video_path, work_dir,
                     provider, global_style: str,
                     max_segments: int = 5,
                     merge_threshold: float = 0.25,
+                    frames_per_shot: int = 3,
                     detect: Optional[Callable] = None,
                     extract_frames: Optional[Callable] = None,
                     tag_fn: Optional[Callable] = None) -> bool:
-    """1. 重检镜头 2. per-shot 抽 3 帧（极短 shot 退化单帧） 3. 测情绪
+    """1. 重检镜头 2. per-shot 抽帧（可配 frames_per_shot=1/3/5；极短 shot 退化单帧） 3. 测情绪
        4. 邻接聚合 5. 替换 session.segments。
 
     返回 True=成功重排（pipeline 据此置 segments_refined）；
@@ -60,12 +78,7 @@ def refine_segments(session: ScoringSession, *, video_path, work_dir,
         # 2-3. per-shot 抽帧 + 测情绪
         emotions = []
         for i, shot in enumerate(shots):
-            mid = (shot.t_start + shot.t_end) / 2.0
-            duration = shot.t_end - shot.t_start
-            if duration <= _MIN_MULTIFRAME_DUR:
-                times = [mid]
-            else:
-                times = [shot.t_start + 0.05, mid, shot.t_end - 0.05]
+            times = _times_for_shot(shot, frames_per_shot)
             shot_dir = work_dir / f"shot{i}"
             frame_paths = extract_frames(video_path, times, shot_dir)
             emotions.append(tag_fn(frame_paths))
