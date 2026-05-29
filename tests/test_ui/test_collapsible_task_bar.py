@@ -188,3 +188,50 @@ def test_toggle_switches_state():
     assert bar.is_collapsed()
     bar.toggle()
     assert not bar.is_collapsed()
+
+
+# ── Bug fix: 折叠按钮"《"被遮挡（方案A：右移 8px + 强制置顶）────────────────
+
+def test_collapse_btn_right_margin_clears_splitter_handle():
+    """折叠按钮距 expanded_page 右边缘应有 8px（离开 splitter handle，不被挤压）。"""
+    _app()
+    from PySide6.QtCore import QSize
+    from PySide6.QtGui import QResizeEvent
+    from PySide6.QtWidgets import QSplitter, QWidget
+    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
+    stub = _StubManager()
+    right = QWidget()
+    splitter = QSplitter()
+    bar = CollapsibleTaskBar(stub, splitter, manager_index=0, expanded_width=280)
+    splitter.addWidget(bar)
+    splitter.addWidget(right)
+    splitter.resize(800, 600)
+    splitter.setSizes([280, 520])
+    btn = bar._collapse_btn
+    page = btn.parent()
+    # 直接触发 expanded_page 的 resize 处理
+    page.resizeEvent(QResizeEvent(QSize(280, 600), QSize(0, 0)))
+    right_gap = 280 - (btn.x() + btn.width())
+    assert right_gap == 8, f"右边距应为 8px，实际 {right_gap}px"
+
+
+def test_collapse_btn_raised_on_show():
+    """showEvent 后折叠按钮应被 raise_ 置顶（z-order 在最上层）。"""
+    _app()
+    from PySide6.QtWidgets import QSplitter, QWidget
+    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
+    stub = _StubManager()
+    right = QWidget()
+    splitter = QSplitter()
+    bar = CollapsibleTaskBar(stub, splitter, manager_index=0, expanded_width=280)
+    splitter.addWidget(bar)
+    splitter.addWidget(right)
+    splitter.resize(800, 600)
+    splitter.setSizes([280, 520])
+    btn = bar._collapse_btn
+    page = btn.parent()
+    from PySide6.QtGui import QShowEvent
+    page.showEvent(QShowEvent())
+    # raise_ 后 btn 应是 page 子控件中 z-order 最高（children 列表末尾）
+    widget_children = [c for c in page.children() if isinstance(c, QWidget)]
+    assert widget_children[-1] is btn, "折叠按钮应在 z-order 顶层"

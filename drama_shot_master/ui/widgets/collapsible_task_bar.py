@@ -208,12 +208,23 @@ class CollapsibleTaskBar(QWidget):
         self._stack.addWidget(self._icon_rail)  # index 1
         root.addWidget(self._stack)
 
+        self._expanded_page = expanded_page
         expanded_page.resizeEvent = self._on_expanded_page_resize
+        expanded_page.showEvent = self._on_expanded_page_show
+
+    _COLLAPSE_BTN_MARGIN = 8   # 距右边缘像素：离开 splitter handle，防被挤压
+
+    def _position_collapse_btn(self, width: int) -> None:
+        self._collapse_btn.move(
+            width - self._collapse_btn.width() - self._COLLAPSE_BTN_MARGIN, 4)
+        self._collapse_btn.raise_()   # 始终置顶，防被管理器刷新的内容盖住
 
     def _on_expanded_page_resize(self, event):
-        w = event.size().width()
-        self._collapse_btn.move(w - self._collapse_btn.width() - 2, 4)
-        self._collapse_btn.raise_()
+        self._position_collapse_btn(event.size().width())
+
+    def _on_expanded_page_show(self, event):
+        # show 时（含每次展开）重新定位 + 置顶，防内容动态刷新后被遮挡
+        self._position_collapse_btn(self._expanded_page.width())
 
     def is_collapsed(self) -> bool:
         return self._is_collapsed
