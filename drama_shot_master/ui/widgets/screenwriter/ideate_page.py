@@ -435,6 +435,16 @@ class IdeatePage(_BaseStagePage):
             self._worker = None
             self._state = "idle"
             self._exit_streaming_view()
+            # 防御：流结束但没收到任何 delta（agent LLM 返回空 → idea.json
+            # 不会被写或写出空 candidates）。当作错误，让 retry banner 提示
+            buf = self._buf_by_project.get(proj, "")
+            if not buf.strip():
+                self._on_stream_failed(
+                    "LLM 返回空响应（最常见原因：API key 未配置或鉴权失败）。"
+                    "请在 [设置] → [平台核心 / 编剧] 填 LLM API key，"
+                    "保存后重启程序。",
+                    project_dir_str)
+                return
             # 重读 idea.json（Agent 已落盘 + 解析候选）
             idea_path = proj / "idea.json"
             if idea_path.is_file():

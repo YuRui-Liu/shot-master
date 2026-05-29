@@ -30,11 +30,19 @@ def main() -> int:
     # 实际端口写回 cfg，再把同一个 cfg 实例传给 AppShell ——这样 ScreenwriterPanel
     # 从 cfg.screenwriter_agent_port 取端口能命中真实监听。
     print("[main] starting screenwriter_agent subprocess...")
-    lifecycle = ScreenwriterLifecycle(base_port=_early_cfg.screenwriter_agent_port)
+    lifecycle = ScreenwriterLifecycle(
+        base_port=_early_cfg.screenwriter_agent_port, cfg=_early_cfg)
     actual_port = lifecycle.spawn()
     _early_cfg.screenwriter_agent_port = actual_port
+    has_key = bool(_early_cfg.screenwriter_llm_api_key or any(
+        (p or {}).get("api_key")
+        for p in (_early_cfg.llm_providers or {}).values()))
     if lifecycle.is_alive():
-        print(f"[main] screenwriter_agent listening on :{actual_port}")
+        print(f"[main] screenwriter_agent listening on :{actual_port}; "
+              f"LLM key configured: {has_key}")
+        if not has_key:
+            print("[main] WARNING: 编剧 LLM API key 未配置 → "
+                  "agent 会收到请求但 LLM 调用空返回。请在 [设置] → [平台核心 / 编剧] 填入 key")
     else:
         print("[main] WARNING: screenwriter_agent subprocess died during spawn; "
               "check ~/.drama_shot_master/logs/screenwriter_agent.log")

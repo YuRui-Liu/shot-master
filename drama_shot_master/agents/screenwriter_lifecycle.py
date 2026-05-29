@@ -11,9 +11,11 @@ from pathlib import Path
 class ScreenwriterLifecycle:
     """单例：主软件启动时 spawn agent；退出时 terminate。"""
 
-    def __init__(self, base_port: int = 18430, log_dir: Path | None = None):
+    def __init__(self, base_port: int = 18430, log_dir: Path | None = None,
+                 cfg=None):
         self.base_port = base_port
         self.port = base_port
+        self._cfg = cfg                     # 主软件 Config 实例（取 LLM 凭据）
         self._proc: subprocess.Popen | None = None
         self._log_dir = log_dir or (Path.home() / ".drama_shot_master" / "logs")
         self._log_dir.mkdir(parents=True, exist_ok=True)
@@ -28,6 +30,27 @@ class ScreenwriterLifecycle:
         log_path = self._log_dir / "screenwriter_agent.log"
         log_f = open(log_path, "ab")
         env = os.environ.copy()
+        # 把主软件 cfg 的 LLM 凭据/平台配置注入 agent 子进程环境
+        # ——agent 的 routes/ideate.py 等 handler 从 env 读 API_KEY / BASE_URL
+        if self._cfg is not None:
+            api_key = getattr(self._cfg, "screenwriter_llm_api_key", "") or ""
+            base_url = getattr(self._cfg, "screenwriter_llm_base_url", "") or ""
+            if api_key:
+                env["SCREENWRITER_LLM_API_KEY"] = api_key
+            if base_url:
+                env["SCREENWRITER_LLM_BASE_URL"] = base_url
+            # 兼容旧字段：若空，回退到 llm_providers["deepseek"] 等条目
+            if not api_key or not base_url:
+                providers = getattr(self._cfg, "llm_providers", {}) or {}
+                # 优先 deepseek（agent 默认 base_url 即 deepseek）
+                for pname in ("deepseek", "doubao", "openai"):
+                    p = providers.get(pname) or {}
+                    if not env.get("SCREENWRITER_LLM_API_KEY") and p.get("api_key"):
+                        env["SCREENWRITER_LLM_API_KEY"] = p["api_key"]
+                    if not env.get("SCREENWRITER_LLM_BASE_URL") and p.get("base_url"):
+                        env["SCREENWRITER_LLM_BASE_URL"] = p["base_url"]
+                    if env.get("SCREENWRITER_LLM_API_KEY") and env.get("SCREENWRITER_LLM_BASE_URL"):
+                        break
         self._proc = subprocess.Popen(
             [sys.executable, "-m", "screenwriter_agent",
              "--port", str(self.base_port)],
