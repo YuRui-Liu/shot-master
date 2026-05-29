@@ -8,25 +8,24 @@ def _app():
     return QApplication.instance() or QApplication([])
 
 
-def test_panel_constructs(tmp_path):
-    _app()
-    cfg = type("C", (), {"screenwriter_project_root": str(tmp_path),
-                         "screenwriter_models": {}})()
-    panel = ScreenwriterPanel(cfg=cfg, client=None, lifecycle=None)
-    # 必备控件
-    assert hasattr(panel, "table")
-    assert hasattr(panel, "btn_new")
-    assert hasattr(panel, "btn_open")
-    assert hasattr(panel, "btn_del")
-    assert hasattr(panel, "wizard")          # QStackedWidget
-    assert panel.wizard.count() == 4         # 4 阶段
+class _Cfg:
+    screenwriter_projects = []
+    screenwriter_project_root = ""
+    screenwriter_agent_port = 18999
 
 
-def test_panel_table_cols(tmp_path):
+def test_panel_constructs():
     _app()
-    cfg = type("C", (), {"screenwriter_project_root": str(tmp_path),
-                         "screenwriter_models": {}})()
-    panel = ScreenwriterPanel(cfg=cfg, client=None, lifecycle=None)
-    hdr = panel.table.horizontalHeaderItem
+    panel = ScreenwriterPanel(_Cfg())
+    assert hasattr(panel, "_task_manager")
+    assert hasattr(panel, "_wizard_host")
+    assert hasattr(panel, "_task_bar")
+    assert panel._wizard_host._stack.count() == 4   # 4 阶段（Phase 2 后扩展为 6）
+
+
+def test_panel_table_cols():
+    _app()
+    panel = ScreenwriterPanel(_Cfg())
+    hdr = panel._task_manager._table.horizontalHeaderItem
     assert hdr(0).text() == "名称"
     assert hdr(1).text() == "状态"
