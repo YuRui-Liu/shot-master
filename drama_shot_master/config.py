@@ -126,6 +126,14 @@ class Config:
     soundtrack_fade_out: bool = False                # ACE-Step prompt 末尾 [Quick smooth fade out] 标记开关；
                                                      # 开启会让 BGM 末尾约 25% 衰减到静音，默认关闭以保住完整段长。
 
+    # Phase 4a: SFX 音效层
+    sfx_workflow_id: str = "2060218796413112321"        # Stable Audio 3 / RunningHub
+    sfx_plan_frames_per_shot: int = 3                   # event_planner 抽帧数 1/3/5
+    sfx_max_concurrency: int = 3                        # 并发提交上限
+    sfx_default_volume: float = 0.8                     # 单条 SFX 默认音量（让对白突出）
+    sfx_ducking_db: float = -6.0                        # SFX 触发时 BGM 衰减分贝
+    sfx_seeds_count: int = 1                            # 单镜默认候选数
+
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
         for k, v in kwargs.items():
@@ -195,6 +203,12 @@ class Config:
                 "soundtrack_max_concurrency": self.soundtrack_max_concurrency,
                 "soundtrack_score_weights": self.soundtrack_score_weights,
                 "soundtrack_fade_out": self.soundtrack_fade_out,
+                "sfx_workflow_id": self.sfx_workflow_id,
+                "sfx_plan_frames_per_shot": self.sfx_plan_frames_per_shot,
+                "sfx_max_concurrency": self.sfx_max_concurrency,
+                "sfx_default_volume": self.sfx_default_volume,
+                "sfx_ducking_db": self.sfx_ducking_db,
+                "sfx_seeds_count": self.sfx_seeds_count,
             }
             self.settings_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
@@ -389,6 +403,19 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.soundtrack_score_weights = dict(data["soundtrack_score_weights"])
                 if "soundtrack_fade_out" in data:
                     cfg.soundtrack_fade_out = bool(data["soundtrack_fade_out"])
+                for fld, caster in [
+                    ("sfx_workflow_id", str),
+                    ("sfx_plan_frames_per_shot", int),
+                    ("sfx_max_concurrency", int),
+                    ("sfx_default_volume", float),
+                    ("sfx_ducking_db", float),
+                    ("sfx_seeds_count", int),
+                ]:
+                    if fld in data:
+                        try:
+                            setattr(cfg, fld, caster(data[fld]))
+                        except (TypeError, ValueError):
+                            pass
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass
 
