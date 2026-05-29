@@ -11,7 +11,7 @@ from pathlib import Path
 # 每个 LLM 平台的"通用入门"模型名（用户没在 [编剧] 阶段配 model 时兜底）。
 # 这些名字保证在对应平台真实存在，不会被 400 model not found 而无声吞掉。
 _PROVIDER_DEFAULT_MODELS = {
-    "deepseek": "deepseek-chat",       # DeepSeek V3 chat
+    "deepseek": "deepseek-v4-flash",   # DeepSeek 当前主推模型
     "doubao":   "doubao-1-5-thinking-pro-250415",
     "openai":   "gpt-4o-mini",
 }

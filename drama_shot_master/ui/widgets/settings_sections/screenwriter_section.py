@@ -27,13 +27,12 @@ from screenwriter_agent.templates import template_loader as tl
 
 
 # 阶段 key → (显示名, 默认 provider, 默认 model)
-# 用 DeepSeek 真实存在的模型；deepseek-v4-flash 是占位名，API 端不存在，
-# 会被 DeepSeek 直接返 400 unknown model（详见 https://api-docs.deepseek.com）
+# 默认用 DeepSeek 当前主推的 V4 模型（见 deepseek.com 官方定价页）。
 _STAGES = (
-    ("ideate",     "创意",     "deepseek", "deepseek-chat"),
-    ("script",     "剧本",     "deepseek", "deepseek-chat"),
-    ("storyboard", "分镜",     "deepseek", "deepseek-chat"),
-    ("prompts",    "提示词",   "deepseek", "deepseek-chat"),
+    ("ideate",     "创意",     "deepseek", "deepseek-v4-flash"),
+    ("script",     "剧本",     "deepseek", "deepseek-v4-flash"),
+    ("storyboard", "分镜",     "deepseek", "deepseek-v4-flash"),
+    ("prompts",    "提示词",   "deepseek", "deepseek-v4-flash"),
 )
 
 # QToolBox 页：(页标题, [(tid, 编辑器标签或 None)])

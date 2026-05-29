@@ -63,6 +63,9 @@ async def ideate_chat(req: IdeateChatReq, request: Request):
              or cfg.default_models.get("ideate"))
 
     async def gen():
+        import logging
+        import traceback
+        log = logging.getLogger("screenwriter_agent.ideate")
         from screenwriter_agent.core.llm_client import LLMClient
         # 优先 per-stage（注入自主软件 stage_assignments + llm_providers），
         # 回退 SCREENWRITER_LLM_*（legacy 单全局），最后默认 DeepSeek base_url
@@ -71,6 +74,8 @@ async def ideate_chat(req: IdeateChatReq, request: Request):
         base_url = (os.environ.get("SCREENWRITER_IDEATE_BASE_URL")
                     or os.environ.get("SCREENWRITER_LLM_BASE_URL",
                                        "https://api.deepseek.com"))
+        log.warning("[ideate] start: model=%r base_url=%r key_set=%s",
+                     model, base_url, bool(api_key))
         try:
             yield sse_event("status", {"phase": "thinking"})
             tpl_text, _src = load_template("ideate", project_dir=project_dir)
@@ -112,10 +117,13 @@ async def ideate_chat(req: IdeateChatReq, request: Request):
                 yield sse_event("done", {"saved": None,
                                           "result": {"raw_text": raw, "warnings": []}})
         except Exception as e:
+            tb = traceback.format_exc()
+            log.error("[ideate] LLM call failed: model=%r base_url=%r\n%s",
+                       model, base_url, tb)
             yield sse_event("error", {
                 "code": "INTERNAL_ERROR",
-                "message": str(e),
-                "hint": "出了点意外，再试一次或换模型。"})
+                "message": f"{type(e).__name__}: {e}",
+                "hint": "看 ~/.drama_shot_master/logs/screenwriter_agent.log 末尾 traceback"})
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 

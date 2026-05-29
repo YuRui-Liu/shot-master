@@ -92,14 +92,14 @@ class Config:
     screenwriter_agent_port: int = 18430
     screenwriter_llm_api_key: str = ""
     screenwriter_llm_base_url: str = "https://api.deepseek.com"
-    # 默认全部用 DeepSeek 真实存在的模型；用户在 [设置→编剧] 可改。
-    # 之前默认是 doubao-1-5-thinking-pro / deepseek-v4-flash 等
-    # "看起来真实但不存在"的名字，DeepSeek 端收到必返 400 unknown model。
+    # 默认用 DeepSeek 当前主推的 V4 模型（参考 deepseek.com 官方定价页）。
+    # deepseek-v4-flash: 快速非思考；deepseek-v4-pro: 推理思考。
+    # 旧名 deepseek-chat / deepseek-reasoner 仍可用但官方计划弃用。
     screenwriter_models: dict[str, str] = field(default_factory=lambda: {
-        "ideate":     "deepseek-chat",
-        "script":     "deepseek-chat",
-        "storyboard": "deepseek-chat",
-        "prompts":    "deepseek-chat",
+        "ideate":     "deepseek-v4-flash",
+        "script":     "deepseek-v4-flash",
+        "storyboard": "deepseek-v4-flash",
+        "prompts":    "deepseek-v4-flash",
     })
     screenwriter_project_root: str = ""    # 默认空，UI 提示选目录
     # 编剧阶段映射：{"ideate":{"provider":"deepseek","model":"deepseek-chat"}, ...}
