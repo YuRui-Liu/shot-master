@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Iterable, Iterator
 
+import httpx
+
 
 def parse_sse_lines(lines: Iterable[str]) -> Iterator[dict]:
     """把 SSE 文本（按行）解析为 {event, data:dict} 序列。"""
@@ -51,10 +53,12 @@ class ScreenwriterClient:
                              "selected_id": selected_id}, timeout=5.0)
         return r.json()
 
-    def stream_post(self, path: str, body: dict) -> Iterator[dict]:
-        """POST + SSE 流；yield {event,data} dict。"""
-        import httpx
+    def stream_post(self, path: str, body: dict,
+                    params: dict | None = None) -> Iterator[dict]:
+        """POST + SSE 流；yield {event,data} dict。
+        params: 可选 query 参数（如 {"purge_downstream":"true"}）。"""
         with httpx.Client(timeout=None) as c:
-            with c.stream("POST", f"{self.base_url}{path}", json=body) as resp:
+            with c.stream("POST", f"{self.base_url}{path}",
+                          json=body, params=params or {}) as resp:
                 resp.raise_for_status()
                 yield from parse_sse_lines(resp.iter_lines())
