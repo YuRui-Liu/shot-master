@@ -205,3 +205,25 @@ def test_stage_advance_target_with_existing_output_skips_auto_gen(tmp_path):
     # ScriptPage.start_generation_if_idle 应自检：剧本.md 存在 → 不调 _on_generate
     # 但 panel 仍调它（page 自己决定 skip）；测的是 panel 在切换后调了
     assert called == [True]
+
+
+def test_legacy_project_prompts_migration(tmp_path, monkeypatch):
+    """选中旧项目（剧本.md + no 剧本.json）→ 弹迁移对话框 → 点[是] → 自动迁移。"""
+    _app()
+    pA = tmp_path / "Legacy"; pA.mkdir()
+    (pA / "创意.json").write_text("{}", encoding="utf-8")
+    (pA / "剧本.md").write_text("# legacy script", encoding="utf-8")
+    cfg = _StubCfg(projects=[str(pA)])
+
+    import drama_shot_master.ui.panels.screenwriter_panel as m
+    monkeypatch.setattr(m.QMessageBox, "question",
+                         staticmethod(lambda *a, **k: m.QMessageBox.Yes))
+
+    panel = ScreenwriterPanel(cfg)
+    panel._task_manager._table.selectRow(0)
+    panel._task_manager._on_selection_changed()
+
+    # 迁移后：剧本.json 存在 + 剧本_E1.md 存在 + 旧 剧本.md 已重命名
+    assert (pA / "剧本.json").is_file()
+    assert (pA / "剧本_E1.md").is_file()
+    assert not (pA / "剧本.md").is_file()

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QSplitter,
+    QWidget, QHBoxLayout, QSplitter, QMessageBox,
 )
 
 from drama_shot_master.agents.screenwriter_client import ScreenwriterClient
@@ -72,6 +72,8 @@ class ScreenwriterPanel(QWidget):
                 pg.stageAdvanceRequested.connect(self._on_stage_advance_requested)
 
     def _on_task_selected(self, path: Path | None) -> None:
+        if path is not None:
+            self._migrate_legacy_if_needed(path)
         # 统一切换：先全员 try_release，全 OK 才推进
         for pg in self._pages:
             if hasattr(pg, "try_release") and not pg.try_release():
@@ -82,6 +84,44 @@ class ScreenwriterPanel(QWidget):
             if hasattr(pg, "set_project"):
                 pg.set_project(path)
         self._last_selected = path
+
+    def _migrate_legacy_if_needed(self, project_dir: Path) -> None:
+        """检测旧版单集结构（剧本.md 存在 + 剧本.json 不存在），询问是否迁移。"""
+        si = project_dir / "剧本.json"
+        legacy_md = project_dir / "剧本.md"
+        if si.is_file() or not legacy_md.is_file():
+            return
+        ans = QMessageBox.question(
+            self, "检测到旧版单集剧本",
+            f"项目 {project_dir.name} 为旧版单集结构。\n"
+            "是否迁移为多集结构？\n\n"
+            "[是] = 自动建 剧本.json（1 集）+ 重命名 剧本.md → 剧本_E1.md\n"
+            "[否] = 保持只读浏览",
+            QMessageBox.Yes | QMessageBox.No)
+        if ans != QMessageBox.Yes:
+            return
+        import json as _j
+        md_text = legacy_md.read_text(encoding="utf-8")
+        title = project_dir.name
+        for line in md_text.splitlines():
+            if line.startswith("# "):
+                title = line[2:].strip()
+                break
+        si_data = {
+            "title": title,
+            "episode_count": 1,
+            "selected_episode": "E1",
+            "episodes": [{"id": "E1", "title": title, "summary": ""}],
+            "input": {},
+            "updated_at": "",
+        }
+        si.write_text(_j.dumps(si_data, ensure_ascii=False, indent=2),
+                      encoding="utf-8")
+        target = project_dir / "剧本_E1.md"
+        legacy_md.rename(target)
+        legacy_sb = project_dir / "分镜.json"
+        if legacy_sb.is_file():
+            legacy_sb.rename(project_dir / "分镜_E1.json")
 
     def _restore_selection(self) -> None:
         """try_release 拒绝时，把表格选择还原到 _last_selected。"""
