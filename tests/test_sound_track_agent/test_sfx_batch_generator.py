@@ -17,15 +17,19 @@ def _make_session():
 
 
 def _make_fake_client(tmp_path):
+    """模拟真实 RunningHubClient 契约：query_task → {status, results:[{url}]}。"""
     client = MagicMock()
     client.create_task.side_effect = lambda **kw: f"tid-{id(kw)}"
-    client.get_task_status.return_value = {"status": "SUCCESS"}
     counter = {"i": 0}
-    def fake_outputs(_tid):
+    def fake_query(_tid):
         counter["i"] += 1
-        return [{"fileType": "mp3",
-                 "fileUrl": f"https://x/{counter['i']}.mp3"}]
-    client.get_task_outputs.side_effect = fake_outputs
+        return {"status": "SUCCESS",
+                "results": [{"url": f"https://x/{counter['i']}.mp3",
+                             "outputType": "mp3"}]}
+    client.query_task.side_effect = fake_query
+    # 真实 client 无此二方法；显式删除避免 MagicMock 自动伪造掩盖回归
+    del client.get_task_status
+    del client.get_task_outputs
     def fake_download(url, dest):
         Path(dest).write_bytes(b"audio")
     client.download_file.side_effect = fake_download

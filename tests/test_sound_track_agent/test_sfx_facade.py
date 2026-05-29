@@ -56,9 +56,11 @@ def test_generate_sfx_all_writes_session_after(tmp_path, monkeypatch):
     ])
     fake_client = MagicMock()
     fake_client.create_task.return_value = "tid"
-    fake_client.get_task_status.return_value = {"status": "SUCCESS"}
-    fake_client.get_task_outputs.return_value = [
-        {"fileType": "mp3", "fileUrl": "https://x/y.mp3"}]
+    fake_client.query_task.return_value = {
+        "status": "SUCCESS",
+        "results": [{"url": "https://x/y.mp3", "outputType": "mp3"}]}
+    del fake_client.get_task_status
+    del fake_client.get_task_outputs
     fake_client.download_file.side_effect = lambda u, d: Path(d).write_bytes(b"a")
     monkeypatch.setattr(
         "sound_track_agent.sfx.facade._build_client",
@@ -78,9 +80,11 @@ def test_regenerate_sfx_one(tmp_path, monkeypatch):
     ])
     fake_client = MagicMock()
     fake_client.create_task.return_value = "tid"
-    fake_client.get_task_status.return_value = {"status": "SUCCESS"}
-    fake_client.get_task_outputs.return_value = [
-        {"fileType": "mp3", "fileUrl": "https://x/new.mp3"}]
+    fake_client.query_task.return_value = {
+        "status": "SUCCESS",
+        "results": [{"url": "https://x/new.mp3", "outputType": "mp3"}]}
+    del fake_client.get_task_status
+    del fake_client.get_task_outputs
     fake_client.download_file.side_effect = lambda u, d: Path(d).write_bytes(b"a")
     monkeypatch.setattr(
         "sound_track_agent.sfx.facade._build_client",

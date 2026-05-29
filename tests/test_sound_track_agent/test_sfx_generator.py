@@ -4,58 +4,91 @@ from unittest.mock import MagicMock
 from sound_track_agent.sfx.generator import _wait_success, generate_sfx
 
 
-def test_wait_success_returns_url_when_success():
-    client = MagicMock()
-    client.get_task_status.return_value = {"status": "SUCCESS"}
-    client.get_task_outputs.return_value = [
-        {"fileType": "mp3", "fileUrl": "https://x/y.mp3"}
-    ]
+class _RealContractClient:
+    """模拟真实 RunningHubClient 契约：仅暴露 query_task/create_task/download_file。
+
+    刻意 **不** 提供 get_task_status/get_task_outputs —— 调用不存在的方法会
+    AttributeError，从而复现 generator 用错 API 的真实 bug（MagicMock 会
+    自动伪造任何方法，掩盖该 bug）。
+    """
+
+    def __init__(self, query_results):
+        self._query_results = list(query_results)
+        self._i = 0
+        self.created = []
+        self.downloaded = []
+
+    def create_task(self, *, workflow_id, node_info_list):
+        self.created.append((workflow_id, node_info_list))
+        return "tid-123"
+
+    def query_task(self, task_id):
+        r = self._query_results[min(self._i, len(self._query_results) - 1)]
+        self._i += 1
+        return r
+
+    def download_file(self, url, dest):
+        from pathlib import Path
+        Path(dest).write_bytes(b"audio-bytes")
+        self.downloaded.append((url, str(dest)))
+        return dest
+
+
+def test_wait_success_uses_query_task_real_contract():
+    """_wait_success 必须用 query_task（真实 client 契约），SUCCESS 时取 results[0].url。"""
+    client = _RealContractClient([
+        {"status": "RUNNING", "results": None},
+        {"status": "SUCCESS",
+         "results": [{"url": "https://x/y.mp3", "outputType": "mp3"}]},
+    ])
     url = _wait_success(client, "tid", timeout=10.0,
                         poll_interval=0.1, sleep=lambda _s: None)
     assert url == "https://x/y.mp3"
 
 
-def test_wait_success_raises_on_failure():
-    client = MagicMock()
-    client.get_task_status.return_value = {"status": "FAILED", "msg": "oom"}
-    with pytest.raises(RuntimeError, match="failed"):
+def test_wait_success_raises_on_failed_real_contract():
+    client = _RealContractClient([
+        {"status": "FAILED", "errorMessage": "oom", "results": None},
+    ])
+    with pytest.raises(RuntimeError):
         _wait_success(client, "tid", timeout=10.0,
                       poll_interval=0.1, sleep=lambda _s: None)
 
 
-def test_wait_success_raises_on_timeout(monkeypatch):
-    client = MagicMock()
-    client.get_task_status.return_value = {"status": "RUNNING"}
-    import time as _t
-    t = [0.0]
-    monkeypatch.setattr(_t, "time", lambda: t[0])
-    def _sleep(_s):
-        t[0] += 100
-    with pytest.raises(TimeoutError):
-        _wait_success(client, "tid", timeout=1.0,
-                      poll_interval=0.5, sleep=_sleep)
-
-
-def test_generate_sfx_e2e_with_mock(tmp_path):
-    client = MagicMock()
-    client.create_task.return_value = "tid-123"
-    client.get_task_status.return_value = {"status": "SUCCESS"}
-    client.get_task_outputs.return_value = [
-        {"fileType": "mp3", "fileUrl": "https://x/y.mp3"}
-    ]
-    def fake_download(url, dest):
-        from pathlib import Path
-        Path(dest).write_bytes(b"audio-bytes")
-    client.download_file.side_effect = fake_download
+def test_generate_sfx_e2e_real_contract(tmp_path):
+    client = _RealContractClient([
+        {"status": "SUCCESS",
+         "results": [{"url": "https://x/y.mp3", "outputType": "mp3"}]},
+    ])
     out = tmp_path / "out.mp3"
     result = generate_sfx(client, "wf-sfx", prompt="门吱呀", duration=3.0,
                           seed=1, out_path=out, poll_interval=0.1,
                           sleep=lambda _s: None)
     assert result.exists()
     assert result.read_bytes() == b"audio-bytes"
-    # 验证 create_task 收到了 4 个节点
-    args = client.create_task.call_args
-    assert args.kwargs["workflow_id"] == "wf-sfx"
-    nodes = args.kwargs["node_info_list"]
+    wf, nodes = client.created[0]
+    assert wf == "wf-sfx"
     assert len(nodes) == 4
+
+
+def test_wait_success_raises_on_timeout():
+    """RUNNING 永不结束 → TimeoutError。"""
+    client = _RealContractClient([{"status": "RUNNING", "results": None}])
+    with pytest.raises(TimeoutError):
+        _wait_success(client, "tid", timeout=1.0,
+                      poll_interval=0.5, sleep=lambda _s: None)
+
+
+def test_generate_sfx_passes_prompt_node():
+    """create_task node_info 含 prompt 节点（92）。"""
+    client = _RealContractClient([
+        {"status": "SUCCESS",
+         "results": [{"url": "https://x/y.mp3", "outputType": "mp3"}]},
+    ])
+    import tempfile, os
+    out = os.path.join(tempfile.mkdtemp(), "out.mp3")
+    generate_sfx(client, "wf-sfx", prompt="门吱呀", duration=3.0,
+                 seed=1, out_path=out, poll_interval=0.1,
+                 sleep=lambda _s: None)
+    _wf, nodes = client.created[0]
     assert any(n["nodeId"] == "92" and n["fieldValue"] == "门吱呀" for n in nodes)

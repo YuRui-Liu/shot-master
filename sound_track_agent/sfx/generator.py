@@ -15,22 +15,30 @@ from sound_track_agent.sfx.prompt_composer import _node_info
 def _wait_success(client, task_id: str, *, timeout: float = 600.0,
                   poll_interval: float = 5.0,
                   sleep: Callable = _time.sleep) -> str:
-    """轮询任务直到 SUCCESS → 返回 audio fileUrl；FAIL → RuntimeError；超时 → TimeoutError。"""
-    deadline = _time.time() + timeout
-    while _time.time() < deadline:
-        status = client.get_task_status(task_id) or {}
-        st = str(status.get("status", "")).upper()
+    """轮询任务直到 SUCCESS → 返回首个结果 url；FAIL → RuntimeError；超时 → TimeoutError。
+
+    用 RunningHubClient.query_task（与 BGM music_generator 同契约）：
+    返回扁平 dict {status, results, errorMessage}，SUCCESS 时 results 为
+    [{url, outputType}, ...]。早期版本误用 get_task_status/get_task_outputs
+    （client 无此方法）→ AttributeError 被批量生成的失败隔离吞掉 → 远程已
+    生成但本地 0 候选。
+    """
+    waited = 0.0
+    while True:
+        d = client.query_task(task_id) or {}
+        st = str(d.get("status", "")).upper()
         if st == "SUCCESS":
-            outputs = client.get_task_outputs(task_id) or []
-            for out in outputs:
-                if str(out.get("fileType", "")).lower() in ("mp3", "wav", "audio"):
-                    return out["fileUrl"]
-            raise RuntimeError(
-                f"task {task_id} succeeded but no audio in outputs: {outputs}")
+            results = d.get("results") or []
+            if not results:
+                raise RuntimeError(f"task {task_id} SUCCESS 但无 results")
+            return results[0]["url"]
         if st in ("FAILED", "ERROR"):
-            raise RuntimeError(f"task {task_id} failed: {status}")
+            raise RuntimeError(
+                f"task {task_id} failed: {d.get('errorMessage', '')}")
+        if waited >= timeout:
+            raise TimeoutError(f"task {task_id} timeout after {timeout}s")
         sleep(poll_interval)
-    raise TimeoutError(f"task {task_id} timeout after {timeout}s")
+        waited += poll_interval
 
 
 def generate_sfx(client, workflow_id: str, *, prompt: str, duration: float,
