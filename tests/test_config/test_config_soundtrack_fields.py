@@ -40,3 +40,18 @@ def test_load_config_reads_persisted_values(tmp_path):
     assert cfg.accent_max_stretch == 0.15
     assert cfg.soundtrack_max_concurrency == 6
     assert cfg.soundtrack_score_weights == {"health": 0.6, "headroom": 0.2, "beat": 0.2}
+
+
+def test_new_fields_update_settings_roundtrip(tmp_path):
+    """完整往返：update_settings 写盘 → load_config 读盘 → 字段保留。"""
+    sp = tmp_path / "settings.json"
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    cfg.update_settings(
+        refine_frames_per_shot=5,
+        refine_merge_threshold=0.40,
+        soundtrack_score_weights={"health": 0.6, "headroom": 0.2, "beat": 0.2},
+    )
+    cfg2 = load_config(env_path=tmp_path / ".env", settings_path=sp)
+    assert cfg2.refine_frames_per_shot == 5
+    assert abs(cfg2.refine_merge_threshold - 0.40) < 1e-9
+    assert cfg2.soundtrack_score_weights == {"health": 0.6, "headroom": 0.2, "beat": 0.2}
