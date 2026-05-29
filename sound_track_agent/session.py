@@ -88,6 +88,8 @@ class SegmentScore:
     status: Status = "pending"
     volume: float = 1.0
     next_seed: int = 1
+    user_edited: bool = False        # 4c: 用户在 DAW 里改过 t_start/t_end/prompt 时设 True
+    disabled: bool = False           # 4c: DeleteCue 软删标记
 
     @property
     def duration(self) -> float:
@@ -106,6 +108,8 @@ class SegmentScore:
             "status": self.status,
             "volume": self.volume,
             "next_seed": self.next_seed,
+            "user_edited": self.user_edited,
+            "disabled": self.disabled,
         }
 
     @classmethod
@@ -123,6 +127,8 @@ class SegmentScore:
             status=d.get("status", "pending"),
             volume=float(d.get("volume", 1.0)),
             next_seed=int(d.get("next_seed", 1)),
+            user_edited=bool(d.get("user_edited", False)),
+            disabled=bool(d.get("disabled", False)),
         )
 
 
