@@ -36,7 +36,9 @@ async def storyboard(req: StoryboardReq, request: Request):
                       "hint": "请先在「剧本」步生成剧本。"}})
 
     cfg = request.app.state.cfg
-    model = req.model or cfg.default_models.get("storyboard")
+    model = (req.model
+             or os.environ.get("SCREENWRITER_STORYBOARD_MODEL")
+             or cfg.default_models.get("storyboard"))
 
     async def gen():
         try:
@@ -54,9 +56,11 @@ async def storyboard(req: StoryboardReq, request: Request):
                       + "**只输出一个 JSON 代码块**。")
             messages = [{"role": "user", "content": prompt}]
 
-            api_key = os.environ.get("SCREENWRITER_LLM_API_KEY", "")
-            base_url = os.environ.get("SCREENWRITER_LLM_BASE_URL",
-                                      "https://api.deepseek.com")
+            api_key = (os.environ.get("SCREENWRITER_STORYBOARD_API_KEY")
+                       or os.environ.get("SCREENWRITER_LLM_API_KEY", ""))
+            base_url = (os.environ.get("SCREENWRITER_STORYBOARD_BASE_URL")
+                        or os.environ.get("SCREENWRITER_LLM_BASE_URL",
+                                           "https://api.deepseek.com"))
             client = LLMClient(api_key=api_key, base_url=base_url, model=model,
                                reasoning_effort=req.reasoning_effort,
                                response_format={"type": "json_object"})

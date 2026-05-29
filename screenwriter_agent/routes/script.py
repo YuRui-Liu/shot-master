@@ -53,7 +53,9 @@ async def script(req: ScriptReq, request: Request):
                       "hint": ""}})
 
     cfg = request.app.state.cfg
-    model = req.model or cfg.default_models.get("script")
+    model = (req.model
+             or os.environ.get("SCREENWRITER_SCRIPT_MODEL")
+             or cfg.default_models.get("script"))
 
     async def gen():
         try:
@@ -71,9 +73,11 @@ async def script(req: ScriptReq, request: Request):
                       + f"language_style={opts['language_style']}\n")
             messages = [{"role": "user", "content": prompt}]
 
-            api_key = os.environ.get("SCREENWRITER_LLM_API_KEY", "")
-            base_url = os.environ.get("SCREENWRITER_LLM_BASE_URL",
-                                      "https://api.deepseek.com")
+            api_key = (os.environ.get("SCREENWRITER_SCRIPT_API_KEY")
+                       or os.environ.get("SCREENWRITER_LLM_API_KEY", ""))
+            base_url = (os.environ.get("SCREENWRITER_SCRIPT_BASE_URL")
+                        or os.environ.get("SCREENWRITER_LLM_BASE_URL",
+                                           "https://api.deepseek.com"))
             client = LLMClient(api_key=api_key, base_url=base_url, model=model,
                                reasoning_effort=req.reasoning_effort)
 

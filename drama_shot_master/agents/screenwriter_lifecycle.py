@@ -30,27 +30,45 @@ class ScreenwriterLifecycle:
         log_path = self._log_dir / "screenwriter_agent.log"
         log_f = open(log_path, "ab")
         env = os.environ.copy()
-        # 把主软件 cfg 的 LLM 凭据/平台配置注入 agent 子进程环境
-        # ——agent 的 routes/ideate.py 等 handler 从 env 读 API_KEY / BASE_URL
+        # 把主软件 cfg 的 LLM 凭据/平台/per-stage 配置注入 agent 子进程环境。
+        # agent 的 4 个 route（ideate/script/storyboard/prompts）按 stage 读
+        # SCREENWRITER_{STAGE}_API_KEY / _BASE_URL / _MODEL；若 stage 级 env
+        # 为空则回退到 SCREENWRITER_LLM_*（向后兼容）
         if self._cfg is not None:
-            api_key = getattr(self._cfg, "screenwriter_llm_api_key", "") or ""
-            base_url = getattr(self._cfg, "screenwriter_llm_base_url", "") or ""
-            if api_key:
-                env["SCREENWRITER_LLM_API_KEY"] = api_key
-            if base_url:
-                env["SCREENWRITER_LLM_BASE_URL"] = base_url
-            # 兼容旧字段：若空，回退到 llm_providers["deepseek"] 等条目
-            if not api_key or not base_url:
-                providers = getattr(self._cfg, "llm_providers", {}) or {}
-                # 优先 deepseek（agent 默认 base_url 即 deepseek）
+            providers = getattr(self._cfg, "llm_providers", {}) or {}
+            stage_assigns = getattr(self._cfg, "screenwriter_stage_assignments", {}) or {}
+            # legacy 全局凭据
+            legacy_key = getattr(self._cfg, "screenwriter_llm_api_key", "") or ""
+            legacy_url = getattr(self._cfg, "screenwriter_llm_base_url", "") or ""
+            if legacy_key:
+                env["SCREENWRITER_LLM_API_KEY"] = legacy_key
+            if legacy_url:
+                env["SCREENWRITER_LLM_BASE_URL"] = legacy_url
+            # 全局兜底：若 legacy 无，从第一个有 key 的 provider 取
+            if "SCREENWRITER_LLM_API_KEY" not in env or "SCREENWRITER_LLM_BASE_URL" not in env:
                 for pname in ("deepseek", "doubao", "openai"):
                     p = providers.get(pname) or {}
-                    if not env.get("SCREENWRITER_LLM_API_KEY") and p.get("api_key"):
+                    if p.get("api_key") and "SCREENWRITER_LLM_API_KEY" not in env:
                         env["SCREENWRITER_LLM_API_KEY"] = p["api_key"]
-                    if not env.get("SCREENWRITER_LLM_BASE_URL") and p.get("base_url"):
+                    if p.get("base_url") and "SCREENWRITER_LLM_BASE_URL" not in env:
                         env["SCREENWRITER_LLM_BASE_URL"] = p["base_url"]
-                    if env.get("SCREENWRITER_LLM_API_KEY") and env.get("SCREENWRITER_LLM_BASE_URL"):
+                    if "SCREENWRITER_LLM_API_KEY" in env and "SCREENWRITER_LLM_BASE_URL" in env:
                         break
+            # 每个 stage 的 per-stage 注入（provider + model + api_key + base_url）
+            for stage in ("ideate", "script", "storyboard", "prompts"):
+                assign = stage_assigns.get(stage) or {}
+                pname = assign.get("provider") or ""
+                model = assign.get("model") or ""
+                upper = stage.upper()
+                if pname:
+                    env[f"SCREENWRITER_{upper}_PROVIDER"] = pname
+                    p = providers.get(pname) or {}
+                    if p.get("api_key"):
+                        env[f"SCREENWRITER_{upper}_API_KEY"] = p["api_key"]
+                    if p.get("base_url"):
+                        env[f"SCREENWRITER_{upper}_BASE_URL"] = p["base_url"]
+                if model:
+                    env[f"SCREENWRITER_{upper}_MODEL"] = model
         self._proc = subprocess.Popen(
             [sys.executable, "-m", "screenwriter_agent",
              "--port", str(self.base_port)],

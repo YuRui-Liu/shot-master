@@ -440,9 +440,13 @@ class IdeatePage(_BaseStagePage):
             buf = self._buf_by_project.get(proj, "")
             if not buf.strip():
                 self._on_stream_failed(
-                    "LLM 返回空响应（最常见原因：API key 未配置或鉴权失败）。"
-                    "请在 [设置] → [平台核心 / 编剧] 填 LLM API key，"
-                    "保存后重启程序。",
+                    "LLM 返回空响应。检查（按概率排序）：\n"
+                    "1) [设置 → 编剧] 是否给『创意』阶段选了平台 + 模型名\n"
+                    "   （比如 deepseek + deepseek-chat / deepseek-reasoner）\n"
+                    "2) 模型名是否在所选平台真实存在（DeepSeek 列表：\n"
+                    "   https://api-docs.deepseek.com/zh-cn/api/list-models）\n"
+                    "3) 改完设置后需重启程序，agent 才能拿到新 env\n"
+                    "4) 看 ~/.drama_shot_master/logs/screenwriter_agent.log 末尾",
                     project_dir_str)
                 return
             # 重读 idea.json（Agent 已落盘 + 解析候选）

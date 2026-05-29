@@ -34,15 +34,20 @@ def main() -> int:
         base_port=_early_cfg.screenwriter_agent_port, cfg=_early_cfg)
     actual_port = lifecycle.spawn()
     _early_cfg.screenwriter_agent_port = actual_port
-    has_key = bool(_early_cfg.screenwriter_llm_api_key or any(
-        (p or {}).get("api_key")
-        for p in (_early_cfg.llm_providers or {}).values()))
+    # 打印 per-stage 解析结果（不打 key 内容，只打是否有 + 模型名 + 平台名），
+    # 让用户直观看出哪一阶段配置缺失。
     if lifecycle.is_alive():
-        print(f"[main] screenwriter_agent listening on :{actual_port}; "
-              f"LLM key configured: {has_key}")
-        if not has_key:
-            print("[main] WARNING: 编剧 LLM API key 未配置 → "
-                  "agent 会收到请求但 LLM 调用空返回。请在 [设置] → [平台核心 / 编剧] 填入 key")
+        print(f"[main] screenwriter_agent listening on :{actual_port}")
+        stage_assigns = getattr(_early_cfg, "screenwriter_stage_assignments", {}) or {}
+        providers = getattr(_early_cfg, "llm_providers", {}) or {}
+        for stage in ("ideate", "script", "storyboard", "prompts"):
+            a = stage_assigns.get(stage) or {}
+            pname = a.get("provider", "")
+            model = a.get("model", "")
+            pkey_ok = bool((providers.get(pname) or {}).get("api_key")) if pname else False
+            marker = "OK" if (pname and model and pkey_ok) else "缺"
+            print(f"[main]   stage={stage:10s} provider={pname or '(空)':10s} "
+                  f"model={model or '(空)':40s} key={'有' if pkey_ok else '无'}  [{marker}]")
     else:
         print("[main] WARNING: screenwriter_agent subprocess died during spawn; "
               "check ~/.drama_shot_master/logs/screenwriter_agent.log")

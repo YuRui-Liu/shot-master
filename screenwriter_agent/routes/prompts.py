@@ -38,13 +38,17 @@ async def prompts(req: PromptsReq, request: Request):
                       "message": "分镜.json parse failed", "hint": ""}})
 
     cfg = request.app.state.cfg
-    model = req.model or cfg.default_models.get("prompts")
+    model = (req.model
+             or os.environ.get("SCREENWRITER_PROMPTS_MODEL")
+             or cfg.default_models.get("prompts"))
 
     async def gen():
         try:
-            api_key = os.environ.get("SCREENWRITER_LLM_API_KEY", "")
-            base_url = os.environ.get("SCREENWRITER_LLM_BASE_URL",
-                                      "https://api.deepseek.com")
+            api_key = (os.environ.get("SCREENWRITER_PROMPTS_API_KEY")
+                       or os.environ.get("SCREENWRITER_LLM_API_KEY", ""))
+            base_url = (os.environ.get("SCREENWRITER_PROMPTS_BASE_URL")
+                        or os.environ.get("SCREENWRITER_LLM_BASE_URL",
+                                           "https://api.deepseek.com"))
             client = LLMClient(api_key=api_key, base_url=base_url, model=model,
                                reasoning_effort=req.reasoning_effort)
             opts = req.options.model_dump()
