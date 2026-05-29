@@ -125,5 +125,29 @@ class ScreenwriterClient:
         with httpx.Client(timeout=None) as c:
             with c.stream("POST", f"{self.base_url}{path}",
                           json=body, params=params or {}) as resp:
-                resp.raise_for_status()
+                if resp.status_code >= 400:
+                    raise RuntimeError(self._format_error(resp))
                 yield from parse_sse_lines(resp.iter_lines())
+
+    @staticmethod
+    def _format_error(resp) -> str:
+        """从错误响应提取 agent 结构化错误体（code/message/hint），
+        拼成可读消息。流式响应须先 read() 才能取 body。"""
+        try:
+            resp.read()
+        except Exception:
+            pass
+        detail = ""
+        try:
+            err = resp.json()
+            e = err.get("error", {}) if isinstance(err, dict) else {}
+            parts = [str(p) for p in (e.get("code", ""),
+                                      e.get("message", ""),
+                                      e.get("hint", "")) if p]
+            detail = " · ".join(parts)
+        except Exception:
+            try:
+                detail = (resp.text or "")[:500]
+            except Exception:
+                detail = ""
+        return f"Agent {resp.status_code}: {detail or '(无错误详情)'}"
