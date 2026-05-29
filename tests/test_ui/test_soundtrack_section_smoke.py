@@ -1,4 +1,7 @@
 """SoundtrackSection 6 个新控件存在 + load_from/save_to cfg 往返。"""
+import os
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
 from PySide6.QtWidgets import QApplication
 
