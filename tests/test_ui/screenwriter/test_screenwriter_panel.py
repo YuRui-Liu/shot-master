@@ -1,0 +1,101 @@
+"""ScreenwriterPanel 装配的端到端测试。"""
+import os
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from pathlib import Path
+
+from PySide6.QtWidgets import QApplication
+
+from drama_shot_master.ui.panels.screenwriter_panel import ScreenwriterPanel
+
+
+def _app():
+    return QApplication.instance() or QApplication([])
+
+
+class _StubCfg:
+    def __init__(self, projects=None, root=""):
+        self.screenwriter_projects = list(projects or [])
+        self.screenwriter_project_root = root
+        self.screenwriter_agent_port = 18999
+        self.screenwriter_stage_assignments = {}
+        self.screenwriter_llm_api_key = ""
+        self.screenwriter_llm_base_url = ""
+        self.llm_providers = {}
+        self._saved = {}
+
+    def update_settings(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
+        self._saved.update(kw)
+
+
+def test_panel_builds_with_splitter_and_4_pages():
+    _app()
+    panel = ScreenwriterPanel(_StubCfg())
+    assert panel._task_manager is not None
+    assert panel._wizard_host is not None
+    assert panel._wizard_host._stack.count() == 4
+
+
+def test_task_selection_propagates_to_all_pages(tmp_path):
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    cfg = _StubCfg(projects=[str(pA)])
+    panel = ScreenwriterPanel(cfg)
+    # 模拟用户选第 0 行
+    panel._task_manager._table.selectRow(0)
+    panel._task_manager._on_selection_changed()
+    # 4 个 page 的 _project_dir 都应是 pA
+    for i in range(4):
+        page = panel._wizard_host._stack.widget(i)
+        # PromptsPage placeholder 可能是 QLabel，没有 _project_dir
+        if hasattr(page, "_project_dir"):
+            assert page._project_dir == pA
+
+
+def test_stage_stepper_unconditional_switch():
+    _app()
+    panel = ScreenwriterPanel(_StubCfg())
+    panel._wizard_host.set_stage(2)
+    assert panel._wizard_host._stack.currentIndex() == 2
+    panel._wizard_host.set_stage(0)
+    assert panel._wizard_host._stack.currentIndex() == 0
+
+
+def test_dirty_page_blocks_task_switch(tmp_path):
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    pB = tmp_path / "B"; pB.mkdir()
+    cfg = _StubCfg(projects=[str(pA), str(pB)])
+    panel = ScreenwriterPanel(cfg)
+    # 先选 A
+    panel._task_manager._table.selectRow(0)
+    panel._task_manager._on_selection_changed()
+    # 注入：让所有 page 的 try_release 返 False
+    for i in range(4):
+        page = panel._wizard_host._stack.widget(i)
+        if hasattr(page, "try_release"):
+            page.try_release = lambda: False  # type: ignore
+    # 试着切到 B
+    panel._task_manager._table.selectRow(1)
+    panel._task_manager._on_selection_changed()
+    # 各 page 的 _project_dir 仍是 pA（切换被拒）
+    for i in range(4):
+        page = panel._wizard_host._stack.widget(i)
+        if hasattr(page, "_project_dir"):
+            assert page._project_dir == pA
+
+
+def test_active_worker_query_aggregates_across_pages(tmp_path):
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    cfg = _StubCfg(projects=[str(pA)])
+    panel = ScreenwriterPanel(cfg)
+    # 默认无 worker → False
+    assert panel._any_page_streaming(pA) is False
+    # 给 IdeatePage 注入 mock
+    page = panel._wizard_host._stack.widget(0)
+    class _W:
+        def isRunning(self): return True
+    page._workers[pA] = _W()
+    assert panel._any_page_streaming(pA) is True
