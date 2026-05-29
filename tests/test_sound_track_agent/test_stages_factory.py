@@ -115,3 +115,25 @@ def test_build_stages_no_refine_when_video_path_none(tmp_path):
         global_style="末日", seeds=[1],
         frame_provider=lambda seg: tmp_path / "f.png")
     assert stages.refine_segments is None
+
+
+def test_build_stages_threads_refine_frames_per_shot(tmp_path, monkeypatch):
+    """build_stages 收到 refine_frames_per_shot=5 → refine 闭包调 refine_segments 时也用 5。"""
+    captured = {"frames_per_shot": None}
+
+    def fake_refine_segments(sess, **kwargs):
+        captured["frames_per_shot"] = kwargs.get("frames_per_shot")
+        return True
+
+    import sound_track_agent.refine as refine_mod
+    monkeypatch.setattr(refine_mod, "refine_segments", fake_refine_segments)
+
+    stages = build_stages(
+        provider=None, client=None, workflow_id="wf", work_dir=tmp_path,
+        global_style="末日", seeds=[1],
+        frame_provider=lambda seg: tmp_path / "f.png",
+        video_path=tmp_path / "ep.mp4",
+        refine_frames_per_shot=5)
+    assert stages.refine_segments is not None
+    stages.refine_segments(None)        # 触发闭包
+    assert captured["frames_per_shot"] == 5

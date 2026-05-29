@@ -86,6 +86,7 @@ def _build_real_stages(cfg, workflow_id, work_dir, global_style,
         video_path=video_path,
         refine_max_segments=int(getattr(cfg, "refine_max_segments", 5)),
         refine_merge_threshold=float(getattr(cfg, "refine_merge_threshold", 0.25)),
+        refine_frames_per_shot=int(getattr(cfg, "refine_frames_per_shot", 3)),
     )
 
 

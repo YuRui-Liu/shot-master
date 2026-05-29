@@ -20,6 +20,7 @@ def build_stages(*, provider, client, workflow_id: str,
                  video_path=None,
                  refine_max_segments: int = 5,
                  refine_merge_threshold: float = 0.25,
+                 refine_frames_per_shot: int = 3,
                  ) -> Stages:
     """组装 Stages：每个回调闭包捕获外部依赖。
 
@@ -65,7 +66,8 @@ def build_stages(*, provider, client, workflow_id: str,
             sess, video_path=video_path, work_dir=work_dir,
             provider=provider, global_style=global_style,
             max_segments=refine_max_segments,
-            merge_threshold=refine_merge_threshold)
+            merge_threshold=refine_merge_threshold,
+            frames_per_shot=refine_frames_per_shot)
 
     def _noop_align(sess: ScoringSession) -> None:
         return None

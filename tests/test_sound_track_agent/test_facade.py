@@ -441,3 +441,38 @@ def test_advance_preserves_refine_segments_under_progress(tmp_path):
                    on_progress=lambda m: None)
     assert calls["refine"] == 1
     assert sess.segments_refined is True
+
+
+def test_build_real_stages_reads_refine_frames_per_shot_from_cfg(tmp_path, monkeypatch):
+    """facade._build_real_stages 把 cfg.refine_frames_per_shot 透传给 build_stages。"""
+    captured = {"frames_per_shot": None}
+
+    def fake_build_stages(**kwargs):
+        captured["frames_per_shot"] = kwargs.get("refine_frames_per_shot")
+        from sound_track_agent.pipeline import Stages
+        return Stages(
+            tag_emotion=lambda seg, s: None,
+            compose_prompt=lambda seg, s: "",
+            generate=lambda seg, s: [],
+            align=lambda s: None, mix=lambda s: "")
+
+    import sound_track_agent.stages_factory as sf
+    monkeypatch.setattr(sf, "build_stages", fake_build_stages)
+
+    class _Cfg:
+        refine_frames_per_shot = 5
+        soundtrack_score_weights = None      # 走 default
+
+    # Mock 外部依赖，避免真实初始化
+    from unittest.mock import MagicMock
+    import sound_track_agent.provider
+    monkeypatch.setattr(sound_track_agent.provider, "build_soundtrack_provider",
+                        lambda cfg: MagicMock())
+    import drama_shot_master.providers.runninghub as rh
+    monkeypatch.setattr(rh, "RunningHubClient", lambda *a, **k: MagicMock())
+
+    from sound_track_agent.facade import _build_real_stages
+    _build_real_stages(_Cfg(), workflow_id="wf",
+                       work_dir=tmp_path, global_style="x",
+                       seeds_count=2, video_path=str(tmp_path / "ep.mp4"))
+    assert captured["frames_per_shot"] == 5
