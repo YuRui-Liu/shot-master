@@ -31,3 +31,55 @@ def idea_read_path(project_dir: Path) -> Path | None:
 def idea_exists(project_dir: Path) -> bool:
     """任一名字存在即认作创意已落盘。"""
     return idea_read_path(project_dir) is not None
+
+
+import re as _re
+
+EPISODE_ID_PATTERN = _re.compile(r"^E([1-9]\d*)$")
+
+
+def is_valid_episode_id(s: str) -> bool:
+    """1-based 集 ID 校验：E1, E2, ..."""
+    return bool(EPISODE_ID_PATTERN.match(s or ""))
+
+
+def script_index_path(project_dir: Path) -> Path:
+    """剧本集索引路径（写入用，统一 剧本.json）。"""
+    return project_dir / "剧本.json"
+
+
+def script_episode_path(project_dir: Path, episode_id: str) -> Path:
+    """写入路径：剧本_E{id}.md。"""
+    return project_dir / f"剧本_{episode_id}.md"
+
+
+def script_episode_read_path(project_dir: Path, episode_id: str) -> Path | None:
+    """读取路径：优先 剧本_E{id}.md，兜底 旧的单文件 剧本.md（仅 E1 时）。"""
+    primary = script_episode_path(project_dir, episode_id)
+    if primary.is_file():
+        return primary
+    if episode_id == "E1":
+        legacy = project_dir / "剧本.md"
+        if legacy.is_file():
+            return legacy
+    return None
+
+
+def storyboard_episode_path(project_dir: Path, episode_id: str) -> Path:
+    return project_dir / f"分镜_{episode_id}.json"
+
+
+def storyboard_episode_read_path(project_dir: Path, episode_id: str) -> Path | None:
+    primary = storyboard_episode_path(project_dir, episode_id)
+    if primary.is_file():
+        return primary
+    if episode_id == "E1":
+        legacy = project_dir / "分镜.json"
+        if legacy.is_file():
+            return legacy
+    return None
+
+
+def episode_prompts_dir(project_dir: Path, episode_id: str) -> Path:
+    """prompts/E{id}/ 目录（不保证存在）。"""
+    return project_dir / "prompts" / episode_id
