@@ -1,4 +1,4 @@
-from sound_track_agent import bgm_cache
+from sound_track_agent import audio_cache as bgm_cache
 
 
 def test_cache_key_deterministic_and_seed_sensitive():

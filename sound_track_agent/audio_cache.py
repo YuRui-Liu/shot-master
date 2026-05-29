@@ -1,4 +1,4 @@
-"""BGM 生成结果缓存：内容寻址，按 work_dir 作用域。纯逻辑 + 薄文件 IO，可单测。"""
+"""音频缓存（BGM + SFX）：内容寻址，按 work_dir 作用域。纯逻辑 + 薄文件 IO，可单测。"""
 from __future__ import annotations
 
 import hashlib
@@ -28,3 +28,11 @@ def store(cache_dir, key: str, src) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     Path(src).replace(dest)
     return dest
+
+
+def sfx_cache_key(workflow_id: str, prompt: str, duration: float, seed: int) -> str:
+    """SFX 缓存键。与 BGM cache_key 区分（含 'sfx' 前缀），避免同 workflow_id+seed
+    下 'tags=门吱呀'(BGM) 与 'prompt=门吱呀'(SFX) 撞键。"""
+    h = hashlib.blake2b(digest_size=12)
+    h.update(repr(("sfx", workflow_id, prompt, float(duration), int(seed))).encode())
+    return h.hexdigest()

@@ -1,6 +1,7 @@
 import threading
 
-from sound_track_agent import batch_generator, bgm_cache
+from sound_track_agent import batch_generator
+from sound_track_agent import audio_cache as bgm_cache
 from sound_track_agent.scorer import CandidateScore
 from sound_track_agent.session import ScoringSession, SegmentScore
 

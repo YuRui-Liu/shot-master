@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-from sound_track_agent import bgm_cache, music_generator, scorer
+from sound_track_agent import audio_cache as bgm_cache, music_generator, scorer
 from sound_track_agent.session import ScoringSession, BGMCandidate
 
 
