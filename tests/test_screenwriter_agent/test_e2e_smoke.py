@@ -1,5 +1,6 @@
 """端到端 smoke：mock LLM 输出，依次跑 4 阶段，断言产物落盘 + 内容形状合规。"""
 import json
+import json as _json
 import os
 from pathlib import Path
 
@@ -33,13 +34,21 @@ def mock_llm(monkeypatch):
     def _fake_stream(self, messages):
         text = ""
         all_text = " ".join(m.get("content", "") for m in messages)
-        # 按模板 id 判断阶段（每个模板的 front-matter 里有 template_id: xxx）
-        if "template_id: storyboard" in all_text or "只输出一个 JSON 代码块" in all_text:
+        # 按模板内容特征判断阶段
+        if "集索引" in all_text:
+            # /script/outline 阶段（script_outline.md 模板含"集索引"）
+            # 使用 json_object response_format，直接返回纯 JSON（不含代码围栏）
+            text = _json.dumps({
+                "title": "demo",
+                "episode_count": 1,
+                "episodes": [{"id": "E1", "title": "古风狐妖第一集", "summary": "xxx"}],
+            }, ensure_ascii=False)
+        elif "本集大纲" in all_text:
+            # /script/episode 阶段（script_episode.md 模板含"本集大纲"）
+            text = "# 第一集\n## 镜头 01\n画面：xxx\n## 镜头 02\n画面：yyy"
+        elif "template_id: storyboard" in all_text or "只输出一个 JSON 代码块" in all_text:
             # storyboard 阶段
             text = "```json\n" + json.dumps(_STORYBOARD_JSON, ensure_ascii=False) + "\n```"
-        elif "template_id: script" in all_text:
-            # script 阶段
-            text = "# 剧本信息\n标题: demo\n## 镜头 01\n画面：xxx\n## 镜头 02\n画面：yyy"
         elif "template_id: ideate" in all_text:
             # ideate 阶段
             text = "候选 1｜标题：躺平农夫\n切入角度：反转命运\n摘要：xxx\n看点：yyy\n\n候选 2｜标题：xxx"
@@ -76,22 +85,27 @@ def test_e2e_chain(tmp_path, mock_llm, monkeypatch):
             "project_dir": str(tmp_path), "selected_id": cid})
         assert r.status_code == 200
 
-    # 3) /script
-    r = c.post("/script", json={"project_dir": str(tmp_path), "options": {}})
+    # 3a) /script/outline
+    r = c.post("/script/outline", json={"project_dir": str(tmp_path), "episode_count": 1})
     assert r.status_code == 200
-    assert (tmp_path / "剧本.md").is_file()
+    assert (tmp_path / "剧本.json").is_file()
+
+    # 3b) /script/episode
+    r = c.post("/script/episode", json={"project_dir": str(tmp_path), "episode_id": "E1"})
+    assert r.status_code == 200
+    assert (tmp_path / "剧本_E1.md").is_file()
 
     # 4) /storyboard
-    r = c.post("/storyboard", json={"project_dir": str(tmp_path), "options": {}})
+    r = c.post("/storyboard", json={"project_dir": str(tmp_path), "episode_id": "E1", "options": {}})
     assert r.status_code == 200
-    assert (tmp_path / "分镜.json").is_file()
-    sb = json.loads((tmp_path / "分镜.json").read_text(encoding="utf-8"))
+    assert (tmp_path / "分镜_E1.json").is_file()
+    sb = json.loads((tmp_path / "分镜_E1.json").read_text(encoding="utf-8"))
     assert sb["title"] == "demo"
     assert len(sb["shots"]) == 2
 
     # 5) /prompts
-    r = c.post("/prompts", json={"project_dir": str(tmp_path), "options": {}})
+    r = c.post("/prompts", json={"project_dir": str(tmp_path), "episode_id": "E1", "options": {}})
     assert r.status_code == 200
     assert (tmp_path / "prompts").is_dir()
-    n_grid = list((tmp_path / "prompts" / "N宫格").glob("S*.md")) if (tmp_path / "prompts" / "N宫格").is_dir() else []
+    n_grid = list((tmp_path / "prompts" / "E1" / "N宫格").glob("S*.md")) if (tmp_path / "prompts" / "E1" / "N宫格").is_dir() else []
     assert len(n_grid) >= 1
