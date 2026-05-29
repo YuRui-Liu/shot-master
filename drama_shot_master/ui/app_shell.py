@@ -22,13 +22,16 @@ from drama_shot_master.ui.nav_config import FUNCS, PHASES, LABELS
 
 
 class AppShell(QMainWindow):
-    def __init__(self):
+    def __init__(self, cfg=None):
         super().__init__()
         self.setWindowTitle("Drama-Shot-Master")
         self.resize(1360, 860)
         self.pages = {}
         self._phase_of = {k: t for t, ks in PHASES for k in ks}
         self._status_text = ""
+        # main.py 传入已 spawn 过 lifecycle 并反写过端口的 cfg；
+        # 没传则 _build_pages 自己 load_config() 兜底（兼容旧入口）
+        self._injected_cfg = cfg
         self._build_pages()
         self._build_ui()
         self._wire()
@@ -51,7 +54,7 @@ class AppShell(QMainWindow):
         from drama_shot_master.ui.panels.combine_panel import CombinePanel
         from drama_shot_master.ui.panels.trim_panel import TrimPanel
 
-        self.cfg = load_config()
+        self.cfg = self._injected_cfg if self._injected_cfg is not None else load_config()
         self.state = AppState()
         self.video_store = VideoTaskStore.from_list(self.cfg.video_tasks)
         self.dub_store = DubTaskStore.from_list(self.cfg.dub_tasks)

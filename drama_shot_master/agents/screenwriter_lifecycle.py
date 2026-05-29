@@ -21,7 +21,8 @@ class ScreenwriterLifecycle:
         self._pid_file = self._log_dir / ".screenwriter.pid"
 
     def spawn(self) -> int:
-        """Spawn agent 子进程；返回实际端口。已运行则 no-op。"""
+        """Spawn agent 子进程；poll /health 直到起来；返回实际监听端口。
+        已运行则 no-op。"""
         if self._proc is not None and self._proc.poll() is None:
             return self.port
         log_path = self._log_dir / "screenwriter_agent.log"
@@ -32,11 +33,41 @@ class ScreenwriterLifecycle:
              "--port", str(self.base_port)],
             stdout=log_f, stderr=subprocess.STDOUT,
             env=env, close_fds=True)
-        self.port = self.base_port  # 端口冲突时 agent 自己 +1..+9，端口写到 .port 文件
         self._pid_file.write_text(str(self._proc.pid))
-        # 给 1 秒等 agent 起来
-        time.sleep(1.0)
+        # 端口探测：从 base_port 往后试 +0..+9（agent 端口冲突会自己偏移）
+        self.port = self._probe_listening_port(
+            self.base_port, retries=20, sleep_s=0.3)
         return self.port
+
+    def _probe_listening_port(self, base: int, *, retries: int, sleep_s: float) -> int:
+        """每 sleep_s 轮询 base..base+9 的 /health；首个 200 即认作命中。
+        全部失败 → 仍返回 base（caller 看到连接失败时会报 retry banner）。"""
+        try:
+            import urllib.request
+            import urllib.error
+        except ImportError:
+            time.sleep(sleep_s * retries)
+            return base
+        for _ in range(retries):
+            for offset in range(10):
+                port = base + offset
+                try:
+                    with urllib.request.urlopen(
+                            f"http://127.0.0.1:{port}/health",
+                            timeout=0.3) as resp:
+                        if 200 <= resp.status < 300:
+                            try:
+                                self._port_file.write_text(str(port))
+                            except OSError:
+                                pass
+                            return port
+                except (urllib.error.URLError, OSError, TimeoutError):
+                    continue
+            time.sleep(sleep_s)
+            # 子进程已挂 → 不再 poll，直接返回 base 让 caller 报错
+            if self._proc is None or self._proc.poll() is not None:
+                break
+        return base
 
     def is_alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None

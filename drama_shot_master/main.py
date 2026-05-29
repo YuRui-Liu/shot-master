@@ -26,14 +26,20 @@ def main() -> int:
             return 0          # 仍未激活 → 退出，不进主界面
     from drama_shot_master.agents.screenwriter_lifecycle import ScreenwriterLifecycle
 
-    # 先 spawn lifecycle（端口冲突时 +1..+9 偏移），随后把实际端口写回 cfg
-    # ——任务栏化后的 ScreenwriterPanel 从 cfg.screenwriter_agent_port 读端口建 client，
-    # 故必须先反写 cfg 再构建 AppShell。
+    # 先 spawn lifecycle 并 poll /health 确认 agent 监听端口（冲突时 +1..+9 偏移）；
+    # 实际端口写回 cfg，再把同一个 cfg 实例传给 AppShell ——这样 ScreenwriterPanel
+    # 从 cfg.screenwriter_agent_port 取端口能命中真实监听。
+    print("[main] starting screenwriter_agent subprocess...")
     lifecycle = ScreenwriterLifecycle(base_port=_early_cfg.screenwriter_agent_port)
-    lifecycle.spawn()
-    _early_cfg.screenwriter_agent_port = lifecycle.port
+    actual_port = lifecycle.spawn()
+    _early_cfg.screenwriter_agent_port = actual_port
+    if lifecycle.is_alive():
+        print(f"[main] screenwriter_agent listening on :{actual_port}")
+    else:
+        print("[main] WARNING: screenwriter_agent subprocess died during spawn; "
+              "check ~/.drama_shot_master/logs/screenwriter_agent.log")
 
-    w = AppShell()
+    w = AppShell(cfg=_early_cfg)
     w.screenwriter_lifecycle = lifecycle    # 保留引用，便于退出时 terminate
 
     w.show()
