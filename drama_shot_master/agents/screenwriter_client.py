@@ -36,6 +36,8 @@ _PATH_TO_STAGE = {
     "/script":       "script",
     "/storyboard":   "storyboard",
     "/prompts":      "prompts",
+    "/video_prompt": "video_prompt",
+    "/audio_prompt": "audio_prompt",
 }
 
 _PROVIDER_DEFAULT_MODELS = {
