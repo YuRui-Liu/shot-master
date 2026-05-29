@@ -154,3 +154,11 @@ def test_external_dir_removal_prunes_on_refresh(tmp_path):
     panel._task_manager.refresh()
     assert str(pA) not in cfg.screenwriter_projects
     assert str(pB) in cfg.screenwriter_projects
+
+
+def test_prompts_page_is_real_not_placeholder():
+    _app()
+    panel = ScreenwriterPanel(_StubCfg())
+    # 第 4 个 page 应该是 PromptsPage（不是 placeholder QLabel）
+    from drama_shot_master.ui.widgets.screenwriter.prompts_page import PromptsPage
+    assert isinstance(panel._pages[3], PromptsPage)

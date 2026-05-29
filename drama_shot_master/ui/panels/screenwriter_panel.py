@@ -1,7 +1,7 @@
 """ScreenwriterPanel：编剧面板（任务栏化）。
 
 左 ScreenwriterTaskManager + 右 ScreenwriterWizardHost。
-4 个子面板单例：IdeatePage / ScriptPage / StoryboardPage / PromptsPage（placeholder）。
+4 个子面板单例：IdeatePage / ScriptPage / StoryboardPage / PromptsPage。
 切换任务 → 全 page 统一 try_release + set_project；任一拒 → 回滚。
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QSplitter, QLabel,
+    QWidget, QHBoxLayout, QSplitter,
 )
 
 from drama_shot_master.agents.screenwriter_client import ScreenwriterClient
@@ -19,30 +19,10 @@ from drama_shot_master.ui.widgets.screenwriter.wizard_host import ScreenwriterWi
 from drama_shot_master.ui.widgets.screenwriter.ideate_page import IdeatePage
 from drama_shot_master.ui.widgets.screenwriter.script_page import ScriptPage
 from drama_shot_master.ui.widgets.screenwriter.storyboard_page import StoryboardPage
+from drama_shot_master.ui.widgets.screenwriter.prompts_page import PromptsPage
 
 
 _STAGE_NAMES = ["创意", "剧本", "分镜", "提示词"]
-
-
-class _PromptsPlaceholder(QWidget):
-    """提示词阶段占位（待 PromptsPage 实现后替换）。"""
-    def __init__(self, client, parent=None):
-        super().__init__(parent)
-        self._client = client
-        self._project_dir = None
-        self._workers = {}
-        from PySide6.QtWidgets import QVBoxLayout
-        v = QVBoxLayout(self)
-        v.addWidget(QLabel("提示词阶段（PromptsPage 待实现，占位）"))
-
-    def set_project(self, path):
-        self._project_dir = path
-
-    def try_release(self) -> bool:
-        return True
-
-    def is_streaming(self, p) -> bool:
-        return False
 
 
 class ScreenwriterPanel(QWidget):
@@ -71,7 +51,7 @@ class ScreenwriterPanel(QWidget):
         ideate = IdeatePage(self._client)
         script = ScriptPage(self._client)
         storyboard = StoryboardPage(self._client)
-        prompts = _PromptsPlaceholder(self._client)
+        prompts = PromptsPage(self._client)
         self._pages = [ideate, script, storyboard, prompts]
         self._wizard_host = ScreenwriterWizardHost(
             self._pages, stage_names=_STAGE_NAMES)
