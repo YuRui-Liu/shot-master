@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QSpinBox,
-    QDoubleSpinBox, QHBoxLayout, QFileDialog,
+    QDoubleSpinBox, QHBoxLayout, QFileDialog, QComboBox, QLabel,
 )
 
 
@@ -59,6 +59,50 @@ class SoundtrackSection(QWidget):
         self.snap_window_spin.setSuffix(" s")
         form.addRow("段切吸附窗口", self.snap_window_spin)
 
+        # === Sprint 0：曝光 Phase 1+2+3 后端能力 ===
+
+        self.frames_combo = QComboBox()
+        self.frames_combo.addItems(["1", "3", "5"])
+        form.addRow("精排抽帧数 (1/3/5)", self.frames_combo)
+
+        self.refine_max_spin = QSpinBox()
+        self.refine_max_spin.setRange(1, 10)
+        form.addRow("邻接合并段数上限", self.refine_max_spin)
+
+        self.refine_thresh_spin = QDoubleSpinBox()
+        self.refine_thresh_spin.setRange(0.0, 1.0)
+        self.refine_thresh_spin.setSingleStep(0.05)
+        self.refine_thresh_spin.setDecimals(2)
+        form.addRow("邻接合并相似阈值", self.refine_thresh_spin)
+
+        self.stretch_spin = QDoubleSpinBox()
+        self.stretch_spin.setRange(0.0, 0.5)
+        self.stretch_spin.setSingleStep(0.01)
+        self.stretch_spin.setDecimals(2)
+        form.addRow("真·卡点拉伸上限 (±)", self.stretch_spin)
+
+        self.concurrency_spin = QSpinBox()
+        self.concurrency_spin.setRange(1, 10)
+        form.addRow("生成并发上限", self.concurrency_spin)
+
+        # 打分权重三轴
+        weights_row = QHBoxLayout()
+        self.w_health = QDoubleSpinBox()
+        self.w_health.setRange(0.0, 1.0); self.w_health.setSingleStep(0.05); self.w_health.setDecimals(2)
+        self.w_headroom = QDoubleSpinBox()
+        self.w_headroom.setRange(0.0, 1.0); self.w_headroom.setSingleStep(0.05); self.w_headroom.setDecimals(2)
+        self.w_beat = QDoubleSpinBox()
+        self.w_beat.setRange(0.0, 1.0); self.w_beat.setSingleStep(0.05); self.w_beat.setDecimals(2)
+        weights_row.addWidget(QLabel("health"))
+        weights_row.addWidget(self.w_health)
+        weights_row.addWidget(QLabel("headroom"))
+        weights_row.addWidget(self.w_headroom)
+        weights_row.addWidget(QLabel("beat"))
+        weights_row.addWidget(self.w_beat)
+        weights_wrap = QWidget()
+        weights_wrap.setLayout(weights_row)
+        form.addRow("候选打分权重", weights_wrap)
+
         root.addLayout(form)
         root.addStretch(1)
 
@@ -81,6 +125,32 @@ class SoundtrackSection(QWidget):
             float(getattr(cfg, "accent_big_threshold", 0.7)))
         self.snap_window_spin.setValue(
             float(getattr(cfg, "accent_snap_window", 0.6)))
+        self.frames_combo.setCurrentText(
+            str(int(getattr(cfg, "refine_frames_per_shot", 3))))
+        self.refine_max_spin.setValue(int(getattr(cfg, "refine_max_segments", 5)))
+        self.refine_thresh_spin.setValue(
+            float(getattr(cfg, "refine_merge_threshold", 0.25)))
+        self.stretch_spin.setValue(float(getattr(cfg, "accent_max_stretch", 0.10)))
+        self.concurrency_spin.setValue(
+            int(getattr(cfg, "soundtrack_max_concurrency", 3)))
+        w = getattr(cfg, "soundtrack_score_weights", None) \
+            or {"health": 0.5, "headroom": 0.3, "beat": 0.2}
+        self.w_health.setValue(float(w.get("health", 0.5)))
+        self.w_headroom.setValue(float(w.get("headroom", 0.3)))
+        self.w_beat.setValue(float(w.get("beat", 0.2)))
+
+    def apply_to(self, cfg):
+        """将控件当前值写回 cfg（Sprint 0 新增 6 项 + 原有字段）。"""
+        cfg.refine_frames_per_shot = int(self.frames_combo.currentText())
+        cfg.refine_max_segments = self.refine_max_spin.value()
+        cfg.refine_merge_threshold = float(self.refine_thresh_spin.value())
+        cfg.accent_max_stretch = float(self.stretch_spin.value())
+        cfg.soundtrack_max_concurrency = self.concurrency_spin.value()
+        cfg.soundtrack_score_weights = {
+            "health": float(self.w_health.value()),
+            "headroom": float(self.w_headroom.value()),
+            "beat": float(self.w_beat.value()),
+        }
 
     def save_to(self, cfg):
         cfg.update_settings(
