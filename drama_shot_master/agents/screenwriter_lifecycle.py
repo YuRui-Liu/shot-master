@@ -8,6 +8,15 @@ import time
 from pathlib import Path
 
 
+# 每个 LLM 平台的"通用入门"模型名（用户没在 [编剧] 阶段配 model 时兜底）。
+# 这些名字保证在对应平台真实存在，不会被 400 model not found 而无声吞掉。
+_PROVIDER_DEFAULT_MODELS = {
+    "deepseek": "deepseek-chat",       # DeepSeek V3 chat
+    "doubao":   "doubao-1-5-thinking-pro-250415",
+    "openai":   "gpt-4o-mini",
+}
+
+
 class ScreenwriterLifecycle:
     """单例：主软件启动时 spawn agent；退出时 terminate。"""
 
@@ -44,14 +53,18 @@ class ScreenwriterLifecycle:
                 env["SCREENWRITER_LLM_API_KEY"] = legacy_key
             if legacy_url:
                 env["SCREENWRITER_LLM_BASE_URL"] = legacy_url
-            # 全局兜底：若 legacy 无，从第一个有 key 的 provider 取
+            # 全局兜底：若 legacy 无，从第一个有 key 的 provider 取（并记 fallback_provider，
+            # 给"未配阶段分配"的 stage 推默认模型用）
+            fallback_provider = ""
             if "SCREENWRITER_LLM_API_KEY" not in env or "SCREENWRITER_LLM_BASE_URL" not in env:
                 for pname in ("deepseek", "doubao", "openai"):
                     p = providers.get(pname) or {}
                     if p.get("api_key") and "SCREENWRITER_LLM_API_KEY" not in env:
                         env["SCREENWRITER_LLM_API_KEY"] = p["api_key"]
+                        fallback_provider = fallback_provider or pname
                     if p.get("base_url") and "SCREENWRITER_LLM_BASE_URL" not in env:
                         env["SCREENWRITER_LLM_BASE_URL"] = p["base_url"]
+                        fallback_provider = fallback_provider or pname
                     if "SCREENWRITER_LLM_API_KEY" in env and "SCREENWRITER_LLM_BASE_URL" in env:
                         break
             # 每个 stage 的 per-stage 注入（provider + model + api_key + base_url）
@@ -67,6 +80,13 @@ class ScreenwriterLifecycle:
                         env[f"SCREENWRITER_{upper}_API_KEY"] = p["api_key"]
                     if p.get("base_url"):
                         env[f"SCREENWRITER_{upper}_BASE_URL"] = p["base_url"]
+                    # 用户没填 model → 用对应平台的 sane default（保证模型真存在）
+                    if not model:
+                        model = _PROVIDER_DEFAULT_MODELS.get(pname, "")
+                # 用户连 stage assignment 都没填 → 全局 fallback provider 的默认 model
+                # （否则 agent 会落到内置 default_models = doubao 名，对 deepseek 必空）
+                if not model and fallback_provider:
+                    model = _PROVIDER_DEFAULT_MODELS.get(fallback_provider, "")
                 if model:
                     env[f"SCREENWRITER_{upper}_MODEL"] = model
         self._proc = subprocess.Popen(
