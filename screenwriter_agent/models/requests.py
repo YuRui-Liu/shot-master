@@ -67,6 +67,7 @@ class StoryboardOptions(BaseModel):
 
 class StoryboardReq(BaseModel):
     project_dir: str
+    episode_id: str = Field(..., pattern=r"^E[1-9]\d*$")
     options: StoryboardOptions = Field(default_factory=StoryboardOptions)
     model: str | None = None
     reasoning_effort: str = "max"
@@ -83,7 +84,26 @@ class PromptsOptions(BaseModel):
 
 class PromptsReq(BaseModel):
     project_dir: str
+    episode_id: str = Field(..., pattern=r"^E[1-9]\d*$")
     options: PromptsOptions = Field(default_factory=PromptsOptions)
+    model: str | None = None
+    reasoning_effort: str = "high"
+    creds: LLMCreds | None = None
+
+
+class ScriptOutlineReq(BaseModel):
+    project_dir: str
+    episode_count: int = Field(..., ge=1, le=20)
+    options: ScriptOptions = Field(default_factory=ScriptOptions)
+    model: str | None = None
+    reasoning_effort: str = "high"
+    creds: LLMCreds | None = None
+
+
+class ScriptEpisodeReq(BaseModel):
+    project_dir: str
+    episode_id: str = Field(..., pattern=r"^E[1-9]\d*$")
+    options: ScriptOptions = Field(default_factory=ScriptOptions)
     model: str | None = None
     reasoning_effort: str = "high"
     creds: LLMCreds | None = None
