@@ -51,6 +51,7 @@ class SFXSession:
     sfx_planned: bool = False                   # event_planner 已跑过
 
     def save(self, path: Path) -> None:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         Path(path).write_text(
             json.dumps(asdict(self), ensure_ascii=False, indent=2),
             encoding="utf-8")
