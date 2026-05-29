@@ -75,3 +75,35 @@ def test_on_project_switched_default_noop(tmp_path):
     s = _Sub(client=None)
     # 默认实现不应抛
     s._on_project_switched(None, tmp_path)
+
+
+def test_is_streaming_with_episode_id(tmp_path):
+    _app()
+    s = _Sub(client=None)
+    class _W:
+        def __init__(self): self.running = True
+        def isRunning(self): return self.running
+    s._workers[(tmp_path, "E1")] = _W()
+    assert s.is_streaming(tmp_path, "E1") is True
+    assert s.is_streaming(tmp_path, "E2") is False
+
+
+def test_is_streaming_no_episode_id_returns_any(tmp_path):
+    """不传 episode_id 时返回「该项目任一集 streaming」。"""
+    _app()
+    s = _Sub(client=None)
+    class _W:
+        def isRunning(self): return True
+    s._workers[(tmp_path, "E2")] = _W()
+    assert s.is_streaming(tmp_path) is True
+    assert s.is_streaming(tmp_path / "other") is False
+
+
+def test_legacy_path_key_still_works(tmp_path):
+    """Path-only key（IdeatePage 等单集 stage 用）继续工作。"""
+    _app()
+    s = _Sub(client=None)
+    class _W:
+        def isRunning(self): return True
+    s._workers[tmp_path] = _W()
+    assert s.is_streaming(tmp_path) is True

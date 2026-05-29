@@ -41,9 +41,26 @@ class _BaseStagePage(QWidget):
 
     # —— 通用工具（给 TaskManager / 子类用）——
 
-    def is_streaming(self, project_dir: Path) -> bool:
+    def is_streaming(self, project_dir: Path, episode_id: str | None = None) -> bool:
+        """支持两种 key 形态：
+          - Path-only（IdeatePage 等无集语义的 stage）
+          - (Path, episode_id)（多集 stage）
+        episode_id is None 时返「项目级任一 streaming」。
+        """
+        if episode_id is not None:
+            w = self._workers.get((project_dir, episode_id))
+            if w and w.isRunning():
+                return True
+            return False
+        # 项目级聚合：先查 Path-only key，再查所有 tuple key
         w = self._workers.get(project_dir)
-        return bool(w and w.isRunning())
+        if w and w.isRunning():
+            return True
+        for k, w in self._workers.items():
+            if isinstance(k, tuple) and len(k) == 2 and k[0] == project_dir:
+                if w and w.isRunning():
+                    return True
+        return False
 
     def _active_worker(self):
         if self._project_dir is None:
