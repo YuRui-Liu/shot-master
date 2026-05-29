@@ -81,6 +81,11 @@ class Config:
     last_active_function: str = "inference"      # 上次退出时活跃的 panel
     # 翻译
     deeplx_url: str = ""
+    current_translator: str = ""                         # "tencent" | "deeplx" (empty = post-load 决定)
+    tencent_translator_secret_id: str = ""
+    tencent_translator_secret_key: str = ""
+    tencent_translator_region: str = "ap-beijing"
+    tencent_translator_project_id: int = 0
     # 帧提示词优化（refine）独立 provider
     refine_base_url: str = ""
     refine_api_key: str = ""
@@ -164,6 +169,11 @@ class Config:
                 "workflow_ids": self.workflow_ids,
                 "last_active_function": self.last_active_function,
                 "deeplx_url": self.deeplx_url,
+                "current_translator": self.current_translator,
+                "tencent_translator_secret_id": self.tencent_translator_secret_id,
+                "tencent_translator_secret_key": self.tencent_translator_secret_key,
+                "tencent_translator_region": self.tencent_translator_region,
+                "tencent_translator_project_id": self.tencent_translator_project_id,
                 "refine_base_url": self.refine_base_url,
                 "refine_api_key": self.refine_api_key,
                 "refine_model": self.refine_model,
@@ -231,6 +241,12 @@ def load_config(env_path: Path = Path(".env"),
         runninghub_base_url=rh_base_url,
         settings_path=settings_path,
         deeplx_url=env.get("DEEPLX_URL") or "",
+        tencent_translator_secret_id=(
+            env.get("TENCENTCLOUD_SECRET_ID") or os.environ.get("TENCENTCLOUD_SECRET_ID") or ""),
+        tencent_translator_secret_key=(
+            env.get("TENCENTCLOUD_SECRET_KEY") or os.environ.get("TENCENTCLOUD_SECRET_KEY") or ""),
+        tencent_translator_region=(
+            env.get("TENCENTCLOUD_REGION") or os.environ.get("TENCENTCLOUD_REGION") or "ap-beijing"),
     )
     cfg.current_provider = cfg.default_provider
     cfg.current_model = cfg.default_model
@@ -268,9 +284,19 @@ def load_config(env_path: Path = Path(".env"),
                         setattr(cfg, key, data[key])
                 for key in ("deeplx_url", "refine_base_url", "refine_api_key",
                             "refine_model", "refine_provider_preset", "refine_provider",
-                            "refine_meta_prompt_path"):
+                            "refine_meta_prompt_path",
+                            "current_translator",
+                            "tencent_translator_secret_id",
+                            "tencent_translator_secret_key",
+                            "tencent_translator_region"):
                     if key in data and isinstance(data[key], str):
                         setattr(cfg, key, data[key])
+                if "tencent_translator_project_id" in data:
+                    try:
+                        cfg.tencent_translator_project_id = int(
+                            data["tencent_translator_project_id"] or 0)
+                    except (TypeError, ValueError):
+                        cfg.tencent_translator_project_id = 0
                 for key in ("screenwriter_llm_api_key", "screenwriter_llm_base_url",
                             "screenwriter_project_root"):
                     if key in data and isinstance(data[key], str):
@@ -380,4 +406,18 @@ def load_config(env_path: Path = Path(".env"),
 
     if cfg.deeplx_url:
         os.environ["DEEPLX_URL"] = cfg.deeplx_url
+    if cfg.current_translator:
+        os.environ["_CURRENT_TRANSLATOR"] = cfg.current_translator
+    # 腾讯 SDK 凭据不主动 writeback：TencentTranslator 走显式构造参数读 cfg.*，
+    # 不依赖进程级 env；避免一次 load_config 之后污染整进程后续测试。
+    _post_load_migrate(cfg)
     return cfg
+
+
+def _post_load_migrate(cfg) -> None:
+    """旧用户升级兼容：若只配过 DeepLX 没配腾讯，沿用 DeepLX。"""
+    if not cfg.current_translator:
+        if cfg.deeplx_url and not cfg.tencent_translator_secret_id:
+            cfg.current_translator = "deeplx"
+        else:
+            cfg.current_translator = "tencent"
