@@ -25,6 +25,11 @@ from drama_shot_master.ui.widgets.screenwriter._shots_table_model import _ShotsT
 from drama_shot_master.ui.widgets.screenwriter._character_row import _CharacterRow
 from drama_shot_master.ui.widgets.screenwriter._warnings_banner import _WarningsBanner
 from drama_shot_master.ui.widgets.screenwriter._upstream_banner import _UpstreamBanner
+from drama_shot_master.ui.widgets.screenwriter._episode_selector import _EpisodeSelector
+from drama_shot_master.ui.widgets.screenwriter._paths import (
+    script_episode_read_path_in, storyboard_episode_path_in,
+    storyboard_episode_read_path_in,
+)
 from screenwriter_agent.core.atomic_write import atomic_write_text
 
 
@@ -38,6 +43,7 @@ class StoryboardPage(_BaseStagePage):
         self._last_load_mtime: float = 0.0
         self._warnings: list[dict] = []
         self._dirty: bool = False
+        self._current_episode: str = "E1"
         # Legacy single-worker ref kept for _stop_stream compatibility;
         # canonical store is self._workers[project_dir] (from _BaseStagePage).
         self._worker: StreamWorker | None = None
@@ -51,6 +57,10 @@ class StoryboardPage(_BaseStagePage):
         root = QVBoxLayout(self)
         root.setContentsMargins(4, 4, 4, 4); root.setSpacing(4)
         root.addLayout(self._build_param_bar())
+        self._episode_selector = _EpisodeSelector(
+            file_pattern_for_status="分镜_{ep}.json")
+        self._episode_selector.episodeChanged.connect(self._on_episode_changed)
+        root.addWidget(self._episode_selector)
         self._upstream_banner = _UpstreamBanner()
         root.addWidget(self._upstream_banner)
         root.addWidget(self._build_global_header())
@@ -155,6 +165,7 @@ class StoryboardPage(_BaseStagePage):
         old = self._project_dir
         self._project_dir = path
         if path is None:
+            self._episode_selector.set_project(None)
             self._upstream_banner.hide_banner()
             self._sb_path = None
             self._sb = None
@@ -164,20 +175,26 @@ class StoryboardPage(_BaseStagePage):
                        self._advance_btn):
                 b.setEnabled(False)
             return
-        # 自检上游
-        upstream = path / "剧本.md"
-        if not upstream.is_file():
+        # 重置到 E1
+        self._current_episode = "E1"
+        self._episode_selector.set_project(path)
+        # 自检上游：用当前集
+        upstream = script_episode_read_path_in(path, self._current_episode)
+        if upstream is None:
             self._upstream_banner.show_missing(
                 stage_name="剧本", expected_file="剧本.md")
             self._gen_btn.setEnabled(False)
         else:
             self._upstream_banner.hide_banner()
             self._gen_btn.setEnabled(True)
-        self._sb_path = path / "分镜.json"
+        # _sb_path：优先已有文件（向后兼容 分镜.json）
+        read_path = storyboard_episode_read_path_in(path, self._current_episode)
+        self._sb_path = read_path if read_path is not None else storyboard_episode_path_in(path, self._current_episode)
         self._load_from_disk()
         self._view_json_btn.setEnabled(self._sb is not None)
-        # 检查 active worker
-        if path in self._workers and self._workers[path] and self._workers[path].isRunning():
+        # 检查 active worker（key 为 tuple (project_dir, episode_id)）
+        worker_key = (path, self._current_episode)
+        if worker_key in self._workers and self._workers[worker_key] and self._workers[worker_key].isRunning():
             self._stream_label.setText(
                 f"● 流式 · 已 {len(self._buf_by_project.get(path, ''))} 字（后台跑）")
         else:
@@ -232,6 +249,27 @@ class StoryboardPage(_BaseStagePage):
         # shots 表（直接传引用，setData 写回原 dict）
         self._shots_model.set_shots(sb.get("shots", []) or [])
         self._warnings_banner.set_warnings(self._warnings)
+
+    def _on_episode_changed(self, ep_id: str) -> None:
+        if self._dirty and not self.try_release():
+            self._episode_selector.blockSignals(True)
+            self._episode_selector.select_episode(self._current_episode)
+            self._episode_selector.blockSignals(False)
+            return
+        self._current_episode = ep_id
+        if self._project_dir is None:
+            return
+        upstream = script_episode_read_path_in(self._project_dir, ep_id)
+        if upstream is None:
+            self._upstream_banner.show_missing(
+                stage_name="剧本", expected_file=f"剧本_{ep_id}.md")
+            self._gen_btn.setEnabled(False)
+        else:
+            self._upstream_banner.hide_banner()
+            self._gen_btn.setEnabled(True)
+        read_path = storyboard_episode_read_path_in(self._project_dir, ep_id)
+        self._sb_path = read_path if read_path is not None else storyboard_episode_path_in(self._project_dir, ep_id)
+        self._load_from_disk()
 
     def try_release(self) -> bool:
         if not self._dirty:
@@ -346,8 +384,8 @@ class StoryboardPage(_BaseStagePage):
         """上游 剧本.md 在 + 本阶段 分镜.json 不在 + idle → 自动跑生成。"""
         if self._project_dir is None or self._state == "streaming":
             return
-        upstream = self._project_dir / "剧本.md"
-        if not upstream.is_file():
+        upstream = script_episode_read_path_in(self._project_dir, self._current_episode)
+        if upstream is None:
             return
         if self._sb_path is not None and self._sb_path.is_file():
             return
@@ -367,8 +405,8 @@ class StoryboardPage(_BaseStagePage):
     def _on_generate_clicked(self):
         if self._project_dir is None:
             return
-        script_path = self._project_dir / "剧本.md"
-        if not script_path.is_file():
+        script_path = script_episode_read_path_in(self._project_dir, self._current_episode)
+        if script_path is None:
             QMessageBox.warning(self, "上游缺失",
                                   "请先在「剧本」阶段生成剧本.md。")
             return
@@ -383,6 +421,7 @@ class StoryboardPage(_BaseStagePage):
             params = {"purge_downstream": "true"}
         body = {
             "project_dir": str(self._project_dir),
+            "episode_id": self._current_episode,
             "options": {
                 "aspect_ratio": self._aspect_combo.currentText(),
                 "fps": self._fps_spin.value(),
@@ -405,7 +444,7 @@ class StoryboardPage(_BaseStagePage):
         self._advance_btn.setEnabled(False)
         worker = StreamWorker(self._client, path, body, params,
                                project_dir=self._project_dir, parent=self)
-        self._workers[self._project_dir] = worker
+        self._workers[(self._project_dir, self._current_episode)] = worker
         # Keep legacy ref for _stop_stream (points to current project's worker)
         self._worker = worker
         worker.event.connect(self._on_sse_event)
@@ -420,7 +459,9 @@ class StoryboardPage(_BaseStagePage):
             w.wait(2000)
         if self._project_dir is not None:
             self._state_by_project[self._project_dir] = "idle"
-            self._workers[self._project_dir] = None
+            for k in list(self._workers.keys()):
+                if (isinstance(k, tuple) and k[0] == self._project_dir) or k == self._project_dir:
+                    self._workers[k] = None
         self._state = "idle"
         self._worker = None
         self._gen_btn.show(); self._stop_btn.hide()

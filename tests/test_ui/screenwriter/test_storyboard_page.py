@@ -145,3 +145,83 @@ def test_sse_event_for_inactive_project_does_not_touch_table(tmp_path):
     }, str(pB))
     # 当前显示 A，表格不应变
     assert p._shots_model.rowCount() == rows_before
+
+
+import json as _json
+
+
+def test_episode_selector_renders(tmp_path):
+    _app()
+    (tmp_path / "剧本.json").write_text(_json.dumps({
+        "episode_count": 2,
+        "episodes": [{"id": "E1", "title": "t", "summary": "s"},
+                      {"id": "E2", "title": "t", "summary": "s"}],
+    }), encoding="utf-8")
+    p = StoryboardPage(_StubClient())
+    p.set_project(tmp_path)
+    assert p._episode_selector.combo.count() == 2
+
+
+def test_switch_episode_loads_correct_sb(tmp_path):
+    _app()
+    (tmp_path / "剧本.json").write_text(_json.dumps({
+        "episode_count": 2,
+        "episodes": [{"id": "E1", "title": "t", "summary": "s"},
+                      {"id": "E2", "title": "t", "summary": "s"}],
+    }), encoding="utf-8")
+    (tmp_path / "剧本_E1.md").write_text("# E1", encoding="utf-8")
+    (tmp_path / "剧本_E2.md").write_text("# E2", encoding="utf-8")
+    (tmp_path / "分镜_E2.json").write_text(_json.dumps({
+        "title": "E2sb", "aspectRatio": "9:16", "fps": 24,
+        "totalDuration": 12, "globalStyle": "x", "characters": [],
+        "shots": [
+            {"shotId": "S01", "duration": 6, "composition": "中景",
+             "description": "d", "stylePrompt": "p"},
+            {"shotId": "S02", "duration": 6, "composition": "中景",
+             "description": "d2", "stylePrompt": "p2"},
+        ],
+    }), encoding="utf-8")
+    p = StoryboardPage(_StubClient())
+    p.set_project(tmp_path)
+    p._episode_selector.select_episode("E2")
+    p._on_episode_changed("E2")
+    assert p._shots_model.rowCount() == 2
+    assert p._upstream_banner.isHidden()
+
+
+def test_switch_episode_upstream_missing_shows_banner(tmp_path):
+    _app()
+    (tmp_path / "剧本.json").write_text(_json.dumps({
+        "episode_count": 2,
+        "episodes": [{"id": "E1", "title": "t", "summary": "s"},
+                      {"id": "E2", "title": "t", "summary": "s"}],
+    }), encoding="utf-8")
+    (tmp_path / "剧本_E1.md").write_text("# E1", encoding="utf-8")
+    # E2 上游缺失
+    p = StoryboardPage(_StubClient())
+    p.set_project(tmp_path)
+    p._episode_selector.select_episode("E2")
+    p._on_episode_changed("E2")
+    assert not p._upstream_banner.isHidden()
+    assert p._gen_btn.isEnabled() is False
+
+
+def test_generate_body_includes_episode_id(tmp_path):
+    _app()
+    (tmp_path / "剧本.json").write_text(_json.dumps({
+        "episode_count": 1,
+        "episodes": [{"id": "E1", "title": "t", "summary": "s"}],
+    }), encoding="utf-8")
+    (tmp_path / "剧本_E1.md").write_text("# E1", encoding="utf-8")
+    p = StoryboardPage(_StubClient())
+    p.set_project(tmp_path)
+    captured = {}
+    orig_start = p._start_stream
+    def _intercept(path, body, params=None):
+        captured.update(body)
+    p._start_stream = _intercept
+    try:
+        p._on_generate_clicked()
+    except Exception:
+        pass
+    assert captured.get("episode_id") == "E1"
