@@ -3,6 +3,8 @@
 顶 _ParamBar + 中 QPlainTextEdit + 底 _ActionBar。
 状态机 idle/streaming/done；磁盘是真相源；外部 mtime 检测；
 重生确认 + purge_downstream；切阶段时 dirty 拦截。
+
+T6：worker dict 模式（_workers[project_dir]）+ _UpstreamBanner 自检上游。
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from drama_shot_master.ui.widgets.screenwriter.base_stage_page import _BaseStagePage
 from drama_shot_master.ui.widgets.screenwriter.stream_worker import StreamWorker
+from drama_shot_master.ui.widgets.screenwriter._upstream_banner import _UpstreamBanner
 from screenwriter_agent.core.atomic_write import atomic_write_text
 
 
@@ -28,6 +31,8 @@ class ScriptPage(_BaseStagePage):
         self._script_path: Path | None = None
         self._original_text: str = ""
         self._last_load_mtime: float = 0.0
+        # Legacy single-worker ref kept for _stop_stream compatibility;
+        # canonical store is self._workers[project_dir] (from _BaseStagePage).
         self._worker: StreamWorker | None = None
         self._state: str = "idle"
         self._build_ui()
@@ -36,7 +41,10 @@ class ScriptPage(_BaseStagePage):
     def _build_ui(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(4, 4, 4, 4)
+        root.setSpacing(4)
         root.addLayout(self._build_param_bar())
+        self._upstream_banner = _UpstreamBanner()
+        root.addWidget(self._upstream_banner)
         self._editor = QPlainTextEdit()
         self._editor.setPlaceholderText("剧本.md 内容（生成或加载后显示在此）")
         self._editor.textChanged.connect(self._on_editor_changed)
@@ -86,13 +94,33 @@ class ScriptPage(_BaseStagePage):
         bar.addWidget(self._advance_btn)
         return bar
 
+    # —— 流式 UI 状态 ——
+
+    def _enter_streaming_view(self):
+        """进入 streaming 显示状态：隐藏「生成」按钮，显示「中止」按钮 + 流式提示。"""
+        self._gen_btn.hide()
+        self._stop_btn.show()
+        self._stream_label.setText("● 流式 · 已 0 字")
+        self._save_btn.setEnabled(False)
+        self._advance_btn.setEnabled(False)
+
+    def _exit_streaming_view(self):
+        """退出 streaming 显示状态：恢复「生成」按钮，隐藏「中止」按钮。"""
+        self._gen_btn.show()
+        self._stop_btn.hide()
+        self._stream_label.setText("")
+        self._save_btn.setEnabled(self._is_dirty())
+        self._advance_btn.setEnabled(self._state == "done" and not self._is_dirty())
+
     # —— set_project / try_release ——
 
     def set_project(self, path: Path | None):
         if self._project_dir is not None and not self.try_release():
             return
+        old = self._project_dir
         self._project_dir = path
         if path is None:
+            self._upstream_banner.hide_banner()
             self._script_path = None
             self._editor.blockSignals(True)
             self._editor.clear()
@@ -104,9 +132,23 @@ class ScriptPage(_BaseStagePage):
                 b.setEnabled(False)
             return
         self._script_path = path / "剧本.md"
-        self._load_from_disk()
-        self._gen_btn.setEnabled(True)
+        # 自检上游
+        upstream = path / "创意.json"
+        if not upstream.is_file():
+            self._upstream_banner.show_missing(
+                stage_name="创意", expected_file="创意.json")
+            self._gen_btn.setEnabled(False)
+        else:
+            self._upstream_banner.hide_banner()
+            self._gen_btn.setEnabled(True)
         self._open_btn.setEnabled(True)
+        self._load_from_disk()
+        # 检查 active worker
+        if path in self._workers and self._workers[path] and self._workers[path].isRunning():
+            self._enter_streaming_view()
+        else:
+            self._exit_streaming_view()
+        self._on_project_switched(old, path)
 
     def _load_from_disk(self):
         text = ""
@@ -220,49 +262,95 @@ class ScriptPage(_BaseStagePage):
     # —— SSE 流 ——
 
     def _start_stream(self, path, body, params=None):
-        self._state = "streaming"
-        self._gen_btn.hide(); self._stop_btn.show()
-        self._stream_label.setText("● 流式 · 已 0 字")
-        self._save_btn.setEnabled(False)
-        self._advance_btn.setEnabled(False)
-        self._worker = StreamWorker(self._client, path, body, params, parent=self)
-        self._worker.event.connect(self._on_sse_event)
-        self._worker.finished_ok.connect(self._on_stream_done)
-        self._worker.failed.connect(self._on_stream_failed)
-        self._worker.start()
+        if self._project_dir is None:
+            return
+        self._state_by_project[self._project_dir] = "streaming"
+        self._buf_by_project.setdefault(self._project_dir, "")
+        self._enter_streaming_view()
+        worker = StreamWorker(self._client, path, body, params,
+                               project_dir=self._project_dir, parent=self)
+        self._workers[self._project_dir] = worker
+        # Keep legacy ref for _stop_stream (points to current project's worker)
+        self._worker = worker
+        worker.event.connect(self._on_sse_event)
+        worker.finished_ok.connect(self._on_stream_done_signal)
+        worker.failed.connect(self._on_stream_failed)
+        worker.start()
 
     def _stop_stream(self):
-        if self._worker and self._worker.isRunning():
-            self._worker.stop()
-            self._worker.wait(2000)
-        self._reset_stream_ui("idle")
+        w = self._active_worker()
+        if w and w.isRunning():
+            w.stop()
+            w.wait(2000)
+        if self._project_dir is not None:
+            self._state_by_project[self._project_dir] = "idle"
+            self._workers[self._project_dir] = None
+        self._state = "idle"
+        self._worker = None
+        self._exit_streaming_view()
 
-    def _on_sse_event(self, event_name: str, data: dict):
+    def _on_sse_event(self, event_name: str, data: dict, project_dir_str: str):
+        proj = Path(project_dir_str)
+        # 累 buffer（不论是否当前显示）
+        if event_name == "delta":
+            text = data.get("text", "")
+            self._buf_by_project[proj] = self._buf_by_project.get(proj, "") + text
+        elif event_name == "done":
+            self._handle_done_for_project(proj, data)
+            self._state_by_project[proj] = "done"
+        elif event_name == "error":
+            self._error_by_project[proj] = data.get("hint") or data.get("message", "")
+            self._state_by_project[proj] = "error"
+
+        # 只有当前显示项目才动 UI
+        if proj != self._project_dir:
+            if event_name in ("done", "error"):
+                self.projectStateChanged.emit()
+            return
+
+        # 当前显示项目的 UI 更新
         if event_name == "delta":
             text = data.get("text", "")
             if text:
-                # 追加到编辑器末尾
                 self._editor.blockSignals(True)
                 self._editor.moveCursor(QTextCursor.End)
                 self._editor.insertPlainText(text)
                 self._editor.blockSignals(False)
                 self._stream_label.setText(
                     f"● 流式 · 已 {len(self._editor.toPlainText())} 字")
+        elif event_name == "done":
+            self._exit_streaming_view()
+        elif event_name == "error":
+            QMessageBox.warning(self, "剧本生成失败",
+                                 self._error_by_project.get(proj, ""))
+            self._exit_streaming_view()
 
-    def _on_stream_done(self):
-        # 重读磁盘
-        self._load_from_disk()
-        self._reset_stream_ui("done")
+    def _handle_done_for_project(self, proj: Path, data: dict):
+        """落盘逻辑：剧本.md 由 Agent 服务端写出；本端只在切回该项目时重读。
+        此方法不操作 UI，安全用于后台项目。"""
+        pass
+
+    def _on_stream_done_signal(self, project_dir_str: str):
+        proj = Path(project_dir_str)
+        if proj in self._workers:
+            self._workers[proj] = None
+        if proj == self._project_dir:
+            self._worker = None
+            self._state = "done"
+            # 重读磁盘（Agent 已落盘）
+            self._load_from_disk()
+            self._exit_streaming_view()
         self.projectStateChanged.emit()
 
-    def _on_stream_failed(self, msg: str):
-        self._reset_stream_ui("idle")
-        QMessageBox.warning(self, "生成失败",
-                             f"剧本生成失败：{msg}\n请检查网络或 LLM 配置。")
-
-    def _reset_stream_ui(self, state: str):
-        self._state = state
-        self._gen_btn.show(); self._stop_btn.hide()
-        self._stream_label.setText("")
-        self._save_btn.setEnabled(self._is_dirty())
-        self._advance_btn.setEnabled(state == "done" and not self._is_dirty())
+    def _on_stream_failed(self, msg: str, project_dir_str: str):
+        proj = Path(project_dir_str)
+        self._error_by_project[proj] = msg
+        self._state_by_project[proj] = "error"
+        if proj in self._workers:
+            self._workers[proj] = None
+        if proj == self._project_dir:
+            self._worker = None
+            self._state = "idle"
+            QMessageBox.warning(self, "生成失败", f"剧本生成失败：{msg}")
+            self._exit_streaming_view()
+        self.projectStateChanged.emit()

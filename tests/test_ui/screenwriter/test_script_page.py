@@ -101,6 +101,44 @@ def test_sse_delta_appends_to_editor(tmp_path):
     p = ScriptPage(_StubClient())
     p.set_project(tmp_path)
     # 直接调 _on_sse_event 模拟流式 delta
-    p._on_sse_event("delta", {"text": "你好"})
-    p._on_sse_event("delta", {"text": "世界"})
+    p._on_sse_event("delta", {"text": "你好"}, str(tmp_path))
+    p._on_sse_event("delta", {"text": "世界"}, str(tmp_path))
     assert "你好世界" in p._editor.toPlainText()
+
+
+def test_upstream_missing_shows_banner_and_disables_gen(tmp_path):
+    _app()
+    p = ScriptPage(_StubClient())
+    p.set_project(tmp_path)   # 无 创意.json
+    assert not p._upstream_banner.isHidden()
+    assert p._gen_btn.isEnabled() is False
+
+
+def test_upstream_present_hides_banner(tmp_path):
+    _app()
+    (tmp_path / "创意.json").write_text("{}", encoding="utf-8")
+    p = ScriptPage(_StubClient())
+    p.set_project(tmp_path)
+    assert p._upstream_banner.isHidden()
+
+
+def test_sse_event_signature_accepts_project_dir(tmp_path):
+    _app()
+    p = ScriptPage(_StubClient())
+    p.set_project(tmp_path)
+    # 不应抛
+    p._on_sse_event("delta", {"text": "x"}, str(tmp_path))
+    assert "x" in p._editor.toPlainText()
+
+
+def test_sse_delta_for_inactive_project_does_not_touch_editor(tmp_path):
+    _app()
+    p = ScriptPage(_StubClient())
+    pA = tmp_path / "A"; pA.mkdir()
+    pB = tmp_path / "B"; pB.mkdir()
+    p.set_project(pA)
+    before = p._editor.toPlainText()
+    p._on_sse_event("delta", {"text": "ignore"}, str(pB))
+    assert p._editor.toPlainText() == before
+    # 但 B 的 buffer 应有内容
+    assert "ignore" in p._buf_by_project.get(pB, "")
