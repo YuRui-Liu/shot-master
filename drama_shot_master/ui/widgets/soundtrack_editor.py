@@ -1,24 +1,20 @@
-"""SoundtrackEditor：单集配乐编辑器（QWidget，4 页签）。
+"""SoundtrackEditor：单集配乐编辑器（QWidget）。Phase 4c：DAW 多轨时间轴替换 4 tab 体系。
 
-从退役的 SoundtrackTaskWindow 抽取：① 配置+生成 ② 试听选优 ③ 卡点 ④ SFX 音效。
-浮出由通用 DetachedEditorWindow 承载，故本类不带 closed/closeEvent。
 输出路径：任务 output_dir → cfg.soundtrack_output_dir → cfg.video_output_dir/soundtrack。
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Signal, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import Signal, Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPlainTextEdit, QPushButton, QComboBox, QProgressBar, QTabWidget,
-    QFileDialog, QMessageBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QComboBox, QProgressBar,
+    QFileDialog, QMessageBox, QScrollBar,
 )
 
 from drama_shot_master.ui.worker import FunctionWorker
-from drama_shot_master.ui.widgets.segment_review_widget import SegmentReviewWidget
-from drama_shot_master.ui.widgets.accent_editor_widget import AccentEditorWidget
 from drama_shot_master.core.dialogue_segment_deriver import derive_dialogue_segments
 
 _STAGES = ["tag_emotion", "compose_prompt", "generate", "align", "mix"]
@@ -36,15 +32,26 @@ class SoundtrackEditor(QWidget):
         self.cfg = cfg
         self._work_root = Path(work_root)
         self._worker = None
-        self._session = None
-        self._review = None
-        self._accent = None
-        self._sfx_session = None
         self._sfx_worker = None
+        self._session = None
+        self._sfx_session = None
         self._video_preview = None
         self._overview_timeline = None
+        # 4c DAW 组件
+        self._daw_toolbar = None
+        self._track_view = None
+        self._minimap = None
+        self._inspector_container = None
+        self._current_inspector = None
+        from drama_shot_master.ui.widgets.daw.selection import Selection
+        from drama_shot_master.ui.widgets.daw.undo_stack import UndoStack
+        self._selection = Selection(self)
+        self._undo = UndoStack(self)
         self._build_ui()
+        self._setup_shortcuts()
         self._try_load_existing()
+
+    # ── identity ──────────────────────────────────────────────────────
 
     @property
     def task_id(self) -> str:
@@ -63,100 +70,89 @@ class SoundtrackEditor(QWidget):
         vout = getattr(self.cfg, "video_output_dir", "") or "."
         return Path(vout) / "soundtrack"
 
+    # ── UI construction ───────────────────────────────────────────────
+
     def _build_ui(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-
-        # 顶部预览区 (Phase 4b)
+        root.setSpacing(0)
         from drama_shot_master.ui.widgets.video_preview_widget import VideoPreviewWidget
         from drama_shot_master.ui.widgets.overview_timeline import OverviewTimeline
         self._video_preview = VideoPreviewWidget()
         self._overview_timeline = OverviewTimeline()
-        self._video_preview.positionChanged.connect(
-            self._on_video_position_changed)
-        self._overview_timeline.playheadDragged.connect(
-            self._on_overview_playhead_dragged)
-        self._overview_timeline.cueClicked.connect(
-            self._on_overview_cue_clicked)
+        self._video_preview.positionChanged.connect(self._on_video_position_changed)
+        self._overview_timeline.playheadDragged.connect(self._on_overview_playhead_dragged)
+        self._overview_timeline.cueClicked.connect(self._on_overview_cue_clicked)
         root.addWidget(self._video_preview)
         root.addWidget(self._overview_timeline)
+        self._build_daw_main(root)
+        # 生成控制条（保留生成/重排/导出/预览按钮）
+        self._build_action_bar(root)
 
-        self.tabs = QTabWidget()
-        root.addWidget(self.tabs)
-        self.tabs.addTab(self._build_config_tab(), "① 配置+生成")
-        self._review_holder = QWidget(); QVBoxLayout(self._review_holder)
-        self.tabs.addTab(self._review_holder, "② 试听选优")
-        self._accent_holder = QWidget(); QVBoxLayout(self._accent_holder)
-        self.tabs.addTab(self._accent_holder, "③ 卡点")
-        self.tabs.addTab(self._build_sfx_tab(), "④ 🔊 SFX 音效")
-        # 启动时尝试加载已有 sfx session
-        from sound_track_agent.sfx import facade as sfx_fac
-        try:
-            self._sfx_session = sfx_fac.load_sfx_session(self._work_dir())
-        except Exception:
-            self._sfx_session = None
-        if self._sfx_session is not None:
-            self._rebuild_sfx_review()
-        self.tabs.currentChanged.connect(lambda _i: self._rebuild_overview())
-        self._rebuild_overview()
-        src = self._resolve_video_source()
-        if src:
-            self._video_preview.set_source(src)
+    def _build_daw_main(self, root):
+        from drama_shot_master.ui.widgets.daw.daw_toolbar import DawToolbar
+        from drama_shot_master.ui.widgets.daw.daw_track_view import DawTrackView
+        from drama_shot_master.ui.widgets.daw.daw_minimap import DawMinimap
+        from drama_shot_master.ui.widgets.daw.inspector import EmptyInspector
+        self._daw_toolbar = DawToolbar(self._undo)
+        self._daw_toolbar.undoRequested.connect(self._undo.undo)
+        self._daw_toolbar.redoRequested.connect(self._undo.redo)
+        self._daw_toolbar.configRequested.connect(self._on_open_config_dialog)
+        self._daw_toolbar.playPauseRequested.connect(self._on_toolbar_play)
+        self._daw_toolbar.fitRequested.connect(self._on_fit)
+        self._daw_toolbar.zoomInRequested.connect(lambda: self._on_zoom_step(1.5))
+        self._daw_toolbar.zoomOutRequested.connect(lambda: self._on_zoom_step(1 / 1.5))
+        root.addWidget(self._daw_toolbar)
 
-    def _build_sfx_tab(self) -> QWidget:
-        sfx_tab = QWidget()
-        sfx_lay = QVBoxLayout(sfx_tab)
+        main_h = QHBoxLayout()
+        main_h.setContentsMargins(0, 0, 0, 0)
+        main_h.setSpacing(0)
+
+        left_col = QVBoxLayout()
+        left_col.setContentsMargins(0, 0, 0, 0)
+        left_col.setSpacing(0)
+        self._track_view = DawTrackView(self._selection)
+        self._track_view.cueClicked.connect(self._on_cue_clicked)
+        self._track_view.cueDoubleClicked.connect(self._on_open_prompt_edit_dialog)
+        self._track_view.dragCommandIssued.connect(self._on_command_from_widget)
+        self._track_view.rubberBandReleased.connect(self._on_rubber_band)
+        self._track_view.contextMenuRequested.connect(self._on_context_menu)
+        self._track_view.playheadDragged.connect(self._on_track_playhead_dragged)
+        self._scrollbar = QScrollBar(Qt.Horizontal)
+        self._scrollbar.setRange(0, 1000)
+        self._scrollbar.valueChanged.connect(
+            lambda v: self._track_view.set_scroll_offset(v / 1000.0))
+        self._minimap = DawMinimap()
+        self._minimap.viewportRequested.connect(
+            lambda off: self._scrollbar.setValue(int(off * 1000)))
+        left_col.addWidget(self._track_view, 1)
+        left_col.addWidget(self._scrollbar)
+        left_col.addWidget(self._minimap)
+        left_w = QWidget()
+        left_w.setLayout(left_col)
+        main_h.addWidget(left_w, 1)
+
+        self._inspector_container = QWidget()
+        self._inspector_container.setFixedWidth(280)
+        ic_lay = QVBoxLayout(self._inspector_container)
+        ic_lay.setContentsMargins(0, 0, 0, 0)
+        self._current_inspector = EmptyInspector()
+        ic_lay.addWidget(self._current_inspector)
+        main_h.addWidget(self._inspector_container)
+
+        main_w = QWidget()
+        main_w.setLayout(main_h)
+        root.addWidget(main_w, 1)
+        self._selection.changed.connect(self._refresh_inspector)
+
+    def _build_action_bar(self, root):
         bar = QHBoxLayout()
-        self.btn_sfx_plan = QPushButton("🎬 检测 SFX 时机")
-        self.btn_sfx_plan.clicked.connect(self._on_sfx_plan_clicked)
-        self.btn_sfx_gen = QPushButton("🔊 生成全部")
-        self.btn_sfx_gen.clicked.connect(self._on_sfx_generate_clicked)
-        bar.addWidget(self.btn_sfx_plan)
-        bar.addWidget(self.btn_sfx_gen)
-        bar.addStretch(1)
-        sfx_lay.addLayout(bar)
-        self._sfx_review_holder = QWidget()
-        self._sfx_review_lay = QVBoxLayout(self._sfx_review_holder)
-        sfx_lay.addWidget(self._sfx_review_holder, 1)
-        return sfx_tab
-
-    def _build_config_tab(self) -> QWidget:
-        page = QWidget(); root = QVBoxLayout(page)
-
-        mp4_row = QHBoxLayout()
-        mp4_row.addWidget(QLabel("成片 MP4:"))
-        self.mp4_edit = QLineEdit(self._task.get("mp4", ""))
-        b = QPushButton("浏览…"); b.clicked.connect(self._browse_mp4)
-        mp4_row.addWidget(self.mp4_edit, 1); mp4_row.addWidget(b)
-        root.addLayout(mp4_row)
-
-        root.addWidget(QLabel("总风格:"))
-        self.style_edit = QPlainTextEdit(self._task.get("style", ""))
-        self.style_edit.setMaximumHeight(70)
-        root.addWidget(self.style_edit)
-
-        out_row = QHBoxLayout()
-        out_row.addWidget(QLabel("本任务输出目录(可空=用全局默认):"))
-        self.out_edit = QLineEdit(self._task.get("output_dir", ""))
-        ob = QPushButton("浏览…"); ob.clicked.connect(self._browse_out)
-        out_row.addWidget(self.out_edit, 1); out_row.addWidget(ob)
-        root.addLayout(out_row)
-
-        stop_row = QHBoxLayout()
-        stop_row.addWidget(QLabel("停在:"))
         self.stop_combo = QComboBox()
         for s in _STAGES:
             self.stop_combo.addItem(_STAGE_LABELS[s], s)
         self.stop_combo.setCurrentIndex(_STAGES.index("generate"))
-        stop_row.addWidget(self.stop_combo); stop_row.addStretch(1)
-        root.addLayout(stop_row)
-
-        root.addWidget(QLabel("段落预览:"))
-        self.seg_preview = QPlainTextEdit(); self.seg_preview.setReadOnly(True)
-        self.seg_preview.setMaximumHeight(140)
-        root.addWidget(self.seg_preview, 1)
-
-        act = QHBoxLayout()
+        bar.addWidget(QLabel("停在:"))
+        bar.addWidget(self.stop_combo)
         self.btn_start = QPushButton("🎬 开始配乐")
         self.btn_start.setObjectName("AccentButton")
         self.btn_start.clicked.connect(self._on_start)
@@ -170,90 +166,306 @@ class SoundtrackEditor(QWidget):
         self.btn_preview = QPushButton("▶ 预览成片")
         self.btn_preview.clicked.connect(self._on_preview)
         self.btn_preview.setEnabled(False)
-        act.addWidget(self.btn_start); act.addWidget(self.btn_resegment)
-        act.addWidget(self.btn_export)
-        act.addWidget(self.btn_open_dir); act.addWidget(self.btn_preview)
-        act.addStretch(1)
-        root.addLayout(act)
-
-        self.progress = QProgressBar(); self.progress.setRange(0, 0)
+        btn_sfx_plan = QPushButton("🎬 检测 SFX")
+        btn_sfx_plan.clicked.connect(self._on_sfx_plan_clicked)
+        btn_sfx_gen = QPushButton("🔊 生成 SFX")
+        btn_sfx_gen.clicked.connect(self._on_sfx_generate_clicked)
+        for w in (self.btn_start, self.btn_resegment, self.btn_export,
+                  self.btn_open_dir, self.btn_preview,
+                  btn_sfx_plan, btn_sfx_gen):
+            bar.addWidget(w)
+        bar.addStretch(1)
+        bar_w = QWidget()
+        bar_w.setLayout(bar)
+        root.addWidget(bar_w)
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
         self.progress.hide()
-        self.progress_label = QLabel(""); self.progress_label.setWordWrap(True)
-        root.addWidget(self.progress); root.addWidget(self.progress_label)
-        return page
+        self.progress_label = QLabel("")
+        self.progress_label.setWordWrap(True)
+        root.addWidget(self.progress)
+        root.addWidget(self.progress_label)
+
+    def _setup_shortcuts(self):
+        QShortcut(QKeySequence(Qt.Key_Space), self, self._on_toolbar_play)
+        QShortcut(QKeySequence(Qt.Key_R), self, self._on_regen_selected)
+        QShortcut(QKeySequence(Qt.Key_Delete), self, self._on_delete_selected)
+        QShortcut(QKeySequence(QKeySequence.Undo), self, self._undo.undo)
+        QShortcut(QKeySequence(QKeySequence.Redo), self, self._undo.redo)
+        QShortcut(QKeySequence(QKeySequence.SelectAll), self, self._on_select_all)
+        QShortcut(QKeySequence(Qt.Key_Escape), self, self._selection.clear)
+        QShortcut(QKeySequence(Qt.Key_Home), self,
+                  lambda: self._video_preview.seek(0.0)
+                          if self._video_preview else None)
+        QShortcut(QKeySequence(Qt.Key_End), self,
+                  lambda: self._video_preview.seek(
+                      self._track_view._duration if self._track_view else 0)
+                          if self._video_preview else None)
+        QShortcut(QKeySequence("+"), self, lambda: self._on_zoom_step(1.5))
+        QShortcut(QKeySequence("-"), self, lambda: self._on_zoom_step(1 / 1.5))
+
+    # ── session load ─────────────────────────────────────────────────
 
     def _try_load_existing(self):
         from sound_track_agent import facade
         sess = facade.load_session(self._work_dir())
         if sess is not None:
             self._session = sess
-            self._mount_session_tabs()
-            self._post_seg_preview(sess)
-            self.progress_label.setText("已加载上次进度（可续跑/选优/编辑卡点）")
-            self._update_preview_enabled()
+        from sound_track_agent.sfx import facade as sfx_fac
+        try:
+            sfx_sess = sfx_fac.load_sfx_session(self._work_dir())
+        except Exception:
+            sfx_sess = None
+        if sfx_sess is not None:
+            self._sfx_session = sfx_sess
+        src = self._resolve_video_source()
+        if src and self._video_preview:
+            self._video_preview.set_source(src)
+        self._refresh_track_view()
 
-    def _mount_session_tabs(self):
-        # ② 试听选优
-        lay = self._review_holder.layout()
+    # ── Inspector ────────────────────────────────────────────────────
+
+    def _refresh_inspector(self):
+        from drama_shot_master.ui.widgets.daw.inspector import (
+            EmptyInspector, BgmInspector, SfxInspector, DialogueInspector,
+        )
+        refs = self._selection.get()
+        if len(refs) != 1:
+            new_insp = EmptyInspector()
+        else:
+            ref = refs[0]
+            if ref.track == "bgm" and self._session:
+                insp = BgmInspector()
+                insp.set_cue_ref(ref, self._session)
+                insp.regenerateRequested.connect(self._on_regen_one)
+                insp.promptEditRequested.connect(self._on_open_prompt_edit_dialog)
+                insp.candidateChosen.connect(self._on_inspector_candidate_chosen)
+                new_insp = insp
+            elif ref.track == "sfx" and self._sfx_session:
+                insp = SfxInspector()
+                insp.set_cue_ref(ref, self._sfx_session)
+                insp.regenerateRequested.connect(self._on_sfx_regen_one_inspector)
+                insp.promptEditRequested.connect(self._on_open_prompt_edit_dialog)
+                insp.candidateChosen.connect(self._on_inspector_candidate_chosen)
+                insp.commandIssued.connect(self._on_command_from_widget)
+                new_insp = insp
+            elif ref.track == "dialogue":
+                insp = DialogueInspector()
+                timeline = self._dialogue_timeline_for_current_mp4()
+                insp.set_cue_ref(ref, timeline)
+                new_insp = insp
+            else:
+                new_insp = EmptyInspector()
+        self._swap_inspector(new_insp)
+
+    def _swap_inspector(self, new):
+        lay = self._inspector_container.layout()
         while lay.count():
             old = lay.takeAt(0).widget()
-            if old: old.deleteLater()
-        self._review = SegmentReviewWidget(self._session)
-        self._review.regenerateRequested.connect(self._on_regenerate)
-        self._review.chosenChanged.connect(self._on_chosen_changed)
-        self._review.segmentVolumeChanged.connect(self._persist_session)
-        self._review.previewStarted.connect(
-            lambda: self._video_preview.pause()
-                    if self._video_preview is not None else None)
-        lay.addWidget(self._review)
-        # ③ 卡点
-        lay2 = self._accent_holder.layout()
-        while lay2.count():
-            old = lay2.takeAt(0).widget()
-            if old: old.deleteLater()
-        self._accent = AccentEditorWidget(
-            self._session,
-            big_threshold=float(getattr(self.cfg, "accent_big_threshold", 0.7)),
-            work_dir=str(self._work_dir()),
-            crossfade=float(getattr(self.cfg, "soundtrack_crossfade", 0.5)),
-            snap_window=float(getattr(self.cfg, "accent_snap_window", 0.6)))
-        self._accent.accentsChanged.connect(self._persist_session)
-        lay2.addWidget(self._accent)
+            if old:
+                old.deleteLater()
+        self._current_inspector = new
+        lay.addWidget(new)
+
+    # ── track view refresh ───────────────────────────────────────────
+
+    def _refresh_track_view(self):
+        if self._track_view is None:
+            return
+        from drama_shot_master.ui.widgets.overview_timeline_model import (
+            derive_video_cues, derive_bgm_cues, derive_sfx_cues,
+            derive_dialogue_cues, derive_total_duration,
+        )
+        bgm_cues = derive_bgm_cues(self._session)
+        sfx_cues = derive_sfx_cues(self._sfx_session)
+        timeline = self._dialogue_timeline_for_current_mp4()
+        dial_cues = derive_dialogue_cues(timeline)
+        shot_bounds = []
+        if self._session:
+            shot_bounds = [float(s.t_end) for s in (self._session.segments or [])]
+        video_dur = self._video_preview.duration() if self._video_preview else 0.0
+        total = derive_total_duration(
+            bgm_session=self._session, sfx_session=self._sfx_session,
+            dialogue_audios=timeline, video_duration=video_dur)
+        video_cues = derive_video_cues(shot_bounds, total)
+        cues = video_cues + bgm_cues + sfx_cues + dial_cues
+        self._track_view.set_duration(total)
+        self._track_view.set_cues(cues)
+        self._minimap.set_duration(total)
+        self._minimap.set_cues(cues)
+        # 同步 overview timeline
+        if self._overview_timeline is not None:
+            self._overview_timeline.set_duration(total)
+            self._overview_timeline.set_cues(cues)
+
+    def _dialogue_timeline_for_current_mp4(self):
+        mp4 = str(self._task.get("mp4", "")).strip()
+        for t in (getattr(self.cfg, "video_tasks", []) or []):
+            if str(t.get("last_result", "")) == mp4:
+                return t.get("timeline")
+        return None
+
+    # ── commands / undo ──────────────────────────────────────────────
+
+    def _on_command_from_widget(self, cmd):
+        self._undo.push(cmd)
+        self._persist_session()
+        self._refresh_track_view()
+
+    def _on_delete_selected(self):
+        refs = self._selection.get()
+        if not refs:
+            return
+        from drama_shot_master.ui.widgets.daw.commands import DeleteCue
+        refs = [r for r in refs if r.track in ("bgm", "sfx")]
+        if not refs:
+            return
+        cmd = DeleteCue(self._session, self._sfx_session, refs)
+        self._undo.push(cmd)
+        self._persist_session()
+        self._refresh_track_view()
+
+    def _on_select_all(self):
+        from drama_shot_master.ui.widgets.daw.selection import _CueRef
+        refs = []
+        if self._session:
+            refs += [_CueRef("bgm", i) for i, _ in enumerate(self._session.segments)]
+        if self._sfx_session:
+            refs += [_CueRef("sfx", i)
+                     for i, s in enumerate(self._sfx_session.shots)
+                     if getattr(s, "enabled", True) and s.status == "generated"]
+        self._selection.set(refs)
+
+    def _on_regen_selected(self):
+        by_track = self._selection.by_track()
+        for idx in by_track.get("bgm", []):
+            self._on_regenerate(idx)
+        for idx in by_track.get("sfx", []):
+            self._on_sfx_regenerate_one(idx)
+
+    def _on_regen_one(self, ref):
+        self._on_regenerate(ref.seg_index)
+
+    def _on_sfx_regen_one_inspector(self, ref):
+        self._on_sfx_regenerate_one(ref.seg_index)
+
+    def _on_inspector_candidate_chosen(self, ref, idx):
+        if ref.track == "bgm" and self._session:
+            self._session.segments[ref.seg_index].chosen_candidate = idx
+            self._persist_session()
+        elif ref.track == "sfx" and self._sfx_session:
+            self._sfx_session.shots[ref.seg_index].chosen_candidate = idx
+            try:
+                self._sfx_session.save(self._work_dir() / "sfx_session.json")
+            except Exception:
+                pass
+
+    # ── keyboard ─────────────────────────────────────────────────────
+
+    def keyPressEvent(self, ev):
+        if ev.key() == Qt.Key_Delete:
+            self._on_delete_selected()
+        else:
+            super().keyPressEvent(ev)
+
+    # ── DAW interaction ──────────────────────────────────────────────
+
+    def _on_cue_clicked(self, ref, mod):
+        if mod & Qt.ControlModifier:
+            self._selection.toggle(ref)
+        else:
+            self._selection.set([ref])
+
+    def _on_rubber_band(self, rect, mod):
+        pass  # future: collect cues inside rect
+
+    def _on_context_menu(self, ref, pos):
+        pass  # future: context menu
+
+    def _on_track_playhead_dragged(self, t: float):
+        if self._video_preview:
+            self._video_preview.seek(t)
+
+    def _on_toolbar_play(self):
+        if self._video_preview is None:
+            return
+        try:
+            if self._video_preview.is_playing():
+                self._video_preview.pause()
+            else:
+                self._video_preview.play()
+        except Exception:
+            pass
+
+    def _on_zoom_step(self, factor: float):
+        if self._track_view:
+            self._track_view.set_zoom(self._track_view._zoom * factor)
+
+    def _on_fit(self):
+        if self._track_view:
+            self._track_view.set_zoom(1.0)
+            self._track_view.set_scroll_offset(0.0)
+        if self._scrollbar:
+            self._scrollbar.setValue(0)
+
+    # ── dialogs ──────────────────────────────────────────────────────
+
+    def _on_open_config_dialog(self):
+        from drama_shot_master.ui.dialogs.config_dialog import ConfigDialog
+        from PySide6.QtWidgets import QDialog
+        initial = {"mp4": self._task.get("mp4", ""),
+                   "style": self._task.get("style", ""),
+                   "output_dir": self._task.get("output_dir", "")}
+        dlg = ConfigDialog(initial, self)
+        if dlg.exec() == QDialog.Accepted:
+            p = dlg.to_payload()
+            self._task.update(p)
+            src = self._resolve_video_source()
+            if src and self._video_preview:
+                self._video_preview.set_source(src)
+
+    def _on_open_prompt_edit_dialog(self, ref):
+        from drama_shot_master.ui.dialogs.prompt_edit_dialog import PromptEditDialog
+        from drama_shot_master.ui.widgets.daw.commands import ChangePrompt
+        from PySide6.QtWidgets import QDialog
+        initial = ""
+        if ref.track == "bgm" and self._session:
+            initial = getattr(self._session.segments[ref.seg_index],
+                              "music_prompt", "") or ""
+        elif ref.track == "sfx" and self._sfx_session:
+            initial = self._sfx_session.shots[ref.seg_index].prompt_short or ""
+        title = f"{ref.track.upper()} 段 {ref.seg_index} prompt"
+        dlg = PromptEditDialog(initial, title, self)
+        if dlg.exec() == QDialog.Accepted:
+            new_prompt = dlg.to_payload()
+            if new_prompt != initial:
+                cmd = ChangePrompt(self._session, self._sfx_session, ref, new_prompt)
+                self._undo.push(cmd)
+                self._persist_session()
+                self._refresh_inspector()
+                self._refresh_track_view()
+
+    # ── persist ───────────────────────────────────────────────────────
 
     def _persist_session(self):
         if self._session is not None:
-            self._session.save(self._work_dir() / "session.json")
-
-    def _on_chosen_changed(self):
-        """试听选优变化 → 选定进度提示 + 落盘选定。"""
-        if self._session is None:
-            return
-        self._persist_session()
-        if self._review is not None and not self._review.all_chosen():
-            n = sum(1 for s in self._session.segments
-                    if s.chosen_candidate is not None)
-            total = len(self._session.segments)
-            self.progress_label.setText(
-                f"已选定 {n}/{total} 段；全部选定后「停在」选「出片」可出成片")
-
-    def _worker_busy(self) -> bool:
-        """有 worker 在跑则 True（防并发改同一 session）。"""
-        return self._worker is not None and self._worker.isRunning()
-
-    def _browse_mp4(self):
-        p, _ = QFileDialog.getOpenFileName(
-            self, "选择成片 MP4", self.mp4_edit.text() or "", "视频 (*.mp4 *.mov)")
-        if p:
-            self.mp4_edit.setText(p)
-
-    def _browse_out(self):
-        d = QFileDialog.getExistingDirectory(
-            self, "本任务输出目录", self.out_edit.text() or "")
-        if d:
-            self.out_edit.setText(d)
+            try:
+                self._session.save(self._work_dir() / "session.json")
+            except Exception:
+                pass
+        if self._sfx_session is not None:
+            try:
+                self._sfx_session.save(self._work_dir() / "sfx_session.json")
+            except Exception:
+                pass
 
     def _post_progress(self, msg: str):
         QTimer.singleShot(0, lambda: self.progress_label.setText(msg))
+
+    # ── pipeline / workers ────────────────────────────────────────────
+
+    def _worker_busy(self) -> bool:
+        return self._worker is not None and self._worker.isRunning()
 
     def _on_start(self):
         self._run_pipeline(self.stop_combo.currentData())
@@ -263,35 +475,26 @@ class SoundtrackEditor(QWidget):
 
     def _run_pipeline(self, stop_after):
         if self._worker_busy():
-            QMessageBox.information(self, "请稍候", "当前有任务在运行"); return
-        mp4 = self.mp4_edit.text().strip()
-        style = self.style_edit.toPlainText().strip()
-        if not mp4 or not Path(mp4).exists():
-            QMessageBox.warning(self, "无法开始", "请选择存在的成片 MP4"); return
-        if not style:
-            QMessageBox.warning(self, "无法开始", "请填写总风格"); return
-        # 出片门控：到 mix 阶段需所有段已选定候选
-        if stop_after == "mix" and self._session is not None and \
-                self._review is not None and not self._review.all_chosen():
-            QMessageBox.warning(self, "无法出片",
-                                "还有段未选定候选，请先到「② 试听选优」全部选定")
-            self.tabs.setCurrentIndex(1)
+            QMessageBox.information(self, "请稍候", "当前有任务在运行")
             return
-        self._task["output_dir"] = self.out_edit.text().strip()
-        self._task["mp4"] = mp4
-        self._task["style"] = style
+        mp4 = self._task.get("mp4", "").strip()
+        style = self._task.get("style", "").strip()
+        if not mp4 or not Path(mp4).exists():
+            QMessageBox.warning(self, "无法开始", "请先配置存在的成片 MP4（点工具栏 ⚙）")
+            return
+        if not style:
+            QMessageBox.warning(self, "无法开始", "请先填写总风格（点工具栏 ⚙）")
+            return
         workflow_id = getattr(self.cfg, "soundtrack_workflow_id", "")
         seeds = int(getattr(self.cfg, "soundtrack_seeds_count", 2))
         work_dir = self._work_dir()
         cfg = self.cfg
-
         sfx_session = self._sfx_session
 
         def task():
             from sound_track_agent import facade
             sess = facade.load_session(work_dir)
             if sess is None:
-                # 从 video_tasks 派生对白段，复用配音轨而非 Demucs 盲分离；无匹配返回 [] → 传 None → 走回退
                 dialogue_segs = derive_dialogue_segments(cfg, mp4) or None
                 sess = facade.prepare_session(
                     mp4, style, work_dir, dialogue_segments=dialogue_segs)
@@ -302,7 +505,8 @@ class SoundtrackEditor(QWidget):
                            sfx_session=sfx_session)
             return sess
 
-        self.btn_start.setEnabled(False); self.progress.show()
+        self.btn_start.setEnabled(False)
+        self.progress.show()
         self.statusChanged.emit(self.task_id, "生成中")
         self._worker = FunctionWorker(task)
         self._worker.finished_with_result.connect(self._on_done)
@@ -313,10 +517,13 @@ class SoundtrackEditor(QWidget):
         if self._session is None:
             return
         if self._worker_busy():
-            QMessageBox.information(self, "请稍候", "当前有任务在运行"); return
+            QMessageBox.information(self, "请稍候", "当前有任务在运行")
+            return
         workflow_id = getattr(self.cfg, "soundtrack_workflow_id", "")
         seeds = int(getattr(self.cfg, "soundtrack_seeds_count", 2))
-        work_dir = self._work_dir(); cfg = self.cfg; sess = self._session
+        work_dir = self._work_dir()
+        cfg = self.cfg
+        sess = self._session
 
         def task():
             from sound_track_agent import facade
@@ -324,7 +531,8 @@ class SoundtrackEditor(QWidget):
                                       workflow_id=workflow_id, seeds_count=seeds)
             return sess
 
-        self.progress.show(); self.statusChanged.emit(self.task_id, "生成中")
+        self.progress.show()
+        self.statusChanged.emit(self.task_id, "生成中")
         self._worker = FunctionWorker(task)
         self._worker.finished_with_result.connect(self._on_regen_done)
         self._worker.failed.connect(self._on_failed)
@@ -332,12 +540,12 @@ class SoundtrackEditor(QWidget):
 
     def _post_seg_preview(self, sess):
         lines = [f"段{s.index}  {s.t_start:.1f}–{s.t_end:.1f}s" for s in sess.segments]
-        QTimer.singleShot(0, lambda: self.seg_preview.setPlainText("\n".join(lines)))
+        QTimer.singleShot(0, lambda: self.progress_label.setText("\n".join(lines)))
 
     def _on_done(self, sess):
-        self.progress.hide(); self.btn_start.setEnabled(True)
+        self.progress.hide()
+        self.btn_start.setEnabled(True)
         self._session = sess
-        self._mount_session_tabs()
         out = getattr(sess, "output", None)
         if out:
             self.statusChanged.emit(self.task_id, "完成")
@@ -346,22 +554,23 @@ class SoundtrackEditor(QWidget):
         else:
             self.statusChanged.emit(self.task_id, "空闲")
             self.progress_label.setText(
-                f"已停在选优点：候选已生成在 {self._work_dir()}（切到「② 试听选优」试听选定）")
-            self.tabs.setCurrentIndex(1)
+                f"已停在选优点：候选已生成在 {self._work_dir()}")
         self._update_preview_enabled()
-        self._rebuild_overview()
+        self._refresh_track_view()
         new_src = self._resolve_video_source()
         if new_src and self._video_preview is not None:
             self._video_preview.set_source(new_src)
 
     def _on_regen_done(self, sess):
         self.progress.hide()
-        self._mount_session_tabs()
-        self.tabs.setCurrentIndex(1)
+        self._session = sess
         self.statusChanged.emit(self.task_id, "空闲")
+        self._refresh_track_view()
+        self._refresh_inspector()
 
     def _on_failed(self, err: str):
-        self.progress.hide(); self.btn_start.setEnabled(True)
+        self.progress.hide()
+        self.btn_start.setEnabled(True)
         self.statusChanged.emit(self.task_id, "失败")
         QMessageBox.critical(self, "配乐失败", err)
 
@@ -374,7 +583,7 @@ class SoundtrackEditor(QWidget):
         if out and Path(out).exists():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(out)))
         else:
-            QMessageBox.information(self, "预览成片", "还没有成片,请先导出成片")
+            QMessageBox.information(self, "预览成片", "还没有成片，请先导出成片")
 
     def _open_output_dir(self):
         wd = self._work_dir()
@@ -384,14 +593,12 @@ class SoundtrackEditor(QWidget):
             QMessageBox.information(self, "打开输出目录", "还没有输出（先运行一次）")
 
     def _on_resegment(self):
-        """🔄 重排段落：清空已有候选/prompt/emotion，重置 segments_refined，重跑 refine 阶段。"""
         if not self._session:
             QMessageBox.warning(self, "无法重排", "请先开始配乐生成 session")
             return
-        # 重要：worker 忙时不能 reset——否则 session 落盘清空后 refine 被 _run_pipeline
-        # 早退拦截，用户会拿到一个被静默清空候选的 session。与 _on_regenerate 对齐。
         if self._worker_busy():
-            QMessageBox.information(self, "请稍候", "当前有任务在运行"); return
+            QMessageBox.information(self, "请稍候", "当前有任务在运行")
+            return
         if any(s.candidates for s in self._session.segments):
             if QMessageBox.warning(
                     self, "重排会清空候选",
@@ -408,36 +615,15 @@ class SoundtrackEditor(QWidget):
         self._persist_session()
         self._run_pipeline("refine_segments")
 
-    # ------------------------------------------------------------------
-    # SFX tab 方法
-    # ------------------------------------------------------------------
-
-    def _rebuild_sfx_review(self):
-        from drama_shot_master.ui.widgets.sfx_review_widget import SfxReviewWidget
-        while self._sfx_review_lay.count():
-            w = self._sfx_review_lay.takeAt(0).widget()
-            if w:
-                w.deleteLater()
-        if self._sfx_session is None:
-            return
-        review = SfxReviewWidget(self._sfx_session)
-        review.regenerateRequested.connect(self._on_sfx_regenerate_one)
-        review.shotEdited.connect(lambda: self._sfx_session.save(
-            self._work_dir() / "sfx_session.json"))
-        review.chosenChanged.connect(lambda: self._sfx_session.save(
-            self._work_dir() / "sfx_session.json"))
-        review.previewStarted.connect(
-            lambda: self._video_preview.pause()
-                    if self._video_preview is not None else None)
-        self._sfx_review_lay.addWidget(review)
+    # ── SFX workers ───────────────────────────────────────────────────
 
     def _on_sfx_plan_clicked(self):
         if self._sfx_worker is not None and self._sfx_worker.isRunning():
             QMessageBox.information(self, "请稍候", "SFX 任务正在运行")
             return
-        mp4 = self.mp4_edit.text().strip()
+        mp4 = self._task.get("mp4", "").strip()
         if not mp4 or not Path(mp4).exists():
-            QMessageBox.warning(self, "无 MP4", "请先选择视频文件")
+            QMessageBox.warning(self, "无 MP4", "请先配置视频文件（点工具栏 ⚙）")
             return
         cfg = self.cfg
         work_dir = self._work_dir()
@@ -454,7 +640,7 @@ class SoundtrackEditor(QWidget):
 
     def _on_sfx_plan_done(self, session):
         self._sfx_session = session
-        self._rebuild_sfx_review()
+        self._refresh_track_view()
 
     def _on_sfx_generate_clicked(self):
         if self._sfx_worker is not None and self._sfx_worker.isRunning():
@@ -479,8 +665,7 @@ class SoundtrackEditor(QWidget):
         self._sfx_worker.start()
 
     def _on_sfx_generate_done(self, _sess):
-        self._rebuild_sfx_review()
-        self._rebuild_overview()
+        self._refresh_track_view()
 
     def _on_sfx_regenerate_one(self, shot_index: int):
         if self._sfx_session is None:
@@ -502,51 +687,15 @@ class SoundtrackEditor(QWidget):
             lambda err: QMessageBox.critical(self, "SFX 重生成失败", err))
         self._sfx_worker.start()
 
-    # ------------------------------------------------------------------
-    # Phase 4b: 顶部预览方法
-    # ------------------------------------------------------------------
+    # ── video preview helpers ─────────────────────────────────────────
 
     def _resolve_video_source(self):
-        """有 BGM mix 完成 session.output → 用成片；否则用原 mp4."""
         if self._session is not None:
             out = getattr(self._session, "output", None)
             if out and Path(out).exists():
                 return out
         mp4 = (self._task.get("mp4") or "").strip()
-        if not mp4:
-            mp4 = self.mp4_edit.text().strip()
         return mp4 if mp4 and Path(mp4).exists() else None
-
-    def _rebuild_overview(self):
-        if self._overview_timeline is None:
-            return
-        from drama_shot_master.ui.widgets.overview_timeline_model import (
-            derive_video_cues, derive_bgm_cues, derive_sfx_cues,
-            derive_dialogue_cues, derive_total_duration,
-        )
-        bgm_cues = derive_bgm_cues(self._session)
-        sfx_cues = derive_sfx_cues(self._sfx_session)
-        timeline = None
-        mp4 = self.mp4_edit.text().strip() if hasattr(self, "mp4_edit") else ""
-        for t in (getattr(self.cfg, "video_tasks", []) or []):
-            if str(t.get("last_result", "")) == mp4:
-                timeline = t.get("timeline"); break
-        dial_cues = derive_dialogue_cues(timeline)
-        shot_bounds = []
-        if self._session is not None:
-            shot_bounds = [float(s.t_end)
-                           for s in (self._session.segments or [])]
-        video_dur = (self._video_preview.duration()
-                     if self._video_preview else 0.0)
-        total = derive_total_duration(
-            bgm_session=self._session,
-            sfx_session=self._sfx_session,
-            dialogue_audios=timeline,
-            video_duration=video_dur)
-        video_cues = derive_video_cues(shot_bounds, total)
-        self._overview_timeline.set_duration(total)
-        self._overview_timeline.set_cues(
-            video_cues + bgm_cues + sfx_cues + dial_cues)
 
     def _on_overview_playhead_dragged(self, t: float):
         if self._video_preview is not None:
@@ -555,16 +704,19 @@ class SoundtrackEditor(QWidget):
     def _on_video_position_changed(self, t: float):
         if self._overview_timeline is not None:
             self._overview_timeline.set_playhead(t)
+        if self._daw_toolbar is not None:
+            total = self._track_view._duration if self._track_view else 0
+            self._daw_toolbar.set_time(t, total)
 
     def _on_overview_cue_clicked(self, track: str, idx: int, t_start: float):
-        # BGM/对白 → tab 1（试听选优）；SFX → tab 3
-        tab_map = {"bgm": 1, "dialogue": 1, "sfx": 3}
-        if track in tab_map:
-            self.tabs.setCurrentIndex(tab_map[track])
+        from drama_shot_master.ui.widgets.daw.selection import _CueRef
+        self._selection.set([_CueRef(track, idx)])
         if self._video_preview is not None:
             self._video_preview.seek(t_start)
 
     def to_payload(self) -> dict:
-        return {"mp4": self.mp4_edit.text().strip(),
-                "style": self.style_edit.toPlainText().strip(),
-                "output_dir": self.out_edit.text().strip()}
+        return {
+            "mp4": self._task.get("mp4", ""),
+            "style": self._task.get("style", ""),
+            "output_dir": self._task.get("output_dir", ""),
+        }
