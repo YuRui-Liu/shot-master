@@ -83,3 +83,108 @@ def test_icon_rail_expand_clicked_signal():
     rail.expand_clicked.connect(lambda: got.append(True))
     rail._expand_btn.click()
     assert got == [True]
+
+
+# ── Task 4: CollapsibleTaskBar ────────────────────────────────────────────
+
+from PySide6.QtWidgets import QWidget as _QWidget
+
+
+class _StubManager(_QWidget):
+    """最小桩：实现 icon_rail_items() 协议。"""
+    from PySide6.QtCore import Signal as _Signal
+    icon_rail_updated = _Signal()
+
+    def icon_rail_items(self):
+        return []
+
+
+def test_collapse_changes_splitter_sizes():
+    _app()
+    from PySide6.QtWidgets import QSplitter, QWidget
+    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
+    stub = _StubManager()
+    right = QWidget()
+    splitter = QSplitter()
+    bar = CollapsibleTaskBar(stub, splitter, manager_index=0, expanded_width=280)
+    splitter.addWidget(bar)
+    splitter.addWidget(right)
+    splitter.resize(800, 600)
+    splitter.setSizes([280, 520])
+    bar.collapse()
+    assert splitter.sizes()[0] == 40
+
+
+def test_expand_restores_width():
+    _app()
+    from PySide6.QtWidgets import QSplitter, QWidget
+    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
+    stub = _StubManager()
+    right = QWidget()
+    splitter = QSplitter()
+    bar = CollapsibleTaskBar(stub, splitter, manager_index=0, expanded_width=280)
+    splitter.addWidget(bar)
+    splitter.addWidget(right)
+    splitter.resize(800, 600)
+    splitter.setSizes([280, 520])
+    bar.collapse()
+    bar.expand()
+    assert splitter.sizes()[0] == 280
+
+
+def test_is_collapsed_state():
+    _app()
+    from PySide6.QtWidgets import QSplitter, QWidget
+    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
+    stub = _StubManager()
+    right = QWidget()
+    splitter = QSplitter()
+    bar = CollapsibleTaskBar(stub, splitter, manager_index=0)
+    splitter.addWidget(bar)
+    splitter.addWidget(right)
+    splitter.resize(800, 600)
+    splitter.setSizes([280, 520])
+    assert bar.is_collapsed() is False
+    bar.collapse()
+    assert bar.is_collapsed() is True
+    bar.expand()
+    assert bar.is_collapsed() is False
+
+
+def test_collapse_emits_signal():
+    _app()
+    from PySide6.QtWidgets import QSplitter, QWidget
+    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
+    stub = _StubManager()
+    right = QWidget()
+    splitter = QSplitter()
+    bar = CollapsibleTaskBar(stub, splitter, manager_index=0)
+    splitter.addWidget(bar)
+    splitter.addWidget(right)
+    splitter.resize(800, 600)
+    splitter.setSizes([280, 520])
+    got = []
+    bar.collapsed.connect(lambda: got.append("collapsed"))
+    bar.expanded.connect(lambda: got.append("expanded"))
+    bar.collapse()
+    bar.expand()
+    assert got == ["collapsed", "expanded"]
+
+
+def test_toggle_switches_state():
+    _app()
+    from PySide6.QtWidgets import QSplitter, QWidget
+    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
+    stub = _StubManager()
+    right = QWidget()
+    splitter = QSplitter()
+    bar = CollapsibleTaskBar(stub, splitter, manager_index=0)
+    splitter.addWidget(bar)
+    splitter.addWidget(right)
+    splitter.resize(800, 600)
+    splitter.setSizes([280, 520])
+    assert not bar.is_collapsed()
+    bar.toggle()
+    assert bar.is_collapsed()
+    bar.toggle()
+    assert not bar.is_collapsed()

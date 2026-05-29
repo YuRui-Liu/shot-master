@@ -140,3 +140,115 @@ class _IconRail(QWidget):
 
     def badge_count(self) -> int:
         return len(self._badges)
+
+
+# ── CollapsibleTaskBar ─────────────────────────────────────────────────────
+
+class CollapsibleTaskBar(QWidget):
+    """包裹任意 task manager，提供折叠/展开能力。
+
+    使用方式：
+        bar = CollapsibleTaskBar(manager_widget, splitter, manager_index=0)
+        splitter.addWidget(bar)   # 替换原来直接插入 manager 的位置
+    """
+
+    collapsed = Signal()
+    expanded = Signal()
+
+    def __init__(self, manager: QWidget, splitter: QSplitter,
+                 manager_index: int = 0,
+                 expanded_width: int = 280,
+                 collapsed_width: int = 40,
+                 parent=None):
+        super().__init__(parent)
+        self._manager = manager
+        self._splitter = splitter
+        self._manager_index = manager_index
+        self._expanded_width = expanded_width
+        self._collapsed_width = collapsed_width
+        self._is_collapsed = False
+        self._build_ui()
+
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        self._stack = QStackedWidget()
+
+        # page 0: 展开视图 —— manager + 右上角悬浮折叠按钮
+        expanded_page = QWidget()
+        ep_layout = QVBoxLayout(expanded_page)
+        ep_layout.setContentsMargins(0, 0, 0, 0)
+        ep_layout.setSpacing(0)
+        ep_layout.addWidget(self._manager)
+
+        self._collapse_btn = QPushButton("◀")
+        self._collapse_btn.setParent(expanded_page)
+        self._collapse_btn.setFixedSize(24, 24)
+        self._collapse_btn.setObjectName("taskBarCollapseBtn")
+        self._collapse_btn.setToolTip("折叠任务栏")
+        self._collapse_btn.clicked.connect(self.collapse)
+
+        # page 1: 折叠视图 —— 图标轨
+        self._icon_rail = _IconRail()
+        self._icon_rail.expand_clicked.connect(self.expand)
+
+        self._stack.addWidget(expanded_page)    # index 0
+        self._stack.addWidget(self._icon_rail)  # index 1
+        root.addWidget(self._stack)
+
+        expanded_page.resizeEvent = self._on_expanded_page_resize
+
+    def _on_expanded_page_resize(self, event):
+        w = event.size().width()
+        self._collapse_btn.move(w - self._collapse_btn.width() - 2, 4)
+        self._collapse_btn.raise_()
+
+    def is_collapsed(self) -> bool:
+        return self._is_collapsed
+
+    def _move_splitter_to(self, target_px: int) -> None:
+        """通过 moveSplitter 精确设置本面板宽度，绕过 setSizes 的最小值约束。
+
+        handle_index = manager_index + 1（handle 在本 widget 右侧）。
+        """
+        handle_idx = self._manager_index + 1
+        # 累计前面所有面板的偏移量（含 handle 宽度）
+        sizes = self._splitter.sizes()
+        hw = self._splitter.handleWidth()
+        offset = target_px
+        for i in range(self._manager_index):
+            offset += sizes[i] + hw
+        self._splitter.moveSplitter(offset, handle_idx)
+
+    def collapse(self) -> None:
+        if self._is_collapsed:
+            return
+        sizes = self._splitter.sizes()
+        if sizes and self._manager_index < len(sizes):
+            current = sizes[self._manager_index]
+            # 只有当实际宽度与记录值差距 > 1px 时才更新，
+            # 避免 splitter 像素舍入覆盖外部传入的精确值
+            if abs(current - self._expanded_width) > 1:
+                self._expanded_width = current
+        self._icon_rail.refresh(self._manager.icon_rail_items())
+        self._stack.setCurrentIndex(1)
+        self._splitter.setCollapsible(self._manager_index, True)
+        self._move_splitter_to(self._collapsed_width)
+        self._is_collapsed = True
+        self.collapsed.emit()
+
+    def expand(self) -> None:
+        if not self._is_collapsed:
+            return
+        self._stack.setCurrentIndex(0)
+        self._move_splitter_to(self._expanded_width)
+        self._is_collapsed = False
+        self.expanded.emit()
+
+    def toggle(self) -> None:
+        if self._is_collapsed:
+            self.expand()
+        else:
+            self.collapse()
