@@ -93,7 +93,7 @@ def test_warnings_rendered_when_done_event_has_them(tmp_path):
             {"path": "shots[1].stylePrompt", "issue": "过短",
              "severity": "warning"},
         ],
-    })
+    }, str(tmp_path))
     # isVisible() 需要完整父链可见；headless 下检查 not isHidden() 等价
     assert not p._warnings_banner.isHidden()
 
@@ -108,3 +108,40 @@ def test_upstream_check_blocks_generate(tmp_path, monkeypatch):
                          staticmethod(lambda *a, **k: called.append(True)))
     p._on_generate_clicked()
     assert called
+
+
+def test_upstream_missing_shows_banner_and_disables_gen(tmp_path):
+    _app()
+    p = StoryboardPage(_StubClient())
+    p.set_project(tmp_path)   # 无 剧本.md
+    assert not p._upstream_banner.isHidden()
+    assert p._gen_btn.isEnabled() is False
+
+
+def test_upstream_present_hides_banner(tmp_path):
+    _app()
+    (tmp_path / "剧本.md").write_text("# 测试", encoding="utf-8")
+    p = StoryboardPage(_StubClient())
+    p.set_project(tmp_path)
+    assert p._upstream_banner.isHidden()
+
+
+def test_sse_event_for_inactive_project_does_not_touch_table(tmp_path):
+    _app()
+    p = StoryboardPage(_StubClient())
+    pA = tmp_path / "A"; pA.mkdir()
+    pB = tmp_path / "B"; pB.mkdir()
+    p.set_project(pA)
+    rows_before = p._shots_model.rowCount()
+    p._on_sse_event("done", {
+        "saved": str(pB / "分镜.json"),
+        "result": {
+            "title": "B 标题", "globalStyle": "x",
+            "characters": [], "shots": [{"shotId": "S01", "duration": 1,
+                                          "composition": "中", "description": "d",
+                                          "stylePrompt": "p"}],
+        },
+        "warnings": [],
+    }, str(pB))
+    # 当前显示 A，表格不应变
+    assert p._shots_model.rowCount() == rows_before

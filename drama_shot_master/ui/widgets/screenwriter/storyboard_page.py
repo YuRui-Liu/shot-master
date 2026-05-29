@@ -1,8 +1,10 @@
 """StoryboardPage：分镜阶段子面板。
 
-顶 _ParamBar + 全局头（标题/比例/时长/globalStyle/characters）+ 中表格 + 底 _WarningsBanner + ActionBar。
+顶 _ParamBar + _UpstreamBanner + 全局头（标题/比例/时长/globalStyle/characters）+ 中表格 + 底 _WarningsBanner + ActionBar。
 流式期间不解析、只显字数；done 时一次性解析 + 渲染表格。
 重生确认 + purge_downstream；dirty 切换护栏。
+
+T7：worker dict 模式（_workers[project_dir]）+ _UpstreamBanner 自检上游 剧本.md。
 """
 from __future__ import annotations
 
@@ -22,6 +24,7 @@ from drama_shot_master.ui.widgets.screenwriter.stream_worker import StreamWorker
 from drama_shot_master.ui.widgets.screenwriter._shots_table_model import _ShotsTableModel
 from drama_shot_master.ui.widgets.screenwriter._character_row import _CharacterRow
 from drama_shot_master.ui.widgets.screenwriter._warnings_banner import _WarningsBanner
+from drama_shot_master.ui.widgets.screenwriter._upstream_banner import _UpstreamBanner
 from screenwriter_agent.core.atomic_write import atomic_write_text
 
 
@@ -35,9 +38,10 @@ class StoryboardPage(_BaseStagePage):
         self._last_load_mtime: float = 0.0
         self._warnings: list[dict] = []
         self._dirty: bool = False
+        # Legacy single-worker ref kept for _stop_stream compatibility;
+        # canonical store is self._workers[project_dir] (from _BaseStagePage).
         self._worker: StreamWorker | None = None
         self._state: str = "idle"
-        self._buf: str = ""
         self._character_rows: list[_CharacterRow] = []
         self._shots_model = _ShotsTableModel()
         self._build_ui()
@@ -47,6 +51,8 @@ class StoryboardPage(_BaseStagePage):
         root = QVBoxLayout(self)
         root.setContentsMargins(4, 4, 4, 4); root.setSpacing(4)
         root.addLayout(self._build_param_bar())
+        self._upstream_banner = _UpstreamBanner()
+        root.addWidget(self._upstream_banner)
         root.addWidget(self._build_global_header())
         self._table = QTableView()
         self._table.setModel(self._shots_model)
@@ -146,8 +152,10 @@ class StoryboardPage(_BaseStagePage):
     def set_project(self, path: Path | None):
         if self._project_dir is not None and not self.try_release():
             return
+        old = self._project_dir
         self._project_dir = path
         if path is None:
+            self._upstream_banner.hide_banner()
             self._sb_path = None
             self._sb = None
             self._set_sb_to_ui(None)
@@ -156,10 +164,25 @@ class StoryboardPage(_BaseStagePage):
                        self._advance_btn):
                 b.setEnabled(False)
             return
+        # 自检上游
+        upstream = path / "剧本.md"
+        if not upstream.is_file():
+            self._upstream_banner.show_missing(
+                stage_name="剧本", expected_file="剧本.md")
+            self._gen_btn.setEnabled(False)
+        else:
+            self._upstream_banner.hide_banner()
+            self._gen_btn.setEnabled(True)
         self._sb_path = path / "分镜.json"
         self._load_from_disk()
-        self._gen_btn.setEnabled(True)
         self._view_json_btn.setEnabled(self._sb is not None)
+        # 检查 active worker
+        if path in self._workers and self._workers[path] and self._workers[path].isRunning():
+            self._stream_label.setText(
+                f"● 流式 · 已 {len(self._buf_by_project.get(path, ''))} 字（后台跑）")
+        else:
+            self._stream_label.setText("")
+        self._on_project_switched(old, path)
 
     def _load_from_disk(self):
         self._sb = None
@@ -356,63 +379,88 @@ class StoryboardPage(_BaseStagePage):
                 "density": self._density_combo.currentText(),
             },
         }
-        self._buf = ""
+        self._buf_by_project[self._project_dir] = ""
         self._start_stream("/storyboard", body, params)
 
     def _start_stream(self, path, body, params=None):
+        if self._project_dir is None:
+            return
+        self._state_by_project[self._project_dir] = "streaming"
+        self._buf_by_project.setdefault(self._project_dir, "")
         self._state = "streaming"
         self._gen_btn.hide(); self._stop_btn.show()
         self._stream_label.setText("● 流式 · 已 0 字")
         self._save_btn.setEnabled(False)
         self._advance_btn.setEnabled(False)
-        self._worker = StreamWorker(self._client, path, body, params, parent=self)
-        self._worker.event.connect(self._on_sse_event)
-        self._worker.finished_ok.connect(self._on_stream_done_signal)
-        self._worker.failed.connect(self._on_stream_failed)
-        self._worker.start()
+        worker = StreamWorker(self._client, path, body, params,
+                               project_dir=self._project_dir, parent=self)
+        self._workers[self._project_dir] = worker
+        # Keep legacy ref for _stop_stream (points to current project's worker)
+        self._worker = worker
+        worker.event.connect(self._on_sse_event)
+        worker.finished_ok.connect(self._on_stream_done_signal)
+        worker.failed.connect(self._on_stream_failed)
+        worker.start()
 
     def _stop_stream(self):
-        if self._worker and self._worker.isRunning():
-            self._worker.stop()
-            self._worker.wait(2000)
+        w = self._active_worker()
+        if w and w.isRunning():
+            w.stop()
+            w.wait(2000)
+        if self._project_dir is not None:
+            self._state_by_project[self._project_dir] = "idle"
+            self._workers[self._project_dir] = None
         self._state = "idle"
+        self._worker = None
         self._gen_btn.show(); self._stop_btn.hide()
         self._stream_label.setText("")
 
-    def _on_sse_event(self, event_name: str, data: dict):
+    def _on_sse_event(self, event_name: str, data: dict, project_dir_str: str):
+        proj = Path(project_dir_str)
         if event_name == "delta":
-            text = data.get("text", "")
-            self._buf += text
-            self._stream_label.setText(f"● 流式 · 已 {len(self._buf)} 字")
+            self._buf_by_project[proj] = self._buf_by_project.get(proj, "") + data.get("text", "")
         elif event_name == "status":
-            phase = data.get("phase", "")
-            if phase == "validating":
-                self._stream_label.setText(
-                    f"● 流式 · 已 {len(self._buf)} 字 · 修复中…")
+            pass   # 不缓存 phase
         elif event_name == "done":
-            # 直接消费 done 携带的 result + warnings
+            # 落盘已由 agent 端做；这里只解析 result + warnings
             sb = data.get("result")
             warns = data.get("warnings", [])
-            saved = data.get("saved", "")
-            if sb is not None:
+            if sb is not None and proj == self._project_dir:
+                # 前台：更新表格
                 self._sb = sb
                 self._warnings = warns or []
-                self._original_sb_json = json.dumps(sb, ensure_ascii=False,
-                                                     sort_keys=True)
-                if saved:
-                    try:
-                        self._last_load_mtime = Path(saved).stat().st_mtime
-                    except OSError:
-                        pass
                 self._set_sb_to_ui(sb)
                 self._dirty = False
                 self._save_btn.setEnabled(False)
                 self._state = "done"
                 self._advance_btn.setEnabled(True)
+            elif sb is not None:
+                # 后台：仅记 state，让 TaskManager 刷新
+                self._state_by_project[proj] = "done"
+            self.projectStateChanged.emit()
+        elif event_name == "error":
+            self._error_by_project[proj] = data.get("hint") or data.get("message", "")
+            self._state_by_project[proj] = "error"
+            self.projectStateChanged.emit()
+
+        if proj != self._project_dir:
+            return
+
+        if event_name == "delta":
+            self._stream_label.setText(
+                f"● 流式 · 已 {len(self._buf_by_project.get(proj, ''))} 字")
+        elif event_name == "status":
+            phase = data.get("phase", "")
+            if phase == "validating":
+                self._stream_label.setText(
+                    f"● 流式 · 已 {len(self._buf_by_project.get(proj, ''))} 字 · 修复中…")
         elif event_name == "error":
             code = data.get("code", "")
-            hint = data.get("hint") or data.get("message", "")
+            hint = self._error_by_project.get(proj, "")
             details = data.get("details", {})
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtWidgets import QMessageBox
             if code == "JSON_REPAIR_FAILED":
                 raw_path = details.get("raw_output_path", "")
                 ans = QMessageBox.warning(
@@ -425,12 +473,26 @@ class StoryboardPage(_BaseStagePage):
                 QMessageBox.warning(self, "分镜生成失败", hint or code)
             self._stop_stream()
 
-    def _on_stream_done_signal(self):
-        self._gen_btn.show(); self._stop_btn.hide()
-        self._stream_label.setText("")
+    def _on_stream_done_signal(self, project_dir_str: str):
+        proj = Path(project_dir_str)
+        if proj in self._workers:
+            self._workers[proj] = None
+        if proj == self._project_dir:
+            self._worker = None
+            self._gen_btn.show(); self._stop_btn.hide()
+            self._stream_label.setText("")
         self.projectStateChanged.emit()
 
-    def _on_stream_failed(self, msg: str):
-        self._stop_stream()
-        QMessageBox.warning(self, "生成失败",
-                             f"分镜生成失败：{msg}\n请检查网络或 LLM 配置。")
+    def _on_stream_failed(self, msg: str, project_dir_str: str):
+        proj = Path(project_dir_str)
+        self._error_by_project[proj] = msg
+        self._state_by_project[proj] = "error"
+        if proj in self._workers:
+            self._workers[proj] = None
+        if proj == self._project_dir:
+            self._worker = None
+            self._stop_stream()
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "生成失败",
+                                 f"分镜生成失败：{msg}\n请检查网络或 LLM 配置。")
+        self.projectStateChanged.emit()
