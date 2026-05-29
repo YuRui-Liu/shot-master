@@ -186,3 +186,34 @@ def test_task_selected_emits_path(tmp_path):
     # selectRow triggers itemSelectionChanged -> _on_selection_changed automatically
     tm._table.selectRow(0)
     assert pA in got
+
+
+def test_refresh_preserves_selection_and_does_not_clear(tmp_path):
+    """Bug 修复回归：30s 定时 refresh 不应清除选中、不应误发 taskSelected(None)。"""
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    pB = tmp_path / "B"; pB.mkdir()
+    cfg = _StubCfg(projects=[str(pA), str(pB)])
+    tm = ScreenwriterTaskManager(cfg)
+    tm._table.selectRow(0)
+    # 选 A 后清掉初始 selectRow 触发的 taskSelected 事件，只观察 refresh 期间
+    events = []
+    tm.taskSelected.connect(events.append)
+    tm.refresh()
+    # 选中仍是 A
+    assert tm._selected_project() == pA
+    # refresh 不应触发 taskSelected（不论是 None 还是同值）
+    assert events == []
+
+
+def test_refresh_drops_selection_only_if_project_pruned(tmp_path):
+    """剪枝后被选中项目若消失，selection 应为空（不要假装还在）。"""
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    cfg = _StubCfg(projects=[str(pA)])
+    tm = ScreenwriterTaskManager(cfg)
+    tm._table.selectRow(0)
+    import shutil
+    shutil.rmtree(pA)
+    tm.refresh()
+    assert tm._selected_project() is None

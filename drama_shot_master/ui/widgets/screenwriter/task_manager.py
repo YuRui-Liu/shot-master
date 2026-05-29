@@ -101,14 +101,16 @@ class ScreenwriterTaskManager(QWidget):
         return super().eventFilter(obj, ev)
 
     def _fit_name_col(self) -> None:
+        # 名称列只让出"状态"一列；当前阶段+更新时间推到 viewport 外，
+        # 由水平滚动条访问。这样 300px 限宽下仍可同时看到名称+状态。
         vw = self._table.viewport().width()
-        used = self._table.columnWidth(1) + self._table.columnWidth(2) \
-               + self._table.columnWidth(3)
-        self._table.setColumnWidth(0, max(100, vw - used))
+        self._table.setColumnWidth(0, max(100, vw - self._table.columnWidth(1)))
 
     # —— 数据 ——
 
     def refresh(self) -> None:
+        # 0) 记下当前选中（要在 setRowCount(0) 之前；否则之后 _selected_project 是 None）
+        prev_selected = self._selected_project()
         # 1) 剪枝：清掉已不存在的目录
         valid: list[Path] = []
         for p in self._projects:
@@ -117,17 +119,26 @@ class ScreenwriterTaskManager(QWidget):
         if len(valid) != len(self._projects):
             self._projects = valid
             self._save()
-        # 2) 重绘表格
-        self._table.setRowCount(0)
-        for p in self._projects:
-            row = self._table.rowCount()
-            self._table.insertRow(row)
-            self._table.setItem(row, 0, QTableWidgetItem(p.name))
-            dots, current_stage = self._compute_status(p)
-            self._table.setItem(row, 1, QTableWidgetItem(dots))
-            self._table.setItem(row, 2, QTableWidgetItem(current_stage))
-            mtime = self._dir_mtime(p)
-            self._table.setItem(row, 3, QTableWidgetItem(mtime))
+        # 2) 重绘表格——blockSignals 包住，防止 setRowCount(0)/insertRow 触发
+        #    itemSelectionChanged 把 taskSelected(None) 误发出去（→ 4 子面板被清掉）
+        self._table.blockSignals(True)
+        try:
+            self._table.setRowCount(0)
+            for p in self._projects:
+                row = self._table.rowCount()
+                self._table.insertRow(row)
+                self._table.setItem(row, 0, QTableWidgetItem(p.name))
+                dots, current_stage = self._compute_status(p)
+                self._table.setItem(row, 1, QTableWidgetItem(dots))
+                self._table.setItem(row, 2, QTableWidgetItem(current_stage))
+                mtime = self._dir_mtime(p)
+                self._table.setItem(row, 3, QTableWidgetItem(mtime))
+            # 3) 还原选中（仍 blockSignals）
+            if prev_selected is not None and prev_selected in self._projects:
+                idx = self._projects.index(prev_selected)
+                self._table.selectRow(idx)
+        finally:
+            self._table.blockSignals(False)
         self._footer.setText(f"{len(self._projects)} 个项目")
         self._fit_name_col()
 
