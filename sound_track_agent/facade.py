@@ -47,10 +47,13 @@ def prepare_session(mp4, style: str, work_dir, *,
 
 
 def _build_real_stages(cfg, workflow_id, work_dir, global_style,
-                       seeds_count, video_path) -> Stages:
+                       seeds_count, video_path,
+                       sfx_session=None) -> Stages:
     """组装真实 Stages（豆包 provider + RunningHub client + mixdown）。
 
     facade 唯一碰宿主依赖处，仍只读 cfg 属性、不在模块顶层 import 宿主。
+    sfx_session 非 None 时，mix_fn 的 partial 会携带 sfx_session 参数，
+    使最终 mp4 同时包含 BGM + SFX 层。
     """
     from drama_shot_master.providers.runninghub import RunningHubClient
     from sound_track_agent.provider import build_soundtrack_provider
@@ -80,7 +83,9 @@ def _build_real_stages(cfg, workflow_id, work_dir, global_style,
                        work_dir=work_dir,
                        big_threshold=float(getattr(cfg, "accent_big_threshold", 0.7)),
                        snap_window=float(getattr(cfg, "accent_snap_window", 0.6)),
-                       max_stretch=float(getattr(cfg, "accent_max_stretch", 0.10))),
+                       max_stretch=float(getattr(cfg, "accent_max_stretch", 0.10)),
+                       sfx_session=sfx_session,
+                       sfx_ducking_db=float(getattr(cfg, "sfx_ducking_db", -6.0))),
         max_concurrency=int(getattr(cfg, "soundtrack_max_concurrency", 3)),
         score_fn=score_fn,
         video_path=video_path,
@@ -141,10 +146,12 @@ def advance(session: ScoringSession, work_dir, *, cfg, workflow_id: str,
             seeds_count: int = 2, stop_after: str = "mix",
             on_progress: Optional[Callable[[str], None]] = None,
             stages: Optional[Stages] = None,
-            dialogue_segments=None) -> ScoringSession:
+            dialogue_segments=None,
+            sfx_session=None) -> ScoringSession:
     """从 session 当前状态推进到 stop_after（可重复调用=续跑）。
 
     stages 可注入（测试用 fake）；dialogue_segments 非空时覆盖 session 字段。
+    sfx_session 非 None 时，mix 阶段会在 BGM 轨上叠加 SFX 层。
     """
     if stop_after not in STAGE_ORDER:
         raise ValueError(f"未知 stop_after: {stop_after}")
@@ -154,7 +161,8 @@ def advance(session: ScoringSession, work_dir, *, cfg, workflow_id: str,
         session.dialogue_segments = list(dialogue_segments)
     real = stages or _build_real_stages(
         cfg, workflow_id, work_dir, session.global_style,
-        seeds_count, session.source_mp4)
+        seeds_count, session.source_mp4,
+        sfx_session=sfx_session)
     real = _wrap_progress(real, on_progress)
     _pipeline_run(session, real,
                   session_path=work_dir / "session.json",

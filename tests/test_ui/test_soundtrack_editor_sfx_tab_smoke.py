@@ -90,28 +90,42 @@ def test_sfx_tab_warns_generate_without_plan(tmp_path):
 
 
 def test_apply_back_passes_sfx_session_to_mix(tmp_path, monkeypatch):
-    """点应用回片时，mix 调用应当收到 sfx_session 参数。"""
+    """点应用回片时，facade.advance 应当收到 sfx_session 参数。
+
+    wiring 路径：_on_export → _run_pipeline("mix") → facade.advance(sfx_session=...)
+    测试通过 monkeypatch facade.advance 捕获 sfx_session kwarg，
+    不依赖 partial/assemble_and_mix 内部绑定细节。
+    """
     _app()
     editor = SoundtrackEditor(_task(tmp_path), _cfg(tmp_path), tmp_path)
     from sound_track_agent.sfx.session import SFXSession, SFXShot, SFXCandidate
-    sess = SFXSession("/m.mp4", "h", 24.0, shots=[
+    sfx_sess = SFXSession("/m.mp4", "h", 24.0, shots=[
         SFXShot(0, 0.0, 3.0, status="generated",
                 candidates=[SFXCandidate("/a.mp3", 1, "x")],
                 chosen_candidate=0)])
-    editor._sfx_session = sess
+    editor._sfx_session = sfx_sess
     captured = {"sfx_session": "<unset>"}
-    import sound_track_agent.mixdown as md
-    def fake_assemble(*args, sfx_session=None, **kwargs):
-        captured["sfx_session"] = sfx_session
-        return tmp_path / "out.mp4"
-    monkeypatch.setattr(md, "assemble_and_mix", fake_assemble)
-    # 还要确保 BGM session 存在（apply 链路可能要它）
+
+    # monkeypatch facade.advance（_run_pipeline 调用它），捕获 sfx_session kwarg
+    import sound_track_agent.facade as fac
     from sound_track_agent.session import ScoringSession, SegmentScore
-    editor._session = ScoringSession(
+    bgm_sess = ScoringSession(
         source_mp4=str(tmp_path / "ep.mp4"), source_hash="h",
         global_style="x", frame_rate=24.0,
         segments=[SegmentScore(0, 0.0, 3.0)])
-    # 调真实的 apply 入口
+    editor._session = bgm_sess
+
+    def fake_advance(session, work_dir, *, cfg, workflow_id, seeds_count,
+                     stop_after, on_progress=None, sfx_session=None,
+                     stages=None, dialogue_segments=None):
+        captured["sfx_session"] = sfx_session
+        return session
+
+    monkeypatch.setattr(fac, "advance", fake_advance)
+    # load_session 返回已有 session（避免 prepare_session 被调）
+    monkeypatch.setattr(fac, "load_session", lambda wd: bgm_sess)
+
+    # 找 apply 入口
     apply_method_name = None
     for name in ("_on_apply_clicked", "_on_apply_to_video", "_on_apply",
                  "_on_export_clicked", "_on_export"):
@@ -125,4 +139,4 @@ def test_apply_back_passes_sfx_session_to_mix(tmp_path, monkeypatch):
         w = getattr(editor, worker_attr, None)
         if w is not None and hasattr(w, "wait"):
             w.wait(5000)
-    assert captured["sfx_session"] is sess
+    assert captured["sfx_session"] is sfx_sess

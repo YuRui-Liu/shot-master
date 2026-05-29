@@ -260,6 +260,8 @@ class SoundtrackEditor(QWidget):
         work_dir = self._work_dir()
         cfg = self.cfg
 
+        sfx_session = self._sfx_session
+
         def task():
             from sound_track_agent import facade
             sess = facade.load_session(work_dir)
@@ -271,7 +273,8 @@ class SoundtrackEditor(QWidget):
             self._post_seg_preview(sess)
             facade.advance(sess, work_dir, cfg=cfg, workflow_id=workflow_id,
                            seeds_count=seeds, stop_after=stop_after,
-                           on_progress=self._post_progress)
+                           on_progress=self._post_progress,
+                           sfx_session=sfx_session)
             return sess
 
         self.btn_start.setEnabled(False); self.progress.show()
