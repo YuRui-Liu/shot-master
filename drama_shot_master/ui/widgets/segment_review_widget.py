@@ -132,6 +132,9 @@ class SegmentReviewWidget(QWidget):
         player = self._ensure_player()
         player.stop()
         player.setSource(QUrl.fromLocalFile(path))
+        # 开播前按当前 seg.volume 初始化一次
+        self._audio.setVolume(
+            min(1.0, max(0.0, float(getattr(seg, "volume", 1.0)))))
         self._playing_key = (seg_index, cand_index)
         player.play()
 
@@ -177,3 +180,7 @@ class SegmentReviewWidget(QWidget):
         seg.volume = val / 100.0
         label.setText(f"{val}%")
         self.segmentVolumeChanged.emit()
+        # 拖滑条时如果正在播这段的候选 → 立即更新 QAudioOutput
+        if (self._player is not None and self._playing_key is not None
+                and self._playing_key[0] == seg.index):
+            self._audio.setVolume(min(1.0, max(0.0, float(seg.volume))))

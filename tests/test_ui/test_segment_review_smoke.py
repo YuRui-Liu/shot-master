@@ -82,3 +82,36 @@ def test_segment_volume_slider_writes_session():
     assert hasattr(w, "_vol_sliders") and len(w._vol_sliders) == 2
     w._vol_sliders[0].setValue(50)
     assert abs(sess.segments[0].volume - 0.5) < 1e-6 and seen
+
+
+def test_volume_slider_syncs_to_audio_output():
+    """拖音量滑条时，如果正在播该段候选，QAudioOutput.setVolume 应被同步调用。"""
+    from unittest.mock import MagicMock
+    _app()
+    sess = _sess()
+    w = SegmentReviewWidget(sess)
+    # 模拟"当前正在播 seg0 候选 0"
+    w._playing_key = (0, 0)
+    w._audio = MagicMock()
+    w._player = MagicMock()
+
+    # 拖滑条到 50%
+    w._on_volume(sess.segments[0], 50, MagicMock())
+    w._audio.setVolume.assert_called_once_with(0.5)
+    assert abs(sess.segments[0].volume - 0.5) < 1e-6
+
+
+def test_volume_slider_not_called_when_not_playing_that_segment():
+    """没在播该段时滑条事件不调 setVolume（避免影响其它段的播放）。"""
+    from unittest.mock import MagicMock
+    _app()
+    sess = _sess()
+    w = SegmentReviewWidget(sess)
+    w._playing_key = (0, 0)              # 正在播 seg0
+    w._audio = MagicMock()
+    w._player = MagicMock()
+
+    # 拖 seg1 的滑条
+    w._on_volume(sess.segments[1], 80, MagicMock())
+    w._audio.setVolume.assert_not_called()
+    assert abs(sess.segments[1].volume - 0.8) < 1e-6  # 但 seg.volume 仍持久化
