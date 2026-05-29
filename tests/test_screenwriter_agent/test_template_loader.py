@@ -8,7 +8,8 @@ from screenwriter_agent.templates import template_loader as tl
 # ── 原有测试（兼容新路径）──────────────────────────────────────────────────
 
 def test_builtin_ids_set():
-    assert set(tl.BUILTIN_IDS) == {"ideate", "script", "storyboard",
+    assert set(tl.BUILTIN_IDS) == {"ideate", "script", "script_outline",
+                                   "script_episode", "storyboard",
                                    "character_ref", "grid_prompt"}
 
 
