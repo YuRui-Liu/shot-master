@@ -99,3 +99,58 @@ def test_active_worker_query_aggregates_across_pages(tmp_path):
         def isRunning(self): return True
     page._workers[pA] = _W()
     assert panel._any_page_streaming(pA) is True
+
+
+def test_two_projects_streaming_concurrently_keeps_both_workers(tmp_path):
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    pB = tmp_path / "B"; pB.mkdir()
+    cfg = _StubCfg(projects=[str(pA), str(pB)])
+    panel = ScreenwriterPanel(cfg)
+
+    ideate = panel._pages[0]  # IdeatePage
+    storyboard = panel._pages[2]  # StoryboardPage
+
+    class _W:
+        def __init__(self): self._running = True
+        def isRunning(self): return self._running
+        def stop(self): self._running = False
+
+    # 在 IdeatePage 给 A 灌 worker
+    wA = _W()
+    ideate._workers[pA] = wA
+    # 在 StoryboardPage 给 B 灌 worker
+    wB = _W()
+    storyboard._workers[pB] = wB
+
+    # 选 A
+    panel._task_manager._table.selectRow(0)
+    panel._task_manager._on_selection_changed()
+    # A 的 worker 显示在 IdeatePage
+    assert ideate._project_dir == pA
+    assert ideate._active_worker() is wA
+
+    # 切到 B
+    panel._task_manager._table.selectRow(1)
+    panel._task_manager._on_selection_changed()
+    # A 的 worker 没死
+    assert wA.isRunning() is True
+    # B 的 worker 仍在 StoryboardPage
+    assert wB.isRunning() is True
+    # 当前显示 B
+    assert ideate._project_dir == pB
+    assert storyboard._project_dir == pB
+
+
+def test_external_dir_removal_prunes_on_refresh(tmp_path):
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    pB = tmp_path / "B"; pB.mkdir()
+    cfg = _StubCfg(projects=[str(pA), str(pB)])
+    panel = ScreenwriterPanel(cfg)
+    # 外部删 A
+    import shutil
+    shutil.rmtree(pA)
+    panel._task_manager.refresh()
+    assert str(pA) not in cfg.screenwriter_projects
+    assert str(pB) in cfg.screenwriter_projects
