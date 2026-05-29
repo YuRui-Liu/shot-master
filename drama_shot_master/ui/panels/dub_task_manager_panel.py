@@ -19,6 +19,7 @@ class DubTaskManagerPanel(BasePanel):
     taskRenamed = Signal(str, str)
     taskSelected = Signal(object)
     taskDeleted = Signal(str)
+    icon_rail_updated = Signal()
 
     def __init__(self, state: AppState, cfg: Config, store: DubTaskStore,
                  open_window_cb, close_window_cb, persist_cb, parent=None):
@@ -115,6 +116,7 @@ class DubTaskManagerPanel(BasePanel):
                 self.table.setItem(r, c, val)
         self._loading = False
         self._fit_name_col()             # 数据填完后按最终"模式/状态"宽度重算名称列
+        self.icon_rail_updated.emit()
 
     def _on_item_changed(self, item):
         if self._loading or item.column() != 0:
@@ -163,3 +165,24 @@ class DubTaskManagerPanel(BasePanel):
         if QMessageBox.question(self, "删除", "确定删除该任务？") == QMessageBox.Yes:
             self.store.remove(tid); self._persist(); self.refresh()
             self.taskDeleted.emit(tid)
+
+    def icon_rail_items(self):
+        from drama_shot_master.ui.widgets.collapsible_task_bar import IconRailItem
+        items = []
+        for i, t in enumerate(self.store.all()):
+            raw = self._live_status.get(t.id, "")
+            if raw == "生成中":
+                status = "running"
+            elif raw in ("失败",):
+                status = "error"
+            elif raw in ("已完成",):
+                status = "done"
+            else:
+                status = "idle"
+            items.append(IconRailItem(
+                index=i + 1, label=t.name[:2], status=status,
+                tooltip=f"{t.name}\n状态: {raw or '空闲'}", item_id=t.id))
+        return items
+
+    def select_by_id(self, item_id: str) -> None:
+        self._select_task(item_id)
