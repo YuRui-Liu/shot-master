@@ -408,8 +408,12 @@ def load_config(env_path: Path = Path(".env"),
         os.environ["DEEPLX_URL"] = cfg.deeplx_url
     if cfg.current_translator:
         os.environ["_CURRENT_TRANSLATOR"] = cfg.current_translator
-    # 腾讯 SDK 凭据不主动 writeback：TencentTranslator 走显式构造参数读 cfg.*，
-    # 不依赖进程级 env；避免一次 load_config 之后污染整进程后续测试。
+    if cfg.tencent_translator_secret_id:
+        os.environ["TENCENTCLOUD_SECRET_ID"] = cfg.tencent_translator_secret_id
+    if cfg.tencent_translator_secret_key:
+        os.environ["TENCENTCLOUD_SECRET_KEY"] = cfg.tencent_translator_secret_key
+    if cfg.tencent_translator_region:
+        os.environ["TENCENTCLOUD_REGION"] = cfg.tencent_translator_region
     _post_load_migrate(cfg)
     return cfg
 
