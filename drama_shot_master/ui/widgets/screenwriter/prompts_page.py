@@ -21,6 +21,10 @@ from drama_shot_master.ui.widgets.screenwriter.base_stage_page import _BaseStage
 from drama_shot_master.ui.widgets.screenwriter._product_tree import _ProductTree
 from drama_shot_master.ui.widgets.screenwriter._upstream_banner import _UpstreamBanner
 from drama_shot_master.ui.widgets.screenwriter.stream_worker import StreamWorker
+from drama_shot_master.ui.widgets.screenwriter._episode_selector import _EpisodeSelector
+from drama_shot_master.ui.widgets.screenwriter._paths import (
+    storyboard_episode_read_path_in, episode_prompts_dir_in,
+)
 from screenwriter_agent.core.atomic_write import atomic_write_text
 
 
@@ -29,6 +33,7 @@ class PromptsPage(_BaseStagePage):
     def __init__(self, client, parent=None):
         super().__init__(client, parent)
         self._prompts_dir: Path | None = None
+        self._current_episode: str = "E1"
         self._sb: dict | None = None
         self._current_file: Path | None = None
         self._original_text: str = ""
@@ -40,6 +45,10 @@ class PromptsPage(_BaseStagePage):
         root = QVBoxLayout(self)
         root.setContentsMargins(4, 4, 4, 4); root.setSpacing(4)
         root.addLayout(self._build_param_bar())
+        self._episode_selector = _EpisodeSelector(
+            file_pattern_for_status="prompts/{ep}")
+        self._episode_selector.episodeChanged.connect(self._on_episode_changed)
+        root.addWidget(self._episode_selector)
         self._upstream_banner = _UpstreamBanner()
         root.addWidget(self._upstream_banner)
         splitter = QSplitter(Qt.Horizontal)
@@ -124,6 +133,7 @@ class PromptsPage(_BaseStagePage):
         old = self._project_dir
         self._project_dir = path
         if path is None:
+            self._episode_selector.set_project(None)
             self._upstream_banner.hide_banner()
             self._prompts_dir = None
             self._sb = None
@@ -136,9 +146,11 @@ class PromptsPage(_BaseStagePage):
             for b in (self._gen_btn, self._save_btn, self._complete_btn):
                 b.setEnabled(False)
             return
-        # 自检上游：分镜.json
-        upstream = path / "分镜.json"
-        if not upstream.is_file():
+        # 自检上游：按当前集读分镜
+        self._current_episode = "E1"
+        self._episode_selector.set_project(path)
+        upstream = storyboard_episode_read_path_in(path, self._current_episode)
+        if upstream is None:
             self._upstream_banner.show_missing(
                 stage_name="分镜", expected_file="分镜.json")
             self._sb = None
@@ -150,7 +162,7 @@ class PromptsPage(_BaseStagePage):
             return
         else:
             self._upstream_banner.hide_banner()
-        self._prompts_dir = path / "prompts"
+        self._prompts_dir = episode_prompts_dir_in(path, self._current_episode)
         try:
             self._sb = json.loads(upstream.read_text(encoding="utf-8"))
         except Exception:
@@ -169,6 +181,34 @@ class PromptsPage(_BaseStagePage):
         else:
             self._stream_label.setText("")
         self._on_project_switched(old, path)
+
+    def _on_episode_changed(self, ep_id: str) -> None:
+        self._current_episode = ep_id
+        if self._project_dir is None:
+            return
+        upstream = storyboard_episode_read_path_in(self._project_dir, ep_id)
+        if upstream is None:
+            self._upstream_banner.show_missing(
+                stage_name="分镜", expected_file=f"分镜_{ep_id}.json")
+            self._sb = None
+            self._gen_btn.setEnabled(False)
+            self._prompts_dir = None
+            self._tree.clear()
+            self._tree.tree_items = {}
+            return
+        self._upstream_banner.hide_banner()
+        self._prompts_dir = episode_prompts_dir_in(self._project_dir, ep_id)
+        try:
+            self._sb = json.loads(upstream.read_text(encoding="utf-8"))
+        except Exception:
+            self._sb = None
+        self._rebuild_tree()
+        self._gen_btn.setEnabled(self._sb is not None)
+        self._complete_btn.setEnabled(True)
+        self._current_file = None
+        self._editor.blockSignals(True); self._editor.clear()
+        self._editor.blockSignals(False)
+        self._original_text = ""
 
     def try_release(self) -> bool:
         if not self._is_dirty():
@@ -253,13 +293,14 @@ class PromptsPage(_BaseStagePage):
         self.projectStateChanged.emit()
 
     def start_generation_if_idle(self) -> None:
-        """上游 分镜.json 在 + prompts/ 空 → 自动跑生成。"""
+        """上游 分镜.json 在 + prompts/E{id}/ 空 → 自动跑生成。"""
         if self._project_dir is None:
             return
-        upstream = self._project_dir / "分镜.json"
-        if not upstream.is_file():
+        upstream = storyboard_episode_read_path_in(
+            self._project_dir, self._current_episode)
+        if upstream is None:
             return
-        prompts_dir = self._project_dir / "prompts"
+        prompts_dir = episode_prompts_dir_in(self._project_dir, self._current_episode)
         if prompts_dir.is_dir() and any(prompts_dir.iterdir()):
             return
         self._on_generate_clicked()
@@ -285,6 +326,7 @@ class PromptsPage(_BaseStagePage):
             shutil.rmtree(self._prompts_dir, ignore_errors=True)
         body = {
             "project_dir": str(self._project_dir),
+            "episode_id": self._current_episode,
             "options": {
                 "grid_mode": self._grid_combo.currentText(),
                 "include_character_refs": self._char_refs_chk.isChecked(),

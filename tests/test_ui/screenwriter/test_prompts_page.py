@@ -24,6 +24,10 @@ def _sb_min():
     }
 
 
+def _sb_fixture():
+    return _sb_min()
+
+
 def test_set_project_none_disables_gen():
     _app()
     p = PromptsPage(_StubClient())
@@ -43,7 +47,7 @@ def test_loads_sb_builds_tree(tmp_path):
 def test_partial_event_updates_tree_dot(tmp_path):
     _app()
     (tmp_path / "分镜.json").write_text(json.dumps(_sb_min()), encoding="utf-8")
-    char_dir = tmp_path / "prompts" / "角色参考图"
+    char_dir = tmp_path / "prompts" / "E1" / "角色参考图"
     char_dir.mkdir(parents=True)
     (char_dir / "狐妖_ref.md").write_text("done content", encoding="utf-8")
     p = PromptsPage(_StubClient())
@@ -82,8 +86,40 @@ def test_partial_for_inactive_project_does_not_touch_tree(tmp_path):
     # B 的 partial 不应动 A 的树（虽然路径相同 schema，但 _project_dir 是 A）
     items_count_before = len(p._tree.tree_items)
     p._on_sse_event("partial", {
-        "saved": str(pB / "prompts" / "角色参考图" / "X_ref.md"),
+        "saved": str(pB / "prompts" / "E1" / "角色参考图" / "X_ref.md"),
         "kind": "character_ref",
     }, str(pB))
     # 树结构不变
     assert len(p._tree.tree_items) == items_count_before
+
+
+def test_episode_selector_renders(tmp_path):
+    _app()
+    (tmp_path / "剧本.json").write_text(json.dumps({
+        "episode_count": 2,
+        "episodes": [{"id": "E1", "title": "t", "summary": "s"},
+                     {"id": "E2", "title": "t", "summary": "s"}],
+    }), encoding="utf-8")
+    (tmp_path / "分镜.json").write_text(
+        json.dumps(_sb_fixture(), ensure_ascii=False), encoding="utf-8")
+    p = PromptsPage(_StubClient())
+    p.set_project(tmp_path)
+    assert p._episode_selector.combo.count() == 2
+
+
+def test_generate_body_includes_episode_id(tmp_path):
+    _app()
+    (tmp_path / "分镜.json").write_text(
+        json.dumps(_sb_fixture(), ensure_ascii=False), encoding="utf-8")
+    p = PromptsPage(_StubClient())
+    p.set_project(tmp_path)
+    captured = {}
+    orig_start = p._start_stream
+    def _intercept(path, body, params=None):
+        captured.update(body)
+    p._start_stream = _intercept
+    try:
+        p._on_generate_clicked()
+    except Exception:
+        pass
+    assert captured.get("episode_id") == "E1"

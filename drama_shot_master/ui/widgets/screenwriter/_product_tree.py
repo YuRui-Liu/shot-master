@@ -27,7 +27,8 @@ class _ProductTree(QTreeWidget):
 
     def build_from_sb(self, prompts_dir: Path, sb: dict,
                       *, grid_mode: str,
-                      include_character_refs: bool):
+                      include_character_refs: bool,
+                      episode_id: str = ""):
         """按分镜.json 推算预期文件，构建树 + 状态点。"""
         self.clear()
         self.tree_items = {}
