@@ -25,21 +25,16 @@ def main() -> int:
         if manager.requires_activation(manager.status().state):
             return 0          # 仍未激活 → 退出，不进主界面
     from drama_shot_master.agents.screenwriter_lifecycle import ScreenwriterLifecycle
-    from drama_shot_master.agents.screenwriter_client import ScreenwriterClient
 
+    # 先 spawn lifecycle（端口冲突时 +1..+9 偏移），随后把实际端口写回 cfg
+    # ——任务栏化后的 ScreenwriterPanel 从 cfg.screenwriter_agent_port 读端口建 client，
+    # 故必须先反写 cfg 再构建 AppShell。
     lifecycle = ScreenwriterLifecycle(base_port=_early_cfg.screenwriter_agent_port)
     lifecycle.spawn()
-    client = ScreenwriterClient(lifecycle.base_url())
+    _early_cfg.screenwriter_agent_port = lifecycle.port
 
     w = AppShell()
-    w.screenwriter_lifecycle = lifecycle
-    w.screenwriter_client = client
-    # 注入到已构建的 panel（_build_pages 时 client/lifecycle 还是 None）
-    if "screenwriter" in w.pages:
-        panel = w.pages["screenwriter"]
-        panel._client = client
-        panel._lifecycle = lifecycle
-        panel.refresh()
+    w.screenwriter_lifecycle = lifecycle    # 保留引用，便于退出时 terminate
 
     w.show()
     try:

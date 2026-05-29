@@ -555,13 +555,9 @@ class AppShell(QMainWindow):
 
     def _make_screenwriter_page(self):
         from drama_shot_master.ui.panels.screenwriter_panel import ScreenwriterPanel
-        # client/lifecycle 由 main.py 注入到 self；面板可能在两者未就绪时被构建（启动竞速）
-        return ScreenwriterPanel(
-            cfg=self.cfg,
-            client=getattr(self, "screenwriter_client", None),
-            lifecycle=getattr(self, "screenwriter_lifecycle", None),
-            state=self.state,
-        )
+        # 任务栏化后，ScreenwriterPanel 仅需 cfg——内部自建 ScreenwriterClient
+        # （从 cfg.screenwriter_agent_port 取端口）；lifecycle/state 不再注入。
+        return ScreenwriterPanel(self.cfg)
 
     # ------------------------------------------------------------------ #
     # 图片生成 tab helpers（移植自 MainWindow）
