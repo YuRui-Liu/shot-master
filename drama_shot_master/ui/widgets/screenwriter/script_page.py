@@ -216,6 +216,17 @@ class ScriptPage(_BaseStagePage):
             return
         self.stageAdvanceRequested.emit(2)
 
+    def start_generation_if_idle(self) -> None:
+        """上游 创意.json 在 + 本阶段 剧本.md 不在 + idle → 自动跑生成。"""
+        if self._project_dir is None or self._state == "streaming":
+            return
+        upstream = self._project_dir / "创意.json"
+        if not upstream.is_file():
+            return
+        if self._script_path is not None and self._script_path.is_file():
+            return  # 已有剧本不强制覆盖，让用户手动决定
+        self._on_generate_clicked()
+
     def _on_generate_clicked(self):
         if self._project_dir is None:
             return

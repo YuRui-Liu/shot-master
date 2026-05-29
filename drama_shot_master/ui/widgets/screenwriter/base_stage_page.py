@@ -53,3 +53,9 @@ class _BaseStagePage(QWidget):
     def _on_project_switched(self, old: Path | None, new: Path | None) -> None:
         """切换 hook。默认 no-op，子类可 override。"""
         pass
+
+    def start_generation_if_idle(self) -> None:
+        """stageAdvanceRequested 触发——上一个阶段「推进」后，本阶段自动跑起来。
+        子类 override：上游产物存在 + 本阶段产物不存在 + state idle → 调 _on_generate_clicked。
+        默认 no-op（IdeatePage 创意阶段总要先填 context，不是从上游自动 trigger 的）。"""
+        pass

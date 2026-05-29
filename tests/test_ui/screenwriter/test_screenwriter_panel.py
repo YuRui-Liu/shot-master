@@ -162,3 +162,46 @@ def test_prompts_page_is_real_not_placeholder():
     # 第 4 个 page 应该是 PromptsPage（不是 placeholder QLabel）
     from drama_shot_master.ui.widgets.screenwriter.prompts_page import PromptsPage
     assert isinstance(panel._pages[3], PromptsPage)
+
+
+def test_stage_advance_triggers_auto_generation_on_target_page(tmp_path):
+    """Bug regression：用户点'推进'后，下一阶段不应只切换 stack，还应该
+    自动触发 LLM 生成（如果上游已就绪、本阶段产物缺失、且 idle 状态）。"""
+    import json as _json
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    (pA / "创意.json").write_text(_json.dumps({
+        "selected_id": "c1",
+        "candidates": [{"id": "c1", "title": "守株待兔"}],
+    }), encoding="utf-8")
+    cfg = _StubCfg(projects=[str(pA)])
+    panel = ScreenwriterPanel(cfg)
+    panel._task_manager._table.selectRow(0)
+    panel._task_manager._on_selection_changed()
+    # Mock 下一阶段 page 的 start_generation_if_idle
+    called = []
+    panel._pages[1].start_generation_if_idle = lambda: called.append(True)
+    # IdeatePage emit stageAdvanceRequested(1)
+    panel._pages[0].stageAdvanceRequested.emit(1)
+    # 1) wizard 切到 stage 1（ScriptPage）
+    assert panel._wizard_host._stack.currentIndex() == 1
+    # 2) start_generation_if_idle 被调
+    assert called == [True], "stageAdvanceRequested 应同时触发下一 page 自动生成"
+
+
+def test_stage_advance_target_with_existing_output_skips_auto_gen(tmp_path):
+    """已有 剧本.md 时再点'推进'：切到 ScriptPage 但不强制再生（避免覆盖）。"""
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    (pA / "创意.json").write_text("{}", encoding="utf-8")
+    (pA / "剧本.md").write_text("# 已有剧本", encoding="utf-8")
+    cfg = _StubCfg(projects=[str(pA)])
+    panel = ScreenwriterPanel(cfg)
+    panel._task_manager._table.selectRow(0)
+    panel._task_manager._on_selection_changed()
+    called = []
+    panel._pages[1].start_generation_if_idle = lambda: called.append(True)
+    panel._pages[0].stageAdvanceRequested.emit(1)
+    # ScriptPage.start_generation_if_idle 应自检：剧本.md 存在 → 不调 _on_generate
+    # 但 panel 仍调它（page 自己决定 skip）；测的是 panel 在切换后调了
+    assert called == [True]

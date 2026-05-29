@@ -342,6 +342,17 @@ class StoryboardPage(_BaseStagePage):
             return
         self.stageAdvanceRequested.emit(3)
 
+    def start_generation_if_idle(self) -> None:
+        """上游 剧本.md 在 + 本阶段 分镜.json 不在 + idle → 自动跑生成。"""
+        if self._project_dir is None or self._state == "streaming":
+            return
+        upstream = self._project_dir / "剧本.md"
+        if not upstream.is_file():
+            return
+        if self._sb_path is not None and self._sb_path.is_file():
+            return
+        self._on_generate_clicked()
+
     def _on_warning_clicked(self, path: str):
         # 解析 shots[N].field → 高亮表格行 N
         import re

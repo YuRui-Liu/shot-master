@@ -243,6 +243,18 @@ class PromptsPage(_BaseStagePage):
         self.statusMessage.emit("项目已完成 ✓")
         self.projectStateChanged.emit()
 
+    def start_generation_if_idle(self) -> None:
+        """上游 分镜.json 在 + prompts/ 空 → 自动跑生成。"""
+        if self._project_dir is None:
+            return
+        upstream = self._project_dir / "分镜.json"
+        if not upstream.is_file():
+            return
+        prompts_dir = self._project_dir / "prompts"
+        if prompts_dir.is_dir() and any(prompts_dir.iterdir()):
+            return
+        self._on_generate_clicked()
+
     # —— 生成 / SSE ——
 
     def _on_generate_clicked(self):

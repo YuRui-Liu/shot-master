@@ -171,3 +171,34 @@ def test_empty_assistant_bubble_removed_on_failure(tmp_path):
     # 空气泡应被移除
     assert empty_bubble not in p._message_bubbles
     assert len(p._message_bubbles) == n_before - 1
+
+
+def test_candidate_card_has_inline_stylesheet():
+    """卡片应有自带 stylesheet（不能只靠 QFrame.StyledPanel）——
+    否则在无主题 QSS 加载时完全没有可视差异。"""
+    _app()
+    from drama_shot_master.ui.widgets.screenwriter._ideate_candidate_card import _CandidateCard
+    card = _CandidateCard({"id": "c1", "title": "测试候选"})
+    ss = card.styleSheet()
+    assert "background" in ss, "卡片应设 background 色，使其和聊天背景区分"
+    assert "border" in ss, "卡片应设 border（含 selected 状态区分）"
+
+
+def test_candidate_card_selected_visual_state_changes():
+    _app()
+    from drama_shot_master.ui.widgets.screenwriter._ideate_candidate_card import _CandidateCard
+    card = _CandidateCard({"id": "c1", "title": "测试候选"})
+    card.set_selected(False)
+    assert card.property("selected") == "false"
+    card.set_selected(True)
+    assert card.property("selected") == "true"
+
+
+def test_start_generation_if_idle_no_op_in_idle_no_upstream(tmp_path):
+    """IdeatePage.start_generation_if_idle 应安全调，无副作用（IdeatePage
+    创意阶段不是自动从上游 trigger 的）。"""
+    _app()
+    p = IdeatePage(_StubClient())
+    p.set_project(tmp_path)
+    # 不应抛
+    p.start_generation_if_idle()

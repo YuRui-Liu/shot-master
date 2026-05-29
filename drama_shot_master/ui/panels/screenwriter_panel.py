@@ -69,7 +69,7 @@ class ScreenwriterPanel(QWidget):
             if hasattr(pg, "statusMessage"):
                 pg.statusMessage.connect(self.statusMessage)
             if hasattr(pg, "stageAdvanceRequested"):
-                pg.stageAdvanceRequested.connect(self._wizard_host.set_stage)
+                pg.stageAdvanceRequested.connect(self._on_stage_advance_requested)
 
     def _on_task_selected(self, path: Path | None) -> None:
         # 统一切换：先全员 try_release，全 OK 才推进
@@ -103,3 +103,13 @@ class ScreenwriterPanel(QWidget):
             if hasattr(pg, "is_streaming") and pg.is_streaming(project_dir):
                 return True
         return False
+
+    def _on_stage_advance_requested(self, idx: int) -> None:
+        """上一阶段「推进」→ 切到 idx + 让目标 page 自动尝试启动生成。
+        page 自身判断 upstream/output/state，决定是否真跑（修「推进了但不生成」bug）。
+        """
+        self._wizard_host.set_stage(idx)
+        if 0 <= idx < len(self._pages):
+            target = self._pages[idx]
+            if hasattr(target, "start_generation_if_idle"):
+                target.start_generation_if_idle()
