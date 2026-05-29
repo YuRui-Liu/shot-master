@@ -328,6 +328,10 @@ class SoundtrackEditor(QWidget):
         if not self._session:
             QMessageBox.warning(self, "无法重排", "请先开始配乐生成 session")
             return
+        # 重要：worker 忙时不能 reset——否则 session 落盘清空后 refine 被 _run_pipeline
+        # 早退拦截，用户会拿到一个被静默清空候选的 session。与 _on_regenerate 对齐。
+        if self._worker_busy():
+            QMessageBox.information(self, "请稍候", "当前有任务在运行"); return
         if any(s.candidates for s in self._session.segments):
             if QMessageBox.warning(
                     self, "重排会清空候选",

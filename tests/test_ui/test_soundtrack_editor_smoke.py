@@ -235,3 +235,41 @@ def test_resegment_button_warns_when_no_session(tmp_path):
     with patch.object(QMessageBox, "warning") as warn:
         editor._on_resegment()
         warn.assert_called_once()
+
+
+def test_resegment_button_blocks_when_worker_busy(tmp_path, monkeypatch):
+    """worker 忙时点重排：弹 info 提示，**不得**清空候选或落盘。"""
+    _app()
+    from unittest.mock import patch
+    from drama_shot_master.ui.widgets.soundtrack_editor import SoundtrackEditor
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, BGMCandidate,
+    )
+    from PySide6.QtWidgets import QMessageBox
+
+    mp4 = tmp_path / "ep.mp4"; mp4.write_bytes(b"x")
+    cfg = _cfg(tmp_path)
+    task = {"id": "t1", "name": "测试", "mp4": str(mp4),
+            "style": "末日", "workflow_id": "wf", "output_dir": ""}
+    editor = SoundtrackEditor(task, cfg, tmp_path)
+
+    seg = SegmentScore(0, 0.0, 2.0)
+    seg.candidates = [BGMCandidate(path="/b.mp3", seed=1, prompt="t")]
+    sess = ScoringSession(source_mp4=str(mp4), source_hash="h",
+                          global_style="末日", frame_rate=24.0,
+                          segments=[seg])
+    sess.segments_refined = True
+    editor._session = sess
+
+    monkeypatch.setattr(editor, "_worker_busy", lambda: True)
+    persisted = {"called": False}
+    monkeypatch.setattr(editor, "_persist_session",
+                        lambda: persisted.__setitem__("called", True))
+
+    with patch.object(QMessageBox, "information") as info:
+        editor._on_resegment()
+        info.assert_called_once()
+    # 候选未被清空，flag 未翻转，未落盘
+    assert sess.segments[0].candidates != []
+    assert sess.segments_refined is True
+    assert persisted["called"] is False
