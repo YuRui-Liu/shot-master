@@ -10,7 +10,8 @@ from screenwriter_agent.templates import template_loader as tl
 def test_builtin_ids_set():
     assert set(tl.BUILTIN_IDS) == {"ideate", "script", "script_outline",
                                    "script_episode", "storyboard",
-                                   "character_ref", "grid_prompt"}
+                                   "character_ref", "grid_prompt",
+                                   "video_prompt"}
 
 
 def test_load_builtin_returns_text(tmp_path, monkeypatch):

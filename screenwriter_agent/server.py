@@ -36,6 +36,9 @@ def create_app(cfg: AgentConfig | None = None) -> FastAPI:
     from .routes.prompts import router as prompts_router
     app.include_router(prompts_router)
 
+    from .routes.video_prompt import router as video_prompt_router
+    app.include_router(video_prompt_router)
+
     return app
 
 

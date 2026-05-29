@@ -107,3 +107,18 @@ class ScriptEpisodeReq(BaseModel):
     model: str | None = None
     reasoning_effort: str = "high"
     creds: LLMCreds | None = None
+
+
+class VideoPromptOptions(BaseModel):
+    fps: int = 24
+    aspect_ratio: str = "9:16"
+    style_note: str = ""
+
+
+class VideoPromptReq(BaseModel):
+    project_dir: str
+    episode_id: str = Field(..., pattern=r"^E[1-9]\d*$")
+    options: VideoPromptOptions = Field(default_factory=VideoPromptOptions)
+    model: str | None = None
+    reasoning_effort: str = "high"
+    creds: LLMCreds | None = None
