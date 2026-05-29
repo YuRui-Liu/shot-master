@@ -20,6 +20,14 @@ class ChatMessage(BaseModel):
     content: str
 
 
+class LLMCreds(BaseModel):
+    """OpenAI 兼容协议下，请求体直接带 LLM 凭据——主软件作为单一可信来源
+    每个请求注入；agent 不再依赖 env 配置（避免 spawn 时 cfg 没准备好、
+    僵尸 agent 残留旧 env、用户改设置不重启不生效等长尾问题）。"""
+    api_key: str | None = None
+    base_url: str | None = None
+
+
 class IdeateChatReq(BaseModel):
     project_dir: str
     context: IdeateContext
@@ -27,6 +35,7 @@ class IdeateChatReq(BaseModel):
     model: str | None = None
     reasoning_effort: str = "high"
     auto_save_idea_json: bool = True
+    creds: LLMCreds | None = None         # 主软件每请求注入
 
 
 class IdeateSelectReq(BaseModel):
@@ -46,6 +55,7 @@ class ScriptReq(BaseModel):
     options: ScriptOptions = Field(default_factory=ScriptOptions)
     model: str | None = None
     reasoning_effort: str = "high"
+    creds: LLMCreds | None = None
 
 
 class StoryboardOptions(BaseModel):
@@ -60,6 +70,7 @@ class StoryboardReq(BaseModel):
     options: StoryboardOptions = Field(default_factory=StoryboardOptions)
     model: str | None = None
     reasoning_effort: str = "max"
+    creds: LLMCreds | None = None
 
 
 class PromptsOptions(BaseModel):
@@ -75,3 +86,4 @@ class PromptsReq(BaseModel):
     options: PromptsOptions = Field(default_factory=PromptsOptions)
     model: str | None = None
     reasoning_effort: str = "high"
+    creds: LLMCreds | None = None

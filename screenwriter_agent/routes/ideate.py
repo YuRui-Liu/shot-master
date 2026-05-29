@@ -62,20 +62,33 @@ async def ideate_chat(req: IdeateChatReq, request: Request):
              or os.environ.get("SCREENWRITER_IDEATE_MODEL")
              or cfg.default_models.get("ideate"))
 
+    # 凭据优先级：body > env > default。主软件每次请求把 creds 塞 body
+    # 以彻底绕过 env 传播失败/僵尸 agent 持有旧 env 等问题。
+    creds = req.creds or None
+    body_key = creds.api_key if creds else None
+    body_url = creds.base_url if creds else None
+    api_key = (body_key
+               or os.environ.get("SCREENWRITER_IDEATE_API_KEY")
+               or os.environ.get("SCREENWRITER_LLM_API_KEY", ""))
+    base_url = (body_url
+                or os.environ.get("SCREENWRITER_IDEATE_BASE_URL")
+                or os.environ.get("SCREENWRITER_LLM_BASE_URL",
+                                   "https://api.deepseek.com"))
+
     async def gen():
         import logging
         import traceback
         log = logging.getLogger("screenwriter_agent.ideate")
         from screenwriter_agent.core.llm_client import LLMClient
-        # 优先 per-stage（注入自主软件 stage_assignments + llm_providers），
-        # 回退 SCREENWRITER_LLM_*（legacy 单全局），最后默认 DeepSeek base_url
-        api_key = (os.environ.get("SCREENWRITER_IDEATE_API_KEY")
-                   or os.environ.get("SCREENWRITER_LLM_API_KEY", ""))
-        base_url = (os.environ.get("SCREENWRITER_IDEATE_BASE_URL")
-                    or os.environ.get("SCREENWRITER_LLM_BASE_URL",
-                                       "https://api.deepseek.com"))
-        log.warning("[ideate] start: model=%r base_url=%r key_set=%s",
-                     model, base_url, bool(api_key))
+        # 显式 print 让消息一定进入 subprocess stdout → log_f（而不是被 root
+        # logger 吞掉），关键诊断信息——key 哪个来源 / 模型名 / base_url
+        cred_src = "body" if body_key else (
+            "env_stage" if os.environ.get("SCREENWRITER_IDEATE_API_KEY")
+            else ("env_legacy" if os.environ.get("SCREENWRITER_LLM_API_KEY") else "EMPTY"))
+        print(f"[ideate] req: model={model!r} base_url={base_url!r} "
+              f"cred_src={cred_src} key_set={bool(api_key)}", flush=True)
+        log.warning("[ideate] start: model=%r base_url=%r cred_src=%s key_set=%s",
+                     model, base_url, cred_src, bool(api_key))
         try:
             yield sse_event("status", {"phase": "thinking"})
             tpl_text, _src = load_template("ideate", project_dir=project_dir)
@@ -118,6 +131,9 @@ async def ideate_chat(req: IdeateChatReq, request: Request):
                                           "result": {"raw_text": raw, "warnings": []}})
         except Exception as e:
             tb = traceback.format_exc()
+            # print → 子进程 stdout → 主软件捕获的日志文件（保底机制）
+            print(f"[ideate] EXCEPTION model={model!r} base_url={base_url!r}\n{tb}",
+                   flush=True)
             log.error("[ideate] LLM call failed: model=%r base_url=%r\n%s",
                        model, base_url, tb)
             yield sse_event("error", {

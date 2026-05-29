@@ -41,14 +41,22 @@ async def prompts(req: PromptsReq, request: Request):
     model = (req.model
              or os.environ.get("SCREENWRITER_PROMPTS_MODEL")
              or cfg.default_models.get("prompts"))
+    creds = req.creds or None
+    body_key = creds.api_key if creds else None
+    body_url = creds.base_url if creds else None
+    api_key = (body_key
+               or os.environ.get("SCREENWRITER_PROMPTS_API_KEY")
+               or os.environ.get("SCREENWRITER_LLM_API_KEY", ""))
+    base_url = (body_url
+                or os.environ.get("SCREENWRITER_PROMPTS_BASE_URL")
+                or os.environ.get("SCREENWRITER_LLM_BASE_URL",
+                                   "https://api.deepseek.com"))
+    print(f"[prompts] req: model={model!r} base_url={base_url!r} "
+          f"cred_src={'body' if body_key else 'env'} key_set={bool(api_key)}",
+          flush=True)
 
     async def gen():
         try:
-            api_key = (os.environ.get("SCREENWRITER_PROMPTS_API_KEY")
-                       or os.environ.get("SCREENWRITER_LLM_API_KEY", ""))
-            base_url = (os.environ.get("SCREENWRITER_PROMPTS_BASE_URL")
-                        or os.environ.get("SCREENWRITER_LLM_BASE_URL",
-                                           "https://api.deepseek.com"))
             client = LLMClient(api_key=api_key, base_url=base_url, model=model,
                                reasoning_effort=req.reasoning_effort)
             opts = req.options.model_dump()
@@ -112,7 +120,12 @@ async def prompts(req: PromptsReq, request: Request):
                 "character_refs": len(sb.get("characters", [])) if opts["include_character_refs"] else 0,
                 "grid_sheets": len(groups)}, "warnings": []})
         except Exception as e:
+            import traceback as _tb
+            tb = _tb.format_exc()
+            print(f"[prompts] EXCEPTION model={model!r} base_url={base_url!r}\n{tb}",
+                   flush=True)
             yield sse_event("error", {"code": "INTERNAL_ERROR",
-                                       "message": str(e), "hint": ""})
+                                       "message": f"{type(e).__name__}: {e}",
+                                       "hint": "看 agent log 末尾 traceback"})
 
     return StreamingResponse(gen(), media_type="text/event-stream")

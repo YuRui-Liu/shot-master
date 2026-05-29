@@ -33,7 +33,8 @@ class ScreenwriterPanel(QWidget):
         super().__init__(parent)
         self._cfg = cfg
         self._client = ScreenwriterClient(
-            base_url=f"http://127.0.0.1:{cfg.screenwriter_agent_port}")
+            base_url=f"http://127.0.0.1:{cfg.screenwriter_agent_port}",
+            cfg=cfg)  # cfg 注入 → stream_post 自动注 LLM creds + model 到 body
         self._last_selected: Path | None = None
         self._build_ui()
         self._wire_signals()

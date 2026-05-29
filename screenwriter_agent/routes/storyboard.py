@@ -39,6 +39,19 @@ async def storyboard(req: StoryboardReq, request: Request):
     model = (req.model
              or os.environ.get("SCREENWRITER_STORYBOARD_MODEL")
              or cfg.default_models.get("storyboard"))
+    creds = req.creds or None
+    body_key = creds.api_key if creds else None
+    body_url = creds.base_url if creds else None
+    api_key = (body_key
+               or os.environ.get("SCREENWRITER_STORYBOARD_API_KEY")
+               or os.environ.get("SCREENWRITER_LLM_API_KEY", ""))
+    base_url = (body_url
+                or os.environ.get("SCREENWRITER_STORYBOARD_BASE_URL")
+                or os.environ.get("SCREENWRITER_LLM_BASE_URL",
+                                   "https://api.deepseek.com"))
+    print(f"[storyboard] req: model={model!r} base_url={base_url!r} "
+          f"cred_src={'body' if body_key else 'env'} key_set={bool(api_key)}",
+          flush=True)
 
     async def gen():
         try:
@@ -56,11 +69,6 @@ async def storyboard(req: StoryboardReq, request: Request):
                       + "**只输出一个 JSON 代码块**。")
             messages = [{"role": "user", "content": prompt}]
 
-            api_key = (os.environ.get("SCREENWRITER_STORYBOARD_API_KEY")
-                       or os.environ.get("SCREENWRITER_LLM_API_KEY", ""))
-            base_url = (os.environ.get("SCREENWRITER_STORYBOARD_BASE_URL")
-                        or os.environ.get("SCREENWRITER_LLM_BASE_URL",
-                                           "https://api.deepseek.com"))
             client = LLMClient(api_key=api_key, base_url=base_url, model=model,
                                reasoning_effort=req.reasoning_effort,
                                response_format={"type": "json_object"})
@@ -110,8 +118,13 @@ async def storyboard(req: StoryboardReq, request: Request):
                 "warnings": [w.__dict__ for w in warns],
             })
         except Exception as e:
+            import traceback as _tb
+            tb = _tb.format_exc()
+            print(f"[storyboard] EXCEPTION model={model!r} base_url={base_url!r}\n{tb}",
+                   flush=True)
             yield sse_event("error", {"code": "INTERNAL_ERROR",
-                                       "message": str(e), "hint": ""})
+                                       "message": f"{type(e).__name__}: {e}",
+                                       "hint": "看 agent log 末尾 traceback"})
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 
