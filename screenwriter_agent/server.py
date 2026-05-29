@@ -24,9 +24,6 @@ def create_app(cfg: AgentConfig | None = None) -> FastAPI:
     from .routes.ideate import router as ideate_router
     app.include_router(ideate_router)
 
-    from .routes.script import router as script_router
-    app.include_router(script_router)
-
     from .routes.script_outline import router as script_outline_router
     app.include_router(script_outline_router)
 

@@ -1,4 +1,4 @@
-"""POST /storyboard — SSE：读剧本.md → LLM JSON → 修复 + 校验 → 落盘 分镜.json。"""
+"""POST /storyboard — SSE：读剧本_E{id}.md → LLM JSON → 修复 + 校验 → 落盘 分镜_E{id}.json。"""
 from __future__ import annotations
 
 import json
@@ -13,6 +13,7 @@ from screenwriter_agent.core.atomic_write import atomic_write_text
 from screenwriter_agent.core.downstream import purge_downstream
 from screenwriter_agent.core.json_repair import repair_json_text
 from screenwriter_agent.core.llm_client import LLMClient
+from screenwriter_agent.core.paths import script_episode_read_path, storyboard_episode_path
 from screenwriter_agent.core.schema_validator import validate_storyboard
 from screenwriter_agent.core.sse import sse_event
 from screenwriter_agent.core.template_loader import load_template
@@ -29,15 +30,15 @@ async def storyboard(req: StoryboardReq, request: Request):
             "error": {"code": "PROJECT_DIR_NOT_FOUND",
                       "message": f"{req.project_dir}",
                       "hint": "项目目录打不开。"}})
-    script_path = project_dir / "剧本.md"
-    if not script_path.is_file():
+    script_path = script_episode_read_path(project_dir, req.episode_id)
+    if script_path is None:
         return JSONResponse(status_code=400, content={
             "error": {"code": "UPSTREAM_PRODUCT_MISSING",
-                      "message": "剧本.md missing",
-                      "hint": "请先在「剧本」步生成剧本。"}})
+                      "message": f"剧本_{req.episode_id}.md missing",
+                      "hint": "请先在「剧本」步生成该集。"}})
     # 重生：清下游（分镜.json / prompts/）
     if request.query_params.get("purge_downstream") in ("true", "1", "yes"):
-        purge_downstream(project_dir, stage="storyboard")
+        purge_downstream(project_dir, stage="storyboard", episode_id=req.episode_id)
 
     cfg = request.app.state.cfg
     model = (req.model
@@ -117,11 +118,12 @@ async def storyboard(req: StoryboardReq, request: Request):
                 return
 
             yield sse_event("status", {"phase": "saving"})
-            sb_path = project_dir / "分镜.json"
+            sb_path = storyboard_episode_path(project_dir, req.episode_id)
             atomic_write_text(sb_path, json.dumps(validated,
                                                    ensure_ascii=False, indent=2))
             yield sse_event("done", {
                 "saved": str(sb_path),
+                "episode_id": req.episode_id,
                 "result": validated,
                 "warnings": [w.__dict__ for w in warns],
             })
