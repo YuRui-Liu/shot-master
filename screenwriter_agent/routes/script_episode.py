@@ -21,6 +21,34 @@ from screenwriter_agent.models.requests import ScriptEpisodeReq
 router = APIRouter()
 
 
+def _bootstrap_single_episode_index(project_dir: Path) -> dict | None:
+    """单集快路径：从已选创意候选构造最小单集索引（仅 E1）。
+
+    无创意 / 未选定 / 选定候选不存在 → 返回 None（调用方据此回退 400）。
+    """
+    idea_path = idea_read_path(project_dir)
+    if idea_path is None:
+        return None
+    try:
+        idea = json.loads(idea_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    cand = next((c for c in idea.get("candidates", [])
+                 if c.get("id") == idea.get("selected_id")), None)
+    if cand is None:
+        return None
+    title = cand.get("title") or "第一集"
+    summary = cand.get("summary") or cand.get("highlights") or ""
+    return {
+        "title": title,
+        "episode_count": 1,
+        "selected_episode": "E1",
+        "episodes": [{"id": "E1", "title": title, "summary": summary}],
+        "input": idea.get("input", {}),
+        "updated_at": "",
+    }
+
+
 @router.post("/script/episode")
 async def script_episode(req: ScriptEpisodeReq, request: Request):
     project_dir = Path(req.project_dir)
@@ -31,16 +59,24 @@ async def script_episode(req: ScriptEpisodeReq, request: Request):
 
     si_path = script_index_path(project_dir)
     if not si_path.is_file():
-        return JSONResponse(status_code=400, content={
-            "error": {"code": "UPSTREAM_PRODUCT_MISSING",
-                      "message": "剧本.json missing",
-                      "hint": "请先在剧本阶段生成大纲。"}})
-    try:
-        si = json.loads(si_path.read_text(encoding="utf-8"))
-    except Exception:
-        return JSONResponse(status_code=500, content={
-            "error": {"code": "INTERNAL_ERROR",
-                      "message": "剧本.json parse failed", "hint": ""}})
+        # 单集快路径自给自足：E1 时从已选创意 bootstrap 最小索引并落盘，
+        # 不强制先跑 /script/outline。E2+ 仍需先生成大纲。
+        si = (_bootstrap_single_episode_index(project_dir)
+              if req.episode_id == "E1" else None)
+        if si is None:
+            return JSONResponse(status_code=400, content={
+                "error": {"code": "UPSTREAM_PRODUCT_MISSING",
+                          "message": "剧本.json missing",
+                          "hint": "请先在剧本阶段生成大纲。"}})
+        atomic_write_text(
+            si_path, json.dumps(si, ensure_ascii=False, indent=2))
+    else:
+        try:
+            si = json.loads(si_path.read_text(encoding="utf-8"))
+        except Exception:
+            return JSONResponse(status_code=500, content={
+                "error": {"code": "INTERNAL_ERROR",
+                          "message": "剧本.json parse failed", "hint": ""}})
     ep_entry = next((e for e in si.get("episodes", [])
                       if e.get("id") == req.episode_id), None)
     if ep_entry is None:
