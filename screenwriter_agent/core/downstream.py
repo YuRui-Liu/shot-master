@@ -125,3 +125,7 @@ def _purge_all_script_and_below(project_dir: Path, removed: list[str]) -> None:
         removed.append("分镜.json")
     if _rm_dir(project_dir / "prompts"):
         removed.append("prompts/")
+    if _rm_dir(project_dir / "video_prompts"):
+        removed.append("video_prompts/")
+    if _rm_dir(project_dir / "audio_prompts"):
+        removed.append("audio_prompts/")

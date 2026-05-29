@@ -10,6 +10,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from screenwriter_agent.core.atomic_write import atomic_write_text
+from screenwriter_agent.core.downstream import purge_downstream
 from screenwriter_agent.core.paths import idea_read_path, idea_write_path
 from screenwriter_agent.core.sse import sse_event
 from screenwriter_agent.core.template_loader import load_template
@@ -42,6 +43,8 @@ def ideate_select(req: IdeateSelectReq):
     idea["selected_id"] = req.selected_id
     idea["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     atomic_write_text(idea_path, json.dumps(idea, ensure_ascii=False, indent=2))
+    # 清除下游产物，避免切换创意后旧剧本/分镜仍然显示
+    purge_downstream(p, stage="script_outline")
     selected = next(c for c in idea["candidates"] if c["id"] == req.selected_id)
     return {"saved": str(idea_path), "selected": selected}
 
