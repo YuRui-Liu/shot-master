@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import re as _re
 from pathlib import Path
 
 IDEA_FILE_NAME = "创意.json"
@@ -32,8 +33,6 @@ def idea_exists(project_dir: Path) -> bool:
     """任一名字存在即认作创意已落盘。"""
     return idea_read_path(project_dir) is not None
 
-
-import re as _re
 
 EPISODE_ID_PATTERN = _re.compile(r"^E([1-9]\d*)$")
 
@@ -66,10 +65,12 @@ def script_episode_read_path(project_dir: Path, episode_id: str) -> Path | None:
 
 
 def storyboard_episode_path(project_dir: Path, episode_id: str) -> Path:
+    """写入路径：分镜_E{id}.json。"""
     return project_dir / f"分镜_{episode_id}.json"
 
 
 def storyboard_episode_read_path(project_dir: Path, episode_id: str) -> Path | None:
+    """读取路径：优先 分镜_E{id}.json，兜底 旧的单文件 分镜.json（仅 E1 时）。"""
     primary = storyboard_episode_path(project_dir, episode_id)
     if primary.is_file():
         return primary

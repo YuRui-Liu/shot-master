@@ -30,7 +30,6 @@ def test_idea_exists_true_for_either_name(tmp_path):
     assert idea_exists(tmp_path) is True
 
 
-import re
 from screenwriter_agent.core.paths import (
     script_index_path, script_episode_path, script_episode_read_path,
     storyboard_episode_path, storyboard_episode_read_path,
@@ -81,6 +80,17 @@ def test_storyboard_episode_path(tmp_path):
 def test_storyboard_episode_read_falls_back_to_legacy(tmp_path):
     (tmp_path / "分镜.json").write_text("{}", encoding="utf-8")
     assert storyboard_episode_read_path(tmp_path, "E1").name == "分镜.json"
+
+
+def test_storyboard_episode_read_prefers_new(tmp_path):
+    (tmp_path / "分镜_E1.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "分镜.json").write_text("{}", encoding="utf-8")
+    p = storyboard_episode_read_path(tmp_path, "E1")
+    assert p.name == "分镜_E1.json"
+
+
+def test_storyboard_episode_read_none_when_missing(tmp_path):
+    assert storyboard_episode_read_path(tmp_path, "E1") is None
 
 
 def test_episode_prompts_dir(tmp_path):
