@@ -1,0 +1,257 @@
+"""ScreenwriterTaskManager：编剧面板左侧任务列表。
+
+与 Dub/ImgGen 范式一致：QTableWidget 4 列（名称/状态点/当前阶段/更新时间）
++ 工具栏 [新建/打开/删除]。多项目并发支持，状态点即时扫文件推断。
+
+持久化：cfg.screenwriter_projects: list[str]（绝对路径）。
+"""
+from __future__ import annotations
+
+import shutil
+from pathlib import Path
+from datetime import datetime
+
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
+    QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog, QMessageBox,
+    QLabel,
+)
+# 预先抓取角色常量，确保 QMessageBox 被 monkeypatch 替换时仍可访问
+_ACCEPT_ROLE = QMessageBox.AcceptRole
+_DESTRUCTIVE_ROLE = QMessageBox.DestructiveRole
+_CANCEL = QMessageBox.Cancel
+
+
+_STAGE_FILES = (
+    ("创意", "创意.json"),
+    ("剧本", "剧本.md"),
+    ("分镜", "分镜.json"),
+    ("提示词", "prompts"),     # 目录非空
+)
+
+
+class ScreenwriterTaskManager(QWidget):
+    """编剧任务列表（左侧栏）。"""
+    taskSelected = Signal(object)         # Path | None
+    projectAdded = Signal(object)         # Path
+    projectRemoved = Signal(object)       # Path
+
+    def __init__(self, cfg, parent=None):
+        super().__init__(parent)
+        self._cfg = cfg
+        self._projects: list[Path] = [
+            Path(p) for p in (cfg.screenwriter_projects or [])]
+        # 询问外部「某项目当前是否有 worker 在跑」的回调（由 ScreenwriterPanel 注入）
+        self._active_worker_query = lambda p: False
+        self._build_ui()
+        self.refresh()
+        # 30s 定时刷
+        self._timer = QTimer(self)
+        self._timer.setInterval(30000)
+        self._timer.timeout.connect(self.refresh)
+        self._timer.start()
+
+    def set_active_worker_query(self, fn) -> None:
+        self._active_worker_query = fn
+
+    def _build_ui(self) -> None:
+        v = QVBoxLayout(self)
+        v.setContentsMargins(4, 4, 4, 4); v.setSpacing(4)
+        # 工具栏
+        bar = QHBoxLayout()
+        bar.setSpacing(4)
+        btn_new = QPushButton("+ 新建")
+        btn_new.clicked.connect(self._on_new_clicked)
+        bar.addWidget(btn_new)
+        btn_open = QPushButton("📂 打开")
+        btn_open.clicked.connect(self._on_open_clicked)
+        bar.addWidget(btn_open)
+        btn_del = QPushButton("🗑 删除")
+        btn_del.clicked.connect(self._on_delete_clicked)
+        bar.addWidget(btn_del)
+        bar.addStretch(1)
+        v.addLayout(bar)
+        # 表格
+        self._table = QTableWidget(0, 4)
+        self._table.setHorizontalHeaderLabels(
+            ["名称", "状态", "当前阶段", "更新"])
+        self._table.verticalHeader().setVisible(False)
+        self._table.setSelectionBehavior(QTableWidget.SelectRows)
+        self._table.setSelectionMode(QTableWidget.SingleSelection)
+        self._table.setEditTriggers(QTableWidget.NoEditTriggers)
+        hdr = self._table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.Interactive)
+        hdr.setSectionResizeMode(1, QHeaderView.Interactive)
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self._table.setColumnWidth(1, 60)
+        self._table.itemSelectionChanged.connect(self._on_selection_changed)
+        self._table.viewport().installEventFilter(self)
+        v.addWidget(self._table, 1)
+        # 状态注脚
+        self._footer = QLabel("")
+        self._footer.setStyleSheet("color: #9aa0a6; font-size: 10px;")
+        v.addWidget(self._footer)
+
+    def eventFilter(self, obj, ev):
+        from PySide6.QtCore import QEvent
+        if obj is self._table.viewport() and ev.type() == QEvent.Resize:
+            self._fit_name_col()
+        return super().eventFilter(obj, ev)
+
+    def _fit_name_col(self) -> None:
+        vw = self._table.viewport().width()
+        used = self._table.columnWidth(1) + self._table.columnWidth(2) \
+               + self._table.columnWidth(3)
+        self._table.setColumnWidth(0, max(100, vw - used))
+
+    # —— 数据 ——
+
+    def refresh(self) -> None:
+        # 1) 剪枝：清掉已不存在的目录
+        valid: list[Path] = []
+        for p in self._projects:
+            if p.is_dir():
+                valid.append(p)
+        if len(valid) != len(self._projects):
+            self._projects = valid
+            self._save()
+        # 2) 重绘表格
+        self._table.setRowCount(0)
+        for p in self._projects:
+            row = self._table.rowCount()
+            self._table.insertRow(row)
+            self._table.setItem(row, 0, QTableWidgetItem(p.name))
+            dots, current_stage = self._compute_status(p)
+            self._table.setItem(row, 1, QTableWidgetItem(dots))
+            self._table.setItem(row, 2, QTableWidgetItem(current_stage))
+            mtime = self._dir_mtime(p)
+            self._table.setItem(row, 3, QTableWidgetItem(mtime))
+        self._footer.setText(f"{len(self._projects)} 个项目")
+        self._fit_name_col()
+
+    def _compute_status(self, p: Path) -> tuple[str, str]:
+        dots = []
+        last_done_idx = -1
+        for i, (_, fname) in enumerate(_STAGE_FILES):
+            target = p / fname
+            done = False
+            if fname == "prompts":
+                done = target.is_dir() and any(target.iterdir())
+            else:
+                done = target.is_file()
+            if done:
+                dots.append("✓")
+                last_done_idx = i
+            else:
+                dots.append("○")
+        # streaming 覆盖
+        if self._active_worker_query(p):
+            return "".join(dots), "生成中"
+        # 当前阶段
+        if last_done_idx == len(_STAGE_FILES) - 1:
+            return "".join(dots), "已完成"
+        next_idx = last_done_idx + 1
+        next_stage = _STAGE_FILES[next_idx][0]
+        return "".join(dots), f"待 {next_stage}"
+
+    def _dir_mtime(self, p: Path) -> str:
+        try:
+            ts = p.stat().st_mtime
+        except OSError:
+            return ""
+        dt = datetime.fromtimestamp(ts)
+        return dt.strftime("%Y-%m-%d %H:%M")
+
+    # —— 工具栏 actions ——
+
+    def _on_new_clicked(self) -> None:
+        name, ok = QInputDialog.getText(self, "新建编剧项目", "项目名：")
+        if not ok or not name.strip():
+            return
+        base = Path(self._cfg.screenwriter_project_root
+                    or Path.home() / "drama-projects")
+        try:
+            base.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            QMessageBox.warning(self, "失败", f"创建 base 目录失败：{e}")
+            return
+        new_dir = base / name.strip()
+        if new_dir.exists():
+            QMessageBox.warning(self, "同名", f"{new_dir} 已存在")
+            return
+        try:
+            new_dir.mkdir(parents=True)
+        except OSError as e:
+            QMessageBox.warning(self, "失败", str(e)); return
+        self._add_project(new_dir)
+
+    def _on_open_clicked(self) -> None:
+        d = QFileDialog.getExistingDirectory(self, "选择项目目录")
+        if not d:
+            return
+        p = Path(d)
+        if p in self._projects:
+            QMessageBox.information(self, "已在列表",
+                                       f"{p} 已经在任务列表里")
+            return
+        self._add_project(p)
+
+    def _on_delete_clicked(self) -> None:
+        p = self._selected_project()
+        if p is None:
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle("删除项目")
+        box.setText(f"确认删除「{p.name}」？")
+        btn_listonly = box.addButton("仅从列表移除", _ACCEPT_ROLE)
+        btn_purge = box.addButton("连同目录删除", _DESTRUCTIVE_ROLE)
+        box.addButton(_CANCEL)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is btn_listonly or clicked == "仅从列表移除":
+            self._remove_from_list(p)
+            return
+        if clicked is btn_purge or clicked == "连同目录删除":
+            if self._active_worker_query(p):
+                QMessageBox.warning(self, "项目仍在生成",
+                                       "请先停止当前阶段")
+                return
+            try:
+                shutil.rmtree(p)
+            except OSError as e:
+                QMessageBox.warning(self, "删除失败", str(e)); return
+            self._remove_from_list(p)
+
+    def _selected_project(self) -> Path | None:
+        rows = self._table.selectionModel().selectedRows()
+        if not rows:
+            return None
+        idx = rows[0].row()
+        if 0 <= idx < len(self._projects):
+            return self._projects[idx]
+        return None
+
+    def _add_project(self, p: Path) -> None:
+        if p in self._projects:
+            return
+        self._projects.append(p)
+        self._save()
+        self.refresh()
+        self.projectAdded.emit(p)
+
+    def _remove_from_list(self, p: Path) -> None:
+        if p in self._projects:
+            self._projects.remove(p)
+            self._save()
+            self.refresh()
+            self.projectRemoved.emit(p)
+
+    def _save(self) -> None:
+        self._cfg.update_settings(
+            screenwriter_projects=[str(p) for p in self._projects])
+
+    def _on_selection_changed(self) -> None:
+        p = self._selected_project()
+        self.taskSelected.emit(p)
