@@ -34,7 +34,7 @@ def test_panel_builds_with_splitter_and_4_pages():
     panel = ScreenwriterPanel(_StubCfg())
     assert panel._task_manager is not None
     assert panel._wizard_host is not None
-    assert panel._wizard_host._stack.count() == 4
+    assert panel._wizard_host._stack.count() == 6   # 扩展为 6 步
 
 
 def test_task_selection_propagates_to_all_pages(tmp_path):

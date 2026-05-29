@@ -1,6 +1,6 @@
 """ScreenwriterWizardHost：编剧面板右侧 wizard host。
 
-顶部 stage stepper（4 按钮）+ QStackedWidget（4 子面板）。
+顶部 stage stepper（N 按钮）+ QStackedWidget（N 子面板）。
 stage 按钮无条件切换（spec issue #4），上游缺失由子面板自己显示 banner。
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ class ScreenwriterWizardHost(QWidget):
 
     def __init__(self, pages: list[QWidget], stage_names: list[str], parent=None):
         super().__init__(parent)
-        assert len(pages) == len(stage_names) == 4
+        assert len(pages) == len(stage_names)
         self._pages = pages
         self._buttons: list[QPushButton] = []
         v = QVBoxLayout(self)

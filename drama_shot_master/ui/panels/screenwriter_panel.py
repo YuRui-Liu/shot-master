@@ -20,9 +20,11 @@ from drama_shot_master.ui.widgets.screenwriter.ideate_page import IdeatePage
 from drama_shot_master.ui.widgets.screenwriter.script_page import ScriptPage
 from drama_shot_master.ui.widgets.screenwriter.storyboard_page import StoryboardPage
 from drama_shot_master.ui.widgets.screenwriter.prompts_page import PromptsPage
+from drama_shot_master.ui.widgets.screenwriter.video_prompt_page import VideoPromptPage
+from drama_shot_master.ui.widgets.screenwriter.audio_prompt_page import AudioPromptPage
 
 
-_STAGE_NAMES = ["创意", "剧本", "分镜", "提示词"]
+_STAGE_NAMES = ["创意", "剧本", "分镜", "分镜图提示词", "视频提示词", "配音配乐"]
 
 
 class ScreenwriterPanel(QWidget):
@@ -60,7 +62,9 @@ class ScreenwriterPanel(QWidget):
         script = ScriptPage(self._client)
         storyboard = StoryboardPage(self._client)
         prompts = PromptsPage(self._client)
-        self._pages = [ideate, script, storyboard, prompts]
+        video_prompt = VideoPromptPage(self._client)
+        audio_prompt = AudioPromptPage(self._client)
+        self._pages = [ideate, script, storyboard, prompts, video_prompt, audio_prompt]
         self._wizard_host = ScreenwriterWizardHost(
             self._pages, stage_names=_STAGE_NAMES)
         splitter.addWidget(self._wizard_host)

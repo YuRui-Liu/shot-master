@@ -122,6 +122,9 @@ class PromptsPage(_BaseStagePage):
         self._complete_btn = QPushButton("完成 ✓")
         self._complete_btn.clicked.connect(self._on_complete_clicked)
         bar.addWidget(self._complete_btn)
+        self._advance_btn = QPushButton("推进到视频提示词 →")
+        self._advance_btn.clicked.connect(self._on_advance_to_video)
+        bar.addWidget(self._advance_btn)
         v.addLayout(bar)
         return w
 
@@ -291,6 +294,9 @@ class PromptsPage(_BaseStagePage):
         # 不切阶段；只发完成信号
         self.statusMessage.emit("项目已完成 ✓")
         self.projectStateChanged.emit()
+
+    def _on_advance_to_video(self) -> None:
+        self.stageAdvanceRequested.emit(4)   # Stage 5 = index 4
 
     def start_generation_if_idle(self) -> None:
         """上游 分镜.json 在 + prompts/E{id}/ 空 → 自动跑生成。"""

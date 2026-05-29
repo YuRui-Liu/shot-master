@@ -20,7 +20,7 @@ def test_panel_constructs():
     assert hasattr(panel, "_task_manager")
     assert hasattr(panel, "_wizard_host")
     assert hasattr(panel, "_task_bar")
-    assert panel._wizard_host._stack.count() == 4   # 4 阶段（Phase 2 后扩展为 6）
+    assert panel._wizard_host._stack.count() == 6   # 6 阶段（Stage5 视频提示词 + Stage6 配音配乐）
 
 
 def test_panel_table_cols():
