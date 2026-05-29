@@ -87,6 +87,7 @@ def _build_real_stages(cfg, workflow_id, work_dir, global_style,
         refine_max_segments=int(getattr(cfg, "refine_max_segments", 5)),
         refine_merge_threshold=float(getattr(cfg, "refine_merge_threshold", 0.25)),
         refine_frames_per_shot=int(getattr(cfg, "refine_frames_per_shot", 3)),
+        fade_out=bool(getattr(cfg, "soundtrack_fade_out", False)),
     )
 
 
@@ -255,7 +256,9 @@ def regenerate_segment(session: ScoringSession, seg_index: int, work_dir, *,
     global_style = session.global_style
 
     def compose(seg):
-        return compose_acestep_inputs(global_style, seg.emotion, seg.duration)
+        return compose_acestep_inputs(
+            global_style, seg.emotion, seg.duration,
+            fade_out=bool(getattr(cfg, "soundtrack_fade_out", False)))
 
     seg = session.segments[seg_index]
     _prev = (list(seg.candidates), seg.chosen_candidate, seg.status)

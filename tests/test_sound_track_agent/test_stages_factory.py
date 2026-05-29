@@ -137,3 +137,30 @@ def test_build_stages_threads_refine_frames_per_shot(tmp_path, monkeypatch):
     assert stages.refine_segments is not None
     stages.refine_segments(None)        # 触发闭包
     assert captured["frames_per_shot"] == 5
+
+
+def test_build_stages_threads_fade_out_to_compose(tmp_path, monkeypatch):
+    """build_stages 收到 fade_out=True → 段 prompt 含 [Quick smooth fade out]。"""
+    from sound_track_agent.session import SegmentScore
+    seg = SegmentScore(0, 0.0, 20.0)
+
+    stages = build_stages(
+        provider=None, client=None, workflow_id="wf", work_dir=tmp_path,
+        global_style="末日", seeds=[1],
+        frame_provider=lambda s: tmp_path / "f.png",
+        fade_out=True)
+    prompt = stages.compose_prompt(seg, None)
+    assert "[Quick smooth fade out]" in prompt
+
+
+def test_build_stages_fade_out_default_off(tmp_path):
+    """build_stages 不传 fade_out → 段 prompt 不含淡出标记（默认关闭）。"""
+    from sound_track_agent.session import SegmentScore
+    seg = SegmentScore(0, 0.0, 20.0)
+
+    stages = build_stages(
+        provider=None, client=None, workflow_id="wf", work_dir=tmp_path,
+        global_style="末日", seeds=[1],
+        frame_provider=lambda s: tmp_path / "f.png")
+    prompt = stages.compose_prompt(seg, None)
+    assert "fade out" not in prompt.lower()

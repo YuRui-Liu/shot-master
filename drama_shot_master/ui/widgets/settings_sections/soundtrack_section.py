@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QSpinBox,
-    QDoubleSpinBox, QHBoxLayout, QFileDialog, QComboBox, QLabel,
+    QDoubleSpinBox, QHBoxLayout, QFileDialog, QComboBox, QLabel, QCheckBox,
 )
 
 
@@ -45,6 +45,14 @@ class SoundtrackSection(QWidget):
         self.crossfade_spin.setDecimals(1)
         self.crossfade_spin.setSuffix(" s")
         form.addRow("crossfade 时长", self.crossfade_spin)
+
+        # ACE-Step 末尾结构标记开关：开启会让 BGM 末段约 25% 衰减到静音；默认关闭。
+        self.fade_out_check = QCheckBox("BGM 末尾自然淡出（关闭可保住完整段长，推荐关闭）")
+        self.fade_out_check.setToolTip(
+            "勾选时给 ACE-Step prompt 追加 [Quick smooth fade out] 结构标记。\n"
+            "模型会将该标记解读为 outro，使短段（20-30s）末尾约 25% 渐衰到静音。\n"
+            "默认关闭——大多剧用场景需要完整有声 BGM，由 mix 阶段统一做 crossfade。")
+        form.addRow("末尾淡出", self.fade_out_check)
 
         self.big_thresh_spin = QDoubleSpinBox()
         self.big_thresh_spin.setRange(0.0, 1.0)
@@ -121,6 +129,8 @@ class SoundtrackSection(QWidget):
             int(getattr(cfg, "soundtrack_seeds_count", 2)))
         self.crossfade_spin.setValue(
             float(getattr(cfg, "soundtrack_crossfade", 0.5)))
+        self.fade_out_check.setChecked(
+            bool(getattr(cfg, "soundtrack_fade_out", False)))
         self.big_thresh_spin.setValue(
             float(getattr(cfg, "accent_big_threshold", 0.7)))
         self.snap_window_spin.setValue(
@@ -158,6 +168,7 @@ class SoundtrackSection(QWidget):
                 "headroom": float(self.w_headroom.value()),
                 "beat": float(self.w_beat.value()),
             },
+            soundtrack_fade_out=bool(self.fade_out_check.isChecked()),
         )
 
     def validate(self):

@@ -21,6 +21,7 @@ def build_stages(*, provider, client, workflow_id: str,
                  refine_max_segments: int = 5,
                  refine_merge_threshold: float = 0.25,
                  refine_frames_per_shot: int = 3,
+                 fade_out: bool = False,
                  ) -> Stages:
     """组装 Stages：每个回调闭包捕获外部依赖。
 
@@ -35,7 +36,7 @@ def build_stages(*, provider, client, workflow_id: str,
 
     def compose(seg: SegmentScore):
         return prompt_composer.compose_acestep_inputs(
-            global_style, seg.emotion, seg.duration)
+            global_style, seg.emotion, seg.duration, fade_out=fade_out)
 
     def tag_emotion(seg: SegmentScore, sess: ScoringSession) -> EmotionTag:
         return emotion_tagger.tag_emotion(

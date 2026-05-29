@@ -115,6 +115,8 @@ class Config:
     soundtrack_max_concurrency: int = 3
     soundtrack_score_weights: dict = field(
         default_factory=lambda: {"health": 0.5, "headroom": 0.3, "beat": 0.2})
+    soundtrack_fade_out: bool = False                # ACE-Step prompt 末尾 [Quick smooth fade out] 标记开关；
+                                                     # 开启会让 BGM 末尾约 25% 衰减到静音，默认关闭以保住完整段长。
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -179,6 +181,7 @@ class Config:
                 "accent_max_stretch": self.accent_max_stretch,
                 "soundtrack_max_concurrency": self.soundtrack_max_concurrency,
                 "soundtrack_score_weights": self.soundtrack_score_weights,
+                "soundtrack_fade_out": self.soundtrack_fade_out,
             }
             self.settings_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
@@ -355,6 +358,8 @@ def load_config(env_path: Path = Path(".env"),
                         pass
                 if "soundtrack_score_weights" in data and isinstance(data["soundtrack_score_weights"], dict):
                     cfg.soundtrack_score_weights = dict(data["soundtrack_score_weights"])
+                if "soundtrack_fade_out" in data:
+                    cfg.soundtrack_fade_out = bool(data["soundtrack_fade_out"])
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass
 

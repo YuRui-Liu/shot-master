@@ -56,3 +56,17 @@ def test_acestep_inputs_no_emotion_neutral():
     assert "treasure" in tags
     assert isinstance(bpm, int)
     assert dur == 5.0
+
+
+def test_acestep_inputs_default_no_fade_out():
+    """默认 fade_out=False：不能含 [Quick smooth fade out]，BGM 末段保留完整有声。"""
+    tags, _, _ = compose_acestep_inputs("末日", None, 20.0)
+    assert "fade out" not in tags.lower()
+    assert "[Intro soft opening]" in tags
+    assert "[Short main theme]" in tags
+
+
+def test_acestep_inputs_fade_out_opt_in():
+    """fade_out=True 还原老行为：追加 [Quick smooth fade out]。"""
+    tags, _, _ = compose_acestep_inputs("末日", None, 20.0, fade_out=True)
+    assert "[Quick smooth fade out]" in tags

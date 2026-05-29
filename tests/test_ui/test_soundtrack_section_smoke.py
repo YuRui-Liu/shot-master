@@ -44,6 +44,31 @@ def test_load_from_populates_controls(app):
     assert abs(section.w_beat.value() - 0.1) < 1e-6
 
 
+def test_fade_out_checkbox_exists_and_default_off(app):
+    """fade_out_check 默认不勾选（cfg.soundtrack_fade_out 默认 False）。"""
+    cfg = Config()
+    section = SoundtrackSection(cfg)
+    assert hasattr(section, "fade_out_check"), "缺 fade_out_check 控件"
+    assert section.fade_out_check.isChecked() is False
+
+
+def test_fade_out_load_save_roundtrip(app):
+    """cfg.soundtrack_fade_out=True → load_from 勾选；勾选后 save_to 写回 True。"""
+    cfg = Config()
+    cfg.soundtrack_fade_out = True
+    section = SoundtrackSection(cfg)
+    section.load_from(cfg)
+    assert section.fade_out_check.isChecked() is True
+
+    cfg2 = Config()
+    section.fade_out_check.setChecked(False)
+    section.save_to(cfg2)
+    assert cfg2.soundtrack_fade_out is False
+    section.fade_out_check.setChecked(True)
+    section.save_to(cfg2)
+    assert cfg2.soundtrack_fade_out is True
+
+
 def test_save_to_writes_back_to_cfg(app):
     """save_to 是 UnifiedSettingsDialog 真正调用的持久化入口；6 个新字段
     必须走这一条路径才能在设置对话框关闭时落盘。"""
