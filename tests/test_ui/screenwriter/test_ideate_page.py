@@ -104,3 +104,31 @@ def test_clear_chat_resets_messages_and_candidates(tmp_path, monkeypatch):
     assert p._messages == []
     assert p._candidates == []
     assert p._selected_id == ""
+
+
+def test_two_projects_workers_kept_concurrently(tmp_path):
+    _app()
+    p = IdeatePage(_StubClient())
+    pA = tmp_path / "A"; pA.mkdir()
+    pB = tmp_path / "B"; pB.mkdir()
+    # 模拟两个 worker（不 start，只挂在 dict 上）
+    class _FakeWorker:
+        def isRunning(self): return True
+    p._workers[pA] = _FakeWorker()
+    p._workers[pB] = _FakeWorker()
+    p.set_project(pA)
+    assert p.is_streaming(pA) is True
+    assert p.is_streaming(pB) is True   # 切换不杀 B
+
+
+def test_sse_event_for_inactive_project_emits_state_change(tmp_path):
+    _app()
+    p = IdeatePage(_StubClient())
+    pA = tmp_path / "A"; pA.mkdir()
+    pB = tmp_path / "B"; pB.mkdir()
+    p.set_project(pA)
+    flips = []
+    p.projectStateChanged.connect(lambda: flips.append(True))
+    # B 项目的 done 事件应触发 state change（让 TaskManager 刷新行）
+    p._on_sse_event("done", {"result": {}, "saved": ""}, str(pB))
+    assert len(flips) >= 1

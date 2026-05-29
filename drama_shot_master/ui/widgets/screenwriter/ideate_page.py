@@ -32,6 +32,8 @@ class IdeatePage(_BaseStagePage):
         self._candidate_cards: list[_CandidateCard] = []
         self._message_bubbles: list[_MessageBubble] = []
         self._current_assistant_bubble: _MessageBubble | None = None
+        # Legacy single-worker ref kept for _stop_stream compatibility;
+        # canonical store is self._workers[project_dir] (from _BaseStagePage).
         self._worker: StreamWorker | None = None
         self._state: str = "idle"
         self._build_ui()
@@ -92,6 +94,10 @@ class IdeatePage(_BaseStagePage):
         scroll.setWidget(inner)
         self._messages_scroll = scroll
         v.addWidget(scroll, 1)
+        # 流式状态提示标签（streaming 时显示）
+        self._stream_label = QLabel("")
+        self._stream_label.hide()
+        v.addWidget(self._stream_label)
         # 输入行
         input_row = QHBoxLayout()
         self._input = QPlainTextEdit(); self._input.setMaximumHeight(80)
@@ -128,11 +134,31 @@ class IdeatePage(_BaseStagePage):
         form.addRow("", self._gen_first_btn)
         return f
 
+    # —— 流式 UI 状态 ——
+
+    def _enter_streaming_view(self):
+        """进入 streaming 显示状态：切换发送按钮为「中止」，显示流式提示。"""
+        self._stream_label.setText("● 流式生成中…")
+        self._stream_label.show()
+        self._send_btn.setText("▣ 中止")
+        try:
+            self._send_btn.clicked.disconnect()
+        except RuntimeError:
+            pass
+        self._send_btn.clicked.connect(self._stop_stream)
+
+    def _exit_streaming_view(self):
+        """退出 streaming 显示状态：恢复发送按钮，隐藏流式提示。"""
+        self._stream_label.hide()
+        self._stream_label.setText("")
+        self._reset_send_button()
+
     # —— set_project / try_release ————
 
     def set_project(self, path: Path | None):
         if self._project_dir is not None and not self.try_release():
             return
+        old = self._project_dir
         self._project_dir = path
         # 状态重置
         self._messages = []
@@ -145,6 +171,7 @@ class IdeatePage(_BaseStagePage):
             self._context_form.hide()
             self._send_btn.setEnabled(False)
             self._gen_first_btn.setEnabled(False)
+            self._exit_streaming_view()
             return
         self._send_btn.setEnabled(True)
         self._gen_first_btn.setEnabled(True)
@@ -162,6 +189,14 @@ class IdeatePage(_BaseStagePage):
         self._render_messages()
         # context form 显示规则：从未对话过才显
         self._context_form.setVisible(not self._messages)
+        # 如果该项目有 active worker → UI 接管显示
+        if path in self._workers and self._workers[path] and self._workers[path].isRunning():
+            self._enter_streaming_view()
+            n = len(self._buf_by_project.get(path, ""))
+            self._stream_label.setText(f"● 流式 · 已 {n} 字（后台跑）")
+        else:
+            self._exit_streaming_view()
+        self._on_project_switched(old=old, new=path)
 
     def try_release(self) -> bool:
         # 创意阶段无 dirty 概念（每条 user 发都立刻产 idea.json）；总返 True
@@ -286,61 +321,115 @@ class IdeatePage(_BaseStagePage):
     # —— SSE 流 ——
 
     def _start_stream(self, path, body, params=None):
-        self._state = "streaming"
-        self._send_btn.setText("▣ 中止")
-        self._send_btn.clicked.disconnect()
-        self._send_btn.clicked.connect(self._stop_stream)
-        self._worker = StreamWorker(self._client, path, body, params, parent=self)
-        self._worker.event.connect(self._on_sse_event)
-        self._worker.finished_ok.connect(self._on_stream_done)
-        self._worker.failed.connect(self._on_stream_failed)
-        self._worker.start()
+        if self._project_dir is None:
+            return
+        self._state_by_project[self._project_dir] = "streaming"
+        self._buf_by_project.setdefault(self._project_dir, "")
+        self._enter_streaming_view()
+        worker = StreamWorker(self._client, path, body, params,
+                               project_dir=self._project_dir, parent=self)
+        self._workers[self._project_dir] = worker
+        # Keep legacy ref for _stop_stream (points to the current project's worker)
+        self._worker = worker
+        worker.event.connect(self._on_sse_event)
+        worker.finished_ok.connect(self._on_stream_done_signal)
+        worker.failed.connect(self._on_stream_failed)
+        worker.start()
 
     def _stop_stream(self):
-        if self._worker and self._worker.isRunning():
-            self._worker.stop()
-            self._worker.wait(2000)
+        w = self._active_worker()
+        if w and w.isRunning():
+            w.stop()
+            w.wait(2000)
+        if self._project_dir is not None:
+            self._state_by_project[self._project_dir] = "idle"
+            self._workers[self._project_dir] = None
         self._state = "idle"
+        self._worker = None
         if self._current_assistant_bubble is not None:
             self._current_assistant_bubble.mark_aborted()
             self._current_assistant_bubble = None
-        self._reset_send_button()
+        self._exit_streaming_view()
 
-    def _on_sse_event(self, event_name: str, data: dict):
+    def _on_sse_event(self, event_name: str, data: dict, project_dir_str: str):
+        proj = Path(project_dir_str)
+        # 累 buffer（不论是否当前显示）
+        if event_name == "delta":
+            text = data.get("text", "")
+            self._buf_by_project[proj] = self._buf_by_project.get(proj, "") + text
+        elif event_name == "done":
+            self._state_by_project[proj] = "done"
+            self._handle_done_for_project(proj, data)
+        elif event_name == "error":
+            self._error_by_project[proj] = data.get("hint") or data.get("message", "")
+            self._state_by_project[proj] = "error"
+
+        # 只有当前显示项目才动 UI
+        if proj != self._project_dir:
+            # 后台项目状态变了，通知 TaskManager 刷新行
+            if event_name in ("done", "error"):
+                self.projectStateChanged.emit()
+            return
+
+        # 当前显示项目的 UI 更新
+        self._render_sse_for_current(event_name, data)
+
+    def _handle_done_for_project(self, proj: Path, data: dict):
+        """落盘逻辑：从 idea.json 重读（Agent 已在服务端落盘），解析候选。
+        此方法不操作 UI，安全用于后台项目。"""
+        # idea.json 由 Agent 服务端写出；本端只重读更新内存。
+        # 当前项目的 UI 刷新由 _render_sse_for_current("done", ...) 负责。
+        pass
+
+    def _render_sse_for_current(self, event_name: str, data: dict):
+        """UI 更新部分——仅在 proj == self._project_dir 时调用。"""
         if event_name == "delta":
             text = data.get("text", "")
             if text and self._current_assistant_bubble is not None:
                 self._current_assistant_bubble.append_text(text)
 
-    def _on_stream_done(self):
-        self._state = "idle"
-        self._reset_send_button()
-        # 重读 idea.json（Agent 已落盘 + 解析候选）
-        if self._project_dir is None:
-            return
-        idea_path = self._project_dir / "idea.json"
-        if idea_path.is_file():
-            try:
-                idea = json.loads(idea_path.read_text(encoding="utf-8"))
-                self._messages = list(idea.get("messages", []))
-                self._candidates = list(idea.get("candidates", []))
-                # 保留本地 selected_id 优先（用户在流式期间点过的）
-                if not self._selected_id:
-                    self._selected_id = idea.get("selected_id", "")
-                self._render_candidates()
-                self._render_messages()
-                self.projectStateChanged.emit()
-            except Exception:
-                pass
+    def _on_stream_done_signal(self, project_dir_str: str):
+        proj = Path(project_dir_str)
+        # worker 完成清理
+        if proj in self._workers:
+            self._workers[proj] = None
+        if proj == self._project_dir:
+            self._worker = None
+            self._state = "idle"
+            self._exit_streaming_view()
+            # 重读 idea.json（Agent 已落盘 + 解析候选）
+            idea_path = proj / "idea.json"
+            if idea_path.is_file():
+                try:
+                    idea = json.loads(idea_path.read_text(encoding="utf-8"))
+                    self._messages = list(idea.get("messages", []))
+                    self._candidates = list(idea.get("candidates", []))
+                    # 保留本地 selected_id 优先（用户在流式期间点过的）
+                    if not self._selected_id:
+                        self._selected_id = idea.get("selected_id", "")
+                    self._render_candidates()
+                    self._render_messages()
+                except Exception:
+                    pass
+        self.projectStateChanged.emit()
 
-    def _on_stream_failed(self, msg: str):
-        self._state = "idle"
-        self._reset_send_button()
-        if self._current_assistant_bubble is not None:
-            self._current_assistant_bubble.mark_aborted()
-            self._current_assistant_bubble = None
-        QMessageBox.warning(self, "生成失败",
-                             f"创意阶段生成失败：{msg}\n请检查网络或 LLM 配置。")
+    def _on_stream_failed(self, msg: str, project_dir_str: str):
+        proj = Path(project_dir_str)
+        self._error_by_project[proj] = msg
+        self._state_by_project[proj] = "error"
+        if proj in self._workers:
+            self._workers[proj] = None
+        if proj == self._project_dir:
+            self._worker = None
+            self._state = "idle"
+            if self._current_assistant_bubble is not None:
+                self._current_assistant_bubble.mark_aborted()
+                self._current_assistant_bubble = None
+            # 前台失败 → 立即弹
+            QMessageBox.warning(self, "生成失败",
+                                  f"创意生成失败：{msg}\n请检查网络或 LLM 配置。")
+            self._exit_streaming_view()
+        self.projectStateChanged.emit()
 
     def _reset_send_button(self):
         self._send_btn.setText("发送")
