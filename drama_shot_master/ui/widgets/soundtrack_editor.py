@@ -298,6 +298,10 @@ class SoundtrackEditor(QWidget):
             self._overview_timeline.set_duration(total)
             self._overview_timeline.set_cues(cues)
 
+    # 向后兼容别名（部分测试直接调 _rebuild_overview）
+    def _rebuild_overview(self):
+        self._refresh_track_view()
+
     def _dialogue_timeline_for_current_mp4(self):
         mp4 = str(self._task.get("mp4", "")).strip()
         for t in (getattr(self.cfg, "video_tasks", []) or []):

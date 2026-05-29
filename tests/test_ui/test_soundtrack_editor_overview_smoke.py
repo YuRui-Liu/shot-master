@@ -3,6 +3,8 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
+
+_SKIP_4C = pytest.mark.skip(reason="Phase 4c: tabs/tab-based rebuild 已被 DAW 替换")
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from drama_shot_master.ui.widgets.soundtrack_editor import SoundtrackEditor
@@ -38,6 +40,7 @@ def test_rebuild_overview_does_not_crash_with_empty_session(tmp_path):
     ed._rebuild_overview()
 
 
+@_SKIP_4C
 def test_tab_change_triggers_rebuild(tmp_path, monkeypatch):
     _app()
     ed = SoundtrackEditor(_task(tmp_path), _cfg(tmp_path), tmp_path)
@@ -60,6 +63,7 @@ def test_overview_playhead_drag_calls_video_seek(tmp_path):
     assert seeks == [5.5]
 
 
+@_SKIP_4C
 def test_overview_cue_clicked_switches_tab(tmp_path):
     _app()
     ed = SoundtrackEditor(_task(tmp_path), _cfg(tmp_path), tmp_path)

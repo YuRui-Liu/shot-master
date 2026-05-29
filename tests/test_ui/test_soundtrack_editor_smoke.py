@@ -1,7 +1,10 @@
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+import pytest
 from PySide6.QtWidgets import QApplication, QWidget
 from drama_shot_master.ui.widgets.soundtrack_editor import SoundtrackEditor
+
+_SKIP_4C = pytest.mark.skip(reason="Phase 4c: 4 tab 体系已被 DAW 替换")
 
 
 def _app():
@@ -20,6 +23,7 @@ def _task():
             "style": "末日废土", "output_dir": "", "status": "空闲", "output": ""}
 
 
+@_SKIP_4C
 def test_editor_is_qwidget_with_three_tabs(tmp_path):
     _app()
     ed = SoundtrackEditor(_task(), _cfg(tmp_path), tmp_path)
@@ -34,6 +38,7 @@ def test_editor_has_no_closed_signal():
     assert not hasattr(SoundtrackEditor, "closed")
 
 
+@_SKIP_4C
 def test_to_payload_reads_widgets(tmp_path):
     _app()
     ed = SoundtrackEditor(_task(), _cfg(tmp_path), tmp_path)
@@ -77,6 +82,7 @@ def test_preview_button_toggles_with_output(tmp_path, monkeypatch):
     assert opened
 
 
+@_SKIP_4C
 def test_session_mount_does_not_crash(tmp_path):
     # 直接 smoke 测 _mount_session_tabs：给一个空 session（segments/accent_points 空），
     # 构造 ② 试听选优 / ③ 卡点 子控件不崩（不经 facade 真加载）。

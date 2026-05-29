@@ -3,6 +3,8 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
+
+_SKIP_4C = pytest.mark.skip(reason="Phase 4c: SFX tab 已被 DAW 替换")
 from pathlib import Path
 from unittest.mock import patch
 from PySide6.QtWidgets import QApplication
@@ -26,6 +28,7 @@ def _task(tmp_path):
             "style": "末日", "workflow_id": "wf", "output_dir": ""}
 
 
+@_SKIP_4C
 def test_editor_has_sfx_tab(tmp_path):
     _app()
     editor = SoundtrackEditor(_task(tmp_path), _cfg(tmp_path), tmp_path)
