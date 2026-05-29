@@ -22,10 +22,10 @@ class DubSection(QWidget):
         f = QFormLayout()
 
         self.wf_design = QLineEdit()
-        f.addRow("音色设计 workflow_id", self.wf_design)
+        f.addRow("音色设计 ID", self.wf_design)
 
         self.wf_clone = QLineEdit()
-        f.addRow("声音克隆 workflow_id", self.wf_clone)
+        f.addRow("声音克隆 ID", self.wf_clone)
 
         out_row = QHBoxLayout()
         self.out_dir = QLineEdit()

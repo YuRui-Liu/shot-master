@@ -30,13 +30,13 @@ class WorkflowProfile:
 
 PROFILES: dict[str, WorkflowProfile] = {
     "director": WorkflowProfile(
-        key="director", name="LTX2.3 导演台",
+        key="director", name="导演台",
         template_filename="ltx_director_v23.json",
         director_node="4", save_video_node="32", noise_node="23",
         resolution_node="34", audio_switch_node=None, extras_yaml=None),
     "director_v3": WorkflowProfile(
         key="director_v3",
-        name="LTX2.3 全能 V3（文生/多图/图音/数字人）",
+        name="高清导演台",
         template_filename="ltx_director_v3_api.json",
         director_node="672", save_video_node="683", noise_node="654",
         resolution_node=None, audio_switch_node="687",

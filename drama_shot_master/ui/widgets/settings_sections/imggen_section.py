@@ -41,7 +41,7 @@ class ImgGenSection(QWidget):
 
         self.model = QLineEdit()
         self.model.setPlaceholderText("如豆包 Seedream 模型 id")
-        f.addRow("模型 id", self.model)
+        f.addRow("模型 ID", self.model)
 
         self.api_key = QLineEdit()
         self.api_key.setEchoMode(QLineEdit.Password)
