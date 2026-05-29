@@ -36,17 +36,21 @@ class IdeatePage(_BaseStagePage):
         # canonical store is self._workers[project_dir] (from _BaseStagePage).
         self._worker: StreamWorker | None = None
         self._state: str = "idle"
+        # 最近一次 _start_stream 请求参数，用于失败后一键重试
+        self._last_stream_args: tuple | None = None
         self._build_ui()
         self.set_project(None)
 
     def _build_ui(self):
+        # 左 chat（主输入/对话）+ 右 candidates（生成结果）
+        # 顺序对齐用户预期：候选放右侧
         root = QVBoxLayout(self)
         root.setContentsMargins(4, 4, 4, 4)
         splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(self._build_candidates_panel())
         splitter.addWidget(self._build_chat_panel())
-        splitter.setStretchFactor(0, 0); splitter.setStretchFactor(1, 1)
-        splitter.setSizes([300, 500])
+        splitter.addWidget(self._build_candidates_panel())
+        splitter.setStretchFactor(0, 1); splitter.setStretchFactor(1, 0)
+        splitter.setSizes([500, 300])
         root.addWidget(splitter)
 
     def _build_candidates_panel(self) -> QWidget:
@@ -82,6 +86,22 @@ class IdeatePage(_BaseStagePage):
         self._clear_btn.clicked.connect(self._on_clear_chat_clicked)
         top.addWidget(self._clear_btn)
         v.addLayout(top)
+        # 上次失败 banner（默认隐藏；失败时 set_text + 显示 [重试] 按钮）
+        self._retry_banner = QFrame()
+        self._retry_banner.setFrameShape(QFrame.StyledPanel)
+        self._retry_banner.setStyleSheet(
+            "QFrame { background:#3a2828; border:1px solid #5a3a3a; }"
+            "QLabel { color:#ffb3b3; padding:4px; }")
+        rb = QHBoxLayout(self._retry_banner)
+        rb.setContentsMargins(6, 2, 6, 2)
+        self._retry_msg = QLabel("")
+        self._retry_msg.setWordWrap(True)
+        rb.addWidget(self._retry_msg, 1)
+        self._retry_btn = QPushButton("重试")
+        self._retry_btn.clicked.connect(self._on_retry_clicked)
+        rb.addWidget(self._retry_btn)
+        self._retry_banner.hide()
+        v.addWidget(self._retry_banner)
         # 首轮 context form
         self._context_form = self._build_context_form()
         v.addWidget(self._context_form)
@@ -94,8 +114,11 @@ class IdeatePage(_BaseStagePage):
         scroll.setWidget(inner)
         self._messages_scroll = scroll
         v.addWidget(scroll, 1)
-        # 流式状态提示标签（streaming 时显示）
+        # 流式状态提示标签（streaming 时显示；醒目蓝色 + 字号）
         self._stream_label = QLabel("")
+        self._stream_label.setStyleSheet(
+            "color:#4a9eff; font-weight:bold; padding:4px;"
+            " background:#1a2a3a; border-radius:3px;")
         self._stream_label.hide()
         v.addWidget(self._stream_label)
         # 输入行
@@ -137,8 +160,11 @@ class IdeatePage(_BaseStagePage):
     # —— 流式 UI 状态 ——
 
     def _enter_streaming_view(self):
-        """进入 streaming 显示状态：切换发送按钮为「中止」，显示流式提示。"""
-        self._stream_label.setText("● 流式生成中…")
+        """进入 streaming 显示状态：切换发送按钮为「中止」，显示流式提示。
+        初始显示「正在连接 LLM…」，首个 delta 到达后切到「已 N 字」。"""
+        # 进入流式：清掉上次失败 banner
+        self._retry_banner.hide()
+        self._stream_label.setText("● 正在连接 LLM…")
         self._stream_label.show()
         self._send_btn.setText("▣ 中止")
         try:
@@ -314,6 +340,8 @@ class IdeatePage(_BaseStagePage):
         self._messages = []
         self._candidates = []
         self._selected_id = ""
+        self._last_stream_args = None
+        self._retry_banner.hide()
         self._render_candidates()
         self._render_messages()
         self._context_form.show()
@@ -323,8 +351,11 @@ class IdeatePage(_BaseStagePage):
     def _start_stream(self, path, body, params=None):
         if self._project_dir is None:
             return
+        # 缓存最近一次请求，用于失败时一键重试
+        self._last_stream_args = (path, body, params)
         self._state_by_project[self._project_dir] = "streaming"
-        self._buf_by_project.setdefault(self._project_dir, "")
+        # 重置 buffer 让字数计数从 0 开始（旧字数会污染 label）
+        self._buf_by_project[self._project_dir] = ""
         self._enter_streaming_view()
         worker = StreamWorker(self._client, path, body, params,
                                project_dir=self._project_dir, parent=self)
@@ -387,6 +418,13 @@ class IdeatePage(_BaseStagePage):
             text = data.get("text", "")
             if text and self._current_assistant_bubble is not None:
                 self._current_assistant_bubble.append_text(text)
+            # 更新流式 label：从"正在连接"切到字数计数
+            if self._project_dir is not None:
+                n = len(self._buf_by_project.get(self._project_dir, ""))
+                self._stream_label.setText(f"● 流式生成中… 已收 {n} 字")
+            # 自动滚到底部，让用户看到新增内容
+            sb = self._messages_scroll.verticalScrollBar()
+            sb.setValue(sb.maximum())
 
     def _on_stream_done_signal(self, project_dir_str: str):
         proj = Path(project_dir_str)
@@ -422,14 +460,38 @@ class IdeatePage(_BaseStagePage):
         if proj == self._project_dir:
             self._worker = None
             self._state = "idle"
+            # 清掉空的 AI 气泡（连接立挂时还没收到任何 delta）；保留有内容的
             if self._current_assistant_bubble is not None:
-                self._current_assistant_bubble.mark_aborted()
+                bubble = self._current_assistant_bubble
                 self._current_assistant_bubble = None
-            # 前台失败 → 立即弹
-            QMessageBox.warning(self, "生成失败",
-                                  f"创意生成失败：{msg}\n请检查网络或 LLM 配置。")
+                # 若 bubble._body 没文本，删除整条；否则只追加 (已中止)
+                body_text = bubble._body.text().strip() if hasattr(bubble, "_body") else ""
+                if not body_text:
+                    self._messages_layout.removeWidget(bubble)
+                    bubble.deleteLater()
+                    if bubble in self._message_bubbles:
+                        self._message_bubbles.remove(bubble)
+                else:
+                    bubble.mark_aborted()
             self._exit_streaming_view()
+            # 失败 banner：上面顶 [重试] 按钮，不再弹 QMessageBox 阻塞
+            short = msg if len(msg) < 200 else msg[:200] + "…"
+            self._retry_msg.setText(f"⚠ 上次生成失败：{short}")
+            self._retry_btn.setEnabled(self._last_stream_args is not None)
+            self._retry_banner.show()
         self.projectStateChanged.emit()
+
+    def _on_retry_clicked(self):
+        """点击 [重试]：用最近一次 _start_stream 的参数重发。"""
+        if self._last_stream_args is None or self._project_dir is None:
+            return
+        # 重新加一条 AI 气泡承接流（user 那条已在原位）
+        self._current_assistant_bubble = _MessageBubble("assistant", "")
+        self._messages_layout.insertWidget(
+            self._messages_layout.count() - 1, self._current_assistant_bubble)
+        self._message_bubbles.append(self._current_assistant_bubble)
+        path, body, params = self._last_stream_args
+        self._start_stream(path, body, params)
 
     def _reset_send_button(self):
         self._send_btn.setText("发送")

@@ -39,10 +39,12 @@ class UnifiedSettingsDialog(QDialog):
         ]
 
     def _build_ui(self):
-        # 左：QTreeWidget 分类
+        # 左：QTreeWidget 分类（去掉 maxWidth 限制，避免顶层分类标签被截断需要滑块）
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
-        self.tree.setMaximumWidth(220)
+        self.tree.setMinimumWidth(180)
+        # 关闭横向滚动条——树宽不够时让 splitter 拉，不要出滑块
+        self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         cats: dict[str, QTreeWidgetItem] = {}
         ORDER = ["平台核心", "生成功能", "辅助", "外观"]
         for cat in ORDER:
@@ -69,7 +71,7 @@ class UnifiedSettingsDialog(QDialog):
         split = QSplitter(Qt.Horizontal)
         split.addWidget(self.tree)
         split.addWidget(self.stack)
-        split.setSizes([200, 600])
+        split.setSizes([240, 560])
 
         # 底栏
         bar = QHBoxLayout()

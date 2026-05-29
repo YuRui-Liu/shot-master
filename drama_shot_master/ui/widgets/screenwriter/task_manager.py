@@ -58,34 +58,30 @@ class ScreenwriterTaskManager(QWidget):
     def _build_ui(self) -> None:
         v = QVBoxLayout(self)
         v.setContentsMargins(4, 4, 4, 4); v.setSpacing(4)
-        # 工具栏
+        # 工具栏（按钮文本对齐 ImgGen TaskManager，无 emoji 前缀）
         bar = QHBoxLayout()
         bar.setSpacing(4)
-        btn_new = QPushButton("+ 新建")
-        btn_new.clicked.connect(self._on_new_clicked)
-        bar.addWidget(btn_new)
-        btn_open = QPushButton("📂 打开")
-        btn_open.clicked.connect(self._on_open_clicked)
-        bar.addWidget(btn_open)
-        btn_del = QPushButton("🗑 删除")
-        btn_del.clicked.connect(self._on_delete_clicked)
-        bar.addWidget(btn_del)
+        for txt, slot in (("新建", self._on_new_clicked),
+                           ("打开", self._on_open_clicked),
+                           ("删除", self._on_delete_clicked)):
+            b = QPushButton(txt); b.clicked.connect(slot); bar.addWidget(b)
         bar.addStretch(1)
         v.addLayout(bar)
-        # 表格
+        # 表格（行号显示——对齐 ImgGen 风格）
         self._table = QTableWidget(0, 4)
         self._table.setHorizontalHeaderLabels(
-            ["名称", "状态", "当前阶段", "更新"])
-        self._table.verticalHeader().setVisible(False)
+            ["名称", "状态", "当前阶段", "更新时间"])
         self._table.setSelectionBehavior(QTableWidget.SelectRows)
         self._table.setSelectionMode(QTableWidget.SingleSelection)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         hdr = self._table.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.Interactive)
-        hdr.setSectionResizeMode(1, QHeaderView.Interactive)
-        hdr.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self._table.setColumnWidth(1, 60)
+        hdr.setStretchLastSection(False)
+        hdr.setSectionResizeMode(0, QHeaderView.Interactive)        # 名称
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeToContents)   # 状态
+        hdr.setSectionResizeMode(2, QHeaderView.Interactive)        # 当前阶段
+        hdr.setSectionResizeMode(3, QHeaderView.Interactive)        # 更新时间
+        self._table.setColumnWidth(2, 90)
+        self._table.setColumnWidth(3, 120)
         self._table.itemSelectionChanged.connect(self._on_selection_changed)
         self._table.viewport().installEventFilter(self)
         v.addWidget(self._table, 1)

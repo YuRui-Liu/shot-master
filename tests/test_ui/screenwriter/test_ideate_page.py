@@ -132,3 +132,42 @@ def test_sse_event_for_inactive_project_emits_state_change(tmp_path):
     # B 项目的 done 事件应触发 state change（让 TaskManager 刷新行）
     p._on_sse_event("done", {"result": {}, "saved": ""}, str(pB))
     assert len(flips) >= 1
+
+
+def test_failure_shows_retry_banner_and_caches_last_stream_args(tmp_path):
+    """连接失败后：retry banner 显示，最近一次请求参数被缓存可一键重试。"""
+    _app()
+    p = IdeatePage(_StubClient())
+    p.set_project(tmp_path)
+    # 模拟 _start_stream 调用，缓存 args
+    p._last_stream_args = ("/ideate/chat", {"project_dir": str(tmp_path)}, None)
+    # 模拟当前 assistant bubble（_send_user_text 会建）
+    from drama_shot_master.ui.widgets.screenwriter._ideate_message_bubble import _MessageBubble
+    p._current_assistant_bubble = _MessageBubble("assistant", "")
+    p._messages_layout.insertWidget(
+        p._messages_layout.count() - 1, p._current_assistant_bubble)
+    p._message_bubbles.append(p._current_assistant_bubble)
+    # 触发失败
+    p._on_stream_failed("connection refused", str(tmp_path))
+    # banner 应可见、重试按钮启用、消息文本含错误
+    assert not p._retry_banner.isHidden()
+    assert p._retry_btn.isEnabled()
+    assert "connection refused" in p._retry_msg.text()
+
+
+def test_empty_assistant_bubble_removed_on_failure(tmp_path):
+    """连接立挂、AI 气泡还没收到 delta 时，失败处理应删除空气泡（不留 '(已中止)' 噪音）。"""
+    _app()
+    p = IdeatePage(_StubClient())
+    p.set_project(tmp_path)
+    from drama_shot_master.ui.widgets.screenwriter._ideate_message_bubble import _MessageBubble
+    empty_bubble = _MessageBubble("assistant", "")
+    p._current_assistant_bubble = empty_bubble
+    p._messages_layout.insertWidget(
+        p._messages_layout.count() - 1, empty_bubble)
+    p._message_bubbles.append(empty_bubble)
+    n_before = len(p._message_bubbles)
+    p._on_stream_failed("err", str(tmp_path))
+    # 空气泡应被移除
+    assert empty_bubble not in p._message_bubbles
+    assert len(p._message_bubbles) == n_before - 1
