@@ -104,6 +104,14 @@ class Config:
     # LLM 平台配置（跨功能共享，由「设置→平台核心→LLM 平台」section 配）：
     # {"deepseek":{"base_url","api_key"}, "doubao":{...}, "openai":{...}}
     llm_providers: dict[str, dict] = field(default_factory=dict)
+    # Sprint 0：曝光 Phase 1+2+3 后端能力
+    refine_frames_per_shot: int = 3                  # 1 / 3 / 5
+    refine_max_segments: int = 5
+    refine_merge_threshold: float = 0.25
+    accent_max_stretch: float = 0.10
+    soundtrack_max_concurrency: int = 3
+    soundtrack_score_weights: dict = field(
+        default_factory=lambda: {"health": 0.5, "headroom": 0.3, "beat": 0.2})
 
     def update_settings(self, **kwargs) -> None:
         """更新运行时设置并落盘到 settings.json"""
@@ -161,6 +169,12 @@ class Config:
                 "screenwriter_project_root": self.screenwriter_project_root,
                 "screenwriter_stage_assignments": self.screenwriter_stage_assignments,
                 "llm_providers": self.llm_providers,
+                "refine_frames_per_shot": self.refine_frames_per_shot,
+                "refine_max_segments": self.refine_max_segments,
+                "refine_merge_threshold": self.refine_merge_threshold,
+                "accent_max_stretch": self.accent_max_stretch,
+                "soundtrack_max_concurrency": self.soundtrack_max_concurrency,
+                "soundtrack_score_weights": self.soundtrack_score_weights,
             }
             self.settings_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
@@ -312,6 +326,25 @@ def load_config(env_path: Path = Path(".env"),
                 if "last_active_function" in data and isinstance(
                         data["last_active_function"], str):
                     cfg.last_active_function = data["last_active_function"]
+                # Sprint 0 新字段（与现有 settings.json 字段读取同位置追加）
+                for fld, caster in [
+                    ("refine_frames_per_shot", int),
+                    ("refine_max_segments", int),
+                    ("accent_max_stretch", float),
+                    ("soundtrack_max_concurrency", int),
+                ]:
+                    if fld in data:
+                        try:
+                            setattr(cfg, fld, caster(data[fld]))
+                        except (TypeError, ValueError):
+                            pass
+                if "refine_merge_threshold" in data:
+                    try:
+                        cfg.refine_merge_threshold = float(data["refine_merge_threshold"])
+                    except (TypeError, ValueError):
+                        pass
+                if "soundtrack_score_weights" in data and isinstance(data["soundtrack_score_weights"], dict):
+                    cfg.soundtrack_score_weights = dict(data["soundtrack_score_weights"])
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass
 
