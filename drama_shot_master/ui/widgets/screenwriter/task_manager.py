@@ -37,6 +37,7 @@ class ScreenwriterTaskManager(QWidget):
     taskSelected = Signal(object)         # Path | None
     projectAdded = Signal(object)         # Path
     projectRemoved = Signal(object)       # Path
+    icon_rail_updated = Signal()
 
     def __init__(self, cfg, parent=None):
         super().__init__(parent)
@@ -138,6 +139,7 @@ class ScreenwriterTaskManager(QWidget):
             self._table.blockSignals(False)
         self._footer.setText(f"{len(self._projects)} 个项目")
         self._fit_name_col()
+        self.icon_rail_updated.emit()
 
     def _compute_status(self, p: Path) -> tuple[str, str]:
         import json as _j
@@ -326,3 +328,30 @@ class ScreenwriterTaskManager(QWidget):
     def _on_selection_changed(self) -> None:
         p = self._selected_project()
         self.taskSelected.emit(p)
+
+    def icon_rail_items(self):
+        from drama_shot_master.ui.widgets.collapsible_task_bar import IconRailItem
+        items = []
+        for i, p in enumerate(self._projects):
+            dots, stage = self._compute_status(p)
+            if self._active_worker_query(p):
+                status = "running"
+            elif "✗" in dots:
+                status = "error"
+            elif dots.replace("✓", "").replace(" ", "") == "":
+                status = "done"
+            else:
+                status = "idle"
+            items.append(IconRailItem(
+                index=i + 1, label=p.name[:2], status=status,
+                tooltip=f"{p.name}\n当前阶段: {stage}", item_id=str(p)))
+        return items
+
+    def select_by_id(self, item_id: str) -> None:
+        from pathlib import Path
+        try:
+            p = Path(item_id)
+            idx = self._projects.index(p)
+            self._table.selectRow(idx)
+        except (ValueError, OSError):
+            pass

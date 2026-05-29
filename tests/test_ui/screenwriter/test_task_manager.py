@@ -239,3 +239,45 @@ def test_status_dots_partial_episodes(tmp_path):
     dots_text = tm._table.item(0, 1).text()
     # 分镜列含 2/3
     assert "2/3" in dots_text
+
+
+def test_icon_rail_items_returns_correct_count(tmp_path):
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    pB = tmp_path / "B"; pB.mkdir()
+    cfg = _StubCfg(projects=[str(pA), str(pB)])
+    tm = ScreenwriterTaskManager(cfg)
+    items = tm.icon_rail_items()
+    assert len(items) == 2
+    assert items[0].index == 1 and items[1].index == 2
+
+
+def test_icon_rail_items_status_running_when_worker_active(tmp_path):
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    cfg = _StubCfg(projects=[str(pA)])
+    tm = ScreenwriterTaskManager(cfg)
+    tm.set_active_worker_query(lambda p: True)
+    items = tm.icon_rail_items()
+    assert items[0].status == "running"
+
+
+def test_select_by_id_selects_row(tmp_path):
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    pB = tmp_path / "B"; pB.mkdir()
+    cfg = _StubCfg(projects=[str(pA), str(pB)])
+    tm = ScreenwriterTaskManager(cfg)
+    tm.select_by_id(str(pB))
+    assert tm._table.currentRow() == 1
+
+
+def test_icon_rail_updated_emits_on_refresh(tmp_path):
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    cfg = _StubCfg(projects=[str(pA)])
+    tm = ScreenwriterTaskManager(cfg)
+    got = []
+    tm.icon_rail_updated.connect(lambda: got.append(True))
+    tm.refresh()
+    assert got
