@@ -750,33 +750,48 @@ class SoundtrackEditor(QWidget):
 
     # ── video preview helpers ─────────────────────────────────────────
 
+    _PLAY_MODE_HINTS = {
+        "bgm": "本任务尚未出片，无配乐成片可播放。请先点「导出成片」生成配乐版。",
+        "mix": "无完整混音文件（mixed.wav）。请先「导出成片」生成 BGM+SFX 混音。",
+    }
+
     def _on_play_mode_changed(self, mode: str) -> None:
         self._play_mode = mode
         src = self._resolve_video_source()
         if src and self._video_preview:
             self._video_preview.set_source(src)
+            self.progress_label.setText("")
+        elif mode != "raw":
+            # 该模式无可播放成片：明确提示，不静默播原声（避免"看似没反应"）
+            self.progress_label.setText(self._PLAY_MODE_HINTS.get(mode, ""))
+
+    def _scored_mp4(self):
+        """已生成的 scored MP4 路径：优先当前 session.output，回退 task['output']。"""
+        if self._session is not None:
+            out = getattr(self._session, "output", None)
+            if out and Path(out).exists():
+                return out
+        task_out = (self._task.get("output") or "").strip()
+        if task_out and Path(task_out).exists():
+            return task_out
+        return None
 
     def _resolve_video_source(self):
-        """返回当前播放模式对应的媒体文件路径。
+        """返回当前播放模式对应的媒体文件路径；无对应成片时返回 None（由调用方提示）。
 
-        raw  → 原始 MP4（原声）
-        bgm  → session.output（含 BGM 的 scored MP4）
-        mix  → work_dir/mixed.wav（BGM+SFX 完整混音）
+        raw  → 原始 MP4（原声），始终可用
+        bgm  → scored MP4（session.output 优先，回退 task['output']）
+        mix  → work_dir/mixed.wav，降级到 scored MP4
         """
         mode = self._play_mode
-        # 完整混音：mixed.wav
         if mode == "mix":
             mix = self._work_dir() / "mixed.wav"
             if mix.exists():
                 return str(mix)
-            # 降级：试 scored MP4
-        # 配乐：scored MP4
-        if mode in ("mix", "bgm"):
-            if self._session is not None:
-                out = getattr(self._session, "output", None)
-                if out and Path(out).exists():
-                    return out
-        # 原声（或降级兜底）：原始 MP4
+            return self._scored_mp4()       # 降级：至少播带 BGM 的 scored
+        if mode == "bgm":
+            return self._scored_mp4()
+        # raw（默认）：原始 MP4
         mp4 = (self._task.get("mp4") or "").strip()
         return mp4 if mp4 and Path(mp4).exists() else None
 
