@@ -35,6 +35,7 @@ class SFXShot:
     next_seed: int = 1
     volume: float = 1.0                         # 0.0-1.5
     enabled: bool = True                        # mix 是否纳入
+    user_edited: bool = False                   # 4c: 用户在 DAW 改过 t_start/duration/prompt 时设 True
 
     @property
     def shot_duration(self) -> float:
