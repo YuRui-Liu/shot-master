@@ -103,10 +103,15 @@ class _IconRail(QWidget):
         layout.setContentsMargins(0, 4, 0, 4)
         layout.setSpacing(0)
 
-        self._expand_btn = QPushButton("▶")
+        self._expand_btn = QPushButton("》")
         self._expand_btn.setFixedSize(40, 28)
         self._expand_btn.setToolTip("展开任务栏")
         self._expand_btn.setObjectName("iconRailExpandBtn")
+        self._expand_btn.setStyleSheet(
+            "QPushButton{background:#3b6fd4;color:#fff;border:none;"
+            "border-radius:0 0 5px 5px;font-size:14px;font-weight:700;}"
+            "QPushButton:hover{background:#4a83f0;}"
+        )
         self._expand_btn.clicked.connect(self.expand_clicked)
         layout.addWidget(self._expand_btn)
 
@@ -183,11 +188,16 @@ class CollapsibleTaskBar(QWidget):
         ep_layout.setSpacing(0)
         ep_layout.addWidget(self._manager)
 
-        self._collapse_btn = QPushButton("◀")
+        self._collapse_btn = QPushButton("《")
         self._collapse_btn.setParent(expanded_page)
         self._collapse_btn.setFixedSize(24, 24)
         self._collapse_btn.setObjectName("taskBarCollapseBtn")
         self._collapse_btn.setToolTip("折叠任务栏")
+        self._collapse_btn.setStyleSheet(
+            "QPushButton{background:#3b6fd4;color:#fff;border:none;"
+            "border-radius:5px;font-size:13px;font-weight:700;}"
+            "QPushButton:hover{background:#4a83f0;}"
+        )
         self._collapse_btn.clicked.connect(self.collapse)
 
         # page 1: 折叠视图 —— 图标轨

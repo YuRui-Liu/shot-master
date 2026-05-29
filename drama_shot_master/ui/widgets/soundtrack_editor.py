@@ -11,7 +11,7 @@ from PySide6.QtGui import QDesktopServices, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QProgressBar,
-    QFileDialog, QMessageBox, QScrollBar,
+    QFileDialog, QMessageBox, QScrollBar, QButtonGroup,
 )
 
 from drama_shot_master.ui.worker import FunctionWorker
@@ -47,6 +47,7 @@ class SoundtrackEditor(QWidget):
         from drama_shot_master.ui.widgets.daw.undo_stack import UndoStack
         self._selection = Selection(self)
         self._undo = UndoStack(self)
+        self._play_mode: str = "raw"   # "raw" | "bgm" | "mix"
         self._build_ui()
         self._setup_shortcuts()
         self._try_load_existing()
@@ -147,6 +148,40 @@ class SoundtrackEditor(QWidget):
 
     def _build_action_bar(self, root):
         bar = QHBoxLayout()
+
+        # ── 播放模式胶囊选择器（方案 C）────────────────────────────────
+        _pill_qss = (
+            "QPushButton{"
+            "  padding:4px 10px; border:1px solid #3d3d55;"
+            "  border-radius:12px; background:transparent;"
+            "  color:#a6adc8; font-size:12px;"
+            "}"
+            "QPushButton:hover{border-color:#a6adc8;}"
+            "QPushButton:checked{"
+            "  border-color:#89b4fa;"
+            "  background:rgba(137,180,250,0.14);"
+            "  color:#89b4fa; font-weight:600;"
+            "}"
+        )
+        self._play_btn_group = QButtonGroup(self)
+        self._play_btn_group.setExclusive(True)
+        bar.addWidget(QLabel("播放:"))
+        for label, mode in [("原声", "raw"), ("配乐", "bgm"), ("完整混音", "mix")]:
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.setStyleSheet(_pill_qss)
+            btn.setChecked(mode == "raw")
+            btn.clicked.connect(lambda checked, m=mode: self._on_play_mode_changed(m))
+            self._play_btn_group.addButton(btn)
+            bar.addWidget(btn)
+
+        # ── 分隔 ─────────────────────────────────────────────────────
+        sep = QWidget(); sep.setFixedWidth(1)
+        sep.setStyleSheet("background:#3d3d55;")
+        sep.setFixedHeight(20)
+        bar.addWidget(sep)
+
+        # ── 生成控制 ──────────────────────────────────────────────────
         self.stop_combo = QComboBox()
         for s in _STAGES:
             self.stop_combo.addItem(_STAGE_LABELS[s], s)
@@ -211,17 +246,39 @@ class SoundtrackEditor(QWidget):
         sess = facade.load_session(self._work_dir())
         if sess is not None:
             self._session = sess
-        from sound_track_agent.sfx import facade as sfx_fac
-        try:
-            sfx_sess = sfx_fac.load_sfx_session(self._work_dir())
-        except Exception:
-            sfx_sess = None
-        if sfx_sess is not None:
-            self._sfx_session = sfx_sess
+        self._sfx_session = self._try_load_sfx_session()
         src = self._resolve_video_source()
         if src and self._video_preview:
             self._video_preview.set_source(src)
         self._refresh_track_view()
+
+    def _try_load_sfx_session(self):
+        """加载 SFX session，支持多路径回退（兼容历史工作目录不一致情况）。
+
+        回退顺序：
+          1. work_dir/sfx_session.json         （标准路径）
+          2. work_dir.parent.parent/task_id/   （output_dir 含子目录如 bgm/ 时的情况）
+          3. work_dir.parent/sfx_session.json  （极少数平级情况）
+        """
+        from sound_track_agent.sfx import facade as sfx_fac
+        candidates = [self._work_dir()]
+        # 回退：若 output_base 含一层子目录（如 bgm/），则试 grandparent/task_id
+        grandparent_sibling = self._work_dir().parent.parent / self.task_id
+        if grandparent_sibling != self._work_dir():
+            candidates.append(grandparent_sibling)
+        # 再回退：平级 parent
+        parent_dir = self._work_dir().parent
+        if parent_dir not in candidates:
+            candidates.append(parent_dir)
+
+        for path in candidates:
+            try:
+                sess = sfx_fac.load_sfx_session(path)
+                if sess is not None:
+                    return sess
+            except Exception:
+                pass
+        return None
 
     # ── Inspector ────────────────────────────────────────────────────
 
@@ -693,11 +750,33 @@ class SoundtrackEditor(QWidget):
 
     # ── video preview helpers ─────────────────────────────────────────
 
+    def _on_play_mode_changed(self, mode: str) -> None:
+        self._play_mode = mode
+        src = self._resolve_video_source()
+        if src and self._video_preview:
+            self._video_preview.set_source(src)
+
     def _resolve_video_source(self):
-        if self._session is not None:
-            out = getattr(self._session, "output", None)
-            if out and Path(out).exists():
-                return out
+        """返回当前播放模式对应的媒体文件路径。
+
+        raw  → 原始 MP4（原声）
+        bgm  → session.output（含 BGM 的 scored MP4）
+        mix  → work_dir/mixed.wav（BGM+SFX 完整混音）
+        """
+        mode = self._play_mode
+        # 完整混音：mixed.wav
+        if mode == "mix":
+            mix = self._work_dir() / "mixed.wav"
+            if mix.exists():
+                return str(mix)
+            # 降级：试 scored MP4
+        # 配乐：scored MP4
+        if mode in ("mix", "bgm"):
+            if self._session is not None:
+                out = getattr(self._session, "output", None)
+                if out and Path(out).exists():
+                    return out
+        # 原声（或降级兜底）：原始 MP4
         mp4 = (self._task.get("mp4") or "").strip()
         return mp4 if mp4 and Path(mp4).exists() else None
 

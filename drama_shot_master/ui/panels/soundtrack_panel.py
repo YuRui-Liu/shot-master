@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 from secrets import token_hex
 
-from PySide6.QtCore import Qt, Signal, QEvent
+from PySide6.QtCore import Qt, Signal, QEvent, QObject
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
@@ -48,6 +48,7 @@ class SoundtrackPanel(BasePanel):
     taskSelected = Signal(object)
     taskDeleted = Signal(str)
     taskRenamed = Signal(str, str)
+    icon_rail_updated = Signal()
 
     def __init__(self, state, cfg, open_window_cb, persist_cb, parent=None):
         super().__init__(state, cfg, parent)
@@ -144,6 +145,7 @@ class SoundtrackPanel(BasePanel):
             self.table.setItem(r, 3, self._ro(t.get("output") or "—"))
         self.table.blockSignals(False)
         self._fit_name_col()             # 数据填完后按最终"状态"宽度重算名称列
+        self.icon_rail_updated.emit()
 
     def _selected(self) -> dict | None:
         row = self.table.currentRow()
@@ -200,3 +202,30 @@ class SoundtrackPanel(BasePanel):
         self._persist_cb()
         self.refresh()
         self.taskDeleted.emit(tid)
+
+    # ── CollapsibleTaskBar 接口 ────────────────────────────────────────
+
+    def icon_rail_items(self):
+        from drama_shot_master.ui.widgets.collapsible_task_bar import IconRailItem
+        items = []
+        for i, t in enumerate(self._tasks()):
+            raw = t.get("status", "空闲")
+            if raw == "生成中":
+                status = "running"
+            elif raw == "失败":
+                status = "error"
+            elif t.get("output"):
+                status = "done"
+            else:
+                status = "idle"
+            items.append(IconRailItem(
+                index=i + 1,
+                label=(t.get("name") or "配")[:2],
+                status=status,
+                tooltip=f"{t.get('name', '配乐任务')}\n状态: {raw}",
+                item_id=t.get("id", ""),
+            ))
+        return items
+
+    def select_by_id(self, item_id: str) -> None:
+        self._select_task(item_id)
