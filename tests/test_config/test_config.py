@@ -455,6 +455,27 @@ def test_config_soundtrack_tasks_roundtrip(tmp_path):
 
 # ---------- soundtrack settings (workflow_id, output_dir, seeds_count, crossfade) ----------
 
+# ---------- screenwriter_projects ----------
+
+def test_screenwriter_projects_default_empty(tmp_path):
+    cfg = load_config(env_path=tmp_path / ".env",
+                      settings_path=tmp_path / "settings.json")
+    assert cfg.screenwriter_projects == []
+
+
+def test_screenwriter_projects_round_trips(tmp_path):
+    import json as _j
+    settings_file = tmp_path / "settings.json"
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=settings_file)
+    cfg.update_settings(screenwriter_projects=["/abs/path/a", "/abs/path/b"])
+    # 落盘应包含字段
+    data = _j.loads(settings_file.read_text(encoding="utf-8"))
+    assert data["screenwriter_projects"] == ["/abs/path/a", "/abs/path/b"]
+    # 重载
+    cfg2 = load_config(env_path=tmp_path / ".env", settings_path=settings_file)
+    assert cfg2.screenwriter_projects == ["/abs/path/a", "/abs/path/b"]
+
+
 def test_config_default_soundtrack_settings(tmp_path):
     cfg = load_config(env_path=tmp_path / ".env",
                       settings_path=tmp_path / "settings.json")

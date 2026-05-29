@@ -101,6 +101,9 @@ class Config:
     screenwriter_project_root: str = ""    # 默认空，UI 提示选目录
     # 编剧阶段映射：{"ideate":{"provider":"deepseek","model":"deepseek-chat"}, ...}
     screenwriter_stage_assignments: dict[str, dict] = field(default_factory=dict)
+    # 编剧项目任务列表（绝对路径数组；与 screenwriter_project_root 区分——
+    # 后者只是「新建」按钮的默认 base，前者是任务栏里被纳管的项目）
+    screenwriter_projects: list[str] = field(default_factory=list)
     # LLM 平台配置（跨功能共享，由「设置→平台核心→LLM 平台」section 配）：
     # {"deepseek":{"base_url","api_key"}, "doubao":{...}, "openai":{...}}
     llm_providers: dict[str, dict] = field(default_factory=dict)
@@ -168,6 +171,7 @@ class Config:
                 "screenwriter_models": self.screenwriter_models,
                 "screenwriter_project_root": self.screenwriter_project_root,
                 "screenwriter_stage_assignments": self.screenwriter_stage_assignments,
+                "screenwriter_projects": self.screenwriter_projects,
                 "llm_providers": self.llm_providers,
                 "refine_frames_per_shot": self.refine_frames_per_shot,
                 "refine_max_segments": self.refine_max_segments,
@@ -272,6 +276,12 @@ def load_config(env_path: Path = Path(".env"),
                 if "screenwriter_stage_assignments" in data and isinstance(
                         data["screenwriter_stage_assignments"], dict):
                     cfg.screenwriter_stage_assignments = data["screenwriter_stage_assignments"]
+                if "screenwriter_projects" in data and isinstance(
+                        data["screenwriter_projects"], list):
+                    cfg.screenwriter_projects = [
+                        str(x) for x in data["screenwriter_projects"]
+                        if isinstance(x, str)
+                    ]
                 if "llm_providers" in data and isinstance(data["llm_providers"], dict):
                     cfg.llm_providers = data["llm_providers"]
                 elif "screenwriter_providers" in data and isinstance(
