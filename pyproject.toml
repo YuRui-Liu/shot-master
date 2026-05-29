@@ -42,3 +42,6 @@ include = ["drama_shot_master*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+    "requires_tencent_creds: needs TENCENTCLOUD_SECRET_ID/SECRET_KEY env vars to run real API",
+]
