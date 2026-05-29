@@ -1,6 +1,7 @@
-import json
+"""ScriptPage v2（多集）测试。"""
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+import json
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
@@ -16,129 +17,107 @@ class _StubClient:
     pass
 
 
-def test_set_project_none_disables_buttons():
+def _setup_idea(tmp_path):
+    (tmp_path / "创意.json").write_text(json.dumps({
+        "selected_id": "c1",
+        "candidates": [{"id": "c1", "title": "X"}],
+    }), encoding="utf-8")
+
+
+def test_set_project_none_disables(tmp_path):
     _app()
     p = ScriptPage(_StubClient())
     p.set_project(None)
     assert p._gen_btn.isEnabled() is False
-    assert p._save_btn.isEnabled() is False
-    assert p._advance_btn.isEnabled() is False
 
 
-def test_loads_existing_script_md(tmp_path):
+def test_n1_button_label_is_生成剧本(tmp_path):
     _app()
-    (tmp_path / "剧本.md").write_text("# 剧本信息\n标题: 测试\n## 镜头 01\n画面: x\n",
-                                       encoding="utf-8")
+    _setup_idea(tmp_path)
     p = ScriptPage(_StubClient())
     p.set_project(tmp_path)
-    assert "镜头 01" in p._editor.toPlainText()
-    assert p._state == "done"
-    assert p._advance_btn.isEnabled() is True
+    p._episode_count_spin.setValue(1)
+    assert p._gen_btn.text() == "生成剧本"
 
 
-def test_idle_when_no_script(tmp_path):
+def test_n3_button_label_is_生成大纲(tmp_path):
     _app()
+    _setup_idea(tmp_path)
     p = ScriptPage(_StubClient())
     p.set_project(tmp_path)
-    assert p._state == "idle"
-    assert p._editor.toPlainText() == ""
-    assert p._advance_btn.isEnabled() is False
+    p._episode_count_spin.setValue(3)
+    assert p._gen_btn.text() == "生成大纲"
 
 
-def test_edit_then_save_button_enables(tmp_path):
+def test_loads_script_json_renders_outline_rows(tmp_path):
     _app()
-    (tmp_path / "剧本.md").write_text("orig\n", encoding="utf-8")
+    _setup_idea(tmp_path)
+    (tmp_path / "剧本.json").write_text(json.dumps({
+        "title": "x", "episode_count": 2,
+        "episodes": [
+            {"id": "E1", "title": "t1", "summary": "s1"},
+            {"id": "E2", "title": "t2", "summary": "s2"},
+        ],
+    }), encoding="utf-8")
     p = ScriptPage(_StubClient())
     p.set_project(tmp_path)
-    assert p._save_btn.isEnabled() is False
-    p._editor.setPlainText("edited\n")
-    assert p._save_btn.isEnabled() is True
+    assert p._outline_table.rowCount() == 2
 
 
-def test_save_writes_disk_and_clears_dirty(tmp_path):
+def test_click_row_loads_episode_md(tmp_path):
     _app()
-    (tmp_path / "剧本.md").write_text("orig\n", encoding="utf-8")
+    _setup_idea(tmp_path)
+    (tmp_path / "剧本.json").write_text(json.dumps({
+        "title": "x", "episode_count": 2,
+        "episodes": [
+            {"id": "E1", "title": "t1", "summary": "s1"},
+            {"id": "E2", "title": "t2", "summary": "s2"},
+        ],
+    }), encoding="utf-8")
+    (tmp_path / "剧本_E2.md").write_text("# E2 内容", encoding="utf-8")
     p = ScriptPage(_StubClient())
     p.set_project(tmp_path)
-    p._editor.setPlainText("edited content\n")
-    p._on_save_clicked()
-    assert (tmp_path / "剧本.md").read_text(encoding="utf-8") == "edited content\n"
-    assert p._save_btn.isEnabled() is False
+    p._outline_table.selectRow(1)   # 选 E2
+    p._on_outline_row_selected()
+    assert "E2 内容" in p._episode_editor.toPlainText()
 
 
-def test_try_release_blocks_when_dirty(tmp_path, monkeypatch):
+def test_legacy_script_md_treated_as_E1(tmp_path):
+    """旧项目（只有 剧本.md）→ set_project 不抛 + 行为兼容。"""
     _app()
-    (tmp_path / "剧本.md").write_text("orig\n", encoding="utf-8")
+    _setup_idea(tmp_path)
+    (tmp_path / "剧本.md").write_text("# legacy", encoding="utf-8")
     p = ScriptPage(_StubClient())
     p.set_project(tmp_path)
-    p._editor.setPlainText("edited\n")
-    import drama_shot_master.ui.widgets.screenwriter.script_page as m
-    monkeypatch.setattr(m.QMessageBox, "question",
-                         staticmethod(lambda *a, **k: m.QMessageBox.Cancel))
-    assert p.try_release() is False
-    # 用户选 Discard：放行
-    monkeypatch.setattr(m.QMessageBox, "question",
-                         staticmethod(lambda *a, **k: m.QMessageBox.Discard))
-    assert p.try_release() is True
+    # legacy 模式：editor 装 legacy 内容 或 大纲表空行（两种实现皆可）
+    assert "legacy" in p._episode_editor.toPlainText() or \
+           p._outline_table.rowCount() == 0
 
 
-def test_upstream_check_blocks_generate(tmp_path, monkeypatch):
+def test_advance_emits_with_selected_episode(tmp_path):
     _app()
-    # 没有 idea.json → 点生成应该弹 warning 而不发流
+    _setup_idea(tmp_path)
+    (tmp_path / "剧本.json").write_text(json.dumps({
+        "title": "x", "episode_count": 1,
+        "episodes": [{"id": "E1", "title": "t1", "summary": "s"}],
+    }), encoding="utf-8")
+    (tmp_path / "剧本_E1.md").write_text("ok", encoding="utf-8")
     p = ScriptPage(_StubClient())
     p.set_project(tmp_path)
-    import drama_shot_master.ui.widgets.screenwriter.script_page as m
-    called = []
-    monkeypatch.setattr(m.QMessageBox, "warning",
-                         staticmethod(lambda *a, **k: called.append(True)))
-    p._on_generate_clicked()
-    assert called
-    assert p._state == "idle"   # 没启流
+    p._outline_table.selectRow(0)
+    p._on_outline_row_selected()
+    got = []
+    p.stageAdvanceRequested.connect(got.append)
+    p._on_advance_clicked()
+    # 落 selected_episode 到磁盘
+    si = json.loads((tmp_path / "剧本.json").read_text(encoding="utf-8"))
+    assert si["selected_episode"] == "E1"
+    assert got == [2]
 
 
-def test_sse_delta_appends_to_editor(tmp_path):
+def test_upstream_missing_creative_disables_gen(tmp_path):
     _app()
     p = ScriptPage(_StubClient())
-    p.set_project(tmp_path)
-    # 直接调 _on_sse_event 模拟流式 delta
-    p._on_sse_event("delta", {"text": "你好"}, str(tmp_path))
-    p._on_sse_event("delta", {"text": "世界"}, str(tmp_path))
-    assert "你好世界" in p._editor.toPlainText()
-
-
-def test_upstream_missing_shows_banner_and_disables_gen(tmp_path):
-    _app()
-    p = ScriptPage(_StubClient())
-    p.set_project(tmp_path)   # 无 创意.json
+    p.set_project(tmp_path)   # 无创意.json
     assert not p._upstream_banner.isHidden()
     assert p._gen_btn.isEnabled() is False
-
-
-def test_upstream_present_hides_banner(tmp_path):
-    _app()
-    (tmp_path / "创意.json").write_text("{}", encoding="utf-8")
-    p = ScriptPage(_StubClient())
-    p.set_project(tmp_path)
-    assert p._upstream_banner.isHidden()
-
-
-def test_sse_event_signature_accepts_project_dir(tmp_path):
-    _app()
-    p = ScriptPage(_StubClient())
-    p.set_project(tmp_path)
-    # 不应抛
-    p._on_sse_event("delta", {"text": "x"}, str(tmp_path))
-    assert "x" in p._editor.toPlainText()
-
-
-def test_sse_delta_for_inactive_project_does_not_touch_editor(tmp_path):
-    _app()
-    p = ScriptPage(_StubClient())
-    pA = tmp_path / "A"; pA.mkdir()
-    pB = tmp_path / "B"; pB.mkdir()
-    p.set_project(pA)
-    before = p._editor.toPlainText()
-    p._on_sse_event("delta", {"text": "ignore"}, str(pB))
-    assert p._editor.toPlainText() == before
-    # 但 B 的 buffer 应有内容
-    assert "ignore" in p._buf_by_project.get(pB, "")
