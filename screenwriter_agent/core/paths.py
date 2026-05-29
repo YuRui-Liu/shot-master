@@ -84,3 +84,11 @@ def storyboard_episode_read_path(project_dir: Path, episode_id: str) -> Path | N
 def episode_prompts_dir(project_dir: Path, episode_id: str) -> Path:
     """prompts/E{id}/ 目录（不保证存在）。"""
     return project_dir / "prompts" / episode_id
+
+
+def video_prompts_dir(project_dir: Path, episode_id: str) -> Path:
+    return project_dir / "video_prompts" / episode_id
+
+
+def audio_prompts_dir(project_dir: Path, episode_id: str) -> Path:
+    return project_dir / "audio_prompts" / episode_id

@@ -95,3 +95,14 @@ def test_storyboard_episode_read_none_when_missing(tmp_path):
 
 def test_episode_prompts_dir(tmp_path):
     assert episode_prompts_dir(tmp_path, "E1") == tmp_path / "prompts" / "E1"
+
+
+from screenwriter_agent.core.paths import video_prompts_dir, audio_prompts_dir
+
+
+def test_video_prompts_dir(tmp_path):
+    assert video_prompts_dir(tmp_path, "E1") == tmp_path / "video_prompts" / "E1"
+
+
+def test_audio_prompts_dir(tmp_path):
+    assert audio_prompts_dir(tmp_path, "E1") == tmp_path / "audio_prompts" / "E1"

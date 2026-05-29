@@ -72,3 +72,11 @@ def storyboard_episode_read_path_in(project_dir: Path, episode_id: str) -> Path 
 
 def episode_prompts_dir_in(project_dir: Path, episode_id: str) -> Path:
     return project_dir / "prompts" / episode_id
+
+
+def video_prompt_dir_in(project_dir: Path, episode_id: str) -> Path:
+    return project_dir / "video_prompts" / episode_id
+
+
+def audio_prompt_dir_in(project_dir: Path, episode_id: str) -> Path:
+    return project_dir / "audio_prompts" / episode_id
