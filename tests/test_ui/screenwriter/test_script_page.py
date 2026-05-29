@@ -94,3 +94,13 @@ def test_upstream_check_blocks_generate(tmp_path, monkeypatch):
     p._on_generate_clicked()
     assert called
     assert p._state == "idle"   # 没启流
+
+
+def test_sse_delta_appends_to_editor(tmp_path):
+    _app()
+    p = ScriptPage(_StubClient())
+    p.set_project(tmp_path)
+    # 直接调 _on_sse_event 模拟流式 delta
+    p._on_sse_event("delta", {"text": "你好"})
+    p._on_sse_event("delta", {"text": "世界"})
+    assert "你好世界" in p._editor.toPlainText()

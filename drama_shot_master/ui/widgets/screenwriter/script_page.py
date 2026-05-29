@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 from PySide6.QtCore import QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QTextCursor
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QPlainTextEdit, QSpinBox,
     QComboBox, QMessageBox,
@@ -243,7 +243,7 @@ class ScriptPage(_BaseStagePage):
             if text:
                 # 追加到编辑器末尾
                 self._editor.blockSignals(True)
-                self._editor.moveCursor(self._editor.textCursor().End)
+                self._editor.moveCursor(QTextCursor.End)
                 self._editor.insertPlainText(text)
                 self._editor.blockSignals(False)
                 self._stream_label.setText(
