@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPainter, QColor, QFont, QPen
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QScrollArea, QSplitter, QStackedWidget, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QSplitter, QStackedWidget,
+    QPushButton,
 )
 
 
@@ -164,6 +165,7 @@ class CollapsibleTaskBar(QWidget):
                  manager_index: int = 0,
                  expanded_width: int = 280,
                  collapsed_width: int = 40,
+                 min_expanded_width: int = 240,
                  parent=None):
         super().__init__(parent)
         self._manager = manager
@@ -171,8 +173,12 @@ class CollapsibleTaskBar(QWidget):
         self._manager_index = manager_index
         self._expanded_width = expanded_width
         self._collapsed_width = collapsed_width
+        # 展开态最小宽度不得超过初始展开宽度（防 min > size 的约束冲突）
+        self._min_expanded_width = min(min_expanded_width, expanded_width)
         self._is_collapsed = False
         self._build_ui()
+        # 初始为展开态：锁住最小宽度，splitter 无法把任务名挤扁
+        self.setMinimumWidth(self._min_expanded_width)
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -181,16 +187,19 @@ class CollapsibleTaskBar(QWidget):
 
         self._stack = QStackedWidget()
 
-        # page 0: 展开视图 —— manager + 右上角悬浮折叠按钮
+        # page 0: 展开视图 —— 顶部细条(折叠按钮，布局管理，不浮动) + manager
         expanded_page = QWidget()
         ep_layout = QVBoxLayout(expanded_page)
         ep_layout.setContentsMargins(0, 0, 0, 0)
         ep_layout.setSpacing(0)
-        ep_layout.addWidget(self._manager)
 
+        top_strip = QWidget()
+        ts_layout = QHBoxLayout(top_strip)
+        ts_layout.setContentsMargins(0, 2, 4, 2)
+        ts_layout.setSpacing(0)
+        ts_layout.addStretch(1)
         self._collapse_btn = QPushButton("《")
-        self._collapse_btn.setParent(expanded_page)
-        self._collapse_btn.setFixedSize(24, 24)
+        self._collapse_btn.setFixedSize(28, 22)
         self._collapse_btn.setObjectName("taskBarCollapseBtn")
         self._collapse_btn.setToolTip("折叠任务栏")
         self._collapse_btn.setStyleSheet(
@@ -199,6 +208,9 @@ class CollapsibleTaskBar(QWidget):
             "QPushButton:hover{background:#4a83f0;}"
         )
         self._collapse_btn.clicked.connect(self.collapse)
+        ts_layout.addWidget(self._collapse_btn)
+        ep_layout.addWidget(top_strip)
+        ep_layout.addWidget(self._manager, 1)
 
         # page 1: 折叠视图 —— 图标轨
         self._icon_rail = _IconRail()
@@ -209,22 +221,6 @@ class CollapsibleTaskBar(QWidget):
         root.addWidget(self._stack)
 
         self._expanded_page = expanded_page
-        expanded_page.resizeEvent = self._on_expanded_page_resize
-        expanded_page.showEvent = self._on_expanded_page_show
-
-    _COLLAPSE_BTN_MARGIN = 8   # 距右边缘像素：离开 splitter handle，防被挤压
-
-    def _position_collapse_btn(self, width: int) -> None:
-        self._collapse_btn.move(
-            width - self._collapse_btn.width() - self._COLLAPSE_BTN_MARGIN, 4)
-        self._collapse_btn.raise_()   # 始终置顶，防被管理器刷新的内容盖住
-
-    def _on_expanded_page_resize(self, event):
-        self._position_collapse_btn(event.size().width())
-
-    def _on_expanded_page_show(self, event):
-        # show 时（含每次展开）重新定位 + 置顶，防内容动态刷新后被遮挡
-        self._position_collapse_btn(self._expanded_page.width())
 
     def is_collapsed(self) -> bool:
         return self._is_collapsed
@@ -256,6 +252,8 @@ class CollapsibleTaskBar(QWidget):
         self._icon_rail.refresh(self._manager.icon_rail_items())
         self._stack.setCurrentIndex(1)
         self._splitter.setCollapsible(self._manager_index, True)
+        # 先放开最小宽度约束，splitter 才能缩到图标轨宽度（40px）
+        self.setMinimumWidth(self._collapsed_width)
         self._move_splitter_to(self._collapsed_width)
         self._is_collapsed = True
         self.collapsed.emit()
@@ -264,6 +262,8 @@ class CollapsibleTaskBar(QWidget):
         if not self._is_collapsed:
             return
         self._stack.setCurrentIndex(0)
+        # 恢复展开态最小宽度：splitter 不能再把任务名挤扁
+        self.setMinimumWidth(self._min_expanded_width)
         self._move_splitter_to(self._expanded_width)
         self._is_collapsed = False
         self.expanded.emit()

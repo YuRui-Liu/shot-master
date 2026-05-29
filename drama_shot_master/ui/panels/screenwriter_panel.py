@@ -50,7 +50,6 @@ class ScreenwriterPanel(QWidget):
         self._task_manager = ScreenwriterTaskManager(self._cfg)
         self._task_bar = CollapsibleTaskBar(
             self._task_manager, splitter, manager_index=0, expanded_width=280)
-        self._task_bar.setMinimumWidth(40)
         splitter.addWidget(self._task_bar)
         self._task_manager.icon_rail_updated.connect(
             lambda: self._task_bar._icon_rail.refresh(

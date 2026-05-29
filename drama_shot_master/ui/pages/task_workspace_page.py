@@ -48,7 +48,6 @@ class TaskWorkspacePage(QWidget):
         from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
         self._task_bar = CollapsibleTaskBar(
             self.manager, splitter, manager_index=0, expanded_width=290)
-        self._task_bar.setMinimumWidth(40)
         splitter.addWidget(self._task_bar)
         if hasattr(self.manager, "icon_rail_updated"):
             self.manager.icon_rail_updated.connect(

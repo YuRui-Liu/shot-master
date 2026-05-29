@@ -190,48 +190,58 @@ def test_toggle_switches_state():
     assert not bar.is_collapsed()
 
 
-# ── Bug fix: 折叠按钮"《"被遮挡（方案A：右移 8px + 强制置顶）────────────────
+# ── Bug fix: 折叠按钮"《"不再浮动覆盖（改顶部细条布局）────────────────────
 
-def test_collapse_btn_right_margin_clears_splitter_handle():
-    """折叠按钮距 expanded_page 右边缘应有 8px（离开 splitter handle，不被挤压）。"""
-    _app()
-    from PySide6.QtCore import QSize
-    from PySide6.QtGui import QResizeEvent
+def _make_bar(expanded_width=280, min_expanded_width=240):
     from PySide6.QtWidgets import QSplitter, QWidget
     from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
     stub = _StubManager()
     right = QWidget()
     splitter = QSplitter()
-    bar = CollapsibleTaskBar(stub, splitter, manager_index=0, expanded_width=280)
+    bar = CollapsibleTaskBar(stub, splitter, manager_index=0,
+                             expanded_width=expanded_width,
+                             min_expanded_width=min_expanded_width)
     splitter.addWidget(bar)
     splitter.addWidget(right)
     splitter.resize(800, 600)
-    splitter.setSizes([280, 520])
-    btn = bar._collapse_btn
-    page = btn.parent()
-    # 直接触发 expanded_page 的 resize 处理
-    page.resizeEvent(QResizeEvent(QSize(280, 600), QSize(0, 0)))
-    right_gap = 280 - (btn.x() + btn.width())
-    assert right_gap == 8, f"右边距应为 8px，实际 {right_gap}px"
+    splitter.setSizes([expanded_width, 800 - expanded_width])
+    return bar, splitter
 
 
-def test_collapse_btn_raised_on_show():
-    """showEvent 后折叠按钮应被 raise_ 置顶（z-order 在最上层）。"""
+def test_collapse_btn_managed_by_layout_not_floating():
+    """折叠按钮应由某 layout 管理（顶部细条），而非绝对定位的浮动子件。"""
     _app()
-    from PySide6.QtWidgets import QSplitter, QWidget
-    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
-    stub = _StubManager()
-    right = QWidget()
-    splitter = QSplitter()
-    bar = CollapsibleTaskBar(stub, splitter, manager_index=0, expanded_width=280)
-    splitter.addWidget(bar)
-    splitter.addWidget(right)
-    splitter.resize(800, 600)
-    splitter.setSizes([280, 520])
+    bar, _ = _make_bar()
     btn = bar._collapse_btn
-    page = btn.parent()
-    from PySide6.QtGui import QShowEvent
-    page.showEvent(QShowEvent())
-    # raise_ 后 btn 应是 page 子控件中 z-order 最高（children 列表末尾）
-    widget_children = [c for c in page.children() if isinstance(c, QWidget)]
-    assert widget_children[-1] is btn, "折叠按钮应在 z-order 顶层"
+    host = btn.parentWidget()
+    assert host is not None
+    layout = host.layout()
+    assert layout is not None, "折叠按钮宿主应有 layout"
+    # 按钮确实在该 layout 中（被布局管理，不会被 manager 内容覆盖）
+    indices = [layout.indexOf(btn)]
+    assert indices[0] != -1, "折叠按钮应在宿主 layout 内"
+
+
+def test_expanded_min_width_prevents_squeeze():
+    """展开态：bar.minimumWidth() 应 >= min_expanded（splitter 无法挤扁任务名）。"""
+    _app()
+    bar, _ = _make_bar(expanded_width=290, min_expanded_width=240)
+    assert bar.minimumWidth() >= 240
+
+
+def test_collapsed_min_width_allows_40():
+    """折叠态：minimumWidth 降到 40，splitter 可缩到图标轨宽度。"""
+    _app()
+    bar, splitter = _make_bar()
+    bar.collapse()
+    assert bar.minimumWidth() == 40
+    assert splitter.sizes()[0] == 40
+
+
+def test_reexpand_restores_min_width():
+    """重新展开：minimumWidth 恢复到 min_expanded（再次防挤压）。"""
+    _app()
+    bar, _ = _make_bar(expanded_width=290, min_expanded_width=240)
+    bar.collapse()
+    bar.expand()
+    assert bar.minimumWidth() >= 240
