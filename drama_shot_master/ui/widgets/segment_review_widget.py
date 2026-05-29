@@ -29,6 +29,7 @@ class SegmentReviewWidget(QWidget):
     chosenChanged = Signal()
     regenerateRequested = Signal(int)
     segmentVolumeChanged = Signal()
+    previewStarted = Signal()
 
     def __init__(self, session, parent=None):
         super().__init__(parent)
@@ -136,6 +137,7 @@ class SegmentReviewWidget(QWidget):
         self._audio.setVolume(
             min(1.0, max(0.0, float(getattr(seg, "volume", 1.0)))))
         self._playing_key = (seg_index, cand_index)
+        self.previewStarted.emit()
         player.play()
 
     def _toggle_play(self):

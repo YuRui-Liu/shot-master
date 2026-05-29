@@ -26,6 +26,7 @@ class SfxReviewWidget(QWidget):
     chosenChanged = Signal()
     regenerateRequested = Signal(int)
     shotEdited = Signal()
+    previewStarted = Signal()
 
     def __init__(self, session, parent=None):
         super().__init__(parent)
@@ -186,6 +187,7 @@ class SfxReviewWidget(QWidget):
         player.setSource(QUrl.fromLocalFile(path))
         self._audio.setVolume(min(1.0, max(0.0, float(shot.volume))))
         self._playing_key = (shot_index, cand_index)
+        self.previewStarted.emit()
         player.play()
 
     def _toggle_play(self):

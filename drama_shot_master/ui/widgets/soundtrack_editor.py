@@ -202,6 +202,9 @@ class SoundtrackEditor(QWidget):
         self._review.regenerateRequested.connect(self._on_regenerate)
         self._review.chosenChanged.connect(self._on_chosen_changed)
         self._review.segmentVolumeChanged.connect(self._persist_session)
+        self._review.previewStarted.connect(
+            lambda: self._video_preview.pause()
+                    if self._video_preview is not None else None)
         lay.addWidget(self._review)
         # ③ 卡点
         lay2 = self._accent_holder.layout()
@@ -423,6 +426,9 @@ class SoundtrackEditor(QWidget):
             self._work_dir() / "sfx_session.json"))
         review.chosenChanged.connect(lambda: self._sfx_session.save(
             self._work_dir() / "sfx_session.json"))
+        review.previewStarted.connect(
+            lambda: self._video_preview.pause()
+                    if self._video_preview is not None else None)
         self._sfx_review_lay.addWidget(review)
 
     def _on_sfx_plan_clicked(self):
