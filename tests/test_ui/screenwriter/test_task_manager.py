@@ -217,3 +217,25 @@ def test_refresh_drops_selection_only_if_project_pruned(tmp_path):
     shutil.rmtree(pA)
     tm.refresh()
     assert tm._selected_project() is None
+
+
+def test_status_dots_partial_episodes(tmp_path):
+    """3 集项目，分镜 E1+E2 完成，E3 缺：分镜状态显 2/3。"""
+    import json as _j
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    (pA / "创意.json").write_text("{}", encoding="utf-8")
+    (pA / "剧本.json").write_text(_j.dumps({
+        "episode_count": 3,
+        "episodes": [{"id": f"E{i}", "title": "t", "summary": "s"}
+                      for i in (1, 2, 3)],
+    }), encoding="utf-8")
+    for i in (1, 2, 3):
+        (pA / f"剧本_E{i}.md").write_text("md", encoding="utf-8")
+    for i in (1, 2):
+        (pA / f"分镜_E{i}.json").write_text("{}", encoding="utf-8")
+    cfg = _StubCfg(projects=[str(pA)])
+    tm = ScreenwriterTaskManager(cfg)
+    dots_text = tm._table.item(0, 1).text()
+    # 分镜列含 2/3
+    assert "2/3" in dots_text

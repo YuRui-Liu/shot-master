@@ -140,32 +140,92 @@ class ScreenwriterTaskManager(QWidget):
         self._fit_name_col()
 
     def _compute_status(self, p: Path) -> tuple[str, str]:
+        import json as _j
         from drama_shot_master.ui.widgets.screenwriter._paths import idea_exists_in
-        dots = []
+        # 读 剧本.json 确定总集数
+        si_path = p / "剧本.json"
+        total = 1
+        episodes: list[str] = []
+        if si_path.is_file():
+            try:
+                si = _j.loads(si_path.read_text(encoding="utf-8"))
+                total = max(1, si.get("episode_count", 1))
+                episodes = [e["id"] for e in si.get("episodes", [])]
+            except Exception:
+                pass
+        if not episodes and (p / "剧本.md").is_file():
+            episodes = ["E1"]
+        if not episodes:
+            total = 1
+            episodes = []
+
+        dots: list[str] = []
         last_done_idx = -1
-        for i, (_, fname) in enumerate(_STAGE_FILES):
-            target = p / fname
-            done = False
-            if fname == "prompts":
-                done = target.is_dir() and any(target.iterdir())
-            elif fname == "创意.json":
-                done = idea_exists_in(p)   # 接受 创意.json 或 idea.json
-            else:
-                done = target.is_file()
-            if done:
-                dots.append("✓")
-                last_done_idx = i
+        # 创意
+        if idea_exists_in(p):
+            dots.append("✓"); last_done_idx = 0
+        else:
+            dots.append("○")
+        # 剧本（多集 → 看 剧本_E*.md 全到齐）
+        if episodes:
+            script_done = sum(
+                1 for ep in episodes
+                if (p / f"剧本_{ep}.md").is_file()
+                or (ep == "E1" and (p / "剧本.md").is_file()))
+            if script_done == total:
+                dots.append("✓"); last_done_idx = 1
+            elif script_done > 0:
+                dots.append(f"{script_done}/{total}")
             else:
                 dots.append("○")
+        else:
+            dots.append("○")
+        # 分镜
+        if episodes:
+            sb_done = sum(
+                1 for ep in episodes
+                if (p / f"分镜_{ep}.json").is_file()
+                or (ep == "E1" and (p / "分镜.json").is_file()))
+            if sb_done == total:
+                dots.append("✓"); last_done_idx = 2
+            elif sb_done > 0:
+                dots.append(f"{sb_done}/{total}")
+            else:
+                dots.append("○")
+        else:
+            if (p / "分镜.json").is_file():
+                dots.append("✓"); last_done_idx = 2
+            else:
+                dots.append("○")
+        # 提示词
+        if episodes:
+            pr_done = sum(
+                1 for ep in episodes
+                if (p / "prompts" / ep).is_dir()
+                and any((p / "prompts" / ep).iterdir()))
+        else:
+            pr_done = 1 if ((p / "prompts").is_dir() and any((p / "prompts").iterdir())) else 0
+            total_pr = 1
+        if episodes:
+            total_pr = total
+        if pr_done == total_pr and pr_done > 0:
+            dots.append("✓"); last_done_idx = 3
+        elif pr_done > 0:
+            dots.append(f"{pr_done}/{total_pr}")
+        else:
+            dots.append("○")
+
         # streaming 覆盖
         if self._active_worker_query(p):
-            return "".join(dots), "生成中"
-        # 当前阶段
-        if last_done_idx == len(_STAGE_FILES) - 1:
-            return "".join(dots), "已完成"
+            return " ".join(dots), "生成中"
+        if last_done_idx == 3:
+            return " ".join(dots), "已完成"
+        # 下一步提示
+        next_labels = ["创意", "剧本", "分镜", "提示词"]
         next_idx = last_done_idx + 1
-        next_stage = _STAGE_FILES[next_idx][0]
-        return "".join(dots), f"待 {next_stage}"
+        if next_idx < len(next_labels):
+            return " ".join(dots), f"待 {next_labels[next_idx]}"
+        return " ".join(dots), "已完成"
 
     def _dir_mtime(self, p: Path) -> str:
         try:
