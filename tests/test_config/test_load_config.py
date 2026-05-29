@@ -33,3 +33,22 @@ def test_sfx_fields_update_settings_roundtrip(tmp_path):
     assert abs(cfg2.sfx_default_volume - 1.1) < 1e-6
     assert abs(cfg2.sfx_ducking_db - (-9.0)) < 1e-6
     assert cfg2.sfx_seeds_count == 2
+
+
+def test_task_bar_collapsed_default():
+    from drama_shot_master.config import Config
+    cfg = Config()
+    assert cfg.task_bar_collapsed == {}
+
+
+def test_task_bar_collapsed_update_settings_roundtrip(tmp_path):
+    import json
+    from drama_shot_master.config import Config, load_config
+    cfg = Config()
+    cfg.settings_path = tmp_path / "settings.json"
+    cfg.update_settings(task_bar_collapsed={"screenwriter": True, "imggen": False})
+    data = json.loads(cfg.settings_path.read_text(encoding="utf-8"))
+    assert data["task_bar_collapsed"] == {"screenwriter": True, "imggen": False}
+    cfg2 = load_config(env_path=tmp_path / ".env.nonexistent",
+                       settings_path=cfg.settings_path)
+    assert cfg2.task_bar_collapsed == {"screenwriter": True, "imggen": False}

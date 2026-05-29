@@ -125,6 +125,8 @@ class Config:
         default_factory=lambda: {"health": 0.5, "headroom": 0.3, "beat": 0.2})
     soundtrack_fade_out: bool = False                # ACE-Step prompt 末尾 [Quick smooth fade out] 标记开关；
                                                      # 开启会让 BGM 末尾约 25% 衰减到静音，默认关闭以保住完整段长。
+    # UI 状态
+    task_bar_collapsed: dict = field(default_factory=dict)
 
     # Phase 4a: SFX 音效层
     sfx_workflow_id: str = "2060218796413112321"        # Stable Audio 3 / RunningHub
@@ -209,6 +211,7 @@ class Config:
                 "sfx_default_volume": self.sfx_default_volume,
                 "sfx_ducking_db": self.sfx_ducking_db,
                 "sfx_seeds_count": self.sfx_seeds_count,
+                "task_bar_collapsed": self.task_bar_collapsed,
             }
             self.settings_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
@@ -416,6 +419,9 @@ def load_config(env_path: Path = Path(".env"),
                             setattr(cfg, fld, caster(data[fld]))
                         except (TypeError, ValueError):
                             pass
+                if "task_bar_collapsed" in data and isinstance(
+                        data["task_bar_collapsed"], dict):
+                    cfg.task_bar_collapsed = dict(data["task_bar_collapsed"])
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass
 
