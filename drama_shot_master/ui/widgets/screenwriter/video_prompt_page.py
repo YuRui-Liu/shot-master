@@ -327,7 +327,7 @@ class VideoPromptPage(_BaseStagePage):
                 self._populate_shots_table(shots)
             except Exception:
                 pass
-            self._status_lbl.setText(f"● shots.json 已生成（{len(self._shots_table.rowCount() if False else [])}镜）")
+            self._status_lbl.setText(f"● shots.json 已生成（{self._shots_table.rowCount()}镜）")
 
         elif saved:
             self._status_lbl.setText(f"● 已生成 {Path(saved).name}")
