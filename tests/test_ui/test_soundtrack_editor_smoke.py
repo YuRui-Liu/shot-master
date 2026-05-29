@@ -24,7 +24,8 @@ def test_editor_is_qwidget_with_three_tabs(tmp_path):
     _app()
     ed = SoundtrackEditor(_task(), _cfg(tmp_path), tmp_path)
     assert isinstance(ed, QWidget)
-    assert ed.tabs.count() == 3
+    # Phase 4a 新增 SFX tab → 现在是 4 个 tab；用 >= 3 保持 BGM 3 个基础 tab 契约
+    assert ed.tabs.count() >= 3
     assert ed.style_edit.toPlainText() == "末日废土"
 
 

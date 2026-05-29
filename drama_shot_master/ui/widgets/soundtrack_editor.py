@@ -1,6 +1,6 @@
-"""SoundtrackEditor：单集配乐编辑器（QWidget，3 页签）。
+"""SoundtrackEditor：单集配乐编辑器（QWidget，4 页签）。
 
-从退役的 SoundtrackTaskWindow 抽取：① 配置+生成 ② 试听选优 ③ 卡点。
+从退役的 SoundtrackTaskWindow 抽取：① 配置+生成 ② 试听选优 ③ 卡点 ④ SFX 音效。
 浮出由通用 DetachedEditorWindow 承载，故本类不带 closed/closeEvent。
 输出路径：任务 output_dir → cfg.soundtrack_output_dir → cfg.video_output_dir/soundtrack。
 """
@@ -39,6 +39,8 @@ class SoundtrackEditor(QWidget):
         self._session = None
         self._review = None
         self._accent = None
+        self._sfx_session = None
+        self._sfx_worker = None
         self._build_ui()
         self._try_load_existing()
 
@@ -69,6 +71,32 @@ class SoundtrackEditor(QWidget):
         self.tabs.addTab(self._review_holder, "② 试听选优")
         self._accent_holder = QWidget(); QVBoxLayout(self._accent_holder)
         self.tabs.addTab(self._accent_holder, "③ 卡点")
+        self.tabs.addTab(self._build_sfx_tab(), "④ 🔊 SFX 音效")
+        # 启动时尝试加载已有 sfx session
+        from sound_track_agent.sfx import facade as sfx_fac
+        try:
+            self._sfx_session = sfx_fac.load_sfx_session(self._work_dir())
+        except Exception:
+            self._sfx_session = None
+        if self._sfx_session is not None:
+            self._rebuild_sfx_review()
+
+    def _build_sfx_tab(self) -> QWidget:
+        sfx_tab = QWidget()
+        sfx_lay = QVBoxLayout(sfx_tab)
+        bar = QHBoxLayout()
+        self.btn_sfx_plan = QPushButton("🎬 检测 SFX 时机")
+        self.btn_sfx_plan.clicked.connect(self._on_sfx_plan_clicked)
+        self.btn_sfx_gen = QPushButton("🔊 生成全部")
+        self.btn_sfx_gen.clicked.connect(self._on_sfx_generate_clicked)
+        bar.addWidget(self.btn_sfx_plan)
+        bar.addWidget(self.btn_sfx_gen)
+        bar.addStretch(1)
+        sfx_lay.addLayout(bar)
+        self._sfx_review_holder = QWidget()
+        self._sfx_review_lay = QVBoxLayout(self._sfx_review_holder)
+        sfx_lay.addWidget(self._sfx_review_holder, 1)
+        return sfx_tab
 
     def _build_config_tab(self) -> QWidget:
         page = QWidget(); root = QVBoxLayout(page)
@@ -347,6 +375,96 @@ class SoundtrackEditor(QWidget):
         self._session.segments_refined = False
         self._persist_session()
         self._run_pipeline("refine_segments")
+
+    # ------------------------------------------------------------------
+    # SFX tab 方法
+    # ------------------------------------------------------------------
+
+    def _rebuild_sfx_review(self):
+        from drama_shot_master.ui.widgets.sfx_review_widget import SfxReviewWidget
+        while self._sfx_review_lay.count():
+            w = self._sfx_review_lay.takeAt(0).widget()
+            if w:
+                w.deleteLater()
+        if self._sfx_session is None:
+            return
+        review = SfxReviewWidget(self._sfx_session)
+        review.regenerateRequested.connect(self._on_sfx_regenerate_one)
+        review.shotEdited.connect(lambda: self._sfx_session.save(
+            self._work_dir() / "sfx_session.json"))
+        review.chosenChanged.connect(lambda: self._sfx_session.save(
+            self._work_dir() / "sfx_session.json"))
+        self._sfx_review_lay.addWidget(review)
+
+    def _on_sfx_plan_clicked(self):
+        if self._sfx_worker is not None and self._sfx_worker.isRunning():
+            QMessageBox.information(self, "请稍候", "SFX 任务正在运行")
+            return
+        mp4 = self.mp4_edit.text().strip()
+        if not mp4 or not Path(mp4).exists():
+            QMessageBox.warning(self, "无 MP4", "请先选择视频文件")
+            return
+        cfg = self.cfg
+        work_dir = self._work_dir()
+        from sound_track_agent.sfx import facade as sfx_fac
+
+        def task():
+            return sfx_fac.plan_sfx_session(mp4, work_dir, cfg=cfg)
+
+        self._sfx_worker = FunctionWorker(task)
+        self._sfx_worker.finished_with_result.connect(self._on_sfx_plan_done)
+        self._sfx_worker.failed.connect(
+            lambda err: QMessageBox.critical(self, "SFX 检测失败", err))
+        self._sfx_worker.start()
+
+    def _on_sfx_plan_done(self, session):
+        self._sfx_session = session
+        self._rebuild_sfx_review()
+
+    def _on_sfx_generate_clicked(self):
+        if self._sfx_worker is not None and self._sfx_worker.isRunning():
+            QMessageBox.information(self, "请稍候", "SFX 任务正在运行")
+            return
+        if self._sfx_session is None:
+            QMessageBox.warning(self, "未检测", "请先点 🎬 检测 SFX 时机")
+            return
+        cfg = self.cfg
+        sess = self._sfx_session
+        work_dir = self._work_dir()
+        from sound_track_agent.sfx import facade as sfx_fac
+
+        def task():
+            sfx_fac.generate_sfx_all(sess, work_dir, cfg=cfg)
+            return sess
+
+        self._sfx_worker = FunctionWorker(task)
+        self._sfx_worker.finished_with_result.connect(self._on_sfx_generate_done)
+        self._sfx_worker.failed.connect(
+            lambda err: QMessageBox.critical(self, "SFX 生成失败", err))
+        self._sfx_worker.start()
+
+    def _on_sfx_generate_done(self, _sess):
+        self._rebuild_sfx_review()
+
+    def _on_sfx_regenerate_one(self, shot_index: int):
+        if self._sfx_session is None:
+            return
+        if self._sfx_worker is not None and self._sfx_worker.isRunning():
+            return
+        cfg = self.cfg
+        sess = self._sfx_session
+        work_dir = self._work_dir()
+        from sound_track_agent.sfx import facade as sfx_fac
+
+        def task():
+            sfx_fac.regenerate_sfx_one(sess, shot_index, work_dir, cfg=cfg)
+            return sess
+
+        self._sfx_worker = FunctionWorker(task)
+        self._sfx_worker.finished_with_result.connect(self._on_sfx_generate_done)
+        self._sfx_worker.failed.connect(
+            lambda err: QMessageBox.critical(self, "SFX 重生成失败", err))
+        self._sfx_worker.start()
 
     def to_payload(self) -> dict:
         return {"mp4": self.mp4_edit.text().strip(),
