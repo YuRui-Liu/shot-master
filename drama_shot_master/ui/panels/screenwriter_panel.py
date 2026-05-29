@@ -44,10 +44,17 @@ class ScreenwriterPanel(QWidget):
         h.setContentsMargins(0, 0, 0, 0)
         splitter = QSplitter(Qt.Horizontal)
         # 左
+        from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
         self._task_manager = ScreenwriterTaskManager(self._cfg)
-        self._task_manager.setMaximumWidth(300)
-        self._task_manager.setMinimumWidth(220)
-        splitter.addWidget(self._task_manager)
+        self._task_bar = CollapsibleTaskBar(
+            self._task_manager, splitter, manager_index=0, expanded_width=280)
+        self._task_bar.setMinimumWidth(40)
+        splitter.addWidget(self._task_bar)
+        self._task_manager.icon_rail_updated.connect(
+            lambda: self._task_bar._icon_rail.refresh(
+                self._task_manager.icon_rail_items()))
+        self._task_bar._icon_rail.item_clicked.connect(
+            self._task_manager.select_by_id)
         # 右
         ideate = IdeatePage(self._client)
         script = ScriptPage(self._client)

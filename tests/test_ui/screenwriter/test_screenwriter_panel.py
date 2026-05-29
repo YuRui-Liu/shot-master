@@ -207,6 +207,22 @@ def test_stage_advance_target_with_existing_output_skips_auto_gen(tmp_path):
     assert called == [True]
 
 
+def test_screenwriter_panel_has_collapsible_bar():
+    _app()
+    from drama_shot_master.ui.panels.screenwriter_panel import ScreenwriterPanel
+    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
+    panel = ScreenwriterPanel(_StubCfg())
+    assert hasattr(panel, "_task_bar")
+    assert isinstance(panel._task_bar, CollapsibleTaskBar)
+
+
+def test_screenwriter_task_bar_wraps_task_manager():
+    _app()
+    from drama_shot_master.ui.panels.screenwriter_panel import ScreenwriterPanel
+    panel = ScreenwriterPanel(_StubCfg())
+    assert panel._task_bar._manager is panel._task_manager
+
+
 def test_legacy_project_prompts_migration(tmp_path, monkeypatch):
     """选中旧项目（剧本.md + no 剧本.json）→ 弹迁移对话框 → 点[是] → 自动迁移。"""
     _app()
