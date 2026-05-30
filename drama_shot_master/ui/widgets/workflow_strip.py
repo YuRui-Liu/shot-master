@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QRect, QPoint
 from PySide6.QtGui import (
-    QPainter, QPainterPath, QColor, QLinearGradient, QRadialGradient, QFont,
+    QPainter, QColor, QLinearGradient, QFont, QFontMetrics,
     QBrush,
 )
 from PySide6.QtWidgets import QWidget, QSizePolicy
@@ -70,7 +70,7 @@ class WorkflowStrip(QWidget):
         arrow_w = 14
         label_gap = 5
         step_widths = []
-        fm_label = self.fontMetrics()
+        fm_label = QFontMetrics(font_label)
         for _num, label in _STEPS:
             step_widths.append(dot_r * 2 + label_gap + fm_label.horizontalAdvance(label))
         total_w = sum(step_widths) + arrow_w * (len(_STEPS) - 1)
@@ -103,13 +103,13 @@ class WorkflowStrip(QWidget):
 
             # label
             lx = cx + dot_r + label_gap
-            p.setFont(font_label)
             if active:
-                font_label.setBold(True)
-                p.setFont(font_label)
+                bold_font = QFont(font_label)
+                bold_font.setBold(True)
+                p.setFont(bold_font)
                 p.setPen(_C_ACTIVE_LABEL)
-                font_label.setBold(False)
             else:
+                p.setFont(font_label)
                 p.setPen(_C_INACTIVE_LABEL)
 
             label_rect = QRect(lx, cy - 10, step_widths[i] - dot_r * 2 - label_gap, 20)
