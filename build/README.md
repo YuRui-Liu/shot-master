@@ -1,7 +1,25 @@
-# 打包客户端（Nuitka）
+# 打包客户端（Nuitka / PyInstaller 两版）
 
-## 为什么 Nuitka
+| 方案 | 脚本 | 产物 | 取舍 |
+|------|------|------|------|
+| **Nuitka**（推荐分发） | `build/build_client.bat` | `build/dist/main.dist/` | 原生编译，源码**不可**直接反编译；编译慢、需 MSVC/clang |
+| **PyInstaller**（快速验证） | `build/build_client_pyinstaller.bat`（+ `build/drama_shot_master.spec`） | `build/dist_pyi/DramaShotMaster/` | 打包快、零编译器依赖；但 .pyc **可被解包反编译** |
+
+两版**打包/排除内容完全一致**（见各自脚本注释）：含 `drama_shot_master` + `screenwriter_agent`
++ `sound_track_agent` + `uvicorn` + 提示词模板；排除 `license_admin` / `tests` / 个人配置 / 重依赖。
+打包后编剧 Agent 由同一 exe 用 `--run-agent screenwriter` 启动（两版均靠 `sys.frozen`/`__compiled__`
+被 `lifecycle._is_frozen()` 命中）。`tests/test_build_config.py` 同时守护两版配置。
+
+## 为什么默认 Nuitka
 PyInstaller 打的 .pyc 可被解包反编译；Nuitka 编译成原生二进制，源码不可直接还原。
+要快速出一个能跑的包验证功能 → 用 PyInstaller；要对外分发防源码泄露 → 用 Nuitka。
+
+## PyInstaller 步骤
+1. `pip install pyinstaller`。
+2. 运行 `build\build_client_pyinstaller.bat`（内部 `pyinstaller build/drama_shot_master.spec`）。
+3. 产物在 `build/dist_pyi/DramaShotMaster/`，分发整个文件夹。
+4. 若 PySide6 插件缺失/uvicorn 启动报缺模块：在 `drama_shot_master.spec` 的
+   `hiddenimports` 补对应模块名后重打。
 
 ## 步骤
 1. `pip install nuitka`（Windows 需 MSVC/clang）。

@@ -38,3 +38,32 @@ def test_does_not_bundle_personal_config():
         if "--include-data" in s:
             assert ".env" not in s, f"误打包 .env: {s}"
             assert "settings.json" not in s, f"误打包 settings.json: {s}"
+
+
+# ── PyInstaller 版打包配置守护 ──────────────────────────────────────
+
+_SPEC = Path(__file__).resolve().parents[1] / "build" / "drama_shot_master.spec"
+
+
+def _spec() -> str:
+    return _SPEC.read_text(encoding="utf-8")
+
+
+def test_pyi_spec_includes_packages_and_templates():
+    t = _spec()
+    for name in ("screenwriter_agent", "sound_track_agent", "uvicorn"):
+        assert name in t, f"spec 缺 {name}"
+    assert "screenwriter_agent/templates" in t
+    assert "drama_shot_master/templates" in t
+
+
+def test_pyi_spec_excludes_license_tests_and_heavy():
+    t = _spec()
+    assert "license_admin" in t and "tests" in t
+    assert "torch" in t and "demucs" in t
+
+
+def test_pyi_spec_does_not_bundle_personal_config():
+    t = _spec()
+    assert "settings.json" not in t
+    assert ".env" not in t
