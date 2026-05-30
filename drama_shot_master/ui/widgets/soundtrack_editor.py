@@ -776,6 +776,36 @@ class SoundtrackEditor(QWidget):
             return task_out
         return None
 
+    def _preview_fingerprint(self, kind: str) -> str:
+        """预览轨内容指纹：影响 build 产物的字段变 → 指纹变 → 触发重建。"""
+        import hashlib, json
+        if kind == "bgm":
+            sess = self._session
+            if sess is None:
+                return ""
+            data = {
+                "segs": [(getattr(s, "chosen_candidate", None),
+                          float(getattr(s, "volume", 1.0)))
+                         for s in sess.segments],
+                "accents": list(getattr(sess, "accent_points", []) or []),
+                "accent_on": bool(getattr(sess, "accent_mix_enabled", True)),
+                "pump": float(getattr(sess, "pump_strength", 0.6)),
+            }
+        else:  # sfx
+            sess = self._sfx_session
+            if sess is None:
+                return ""
+            data = {"shots": [
+                (bool(getattr(s, "enabled", True)),
+                 getattr(s, "chosen_candidate", None),
+                 float(getattr(s, "volume", 1.0)),
+                 (s.candidates[s.chosen_candidate].path
+                  if s.chosen_candidate is not None
+                  and 0 <= s.chosen_candidate < len(s.candidates) else None))
+                for s in sess.shots]}
+        blob = json.dumps(data, ensure_ascii=False, sort_keys=True)
+        return hashlib.blake2b(blob.encode("utf-8"), digest_size=8).hexdigest()
+
     def _resolve_video_source(self):
         """返回当前播放模式对应的媒体文件路径；无对应成片时返回 None（由调用方提示）。
 
