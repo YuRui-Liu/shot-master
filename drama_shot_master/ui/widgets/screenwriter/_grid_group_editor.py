@@ -85,7 +85,9 @@ class _GridGroupEditor(QWidget):
         self._rebuild()
 
     def groups(self) -> list[dict]:
-        return [dict(g) for g in self._groups]
+        return [{"grid_mode": g.get("grid_mode", "9"),
+                 "shot_ids": list(g.get("shot_ids") or [])}
+                for g in self._groups]
 
     def set_group_status(self, index: int, status: str) -> None:
         """index 1-based；status: idle/running/done/error。"""
