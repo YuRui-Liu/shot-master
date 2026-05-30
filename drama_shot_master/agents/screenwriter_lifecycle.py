@@ -26,6 +26,18 @@ def _is_frozen() -> bool:
     return bool(getattr(sys, "frozen", False)) or ("__compiled__" in globals())
 
 
+def _health_matches(body: dict, nonce: str) -> bool:
+    """probe / 存活检测用：/health 的 nonce 是否与本次 spawn 的 nonce 匹配。
+
+    nonce 由主软件经 env 注入、agent /health 回显——不受 venv 启动器/重定向
+    造成的 PID 不匹配影响（旧逻辑用 Popen.pid == os.getpid() 在某些 Windows venv
+    下永远不等，导致 probe 误杀刚起的 agent、误报"died during spawn"）。
+    """
+    if not nonce:
+        return True
+    return str(body.get("nonce", "")) == nonce
+
+
 def _agent_command(port: int) -> list[str]:
     """构造拉起 screenwriter_agent 的命令。
 
@@ -48,6 +60,7 @@ class ScreenwriterLifecycle:
         self.port = base_port
         self._cfg = cfg                     # 主软件 Config 实例（取 LLM 凭据）
         self._proc: subprocess.Popen | None = None
+        self._nonce = ""                    # 本次 spawn 的识别令牌（见 _health_matches）
         self._log_dir = log_dir or (Path.home() / ".drama_shot_master" / "logs")
         self._log_dir.mkdir(parents=True, exist_ok=True)
         self._port_file = self._log_dir / ".screenwriter_port"
@@ -66,6 +79,10 @@ class ScreenwriterLifecycle:
         log_path = self._log_dir / "screenwriter_agent.log"
         log_f = open(log_path, "ab")
         env = os.environ.copy()
+        # 本次 spawn 识别令牌：经 env 注入，agent /health 回显，probe/存活按此匹配
+        import secrets
+        self._nonce = secrets.token_hex(8)
+        env["SCREENWRITER_AGENT_NONCE"] = self._nonce
         # 把主软件 cfg 的 LLM 凭据/平台/per-stage 配置注入 agent 子进程环境。
         # agent 的 4 个 route（ideate/script/storyboard/prompts）按 stage 读
         # SCREENWRITER_{STAGE}_API_KEY / _BASE_URL / _MODEL；若 stage 级 env
@@ -188,56 +205,72 @@ class ScreenwriterLifecycle:
                 pass
 
     def _probe_listening_port(self, base: int, *, retries: int, sleep_s: float) -> int:
-        """每 sleep_s 轮询 base..base+9 的 /health；首个 200 且 PID 匹配认作命中。
-        PID 不匹配（说明撞到僵尸进程）也强杀掉再继续探测。"""
+        """每 sleep_s 轮询 base..base+9 的 /health；nonce 匹配则认作命中。
+        nonce 不匹配说明是僵尸进程，用 body 里的 pid 将其杀掉再继续探测。
+
+        注意：使用 http.client.HTTPConnection 而非 urllib.request.urlopen，
+        避免 Windows 系统代理（VPN/代理软件）拦截 127.0.0.1 请求返回 502。
+        """
         import json as _json
-        try:
-            import urllib.request
-            import urllib.error
-        except ImportError:
-            time.sleep(sleep_s * retries)
-            return base
-        expected_pid = self._proc.pid if self._proc else 0
+        import http.client
         for _ in range(retries):
             for offset in range(10):
                 port = base + offset
                 try:
-                    with urllib.request.urlopen(
-                            f"http://127.0.0.1:{port}/health",
-                            timeout=0.3) as resp:
-                        if 200 <= resp.status < 300:
+                    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=0.5)
+                    conn.request("GET", "/health")
+                    resp = conn.getresponse()
+                    if 200 <= resp.status < 300:
+                        try:
+                            body = _json.loads(resp.read().decode("utf-8"))
+                        except Exception:
+                            body = {}
+                        conn.close()
+                        if _health_matches(body, self._nonce):
+                            # nonce 匹配 → 这就是我们的 agent
                             try:
-                                body = _json.loads(resp.read().decode("utf-8"))
-                                agent_pid = int(body.get("pid", 0))
-                            except Exception:
-                                agent_pid = 0
-                            # 校验是不是 OUR 进程
-                            if agent_pid and agent_pid == expected_pid:
-                                try:
-                                    self._port_file.write_text(str(port))
-                                except OSError:
-                                    pass
-                                return port
-                            # 匹配不上 → 是僵尸进程占的，杀掉它，下一轮再探
-                            if agent_pid and agent_pid != expected_pid:
-                                self._kill_pid(agent_pid)
-                            # /health 还没暴露 pid 字段（老版本 agent）→ 兜底接受
-                            elif agent_pid == 0:
-                                try:
-                                    self._port_file.write_text(str(port))
-                                except OSError:
-                                    pass
-                                return port
-                except (urllib.error.URLError, OSError, TimeoutError):
-                    continue
+                                self._port_file.write_text(str(port))
+                            except OSError:
+                                pass
+                            return port
+                        # nonce 不匹配 → 僵尸进程，用它返回的 pid 强杀
+                        zombie_pid = int(body.get("pid", 0))
+                        if zombie_pid:
+                            self._kill_pid(zombie_pid)
+                    else:
+                        conn.close()
+                except OSError:
+                    pass
+                except Exception:
+                    pass
             time.sleep(sleep_s)
-            # 子进程已挂 → 不再 poll，直接返回 base 让 caller 报错
-            if self._proc is None or self._proc.poll() is not None:
-                break
+            # 注意：不因 self._proc.poll() 提前 break——某些 Windows venv 的
+            # python.exe 是启动器壳，handoff 后会先退出，但真正的 agent 仍在起。
+            # 用足 retries 预算（≈retries*sleep_s 秒）按 nonce 探测即可。
         return base
 
+    def _health_ok(self, port: int) -> bool:
+        """直接 /health 探测某端口是否为本次 spawn 的 agent（nonce 匹配）。"""
+        import json as _json
+        import http.client
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=0.5)
+            conn.request("GET", "/health")
+            resp = conn.getresponse()
+            ok = 200 <= resp.status < 300
+            body = _json.loads(resp.read().decode("utf-8")) if ok else {}
+            conn.close()
+            return ok and _health_matches(body, self._nonce)
+        except Exception:
+            return False
+
     def is_alive(self) -> bool:
-        return self._proc is not None and self._proc.poll() is None
+        # 正常：spawn 出的进程仍在。
+        if self._proc is not None and self._proc.poll() is None:
+            return True
+        # Windows venv 启动器壳 handoff 后 self._proc 先退出，但 agent 仍监听 →
+        # 以 /health(nonce) 为准，避免误报 "died during spawn"。
+        return self._nonce != "" and self._health_ok(self.port)
 
     def terminate(self, timeout: float = 5.0) -> None:
         if self._proc is None:
