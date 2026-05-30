@@ -178,3 +178,10 @@ def test_playhead_drag_on_empty_track(app):
     _move(w, 500, 250)
     _release(w, 500, 250)
     assert len(received) >= 1
+
+
+def test_exports_layout_constants():
+    import drama_shot_master.ui.widgets.daw.daw_track_view as m
+    assert m.TRACK_ORDER == ["video", "bgm", "sfx", "dialogue"]
+    assert m.TRACK_H["bgm"] == 40
+    assert m.AXIS_H == 14

@@ -35,6 +35,12 @@ def _build_track_y() -> dict:
 _TRACK_Y = _build_track_y()
 _MIN_H = _AXIS_H + sum(_TRACK_H[t] + _GAP for t in _TRACK_ORDER) + 20
 
+# 供 TrackHeaderColumn 等外部对齐使用的公开常量别名
+TRACK_ORDER = _TRACK_ORDER
+TRACK_H = _TRACK_H
+AXIS_H = _AXIS_H
+LABEL_W = _LABEL_W
+
 
 class DawTrackView(QWidget):
     cueClicked = Signal(object, object)          # _CueRef, KeyboardModifier flags
@@ -263,9 +269,6 @@ class DawTrackView(QWidget):
             ty = _TRACK_Y[track]
             th = _TRACK_H[track]
             painter.fillRect(_LABEL_W, ty, w - _LABEL_W, th, QColor("#252525"))
-            painter.setPen(QColor("#666666"))
-            painter.drawText(2, ty, _LABEL_W - 4, th,
-                             Qt.AlignVCenter | Qt.AlignLeft, track)
 
         # cue blocks
         for cue in self._cues:
