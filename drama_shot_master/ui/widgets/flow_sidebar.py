@@ -19,6 +19,7 @@ COLLAPSED_W = 52
 
 class FlowSidebar(QWidget):
     currentChanged = Signal(str)      # 功能 key
+    homeRequested = Signal()          # 返回欢迎首页
     settingsRequested = Signal()
     helpRequested = Signal()
 
@@ -44,6 +45,10 @@ class FlowSidebar(QWidget):
         self.btn_collapse.setText("≡")
         self.btn_collapse.clicked.connect(self.toggle_collapsed)
         lay.addWidget(self.btn_collapse)
+
+        self.btn_home = self._make_item("首页", "home.svg")
+        self.btn_home.clicked.connect(self.homeRequested)
+        lay.addWidget(self.btn_home)
 
         for phase_title, keys in nav_config.PHASES:
             lbl = QLabel(phase_title)
@@ -82,7 +87,7 @@ class FlowSidebar(QWidget):
         return btn
 
     def _menu_buttons(self):
-        return [self.btn_settings, self.btn_help]
+        return [self.btn_home, self.btn_settings, self.btn_help]
 
     def set_active(self, key: str):
         btn = self._buttons.get(key)

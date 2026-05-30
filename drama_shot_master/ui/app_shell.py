@@ -157,6 +157,7 @@ class AppShell(QMainWindow):
         self.welcome_page.new_project_requested.connect(self._on_welcome_new_project)
         self.welcome_page.open_dir_requested.connect(self._open_dir)
         self.welcome_page.settings_requested.connect(self._open_unified_settings)
+        self.sidebar.homeRequested.connect(self.show_welcome)
 
     # ------------------------------------------------------------------ #
     # 欢迎首页 ↔ 主界面 切换
