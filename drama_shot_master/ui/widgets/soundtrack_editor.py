@@ -772,6 +772,17 @@ class SoundtrackEditor(QWidget):
         self._overlay.set_enabled("bgm", mode in ("bgm", "mix"))
         self._overlay.set_enabled("sfx", mode == "mix")
 
+    def _sync_overlay_to_video(self) -> None:
+        """把叠加轨对齐到视频实时位置，并按视频播放态恢复播放。
+
+        切到配乐/混音（或预览轨刚就绪）时调用：仅 unmute 不够——QMediaPlayer
+        处于暂停态不会自行恢复，必须 seek 到当前播放头并 play。"""
+        if self._video_preview is None:
+            return
+        self._overlay.seek(self._video_preview.position())
+        if self._video_preview.is_playing():
+            self._overlay.play()
+
     def _ensure_preview_tracks(self, mode: str) -> None:
         """按需后台构建 BGM/(SFX) 预览轨；指纹未变则直接启用。"""
         if self._session is None:
@@ -788,6 +799,7 @@ class SoundtrackEditor(QWidget):
                                        and self._overlay.track_path("sfx"))
         if bgm_ready and sfx_ready:
             self._apply_play_mode_tracks(mode)
+            self._sync_overlay_to_video()    # 暖缓存也要 seek+resume，否则切过来不出声
             self.progress_label.setText("")
             return
 
@@ -821,12 +833,14 @@ class SoundtrackEditor(QWidget):
         if res.get("sfx"):
             self._overlay.set_track("sfx", res["sfx"])
             self._preview_fp["sfx"] = res["sfx_fp"]
-        self._apply_play_mode_tracks(res.get("mode", self._play_mode))
-        if self._video_preview is not None:
-            self._overlay.seek(0.0)
-            if self._video_preview.is_playing():
-                self._overlay.play()
+        # 用「当前」播放模式应用（构建期间用户可能改了模式）
+        self._apply_play_mode_tracks(self._play_mode)
         self.progress_label.setText("")
+        # 若当前模式比构建时更高（如 bgm→mix），缺的轨再补建一次
+        if self._play_mode != res.get("mode") and self._play_mode != "raw":
+            self._ensure_preview_tracks(self._play_mode)
+            return
+        self._sync_overlay_to_video()
 
     def _on_video_playing_changed(self, playing: bool) -> None:
         if playing:
