@@ -107,6 +107,7 @@ class Config:
         "prompts":    "deepseek-v4-flash",
     })
     screenwriter_project_root: str = ""    # 默认空，UI 提示选目录
+    prompts_default_grid: str = "4"        # 分镜图提示词默认宫格："single"|"4"|"9"
     # 编剧阶段映射：{"ideate":{"provider":"deepseek","model":"deepseek-chat"}, ...}
     screenwriter_stage_assignments: dict[str, dict] = field(default_factory=dict)
     # 编剧项目任务列表（绝对路径数组；与 screenwriter_project_root 区分——
@@ -195,6 +196,7 @@ class Config:
                 "screenwriter_llm_base_url": self.screenwriter_llm_base_url,
                 "screenwriter_models": self.screenwriter_models,
                 "screenwriter_project_root": self.screenwriter_project_root,
+                "prompts_default_grid": self.prompts_default_grid,
                 "screenwriter_stage_assignments": self.screenwriter_stage_assignments,
                 "screenwriter_projects": self.screenwriter_projects,
                 "llm_providers": self.llm_providers,
@@ -315,7 +317,7 @@ def load_config(env_path: Path = Path(".env"),
                     except (TypeError, ValueError):
                         cfg.tencent_translator_project_id = 0
                 for key in ("screenwriter_llm_api_key", "screenwriter_llm_base_url",
-                            "screenwriter_project_root"):
+                            "screenwriter_project_root", "prompts_default_grid"):
                     if key in data and isinstance(data[key], str):
                         setattr(cfg, key, data[key])
                 if isinstance(data.get("screenwriter_agent_port"), int):

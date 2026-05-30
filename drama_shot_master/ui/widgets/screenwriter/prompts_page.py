@@ -89,10 +89,17 @@ class PromptsPage(_BaseStagePage):
         bar.addWidget(self._stop_btn)
         return bar
 
+    def _default_grid_mode(self) -> str:
+        """从 cfg（经 client 注入）读分镜默认宫格，缺省四宫格。"""
+        cfg = getattr(self._client, "_cfg", None)
+        val = getattr(cfg, "prompts_default_grid", "4") if cfg else "4"
+        return val if val in ("single", "4", "9") else "4"
+
     def _build_left(self) -> QWidget:
         w = QWidget()
         v = QVBoxLayout(w); v.setContentsMargins(0, 0, 0, 0)
-        self._group_editor = _GridGroupEditor()
+        self._group_editor = _GridGroupEditor(
+            default_grid_mode=self._default_grid_mode())
         self._group_editor.generateAll.connect(self._on_generate_clicked)
         self._group_editor.generateGroup.connect(self._on_generate_group)
         self._group_editor.groupsChanged.connect(self._rebuild_tree)

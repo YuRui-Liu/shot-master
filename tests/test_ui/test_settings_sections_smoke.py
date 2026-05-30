@@ -230,3 +230,20 @@ def test_theme_section_combo_switch_calls_apply(monkeypatch):
     sec.combo.setCurrentText("浅色")
     assert ("apply", "light") in called
     assert any(k.get("theme") == "light" for k in persisted)
+
+
+def test_screenwriter_section_grid_default_roundtrip(tmp_path):
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from drama_shot_master.config import load_config
+    from drama_shot_master.ui.widgets.settings_sections.screenwriter_section import ScreenwriterSection
+    cfg = load_config(env_path=tmp_path / ".env", settings_path=tmp_path / "settings.json")
+    sec = ScreenwriterSection(cfg)
+    # 默认四宫格被选中
+    assert sec.grid_combo.currentData() == "4"
+    # 改为九宫格 → save → cfg 生效
+    sec.grid_combo.setCurrentIndex(sec.grid_combo.findData("9"))
+    sec.save_to(cfg)
+    assert cfg.prompts_default_grid == "9"

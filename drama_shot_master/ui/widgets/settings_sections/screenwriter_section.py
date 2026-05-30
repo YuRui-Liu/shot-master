@@ -151,6 +151,13 @@ class ScreenwriterSection(QWidget):
         proj_wrap = QWidget(); proj_wrap.setLayout(row)
         proj_wrap.setMaximumWidth(480)
         ftop.addRow("项目目录", proj_wrap)
+
+        # 分镜图提示词默认宫格
+        self.grid_combo = QComboBox()
+        for data, label in (("single", "单帧"), ("4", "四宫格"), ("9", "九宫格")):
+            self.grid_combo.addItem(label, data)
+        self.grid_combo.setMaximumWidth(160)
+        ftop.addRow("分镜默认宫格", self.grid_combo)
         root.addLayout(ftop)
 
         # —— 提示信息 ——
@@ -228,6 +235,9 @@ class ScreenwriterSection(QWidget):
     def load_from(self, cfg):
         self.project_root_edit.setText(
             getattr(cfg, "screenwriter_project_root", "") or "")
+        gi = self.grid_combo.findData(
+            getattr(cfg, "prompts_default_grid", "4") or "4")
+        self.grid_combo.setCurrentIndex(gi if gi >= 0 else 1)   # 默认四宫格
         assignments = getattr(cfg, "screenwriter_stage_assignments", None) or {}
         legacy_models = getattr(cfg, "screenwriter_models", None) or {}
         for skey, _slabel, default_pid, default_model in _STAGES:
@@ -258,6 +268,7 @@ class ScreenwriterSection(QWidget):
             }
         cfg.update_settings(
             screenwriter_project_root=self.project_root_edit.text().strip(),
+            prompts_default_grid=self.grid_combo.currentData() or "4",
             screenwriter_stage_assignments=assignments_out,
         )
 

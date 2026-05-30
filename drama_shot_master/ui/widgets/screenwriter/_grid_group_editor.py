@@ -27,11 +27,13 @@ def auto_fit_mode(count: int) -> str:
     return "9"
 
 
-def default_groups(shot_ids: list[str]) -> list[dict]:
-    """按 9 切块；每组 grid_mode = auto_fit_mode(组镜头数)。"""
+def default_groups(shot_ids: list[str], default_mode: str = "4") -> list[dict]:
+    """按 default_mode 容量切块；每组 grid_mode = auto_fit_mode(组镜头数)。
+    默认四宫格（容量 4）。"""
+    size = group_capacity(default_mode)
     out: list[dict] = []
-    for i in range(0, len(shot_ids), 9):
-        chunk = shot_ids[i:i + 9]
+    for i in range(0, len(shot_ids), size):
+        chunk = shot_ids[i:i + size]
         out.append({"grid_mode": auto_fit_mode(len(chunk)),
                     "shot_ids": list(chunk)})
     return out
@@ -51,8 +53,9 @@ class _GridGroupEditor(QWidget):
 
     _COL_LABEL, _COL_START, _COL_END, _COL_MODE, _COL_GEN, _COL_STATUS = range(6)
 
-    def __init__(self, parent=None):
+    def __init__(self, default_grid_mode: str = "4", parent=None):
         super().__init__(parent)
+        self._default_grid_mode = default_grid_mode
         self._shot_ids: list[str] = []
         self._groups: list[dict] = []
         v = QVBoxLayout(self)
@@ -81,7 +84,7 @@ class _GridGroupEditor(QWidget):
 
     def set_shots(self, shot_ids: list[str]) -> None:
         self._shot_ids = list(shot_ids)
-        self._groups = default_groups(self._shot_ids)
+        self._groups = default_groups(self._shot_ids, self._default_grid_mode)
         self._rebuild()
 
     def groups(self) -> list[dict]:
