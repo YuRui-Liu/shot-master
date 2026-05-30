@@ -51,6 +51,8 @@ class SoundtrackEditor(QWidget):
         from drama_shot_master.ui.widgets.overlay_audio import OverlayMixer
         self._overlay = OverlayMixer(self)
         self._dir_worker = None
+        from drama_shot_master.ui.widgets.daw.track_mix import load_mix
+        self._mix = load_mix(self._work_dir())
         self._build_ui()
         self._setup_shortcuts()
         self._try_load_existing()
@@ -130,7 +132,18 @@ class SoundtrackEditor(QWidget):
         self._minimap = DawMinimap()
         self._minimap.viewportRequested.connect(
             lambda off: self._scrollbar.setValue(int(off * 1000)))
-        left_col.addWidget(self._track_view, 1)
+        from drama_shot_master.ui.widgets.daw.track_header_column import TrackHeaderColumn
+        from PySide6.QtWidgets import QHBoxLayout as _QHBox, QWidget as _QW
+        self._track_header = TrackHeaderColumn()
+        self._track_header.muteToggled.connect(self._on_mute_toggled)
+        self._track_header.soloToggled.connect(self._on_solo_toggled)
+        self._track_header.volumeChanged.connect(self._on_volume_changed)
+        self._track_header.set_state(self._mix)
+        tv_row = _QHBox(); tv_row.setContentsMargins(0, 0, 0, 0); tv_row.setSpacing(0)
+        tv_row.addWidget(self._track_header)
+        tv_row.addWidget(self._track_view, 1)
+        tv_row_w = _QW(); tv_row_w.setLayout(tv_row)
+        left_col.addWidget(tv_row_w, 1)
         left_col.addWidget(self._scrollbar)
         left_col.addWidget(self._minimap)
         left_w = QWidget()
@@ -809,9 +822,35 @@ class SoundtrackEditor(QWidget):
                         sfx_clips.append((t0, t0 + float(sh.duration), p))
         self._overlay.set_schedule("sfx", sfx_clips)
 
+    def _on_mute_toggled(self, track: str, on: bool):
+        self._mix.set_muted(track, on); self._after_mix_change()
+
+    def _on_solo_toggled(self, track: str, on: bool):
+        self._mix.set_soloed(track, on); self._after_mix_change()
+
+    def _on_volume_changed(self, track: str, v: float):
+        self._mix.set_volume(track, v); self._after_mix_change()
+
+    def _after_mix_change(self):
+        self._track_header.set_state(self._mix)
+        self._apply_audio_state()
+        from drama_shot_master.ui.widgets.daw.track_mix import save_mix
+        save_mix(self._work_dir(), self._mix)
+
+    def _apply_audio_state(self):
+        """把 play_mode + mix 合成每轨最终音频状态。"""
+        if self._video_preview is not None:
+            self._video_preview.set_muted(not self._mix.audible("video"))
+            self._video_preview.set_volume(self._mix.volume("video"))
+        for trk in ("bgm", "sfx"):
+            mode_on = ((trk == "bgm" and self._play_mode in ("bgm", "mix"))
+                       or (trk == "sfx" and self._play_mode == "mix"))
+            self._overlay.set_enabled(trk, mode_on and self._mix.audible(trk))
+            self._overlay.set_volume(trk, self._mix.volume(trk))
+
     def _apply_play_mode_tracks(self, mode: str) -> None:
-        self._overlay.set_enabled("bgm", mode in ("bgm", "mix"))
-        self._overlay.set_enabled("sfx", mode == "mix")
+        self._play_mode = mode
+        self._apply_audio_state()
 
     def _sync_overlay_to_video(self) -> None:
         """把叠加轨对齐到视频实时位置，并按视频播放态恢复播放。"""
