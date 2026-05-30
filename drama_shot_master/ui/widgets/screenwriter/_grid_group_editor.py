@@ -52,6 +52,7 @@ class _GridGroupEditor(QWidget):
     groupsChanged = Signal()
 
     _COL_LABEL, _COL_START, _COL_END, _COL_MODE, _COL_GEN, _COL_STATUS = range(6)
+    _ROW_H = 36          # 单行高（容下下拉框）
 
     def __init__(self, default_grid_mode: str = "4", parent=None):
         super().__init__(parent)
@@ -83,6 +84,8 @@ class _GridGroupEditor(QWidget):
         h.setSectionResizeMode(self._COL_START, QHeaderView.Stretch)
         h.setSectionResizeMode(self._COL_END, QHeaderView.Stretch)
         self._table.verticalHeader().setVisible(False)
+        # 固定行高，确保含下拉框的行不被压扁（与 _fit_table_height 计算一致）
+        self._table.verticalHeader().setDefaultSectionSize(self._ROW_H)
         self._table.setMinimumHeight(70)
         bv.addWidget(self._table)
         bar = QHBoxLayout()
@@ -101,11 +104,10 @@ class _GridGroupEditor(QWidget):
         self._body.setVisible(on)
 
     def _fit_table_height(self) -> None:
-        """把表高贴合行数（不被 splitter 压扁，多组时上限内可滚动）。"""
+        """把表高贴合行数（不被压扁，多组时上限内可滚动）。"""
         rows = self._table.rowCount()
-        rh = self._table.verticalHeader().defaultSectionSize() or 30
-        hh = self._table.horizontalHeader().height() or 26
-        h = min(max(hh + rows * rh + 6, 70), 320)
+        hh = self._table.horizontalHeader().height() or 28
+        h = min(max(hh + rows * self._ROW_H + 8, 70), 360)
         self._table.setMinimumHeight(h)
         self._table.setMaximumHeight(h)
 

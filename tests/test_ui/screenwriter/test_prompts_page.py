@@ -162,3 +162,12 @@ def test_generate_single_group_body_includes_index(tmp_path):
     p._group_editor.generateGroup.emit(1)
     assert captured["options"]["only_group_index"] == 1
     assert "groups" in captured["options"]
+
+
+def test_group_editor_is_full_width_above_splitter(tmp_path):
+    """分组编辑器应直属 page（全宽在 splitter 之上），不嵌在窄的左 pane 里
+    （否则 6 列表被右侧预览挤压、列/行显示不全）。"""
+    _app()
+    p = PromptsPage(_StubClient())
+    # 直接父级是 page 本身，而非左侧 pane QWidget
+    assert p._group_editor.parentWidget() is p

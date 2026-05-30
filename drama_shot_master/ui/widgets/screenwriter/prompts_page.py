@@ -52,6 +52,14 @@ class PromptsPage(_BaseStagePage):
         root.addWidget(self._episode_selector)
         self._upstream_banner = _UpstreamBanner()
         root.addWidget(self._upstream_banner)
+        # 分组编辑器：全宽置于 splitter 之上（6 列表不被右侧预览挤压）；
+        # 可折叠，折叠后腾出纵向空间给下方树+预览
+        self._group_editor = _GridGroupEditor(
+            default_grid_mode=self._default_grid_mode())
+        self._group_editor.generateAll.connect(self._on_generate_clicked)
+        self._group_editor.generateGroup.connect(self._on_generate_group)
+        self._group_editor.groupsChanged.connect(self._rebuild_tree)
+        root.addWidget(self._group_editor)
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(self._build_left())
         splitter.addWidget(self._build_right())
@@ -98,12 +106,6 @@ class PromptsPage(_BaseStagePage):
     def _build_left(self) -> QWidget:
         w = QWidget()
         v = QVBoxLayout(w); v.setContentsMargins(0, 0, 0, 0)
-        self._group_editor = _GridGroupEditor(
-            default_grid_mode=self._default_grid_mode())
-        self._group_editor.generateAll.connect(self._on_generate_clicked)
-        self._group_editor.generateGroup.connect(self._on_generate_group)
-        self._group_editor.groupsChanged.connect(self._rebuild_tree)
-        v.addWidget(self._group_editor)
         self._tree = _ProductTree()
         self._tree.fileActivated.connect(self._on_file_activated)
         v.addWidget(self._tree, 1)
