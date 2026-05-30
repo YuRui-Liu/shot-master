@@ -8,6 +8,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy,
+    QGraphicsDropShadowEffect,
 )
 
 from drama_shot_master.core.recent_projects import RecentProjectsManager
@@ -87,6 +88,12 @@ class WelcomePage(QWidget):
         title = QLabel("糯米AI分镜影视创作台")
         title.setObjectName("WelcomeTitle")
         title.setAlignment(Qt.AlignCenter)
+        # 蓝色辉光（近似 mockup 的 text-shadow 0 0 40px rgba(74,158,255,.25)）
+        title_glow = QGraphicsDropShadowEffect(title)
+        title_glow.setBlurRadius(40)
+        title_glow.setOffset(0, 0)
+        title_glow.setColor(QColor(74, 158, 255, 110))
+        title.setGraphicsEffect(title_glow)
         lay.addWidget(title)
 
         subtitle = QLabel("剧本 · 分镜 · 视频 · 后期配音配乐")
@@ -150,7 +157,8 @@ class WelcomePage(QWidget):
             self._cards_layout.addWidget(empty)
             add_card = ProjectCard(None, depth="add", is_add_button=True)
             add_card.clicked.connect(lambda _: self.new_project_requested.emit())
-            self._cards_layout.addWidget(add_card, 1)
+            self._cards_layout.addWidget(add_card, 1, Qt.AlignVCenter)
+            self._apply_card_heights()
             return
 
         show = projects[:_MAX_CARDS]
@@ -168,11 +176,13 @@ class WelcomePage(QWidget):
         for i, (proj, depth) in enumerate(zip(show, depths)):
             card = ProjectCard(proj, depth=depth, color_index=i)
             card.clicked.connect(self._on_card_clicked)
-            self._cards_layout.addWidget(card, stretch_map.get(depth, 85))
+            # 垂直居中 → 矮卡浮在中线，配合高度比例形成景深阶梯
+            self._cards_layout.addWidget(card, stretch_map.get(depth, 85), Qt.AlignVCenter)
 
         add_card = ProjectCard(None, depth="add", is_add_button=True)
         add_card.clicked.connect(lambda _: self.new_project_requested.emit())
-        self._cards_layout.addWidget(add_card, 50)
+        self._cards_layout.addWidget(add_card, 50, Qt.AlignVCenter)
+        self._apply_card_heights()
 
     def _rebuild_pagination(self, projects: list[dict]) -> None:
         while self._page_layout.count():
@@ -194,6 +204,20 @@ class WelcomePage(QWidget):
             self.project_selected.emit(path)
         else:
             self.new_project_requested.emit()
+
+    def _apply_card_heights(self) -> None:
+        """按各卡 depth 高度比例设定固定高度，配合 AlignVCenter 形成景深阶梯。"""
+        avail = self._cards_area.height()
+        if avail <= 0:
+            return
+        for i in range(self._cards_layout.count()):
+            card = self._cards_layout.itemAt(i).widget()
+            if isinstance(card, ProjectCard):
+                card.setFixedHeight(max(1, int(avail * card.height_ratio())))
+
+    def resizeEvent(self, event):  # noqa: N802
+        super().resizeEvent(event)
+        self._apply_card_heights()
 
     def paintEvent(self, event):  # noqa: N802
         p = QPainter(self)

@@ -7,10 +7,15 @@ from PySide6.QtCore import Qt, Signal, QRect
 from PySide6.QtGui import (
     QPainter, QColor, QLinearGradient, QFont, QBrush, QPen, QPainterPath,
 )
-from PySide6.QtWidgets import QWidget, QGraphicsOpacityEffect, QSizePolicy
+from PySide6.QtWidgets import (
+    QWidget, QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QSizePolicy,
+)
 
 # 各深度的不透明度
 _DEPTH_OPACITY = {"far": 0.50, "near": 0.72, "center": 1.0, "add": 0.60}
+
+# 各深度的高度比例（相对卡片区可用高度），中心卡最高、两侧渐矮，配合垂直居中形成景深阶梯
+_DEPTH_HEIGHT_RATIO = {"far": 0.78, "near": 0.88, "center": 1.0, "add": 0.72}
 
 # 缩略图渐变配色（每次显示固定色，不随机）
 _THUMB_COLORS = [
@@ -47,14 +52,29 @@ class ProjectCard(QWidget):
         self._depth = depth
         self._color_index = color_index % len(_THUMB_COLORS)
         self._is_add = is_add_button or project is None
+        self._height_ratio = _DEPTH_HEIGHT_RATIO.get(depth, 1.0)
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # 自绘圆角背景，透明底让圆角/发光干净呈现
+        self.setAttribute(Qt.WA_TranslucentBackground)
 
+        # 一个 QWidget 只能挂一个 graphicsEffect：
+        #   中心卡(opacity≈1) → 蓝紫外发光；其余 → 景深不透明度
         opacity = _DEPTH_OPACITY.get(depth, 1.0)
-        if opacity < 0.99:
+        if depth == "center":
+            glow = QGraphicsDropShadowEffect(self)
+            glow.setBlurRadius(48)
+            glow.setOffset(0, 0)
+            glow.setColor(QColor(74, 158, 255, 130))   # #4a9eff 辉光
+            self.setGraphicsEffect(glow)
+        elif opacity < 0.99:
             effect = QGraphicsOpacityEffect(self)
             effect.setOpacity(opacity)
             self.setGraphicsEffect(effect)
+
+    def height_ratio(self) -> float:
+        """相对卡片区可用高度的高度比例（景深用）。"""
+        return self._height_ratio
 
     def mousePressEvent(self, event):  # noqa: N802
         if event.button() == Qt.LeftButton:

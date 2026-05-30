@@ -39,13 +39,28 @@ def test_add_card_emits_empty_string_on_click():
 
 def test_project_card_depth_opacity():
     _app()
+    from PySide6.QtWidgets import QGraphicsOpacityEffect
     from drama_shot_master.ui.widgets.project_card import ProjectCard
     far = ProjectCard({"name": "A", "path": "/a", "last_opened": "", "shot_count": 0}, depth="far")
     center = ProjectCard({"name": "B", "path": "/b", "last_opened": "", "shot_count": 0}, depth="center")
     far_effect = far.graphicsEffect()
     center_effect = center.graphicsEffect()
-    assert far_effect is None or far_effect.opacity() < 0.6
-    assert center_effect is None or center_effect.opacity() >= 0.99
+    # 远卡降低不透明度形成景深
+    assert isinstance(far_effect, QGraphicsOpacityEffect) and far_effect.opacity() < 0.6
+    # 中心卡不降不透明度（挂蓝紫发光 DropShadow，而非 Opacity）
+    assert not isinstance(center_effect, QGraphicsOpacityEffect)
+
+
+def test_project_card_depth_height_ratio():
+    _app()
+    from drama_shot_master.ui.widgets.project_card import ProjectCard
+    far = ProjectCard({"name": "A", "path": "/a", "last_opened": "", "shot_count": 0}, depth="far")
+    center = ProjectCard({"name": "B", "path": "/b", "last_opened": "", "shot_count": 0}, depth="center")
+    add = ProjectCard(None, depth="add", is_add_button=True)
+    # 中心卡最高(1.0)，远卡与新建卡更矮 → 景深阶梯
+    assert center.height_ratio() == 1.0
+    assert far.height_ratio() < center.height_ratio()
+    assert add.height_ratio() < far.height_ratio()
 
 
 # ── WelcomePage ────────────────────────────────────────────────────────────
@@ -111,3 +126,26 @@ def test_welcome_page_project_selected_signal(tmp_path):
             break
 
     assert got == [str(tmp_path)]
+
+
+def test_welcome_page_cards_have_staggered_heights(tmp_path):
+    _app()
+    from drama_shot_master.core.recent_projects import RecentProjectsManager
+    from drama_shot_master.ui.pages.welcome_page import WelcomePage
+    from drama_shot_master.ui.widgets.project_card import ProjectCard
+    mgr = RecentProjectsManager(tmp_path / "r.json")
+    for i in range(4):
+        d = tmp_path / f"p{i}"
+        d.mkdir()
+        mgr.push(str(d), f"P{i}")
+    page = WelcomePage(mgr)
+    page.resize(1360, 800)
+    page.refresh()
+    page._apply_card_heights()
+    heights = {}
+    for i in range(page._cards_layout.count()):
+        w = page._cards_layout.itemAt(i).widget()
+        if isinstance(w, ProjectCard):
+            heights[w._depth] = w.height()
+    # 景深阶梯：center 最高 > near > far，且都被设成了固定高度（非 0）
+    assert heights["center"] > heights["near"] > heights["far"] > 0
