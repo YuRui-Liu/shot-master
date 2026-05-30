@@ -866,11 +866,20 @@ class SoundtrackEditor(QWidget):
             sess = self._session
             if sess is None:
                 return ""
+            def _ap(a):
+                if hasattr(a, "to_dict"):
+                    return a.to_dict()
+                if hasattr(a, "t"):
+                    return {"t": getattr(a, "t", None),
+                            "intensity": getattr(a, "intensity", None),
+                            "confirmed": getattr(a, "confirmed", False)}
+                return a   # 已是 dict / 基本类型
             data = {
                 "segs": [(getattr(s, "chosen_candidate", None),
                           float(getattr(s, "volume", 1.0)))
                          for s in sess.segments],
-                "accents": list(getattr(sess, "accent_points", []) or []),
+                "accents": [_ap(a)
+                            for a in (getattr(sess, "accent_points", []) or [])],
                 "accent_on": bool(getattr(sess, "accent_mix_enabled", True)),
                 "pump": float(getattr(sess, "pump_strength", 0.6)),
             }
@@ -886,7 +895,9 @@ class SoundtrackEditor(QWidget):
                   if s.chosen_candidate is not None
                   and 0 <= s.chosen_candidate < len(s.candidates) else None))
                 for s in sess.shots]}
-        blob = json.dumps(data, ensure_ascii=False, sort_keys=True)
+        # default=str 兜底：任何意外的非序列化字段 stringify，绝不让指纹计算
+        # 崩掉整个播放动作（指纹只需稳定+唯一，str 化即可）
+        blob = json.dumps(data, ensure_ascii=False, sort_keys=True, default=str)
         return hashlib.blake2b(blob.encode("utf-8"), digest_size=8).hexdigest()
 
     def _resolve_video_source(self):

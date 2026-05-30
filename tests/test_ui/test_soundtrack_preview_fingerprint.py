@@ -59,3 +59,19 @@ def test_sfx_fingerprint_changes_with_enabled(tmp_path):
     ed._sfx_session.shots[0].enabled = False
     fp2 = ed._preview_fingerprint("sfx")
     assert fp1 != fp2
+
+
+def test_bgm_fingerprint_serializes_accent_points(tmp_path):
+    """accent_points 含 AccentPoint 对象时指纹不崩（真实场景回归）。"""
+    _app()
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, AccentPoint)
+    ed = _ed(tmp_path)
+    ed._session = ScoringSession(source_mp4="", source_hash="", global_style="x",
+        frame_rate=24.0, segments=[SegmentScore(0, 0.0, 5.0)],
+        accent_points=[AccentPoint(t=1.5, intensity=0.8, confirmed=True)])
+    fp = ed._preview_fingerprint("bgm")          # 不应抛 TypeError
+    assert isinstance(fp, str) and fp
+    # 改 accent 强度 → 指纹变
+    ed._session.accent_points[0].intensity = 0.2
+    assert ed._preview_fingerprint("bgm") != fp
