@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 class VideoPreviewWidget(QWidget):
     positionChanged = Signal(float)   # 秒
+    playingChanged = Signal(bool)     # 播放/暂停状态变化
     _SEEK_THROTTLE_MS = 33            # ~30Hz
 
     def __init__(self, parent=None):
@@ -127,7 +128,9 @@ class VideoPreviewWidget(QWidget):
         self._update_time_label(0.0)
 
     def _on_state_changed(self, _state):
-        self.btn_play.setText("⏸" if self.is_playing() else "▶")
+        playing = self.is_playing()
+        self.btn_play.setText("⏸" if playing else "▶")
+        self.playingChanged.emit(playing)
 
     def _on_volume(self, val: int):
         if self._audio is not None:

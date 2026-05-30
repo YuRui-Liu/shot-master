@@ -48,6 +48,10 @@ class SoundtrackEditor(QWidget):
         self._selection = Selection(self)
         self._undo = UndoStack(self)
         self._play_mode: str = "raw"   # "raw" | "bgm" | "mix"
+        from drama_shot_master.ui.widgets.overlay_audio import OverlayMixer
+        self._overlay = OverlayMixer(self)
+        self._preview_fp = {"bgm": None, "sfx": None}   # 已构建轨的指纹
+        self._preview_worker = None
         self._build_ui()
         self._setup_shortcuts()
         self._try_load_existing()
@@ -82,6 +86,7 @@ class SoundtrackEditor(QWidget):
         self._video_preview = VideoPreviewWidget()
         self._overview_timeline = OverviewTimeline()
         self._video_preview.positionChanged.connect(self._on_video_position_changed)
+        self._video_preview.playingChanged.connect(self._on_video_playing_changed)
         self._overview_timeline.playheadDragged.connect(self._on_overview_playhead_dragged)
         self._overview_timeline.cueClicked.connect(self._on_overview_cue_clicked)
         root.addWidget(self._video_preview)
@@ -446,6 +451,7 @@ class SoundtrackEditor(QWidget):
     def _on_track_playhead_dragged(self, t: float):
         if self._video_preview:
             self._video_preview.seek(t)
+        self._overlay.seek(t)
 
     def _on_toolbar_play(self):
         if self._video_preview is None:
@@ -750,20 +756,83 @@ class SoundtrackEditor(QWidget):
 
     # ── video preview helpers ─────────────────────────────────────────
 
-    _PLAY_MODE_HINTS = {
-        "bgm": "本任务尚未出片，无配乐成片可播放。请先点「导出成片」生成配乐版。",
-        "mix": "无完整混音文件（mixed.wav）。请先「导出成片」生成 BGM+SFX 混音。",
-    }
-
     def _on_play_mode_changed(self, mode: str) -> None:
         self._play_mode = mode
+        # 视频源始终用原始 mp4（保留画面+原声），配乐/混音靠叠加轨
         src = self._resolve_video_source()
         if src and self._video_preview:
             self._video_preview.set_source(src)
+        if mode == "raw":
+            self._apply_play_mode_tracks("raw")
             self.progress_label.setText("")
-        elif mode != "raw":
-            # 该模式无可播放成片：明确提示，不静默播原声（避免"看似没反应"）
-            self.progress_label.setText(self._PLAY_MODE_HINTS.get(mode, ""))
+            return
+        self._ensure_preview_tracks(mode)
+
+    def _apply_play_mode_tracks(self, mode: str) -> None:
+        self._overlay.set_enabled("bgm", mode in ("bgm", "mix"))
+        self._overlay.set_enabled("sfx", mode == "mix")
+
+    def _ensure_preview_tracks(self, mode: str) -> None:
+        """按需后台构建 BGM/(SFX) 预览轨；指纹未变则直接启用。"""
+        if self._session is None:
+            self.progress_label.setText("尚无 BGM 候选，请先「开始配乐」生成。")
+            return
+        if self._preview_worker is not None and self._preview_worker.isRunning():
+            return
+        need_sfx = (mode == "mix")
+        bgm_fp = self._preview_fingerprint("bgm")
+        sfx_fp = self._preview_fingerprint("sfx") if need_sfx else None
+        bgm_ready = (self._preview_fp["bgm"] == bgm_fp
+                     and self._overlay.track_path("bgm"))
+        sfx_ready = (not need_sfx) or (self._preview_fp["sfx"] == sfx_fp
+                                       and self._overlay.track_path("sfx"))
+        if bgm_ready and sfx_ready:
+            self._apply_play_mode_tracks(mode)
+            self.progress_label.setText("")
+            return
+
+        work_dir = self._work_dir()
+        sess = self._session
+        sfx_sess = self._sfx_session
+
+        def task():
+            from sound_track_agent import facade
+            from sound_track_agent.mixdown import assemble_sfx_track
+            bgm_wav = facade.build_accent_preview(sess, work_dir)
+            sfx_wav = None
+            if need_sfx and sfx_sess is not None:
+                sfx_wav = assemble_sfx_track(
+                    sfx_sess.shots, work_dir / "sfx_track.wav")
+            return {"bgm": str(bgm_wav) if bgm_wav else None,
+                    "sfx": str(sfx_wav) if sfx_wav else None,
+                    "bgm_fp": bgm_fp, "sfx_fp": sfx_fp, "mode": mode}
+
+        self.progress_label.setText("正在生成配乐预览…")
+        self._preview_worker = FunctionWorker(task)
+        self._preview_worker.finished_with_result.connect(self._on_preview_built)
+        self._preview_worker.failed.connect(
+            lambda err: self.progress_label.setText(f"配乐预览生成失败：{err}"))
+        self._preview_worker.start()
+
+    def _on_preview_built(self, res: dict):
+        if res.get("bgm"):
+            self._overlay.set_track("bgm", res["bgm"])
+            self._preview_fp["bgm"] = res["bgm_fp"]
+        if res.get("sfx"):
+            self._overlay.set_track("sfx", res["sfx"])
+            self._preview_fp["sfx"] = res["sfx_fp"]
+        self._apply_play_mode_tracks(res.get("mode", self._play_mode))
+        if self._video_preview is not None:
+            self._overlay.seek(0.0)
+            if self._video_preview.is_playing():
+                self._overlay.play()
+        self.progress_label.setText("")
+
+    def _on_video_playing_changed(self, playing: bool) -> None:
+        if playing:
+            self._overlay.play()
+        else:
+            self._overlay.pause()
 
     def _scored_mp4(self):
         """已生成的 scored MP4 路径：优先当前 session.output，回退 task['output']。"""
@@ -807,27 +876,14 @@ class SoundtrackEditor(QWidget):
         return hashlib.blake2b(blob.encode("utf-8"), digest_size=8).hexdigest()
 
     def _resolve_video_source(self):
-        """返回当前播放模式对应的媒体文件路径；无对应成片时返回 None（由调用方提示）。
-
-        raw  → 原始 MP4（原声），始终可用
-        bgm  → scored MP4（session.output 优先，回退 task['output']）
-        mix  → work_dir/mixed.wav，降级到 scored MP4
-        """
-        mode = self._play_mode
-        if mode == "mix":
-            mix = self._work_dir() / "mixed.wav"
-            if mix.exists():
-                return str(mix)
-            return self._scored_mp4()       # 降级：至少播带 BGM 的 scored
-        if mode == "bgm":
-            return self._scored_mp4()
-        # raw（默认）：原始 MP4
+        """叠加预览：所有模式都用原始 mp4（保留画面+原声）。"""
         mp4 = (self._task.get("mp4") or "").strip()
         return mp4 if mp4 and Path(mp4).exists() else None
 
     def _on_overview_playhead_dragged(self, t: float):
         if self._video_preview is not None:
             self._video_preview.seek(t)
+        self._overlay.seek(t)
 
     def _on_video_position_changed(self, t: float):
         if self._overview_timeline is not None:
@@ -835,6 +891,7 @@ class SoundtrackEditor(QWidget):
         if self._daw_toolbar is not None:
             total = self._track_view._duration if self._track_view else 0
             self._daw_toolbar.set_time(t, total)
+        self._overlay.sync(t)
 
     def _on_overview_cue_clicked(self, track: str, idx: int, t_start: float):
         from drama_shot_master.ui.widgets.daw.selection import _CueRef
