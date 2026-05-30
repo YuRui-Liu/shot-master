@@ -26,6 +26,8 @@ class VideoPreviewWidget(QWidget):
         self._video_widget = None
         self._duration_sec = 0.0
         self._loaded_source = None
+        self._pending_volume = None
+        self._pending_muted = None
         self._pending_seek_ms = None
         self._seek_timer = QTimer(self)
         self._seek_timer.setSingleShot(True)
@@ -69,6 +71,10 @@ class VideoPreviewWidget(QWidget):
             self._player.durationChanged.connect(self._on_duration_changed)
             self._player.playbackStateChanged.connect(self._on_state_changed)
             self._audio.setVolume(self.vol_slider.value() / 100.0)
+            if self._pending_volume is not None:
+                self._audio.setVolume(self._pending_volume)
+            if self._pending_muted is not None:
+                self._audio.setMuted(self._pending_muted)
         return self._player
 
     def set_source(self, video_path) -> None:
@@ -118,6 +124,18 @@ class VideoPreviewWidget(QWidget):
 
     def duration(self) -> float:
         return self._duration_sec
+
+    def set_volume(self, v: float) -> None:
+        """设原声音量 0–1.5。player 未建则记录，建后应用。"""
+        v = max(0.0, min(1.5, float(v)))
+        self._pending_volume = v
+        if self._audio is not None:
+            self._audio.setVolume(v)
+
+    def set_muted(self, on: bool) -> None:
+        self._pending_muted = bool(on)
+        if self._audio is not None:
+            self._audio.setMuted(bool(on))
 
     def position(self) -> float:
         """当前播放位置（秒）。无 player → 0.0。"""
