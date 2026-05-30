@@ -46,3 +46,25 @@ def test_project_card_depth_opacity():
     center_effect = center.graphicsEffect()
     assert far_effect is None or far_effect.opacity() < 0.6
     assert center_effect is None or center_effect.opacity() >= 0.99
+
+
+# ── WelcomePage ────────────────────────────────────────────────────────────
+
+def test_welcome_page_instantiates(tmp_path):
+    _app()
+    from drama_shot_master.core.recent_projects import RecentProjectsManager
+    from drama_shot_master.ui.pages.welcome_page import WelcomePage
+    mgr = RecentProjectsManager(tmp_path / "r.json")
+    page = WelcomePage(mgr)
+    assert page is not None
+
+
+def test_welcome_page_has_required_signals(tmp_path):
+    _app()
+    from drama_shot_master.core.recent_projects import RecentProjectsManager
+    from drama_shot_master.ui.pages.welcome_page import WelcomePage
+    mgr = RecentProjectsManager(tmp_path / "r.json")
+    page = WelcomePage(mgr)
+    for sig_name in ("project_selected", "new_project_requested",
+                     "open_dir_requested", "settings_requested"):
+        assert hasattr(page, sig_name), f"missing signal: {sig_name}"
