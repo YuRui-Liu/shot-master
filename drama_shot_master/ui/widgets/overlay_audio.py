@@ -158,7 +158,7 @@ class OverlayMixer(QObject):
                 continue
             if t.schedule is not None:
                 if t.enabled:
-                    self._activate_scheduled(t, t_sec)
+                    self._activate_scheduled(t, t_sec, force_seek=True)
             else:
                 t.player.setPosition(max(0, int(round(float(t_sec) * 1000))))
 
@@ -168,30 +168,38 @@ class OverlayMixer(QObject):
             if not (t.enabled and t.player is not None):
                 continue
             if t.schedule is not None:
-                self._activate_scheduled(t, t_sec)
+                # 稳态 sync：不带 force_seek → 同段内什么都不做，让音频顺畅播
+                self._activate_scheduled(t, t_sec, force_seek=False)
             elif t.path:
                 cur = t.player.position() / 1000.0
                 if self._should_resync(cur, t_sec):
                     t.player.setPosition(max(0, int(round(t_sec * 1000))))
 
-    def _activate_scheduled(self, t: _Track, t_sec: float) -> None:
-        """时间表轨：定位到 t_sec 对应的 clip 并播放（段间空隙暂停）。"""
+    def _activate_scheduled(self, t: _Track, t_sec: float,
+                            *, force_seek: bool = False) -> None:
+        """时间表轨：定位到 t_sec 对应 clip。
+
+        段切换 / force_seek（显式 seek）→ 换源/定位/播放；
+        同段稳态（sync 30Hz）→ **什么都不做**，避免反复 setPosition/play 造成卡顿
+        （剪映般流畅的关键：播放中不去打断播放器）。
+        """
         idx = self._active_clip_index(t.schedule, t_sec)
         if idx < 0:
-            t.active_idx = -1
-            t.player.pause()
+            if t.active_idx != -1:
+                t.active_idx = -1
+                t.player.pause()
             return
         t0, _t1, path = t.schedule[idx]
         offset_ms = max(0, int(round((t_sec - t0) * 1000)))
         if idx != t.active_idx:
+            # 段切换：换源 + 定位 + 播
             t.active_idx = idx
             t.player.setSource(QUrl.fromLocalFile(path))
             t.player.setPosition(offset_ms)
             if self._playing:
                 t.player.play()
-        else:
-            cur = t.player.position() / 1000.0
-            if self._should_resync(cur, t_sec - t0):
-                t.player.setPosition(offset_ms)
+        elif force_seek:
+            # 显式 seek（用户拖播放头 / 起播对齐）：强制定位
+            t.player.setPosition(offset_ms)
             if self._playing:
                 t.player.play()
