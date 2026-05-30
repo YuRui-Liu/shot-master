@@ -109,7 +109,7 @@ class _IconRail(QWidget):
         self._expand_btn.setToolTip("展开任务栏")
         self._expand_btn.setObjectName("iconRailExpandBtn")
         self._expand_btn.setStyleSheet(
-            "QPushButton{background:#3b6fd4;color:#fff;border:none;"
+            "QPushButton{background:#3b6fd4;color:#fff;border:none;padding:0;"
             "border-radius:0 0 5px 5px;font-size:14px;font-weight:700;}"
             "QPushButton:hover{background:#4a83f0;}"
         )
@@ -203,7 +203,7 @@ class CollapsibleTaskBar(QWidget):
         self._collapse_btn.setObjectName("taskBarCollapseBtn")
         self._collapse_btn.setToolTip("折叠任务栏")
         self._collapse_btn.setStyleSheet(
-            "QPushButton{background:#3b6fd4;color:#fff;border:none;"
+            "QPushButton{background:#3b6fd4;color:#fff;border:none;padding:0;"
             "border-radius:5px;font-size:13px;font-weight:700;}"
             "QPushButton:hover{background:#4a83f0;}"
         )

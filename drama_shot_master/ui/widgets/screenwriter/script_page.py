@@ -54,7 +54,10 @@ class ScriptPage(_BaseStagePage):
         h.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         h.setSectionResizeMode(1, QHeaderView.Interactive)
         h.setSectionResizeMode(2, QHeaderView.Stretch)
-        h.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        # 操作列内是 cellWidget 按钮，ResizeToContents 不量 widget → 列塌缩裁切，
+        # 改固定宽容纳「生成此集」
+        h.setSectionResizeMode(3, QHeaderView.Fixed)
+        self._outline_table.setColumnWidth(3, 92)
         self._outline_table.setSelectionBehavior(QTableWidget.SelectRows)
         self._outline_table.setSelectionMode(QTableWidget.SingleSelection)
         self._outline_table.setMaximumHeight(200)
@@ -189,6 +192,7 @@ class ScriptPage(_BaseStagePage):
             self._outline_table.setItem(row, 1, QTableWidgetItem(ep.get("title", "")))
             self._outline_table.setItem(row, 2, QTableWidgetItem(ep.get("summary", "")))
             gen_btn = QPushButton("生成此集")
+            gen_btn.setMinimumWidth(84)
             ep_id = ep.get("id", "")
             gen_btn.clicked.connect(lambda _=False, eid=ep_id: self._on_per_row_gen_clicked(eid))
             self._outline_table.setCellWidget(row, 3, gen_btn)

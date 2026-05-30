@@ -110,6 +110,19 @@ def test_upstream_check_blocks_generate(tmp_path, monkeypatch):
     assert called
 
 
+def test_advance_does_not_auto_generate(tmp_path):
+    """推进到分镜（start_generation_if_idle）不应自动跑生成——
+    用户需先设时长范围，再手动点「生成分镜」。"""
+    _app()
+    (tmp_path / "剧本_E1.md").write_text("# 测试剧本", encoding="utf-8")
+    p = StoryboardPage(_StubClient())
+    p.set_project(tmp_path)
+    called = []
+    p._on_generate_clicked = lambda *a, **k: called.append(True)
+    p.start_generation_if_idle()
+    assert called == [], "推进不应触发自动生成"
+
+
 def test_upstream_missing_shows_banner_and_disables_gen(tmp_path):
     _app()
     p = StoryboardPage(_StubClient())

@@ -64,6 +64,22 @@ def test_loads_script_json_renders_outline_rows(tmp_path):
     assert p._outline_table.rowCount() == 2
 
 
+def test_outline_action_column_fits_gen_button(tmp_path):
+    """操作列须够宽容纳「生成此集」按钮（不裁切）。"""
+    _app()
+    _setup_idea(tmp_path)
+    (tmp_path / "剧本.json").write_text(json.dumps({
+        "title": "x", "episode_count": 1,
+        "episodes": [{"id": "E1", "title": "t1", "summary": "s1"}],
+    }), encoding="utf-8")
+    p = ScriptPage(_StubClient())
+    p.set_project(tmp_path)
+    # 操作列宽 + 按钮 min 宽都应 >= 80px（「生成此集」4 字 + padding）
+    assert p._outline_table.columnWidth(3) >= 80
+    btn = p._outline_table.cellWidget(0, 3)
+    assert btn is not None and btn.minimumWidth() >= 80
+
+
 def test_click_row_loads_episode_md(tmp_path):
     _app()
     _setup_idea(tmp_path)

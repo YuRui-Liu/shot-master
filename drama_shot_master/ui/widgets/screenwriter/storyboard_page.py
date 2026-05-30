@@ -381,15 +381,12 @@ class StoryboardPage(_BaseStagePage):
         self.stageAdvanceRequested.emit(3)
 
     def start_generation_if_idle(self) -> None:
-        """上游 剧本.md 在 + 本阶段 分镜.json 不在 + idle → 自动跑生成。"""
-        if self._project_dir is None or self._state == "streaming":
-            return
-        upstream = script_episode_read_path_in(self._project_dir, self._current_episode)
-        if upstream is None:
-            return
-        if self._sb_path is not None and self._sb_path.is_file():
-            return
-        self._on_generate_clicked()
+        """分镜阶段不自动生成：时长范围/密度需用户先配置，再手动点「生成分镜」。
+
+        （上游 banner 的刷新由 panel 监听 stageChanged → revalidate_upstream 负责，
+        不在此处触发生成。）
+        """
+        return
 
     def _on_warning_clicked(self, path: str):
         # 解析 shots[N].field → 高亮表格行 N

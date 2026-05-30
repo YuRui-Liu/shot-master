@@ -245,3 +245,22 @@ def test_reexpand_restores_min_width():
     bar.collapse()
     bar.expand()
     assert bar.minimumWidth() >= 240
+
+
+# ── Bug fix: 折叠/展开按钮字形被全局 QSS padding 裁切 ──────────────────────
+
+def test_collapse_btn_resets_padding():
+    """折叠按钮「《」内联样式须含 padding:0，否则全局 QPushButton padding
+    会占满 28px 窄按钮、裁掉字形（只剩蓝底）。"""
+    _app()
+    bar, _ = _make_bar()
+    qss = bar._collapse_btn.styleSheet().replace(" ", "")
+    assert "padding:0" in qss
+
+
+def test_expand_btn_resets_padding():
+    """展开按钮「》」同样须含 padding:0（同一根因）。"""
+    _app()
+    bar, _ = _make_bar()
+    qss = bar._icon_rail._expand_btn.styleSheet().replace(" ", "")
+    assert "padding:0" in qss
