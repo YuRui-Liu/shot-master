@@ -164,8 +164,12 @@ class AppShell(QMainWindow):
     # ------------------------------------------------------------------ #
 
     def show_welcome(self) -> None:
-        """切换到欢迎首页（从主界面返回时调用）。"""
+        """从主界面返回欢迎首页（无动画，即时切换）。"""
         self.welcome_page.refresh()
+        # 恢复侧边栏正常宽度（可能被 slide-in 动画改成 0）
+        from drama_shot_master.ui.widgets.flow_sidebar import EXPANDED_W
+        self.sidebar.setMinimumWidth(EXPANDED_W)
+        self.sidebar.setMaximumWidth(EXPANDED_W)
         self.outer_stack.setCurrentIndex(0)
 
     def _on_welcome_project_selected(self, path: str) -> None:
@@ -177,45 +181,53 @@ class AppShell(QMainWindow):
         self._open_dir_path(p)
 
     def _on_welcome_new_project(self) -> None:
+        from PySide6.QtCore import QTimer
         self._enter_main_ui()
-        self._open_dir()   # 弹出目录选择对话框
+        # 让 slide-in 先动起来，再弹模态目录对话框（避免动画与模态事件循环抢首帧）
+        QTimer.singleShot(60, self._open_dir)
 
     def _enter_main_ui(self) -> None:
-        """欢迎页 fade-out（250ms）→ 主界面出现 + 侧边栏 slide-in（300ms）。"""
+        """切到主界面：内容区淡入 + 侧边栏从 0 滑入（300ms）。
+
+        不再对欢迎页做 fade-to-transparent —— 那会露出窗口黑底形成闪烁，
+        且欢迎页子卡片自带 graphicsEffect，父级再叠 OpacityEffect 渲染不稳定。
+        """
         from PySide6.QtCore import QPropertyAnimation, QEasingCurve, QAbstractAnimation
         from PySide6.QtWidgets import QGraphicsOpacityEffect
-
-        effect = QGraphicsOpacityEffect(self.welcome_page)
-        effect.setOpacity(1.0)
-        self.welcome_page.setGraphicsEffect(effect)
-
-        fade = QPropertyAnimation(effect, b"opacity", self)
-        fade.setDuration(250)
-        fade.setStartValue(1.0)
-        fade.setEndValue(0.0)
-        fade.setEasingCurve(QEasingCurve.InQuad)
-        fade.finished.connect(self._finish_enter_main_ui)
-        fade.start(QAbstractAnimation.DeleteWhenStopped)
-        self._fade_anim = fade   # 持有引用防止被 GC
-
-    def _finish_enter_main_ui(self) -> None:
-        from PySide6.QtCore import QPropertyAnimation, QEasingCurve, QAbstractAnimation
         from drama_shot_master.ui.widgets.flow_sidebar import EXPANDED_W
 
         self.welcome_page.setGraphicsEffect(None)
-        self.sidebar.setMinimumWidth(0)
-        self.sidebar.setMaximumWidth(0)
         self.outer_stack.setCurrentIndex(1)
 
+        # 侧边栏 slide-in：0 → EXPANDED_W
+        self.sidebar.setMinimumWidth(0)
+        self.sidebar.setMaximumWidth(0)
         slide = QPropertyAnimation(self.sidebar, b"maximumWidth", self)
         slide.setDuration(300)
         slide.setStartValue(0)
         slide.setEndValue(EXPANDED_W)
         slide.setEasingCurve(QEasingCurve.OutCubic)
-        slide.finished.connect(
-            lambda: self.sidebar.setMinimumWidth(EXPANDED_W))
+        slide.finished.connect(self._finish_sidebar_slide)
         slide.start(QAbstractAnimation.DeleteWhenStopped)
         self._slide_anim = slide
+
+        # 内容区淡入（对 main_ui 容器加 opacity，其子控件无自带 effect，安全）
+        main_ui = self.outer_stack.widget(1)
+        fade_fx = QGraphicsOpacityEffect(main_ui)
+        main_ui.setGraphicsEffect(fade_fx)
+        fade = QPropertyAnimation(fade_fx, b"opacity", self)
+        fade.setDuration(260)
+        fade.setStartValue(0.0)
+        fade.setEndValue(1.0)
+        fade.setEasingCurve(QEasingCurve.OutCubic)
+        fade.finished.connect(lambda: main_ui.setGraphicsEffect(None))
+        fade.start(QAbstractAnimation.DeleteWhenStopped)
+        self._fade_anim = fade
+
+    def _finish_sidebar_slide(self) -> None:
+        from drama_shot_master.ui.widgets.flow_sidebar import EXPANDED_W
+        self.sidebar.setMinimumWidth(EXPANDED_W)
+        self.sidebar.setMaximumWidth(EXPANDED_W)
 
     def _open_dir_path(self, path) -> None:
         """加载指定目录（复用 _open_dir 的实际加载逻辑，无对话框）。"""
@@ -371,6 +383,8 @@ class AppShell(QMainWindow):
         self.command_bar.set_dir(f"{self.state.current_dir}")
         self._refresh_counts()
         self._set_status(f"已加载 {len(self.state.images)} 张")
+        if self.state.current_dir:
+            self.recent_mgr.push(str(self.state.current_dir))
 
     def _set_out_dir(self):
         from PySide6.QtWidgets import QFileDialog

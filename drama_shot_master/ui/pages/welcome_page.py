@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 from drama_shot_master.core.recent_projects import RecentProjectsManager
 from drama_shot_master.ui.widgets.workflow_strip import WorkflowStrip
 from drama_shot_master.ui.widgets.project_card import ProjectCard
+from drama_shot_master.ui.widgets.capsule_button import CapsuleButton
 
 _MAX_CARDS = 4
 
@@ -23,6 +24,8 @@ _DEPTH_FLEX = {"far": 0.65, "near": 0.85, "center": 1.4, "add": 0.5}
 _CENTER_ASPECT = 0.64
 # 卡片间距（与 _cards_layout spacing 保持一致）
 _CARD_GAP = 14
+# 中心卡最大高度上限：防止在 HiDPI/大屏上卡片膨胀，进而把窗口最小宽度撑爆
+_MAX_CENTER_H = 600
 
 
 class WelcomePage(QWidget):
@@ -114,19 +117,17 @@ class WelcomePage(QWidget):
         btn_row.setSpacing(12)
         btn_row.setAlignment(Qt.AlignCenter)
 
-        self._btn_new = QPushButton("＋  新建项目")
+        self._btn_new = CapsuleButton("＋  新建项目", variant="primary")
         self._btn_new.setObjectName("WelcomeBtnPrimary")
         self._btn_new.setFixedHeight(40)
         self._btn_new.setMinimumWidth(150)
-        self._btn_new.setCursor(Qt.PointingHandCursor)
         self._btn_new.clicked.connect(self.new_project_requested)
         btn_row.addWidget(self._btn_new)
 
-        self._btn_open = QPushButton("打开目录")
+        self._btn_open = CapsuleButton("打开目录", variant="secondary")
         self._btn_open.setObjectName("WelcomeBtnSecondary")
         self._btn_open.setFixedHeight(40)
         self._btn_open.setMinimumWidth(120)
-        self._btn_open.setCursor(Qt.PointingHandCursor)
         self._btn_open.clicked.connect(self.open_dir_requested)
         btn_row.addWidget(self._btn_open)
 
@@ -252,11 +253,14 @@ class WelcomePage(QWidget):
         if avail_h <= 0 or avail_w <= 0:
             return
 
-        center_w = avail_h * _CENTER_ASPECT
+        # 限制中心卡高度上限：大屏/HiDPI 下卡片不再膨胀，避免固定宽度把窗口
+        # 最小宽度撑爆（曾导致 QWindowsWindow::setGeometry 失败、窗口无法缩小）
+        center_h = min(avail_h, _MAX_CENTER_H)
+        center_w = center_h * _CENTER_ASPECT
         unit_w = center_w / _DEPTH_FLEX["center"]
         sizes = []
         for c in cards:
-            h = avail_h * c.height_ratio()
+            h = center_h * c.height_ratio()   # 高度相对（已上限的）中心卡，保持竖向比例
             w = unit_w * _DEPTH_FLEX.get(c._depth, 0.85)
             sizes.append([w, h])
 
