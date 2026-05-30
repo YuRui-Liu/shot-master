@@ -43,6 +43,7 @@ class AudioPromptPage(_BaseStagePage):
     _CCOL_LINE = 1
     _CCOL_SFX = 2
     _CCOL_BGM = 3
+    _CCOL_COPY = 4
 
     def __init__(self, client, parent=None):
         super().__init__(client, parent)
@@ -124,14 +125,15 @@ class AudioPromptPage(_BaseStagePage):
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(QLabel("分镜配音配乐匹配表（sfx_cues.json）："))
-        self._cue_table = QTableWidget(0, 4)
+        self._cue_table = QTableWidget(0, 5)
         self._cue_table.setHorizontalHeaderLabels(
-            ["ID", "角色+台词", "音效", "BGM情绪"])
+            ["ID", "角色+台词", "音效", "BGM情绪", "复制"])
         hh = self._cue_table.horizontalHeader()
         hh.setSectionResizeMode(self._CCOL_ID, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(self._CCOL_LINE, QHeaderView.Stretch)
         hh.setSectionResizeMode(self._CCOL_SFX, QHeaderView.Stretch)
         hh.setSectionResizeMode(self._CCOL_BGM, QHeaderView.Stretch)
+        hh.setSectionResizeMode(self._CCOL_COPY, QHeaderView.ResizeToContents)
         self._cue_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._cue_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         v.addWidget(self._cue_table, 1)
@@ -232,7 +234,10 @@ class AudioPromptPage(_BaseStagePage):
         else:
             self._cue_table.setRowCount(0)
 
-    def _populate_voices(self, voices: list[dict]) -> None:
+    def _populate_voices(self, voices) -> None:
+        # 兼容后端写入的包裹结构 {"voices": [...]} 与裸数组 [...]
+        if isinstance(voices, dict):
+            voices = voices.get("voices", [])
         self._voice_table.setRowCount(0)
         for v in voices:
             row = self._voice_table.rowCount()
@@ -262,23 +267,29 @@ class AudioPromptPage(_BaseStagePage):
                 row, self._VCOL_TTS,
                 QTableWidgetItem(str(v.get("tts_style_prompt", ""))))
 
-    def _populate_cues(self, cues: list[dict]) -> None:
+    def _populate_cues(self, cues) -> None:
+        # 兼容后端写入的包裹结构 {"cues": [...]} 与裸数组 [...]
+        if isinstance(cues, dict):
+            cues = cues.get("cues", [])
         self._cue_table.setRowCount(0)
         for cue in cues:
             row = self._cue_table.rowCount()
             self._cue_table.insertRow(row)
+            # 实际后端键：shot_id / speaker / dialogue / sfx / bgm_emotion
             self._cue_table.setItem(
                 row, self._CCOL_ID,
-                QTableWidgetItem(str(cue.get("shotId", cue.get("id", "")))))
+                QTableWidgetItem(str(cue.get("shot_id",
+                                             cue.get("shotId",
+                                                     cue.get("id", ""))))))
             # 角色+台词："角色名：台词" 格式
-            char_name = str(cue.get("character", cue.get("speaker", "")))
-            line = str(cue.get("line", cue.get("dialogue", "")))
-            if char_name and line:
+            char_name = str(cue.get("speaker", cue.get("character", "")))
+            line = str(cue.get("dialogue", cue.get("line", "")))
+            if char_name and char_name != "-" and line and line != "-":
                 line_text = f"{char_name}：{line}"
-            elif char_name:
-                line_text = char_name
-            else:
+            elif line and line != "-":
                 line_text = line
+            else:
+                line_text = "—"
             self._cue_table.setItem(
                 row, self._CCOL_LINE,
                 QTableWidgetItem(line_text))
@@ -287,7 +298,19 @@ class AudioPromptPage(_BaseStagePage):
                 QTableWidgetItem(str(cue.get("sfx", cue.get("sound_effect", "")))))
             self._cue_table.setItem(
                 row, self._CCOL_BGM,
-                QTableWidgetItem(str(cue.get("bgm_mood", cue.get("bgm", "")))))
+                QTableWidgetItem(str(cue.get("bgm_emotion",
+                                             cue.get("bgm_mood",
+                                                     cue.get("bgm", ""))))))
+            copy_btn = QPushButton("复制")
+            copy_text = str(cue.get("dialogue", cue.get("line", "")))
+            copy_btn.clicked.connect(
+                lambda _=False, t=copy_text: self._copy_to_clipboard(t))
+            self._cue_table.setCellWidget(row, self._CCOL_COPY, copy_btn)
+
+    def _copy_to_clipboard(self, text: str) -> None:
+        from PySide6.QtWidgets import QApplication
+        QApplication.clipboard().setText(text)
+        self.statusMessage.emit("✓ 已复制到剪贴板")
 
     # ------------------------------------------------------------------
     # 生成 / SSE
