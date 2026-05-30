@@ -36,6 +36,22 @@ def build_video_user_prompt(tpl_text: str, sb: dict, opts) -> str:
     )
 
 
+def write_video_output(out_dir, data: dict) -> str:
+    """把 LLM 输出对象 {global_prompt, shots:[...]} 原子写入单文件 shots.json。
+    返回写出文件名（'shots.json'）。"""
+    from pathlib import Path
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "global_prompt": data.get("global_prompt", ""),
+        "shots": data.get("shots", []),
+    }
+    shots_path = out_dir / "shots.json"
+    atomic_write_text(
+        shots_path, json.dumps(payload, ensure_ascii=False, indent=2))
+    return "shots.json"
+
+
 @router.post("/video_prompt")
 async def video_prompt(req: VideoPromptReq, request: Request):
     project_dir = Path(req.project_dir)
@@ -113,20 +129,12 @@ async def video_prompt(req: VideoPromptReq, request: Request):
 
             data = rr.obj
 
-            out_dir.mkdir(parents=True, exist_ok=True)
-
-            # 只写纯提示词正文，不再写 "# global_prompt" 头（避免复制时污染）
-            global_md = f"{data.get('global_prompt', '')}\n"
-            global_path = out_dir / "global.md"
-            atomic_write_text(global_path, global_md)
-            yield sse_event("partial", {"file": str(global_path.relative_to(project_dir)),
-                                        "content": global_md})
-
-            shots_json = json.dumps(data.get("shots", []), ensure_ascii=False, indent=2)
+            write_video_output(out_dir, data)
             shots_path = out_dir / "shots.json"
-            atomic_write_text(shots_path, shots_json)
-            yield sse_event("partial", {"file": str(shots_path.relative_to(project_dir)),
-                                        "content": shots_json})
+            yield sse_event("partial", {
+                "file": str(shots_path.relative_to(project_dir)),
+                "content": shots_path.read_text(encoding="utf-8"),
+            })
 
             yield sse_event("done", {"saved_dir": str(out_dir.relative_to(project_dir))})
 
