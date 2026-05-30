@@ -67,3 +67,19 @@ def test_mute_toggle_persists_mix_json(tmp_path):
     from drama_shot_master.ui.widgets.daw.track_mix import load_mix
     reloaded = load_mix(ed._work_dir())
     assert reloaded.is_muted("sfx") is True
+
+
+def test_persisted_mix_applied_on_startup(tmp_path):
+    """持久化的静音/音量启动即应用到音频（不只显示在按钮上）。"""
+    _app()
+    from drama_shot_master.ui.widgets.daw.track_mix import TrackMixState, save_mix
+    mp4 = tmp_path / "raw.mp4"; mp4.write_bytes(b"x")
+    wd = tmp_path / "t1"; wd.mkdir()           # work_dir = output_dir/task_id
+    m = TrackMixState(); m.set_muted("video", True); m.set_volume("video", 0.4)
+    save_mix(wd, m)
+    ed = SoundtrackEditor({"id": "t1", "name": "t", "mp4": str(mp4),
+                           "style": "x", "output_dir": str(tmp_path)},
+                          _cfg(tmp_path), tmp_path)
+    # 启动即把持久化 mix 推到音频后端（pending 值已设）
+    assert ed._video_preview._pending_muted is True
+    assert ed._video_preview._pending_volume == 0.4

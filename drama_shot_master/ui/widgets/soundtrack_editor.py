@@ -279,6 +279,9 @@ class SoundtrackEditor(QWidget):
         self._refresh_track_view()
         if self._session is not None and getattr(self, "_ai_chat", None):
             self._ai_chat.set_directive(self._session.directive)
+        # 启动即应用持久化的 mix（静音/独奏/音量）到音频后端，
+        # 否则按钮显示静音但声音照常，直到用户手动碰一下。
+        self._apply_audio_state()
 
     def _try_load_sfx_session(self):
         """加载 SFX session，支持多路径回退（兼容历史工作目录不一致情况）。
