@@ -215,3 +215,20 @@ def test_load_legacy_two_files_fallback(tmp_path):
     p.set_project(tmp_path)
     assert p._global_prompt_edit.toPlainText().strip() == "GP-OLD"   # 去头
     assert p._shots_table.item(0, p._COL_ID).text() == "S01_02"
+
+
+def test_sse_partial_object_updates_both(tmp_path):
+    """SSE partial(shots.json) 带对象 content → 全局框 + 表都刷新。"""
+    _app()
+    (tmp_path / "分镜_E1.json").write_text(json.dumps(_min_sb()), encoding="utf-8")
+    p = VideoPromptPage(_Stub())
+    p.set_project(tmp_path)
+    content = json.dumps({
+        "global_prompt": "GP-SSE",
+        "shots": [{"shot_id": "S09", "local_prompt": "z", "duration_s": 6.0}],
+    })
+    p._on_sse_event("partial",
+                    {"file": "video_prompts/E1/shots.json", "content": content},
+                    str(tmp_path))
+    assert p._global_prompt_edit.toPlainText().strip() == "GP-SSE"
+    assert p._shots_table.item(0, p._COL_ID).text() == "S09"

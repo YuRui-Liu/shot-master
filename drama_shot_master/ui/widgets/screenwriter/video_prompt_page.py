@@ -1,8 +1,7 @@
 """VideoPromptPage：视频提示词阶段子面板（Stage 5）。
 
 读取上游 分镜_{ep}.json → 调 /video_prompt agent → 生成
-  video_prompts/{ep}/global.md   全局画风提示词
-  video_prompts/{ep}/shots.json  各镜头提示词列表
+  video_prompts/{ep}/shots.json  {global_prompt, shots:[...]} 单文件
 
 SSE partial 事件 → 实时刷新 _global_prompt_edit / _shots_table。
 """
@@ -171,7 +170,7 @@ class VideoPromptPage(_BaseStagePage):
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 0, 0, 0)
         head = QHBoxLayout()
-        head.addWidget(QLabel("全局画风提示词（global.md）："))
+        head.addWidget(QLabel("全局画风提示词："))
         head.addStretch(1)
         self._global_copy_btn = QPushButton("复制")
         self._global_copy_btn.clicked.connect(self._on_copy_global)
@@ -438,7 +437,23 @@ class VideoPromptPage(_BaseStagePage):
         fname = data.get("file", "") or data.get("saved", "")
         content = data.get("content", "")
 
-        if fname.endswith("global.md"):
+        if fname.endswith("shots.json"):
+            try:
+                data = json.loads(content) if content else json.loads(
+                    Path(fname).read_text(encoding="utf-8"))
+            except Exception:
+                data = None
+            if isinstance(data, dict):
+                self._global_prompt_edit.setPlainText(
+                    str(data.get("global_prompt", "")))
+                self._populate_shots_table(data.get("shots", []) or [])
+            elif isinstance(data, list):
+                self._populate_shots_table(data)
+            self._status_lbl.setText(
+                f"● shots.json 已生成（{self._shots_table.rowCount()}镜）")
+
+        elif fname.endswith("global.md"):
+            # 兼容旧后端仍发 global.md 事件的情形（回退）
             if not content:
                 try:
                     content = Path(fname).read_text(encoding="utf-8")
@@ -447,16 +462,6 @@ class VideoPromptPage(_BaseStagePage):
             self._global_prompt_edit.setPlainText(
                 self._strip_global_header(content))
             self._status_lbl.setText("● 全局提示词已生成")
-
-        elif fname.endswith("shots.json"):
-            try:
-                shots = json.loads(content) if content else json.loads(
-                    Path(fname).read_text(encoding="utf-8"))
-                self._populate_shots_table(shots)
-            except Exception:
-                pass
-            self._status_lbl.setText(
-                f"● shots.json 已生成（{self._shots_table.rowCount()}镜）")
 
         elif fname:
             self._status_lbl.setText(f"● 已生成 {Path(fname).name}")
