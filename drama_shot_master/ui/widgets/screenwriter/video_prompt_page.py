@@ -97,12 +97,29 @@ class VideoPromptPage(_BaseStagePage):
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 0, 0, 0)
-        v.addWidget(QLabel("全局画风提示词（global.md）："))
+        head = QHBoxLayout()
+        head.addWidget(QLabel("全局画风提示词（global.md）："))
+        head.addStretch(1)
+        self._global_copy_btn = QPushButton("复制")
+        self._global_copy_btn.clicked.connect(self._on_copy_global)
+        head.addWidget(self._global_copy_btn)
+        v.addLayout(head)
         self._global_prompt_edit = QPlainTextEdit()
         self._global_prompt_edit.setPlaceholderText("生成后自动填充…")
         self._global_prompt_edit.setMaximumHeight(120)
         v.addWidget(self._global_prompt_edit)
         return w
+
+    def _on_copy_global(self) -> None:
+        self._copy_to_clipboard(self._global_prompt_edit.toPlainText())
+
+    @staticmethod
+    def _strip_global_header(text: str) -> str:
+        """去掉 global.md 历史写入的 '# global_prompt' 头，避免污染复制。"""
+        t = text.lstrip()
+        if t.startswith("# global_prompt"):
+            t = t[len("# global_prompt"):]
+        return t.strip()
 
     def _build_shots_panel(self) -> QWidget:
         w = QWidget()
@@ -206,7 +223,8 @@ class VideoPromptPage(_BaseStagePage):
         if global_md.is_file():
             try:
                 self._global_prompt_edit.setPlainText(
-                    global_md.read_text(encoding="utf-8"))
+                    self._strip_global_header(
+                        global_md.read_text(encoding="utf-8")))
             except OSError:
                 pass
         else:
@@ -226,17 +244,20 @@ class VideoPromptPage(_BaseStagePage):
         for shot in shots:
             row = self._shots_table.rowCount()
             self._shots_table.insertRow(row)
+            # 实际后端键：shot_id / local_prompt / duration_s（兼容旧 shotId/duration）
             self._shots_table.setItem(
                 row, self._COL_ID,
-                QTableWidgetItem(str(shot.get("shotId", shot.get("id", "")))))
+                QTableWidgetItem(str(shot.get("shot_id",
+                                              shot.get("shotId",
+                                                       shot.get("id", ""))))))
             self._shots_table.setItem(
                 row, self._COL_PROMPT,
                 QTableWidgetItem(str(shot.get("local_prompt", ""))))
             self._shots_table.setItem(
                 row, self._COL_DUR,
-                QTableWidgetItem(str(shot.get("duration", ""))))
-            copy_btn = QPushButton("📋")
-            copy_btn.setFixedWidth(32)
+                QTableWidgetItem(str(shot.get("duration_s",
+                                              shot.get("duration", "")))))
+            copy_btn = QPushButton("复制")
             prompt_text = str(shot.get("local_prompt", ""))
             copy_btn.clicked.connect(
                 lambda _=False, t=prompt_text: self._copy_to_clipboard(t))
@@ -245,12 +266,11 @@ class VideoPromptPage(_BaseStagePage):
     def _copy_to_clipboard(self, text: str) -> None:
         from PySide6.QtWidgets import QApplication
         QApplication.clipboard().setText(text)
+        self.statusMessage.emit("✓ 已复制到剪贴板")
 
     def _on_table_cell_clicked(self, row: int, col: int) -> None:
-        if col == self._COL_COPY:
-            item = self._shots_table.item(row, self._COL_PROMPT)
-            if item:
-                self._copy_to_clipboard(item.text())
+        # 复制改由单元格内「复制」按钮处理，避免与 cellClicked 双重触发
+        return
 
     # ------------------------------------------------------------------
     # 生成 / SSE
@@ -316,27 +336,32 @@ class VideoPromptPage(_BaseStagePage):
             self.projectStateChanged.emit()
             return
 
-        kind = data.get("kind", "")
-        saved = data.get("saved", "")
+        # 路由 partial 事件形如 {"file": "...relative...", "content": "..."}
+        fname = data.get("file", "") or data.get("saved", "")
+        content = data.get("content", "")
 
-        if kind == "global_md" and saved:
-            try:
-                text = Path(saved).read_text(encoding="utf-8")
-                self._global_prompt_edit.setPlainText(text)
-            except OSError:
-                pass
+        if fname.endswith("global.md"):
+            if not content:
+                try:
+                    content = Path(fname).read_text(encoding="utf-8")
+                except OSError:
+                    content = ""
+            self._global_prompt_edit.setPlainText(
+                self._strip_global_header(content))
             self._status_lbl.setText("● 全局提示词已生成")
 
-        elif kind == "shots_json" and saved:
+        elif fname.endswith("shots.json"):
             try:
-                shots = json.loads(Path(saved).read_text(encoding="utf-8"))
+                shots = json.loads(content) if content else json.loads(
+                    Path(fname).read_text(encoding="utf-8"))
                 self._populate_shots_table(shots)
             except Exception:
                 pass
-            self._status_lbl.setText(f"● shots.json 已生成（{self._shots_table.rowCount()}镜）")
+            self._status_lbl.setText(
+                f"● shots.json 已生成（{self._shots_table.rowCount()}镜）")
 
-        elif saved:
-            self._status_lbl.setText(f"● 已生成 {Path(saved).name}")
+        elif fname:
+            self._status_lbl.setText(f"● 已生成 {Path(fname).name}")
 
     def _on_stream_done_signal(self, project_dir_str: str) -> None:
         proj = Path(project_dir_str)

@@ -60,3 +60,55 @@ def test_advance_signal_emitted():
     p.stageAdvanceRequested.connect(lambda i: received.append(i))
     p._on_advance_clicked()
     assert received == [4]           # Stage 5 = index 4
+
+
+# ── Fix-F: 去头 / 加复制 / 修键 / toast ──────────────────────────────
+
+def _real_shots():
+    """实际后端键：shot_id / local_prompt / duration_s。"""
+    return [
+        {"shot_id": "S01_01", "local_prompt": "Camera: medium.", "duration_s": 5.0},
+        {"shot_id": "S01_02", "local_prompt": "Camera: push-in.", "duration_s": 4.0},
+    ]
+
+
+def test_shots_table_reads_real_keys(tmp_path):
+    """ID 列读 shot_id、时长列读 duration_s（不再是空）。"""
+    _app()
+    (tmp_path / "分镜_E1.json").write_text(json.dumps(_min_sb()), encoding="utf-8")
+    vdir = tmp_path / "video_prompts" / "E1"; vdir.mkdir(parents=True)
+    (vdir / "global.md").write_text("clean prompt", encoding="utf-8")
+    (vdir / "shots.json").write_text(json.dumps(_real_shots()), encoding="utf-8")
+    p = VideoPromptPage(_Stub())
+    p.set_project(tmp_path)
+    assert p._shots_table.item(0, p._COL_ID).text() == "S01_01"
+    assert p._shots_table.item(0, p._COL_DUR).text() == "5.0"
+
+
+def test_global_md_header_stripped_on_load(tmp_path):
+    """已有 global.md 带 '# global_prompt' 头时，UI 显示应去头。"""
+    _app()
+    (tmp_path / "分镜_E1.json").write_text(json.dumps(_min_sb()), encoding="utf-8")
+    vdir = tmp_path / "video_prompts" / "E1"; vdir.mkdir(parents=True)
+    (vdir / "global.md").write_text(
+        "# global_prompt\n\nModern style, warm tones.", encoding="utf-8")
+    (vdir / "shots.json").write_text("[]", encoding="utf-8")
+    p = VideoPromptPage(_Stub())
+    p.set_project(tmp_path)
+    txt = p._global_prompt_edit.toPlainText()
+    assert "# global_prompt" not in txt
+    assert txt.strip() == "Modern style, warm tones."
+
+
+def test_global_copy_button_exists_and_toasts():
+    """全局面板有复制按钮，点击发 statusMessage toast。"""
+    _app()
+    p = VideoPromptPage(_Stub())
+    assert hasattr(p, "_global_copy_btn")
+    p._global_prompt_edit.setPlainText("hello prompt")
+    msgs = []
+    p.statusMessage.connect(lambda s: msgs.append(s))
+    p._global_copy_btn.click()
+    from PySide6.QtWidgets import QApplication as _QA
+    assert _QA.clipboard().text() == "hello prompt"
+    assert msgs and "复制" in msgs[0]

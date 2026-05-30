@@ -103,7 +103,8 @@ async def video_prompt(req: VideoPromptReq, request: Request):
 
             out_dir.mkdir(parents=True, exist_ok=True)
 
-            global_md = f"# global_prompt\n\n{data.get('global_prompt', '')}\n"
+            # 只写纯提示词正文，不再写 "# global_prompt" 头（避免复制时污染）
+            global_md = f"{data.get('global_prompt', '')}\n"
             global_path = out_dir / "global.md"
             atomic_write_text(global_path, global_md)
             yield sse_event("partial", {"file": str(global_path.relative_to(project_dir)),
