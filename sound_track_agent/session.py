@@ -133,6 +133,33 @@ class SegmentScore:
 
 
 @dataclass
+class SoundtrackDirective:
+    """对话式配乐方向：归并后的全局方向 + 分段方向（B 预留）+ 单会话对话历史。"""
+    global_directive: str = ""
+    segment_directives: dict = field(default_factory=dict)   # {int: str}，B 预留
+    conversation: list = field(default_factory=list)          # [{"role","text"}]
+
+    def to_dict(self) -> dict:
+        return {
+            "global_directive": self.global_directive,
+            "segment_directives": {str(k): v
+                                   for k, v in self.segment_directives.items()},
+            "conversation": list(self.conversation),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "SoundtrackDirective":
+        if not d:
+            return cls()
+        return cls(
+            global_directive=d.get("global_directive", ""),
+            segment_directives={int(k): v
+                                for k, v in (d.get("segment_directives") or {}).items()},
+            conversation=list(d.get("conversation") or []),
+        )
+
+
+@dataclass
 class ScoringSession:
     source_mp4: str
     source_hash: str
@@ -145,6 +172,7 @@ class ScoringSession:
     pump_strength: float = 0.6
     dialogue_segments: list[DialogueSegment] = field(default_factory=list)
     segments_refined: bool = False
+    directive: "SoundtrackDirective" = field(default_factory=lambda: SoundtrackDirective())
 
     def to_dict(self) -> dict:
         return {
@@ -159,6 +187,7 @@ class ScoringSession:
             "pump_strength": self.pump_strength,
             "dialogue_segments": [d.to_dict() for d in self.dialogue_segments],
             "segments_refined": self.segments_refined,
+            "directive": self.directive.to_dict(),
         }
 
     @classmethod
@@ -176,6 +205,7 @@ class ScoringSession:
             dialogue_segments=[DialogueSegment.from_dict(ds)
                                for ds in d.get("dialogue_segments", [])],
             segments_refined=bool(d.get("segments_refined", False)),
+            directive=SoundtrackDirective.from_dict(d.get("directive")),
         )
 
     def save(self, path: Path) -> None:

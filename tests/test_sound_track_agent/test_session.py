@@ -229,3 +229,36 @@ def test_segments_refined_default_when_missing(tmp_path):
         '"frame_rate":24.0,"segments":[],"accent_points":[]}',
         encoding="utf-8")
     assert ScoringSession.load(p).segments_refined is False
+
+
+def test_soundtrack_directive_roundtrip():
+    from sound_track_agent.session import SoundtrackDirective
+    d = SoundtrackDirective(
+        global_directive="史诗管弦",
+        segment_directives={1: "钢琴前奏", 3: "弦乐高潮"},
+        conversation=[{"role": "user", "text": "史诗感"},
+                      {"role": "assistant", "text": "已更新"}])
+    d2 = SoundtrackDirective.from_dict(d.to_dict())
+    assert d2.global_directive == "史诗管弦"
+    assert d2.segment_directives == {1: "钢琴前奏", 3: "弦乐高潮"}
+    assert d2.conversation[0]["text"] == "史诗感"
+
+
+def test_soundtrack_directive_from_empty():
+    from sound_track_agent.session import SoundtrackDirective
+    d = SoundtrackDirective.from_dict({})
+    assert d.global_directive == "" and d.segment_directives == {} and d.conversation == []
+
+
+def test_scoring_session_directive_roundtrip_and_legacy():
+    from sound_track_agent.session import (
+        ScoringSession, SegmentScore, SoundtrackDirective)
+    sess = ScoringSession(source_mp4="/m.mp4", source_hash="h",
+                          global_style="末日", frame_rate=24.0,
+                          segments=[SegmentScore(0, 0.0, 5.0)])
+    sess.directive = SoundtrackDirective(global_directive="史诗")
+    sess2 = ScoringSession.from_dict(sess.to_dict())
+    assert sess2.directive.global_directive == "史诗"
+    legacy = sess.to_dict(); legacy.pop("directive", None)
+    sess3 = ScoringSession.from_dict(legacy)
+    assert sess3.directive.global_directive == ""
