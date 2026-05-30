@@ -4,9 +4,10 @@ from PySide6.QtWidgets import (
     QButtonGroup, QRadioButton,
 )
 from drama_shot_master.ui.widgets.daw.selection import _CueRef
+from drama_shot_master.ui.widgets.daw.inspector._audition import CandidateAuditionMixin
 
 
-class BgmInspector(QWidget):
+class BgmInspector(CandidateAuditionMixin, QWidget):
     promptEditRequested = Signal(object)    # _CueRef
     candidateChosen = Signal(object, int)   # _CueRef, new_idx
     regenerateRequested = Signal(object)    # _CueRef
@@ -17,6 +18,7 @@ class BgmInspector(QWidget):
         self._ref = None
         self._session = None
         self._build_ui()
+        self._init_audition()
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
@@ -65,16 +67,27 @@ class BgmInspector(QWidget):
         for btn in list(self.cand_group.buttons()):
             self.cand_group.removeButton(btn)
             btn.deleteLater()
+        while self.cand_layout.count():
+            item = self.cand_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        self._reset_audition()
+        from PySide6.QtWidgets import QHBoxLayout, QWidget as _QW
         for i, c in enumerate(seg.candidates):
+            row = QHBoxLayout(); row.setContentsMargins(0, 0, 0, 0)
             rb = QRadioButton(f"seed={c.seed}")
             self.cand_group.addButton(rb, i)
-            self.cand_layout.addWidget(rb)
             if i == seg.chosen_candidate:
                 rb.setChecked(True)
             rb.toggled.connect(
                 lambda checked, idx=i:
                     checked and self._ref
                     and self.candidateChosen.emit(self._ref, idx))
+            row.addWidget(rb, 1)
+            row.addWidget(self._make_play_button(i, c.path))
+            holder = _QW(); holder.setLayout(row)
+            self.cand_layout.addWidget(holder)
 
     def _on_volume(self, val: int):
         if self._ref:

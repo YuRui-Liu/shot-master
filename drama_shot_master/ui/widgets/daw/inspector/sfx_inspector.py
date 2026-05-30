@@ -4,9 +4,10 @@ from PySide6.QtWidgets import (
     QRadioButton, QDoubleSpinBox, QCheckBox,
 )
 from drama_shot_master.ui.widgets.daw.commands import ResizeCue
+from drama_shot_master.ui.widgets.daw.inspector._audition import CandidateAuditionMixin
 
 
-class SfxInspector(QWidget):
+class SfxInspector(CandidateAuditionMixin, QWidget):
     promptEditRequested = Signal(object)    # _CueRef
     candidateChosen = Signal(object, int)   # _CueRef, new_idx
     regenerateRequested = Signal(object)    # _CueRef
@@ -21,6 +22,7 @@ class SfxInspector(QWidget):
         self._suppress_dur = False
         self._old_duration = 0.0
         self._build_ui()
+        self._init_audition()
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
@@ -85,16 +87,27 @@ class SfxInspector(QWidget):
         for btn in list(self.cand_group.buttons()):
             self.cand_group.removeButton(btn)
             btn.deleteLater()
+        while self.cand_layout.count():
+            item = self.cand_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        self._reset_audition()
+        from PySide6.QtWidgets import QHBoxLayout, QWidget as _QW
         for i, c in enumerate(shot.candidates):
+            row = QHBoxLayout(); row.setContentsMargins(0, 0, 0, 0)
             rb = QRadioButton(f"seed={c.seed}")
             self.cand_group.addButton(rb, i)
-            self.cand_layout.addWidget(rb)
             if i == shot.chosen_candidate:
                 rb.setChecked(True)
             rb.toggled.connect(
                 lambda checked, idx=i:
                     checked and self._ref
                     and self.candidateChosen.emit(self._ref, idx))
+            row.addWidget(rb, 1)
+            row.addWidget(self._make_play_button(i, c.path))
+            holder = _QW(); holder.setLayout(row)
+            self.cand_layout.addWidget(holder)
 
     def _on_duration(self, new_val: float):
         if self._suppress_dur or self._ref is None:
