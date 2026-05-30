@@ -284,3 +284,24 @@ def regenerate_segment(session: ScoringSession, seg_index: int, work_dir, *,
 
     session.save(work_dir / "session.json")
     return session
+
+
+def apply_directive_to_prompts(session) -> None:
+    """把 session.directive 写入各段 music_prompt（纯模板重算，不联网、不生成）。
+
+    effective_style(seg) = directive.segment_directives.get(seg.index)
+                           or directive.global_directive or session.global_style
+    不触发 RunningHub；不改 candidates/chosen。
+    """
+    from sound_track_agent.prompt_composer import compose_music_prompt
+    d = getattr(session, "directive", None)
+    if d is None:
+        return
+    if d.global_directive:
+        session.global_style = d.global_directive
+    for seg in session.segments:
+        eff = (d.segment_directives.get(seg.index)
+               or d.global_directive
+               or session.global_style)
+        duration = float(seg.t_end) - float(seg.t_start)
+        seg.music_prompt = compose_music_prompt(eff, seg.emotion, duration)
