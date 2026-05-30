@@ -1,7 +1,7 @@
 """ProjectCard：欢迎首页项目卡片，支持深度样式（far/near/center），点击发 clicked(path)。"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from PySide6.QtCore import Qt, Signal, QRect
 from PySide6.QtGui import (
@@ -99,7 +99,7 @@ class ProjectCard(QWidget):
             p.setPen(QPen(QColor("#4a9eff"), 1))
         else:
             p.setPen(QPen(QColor("#252540"), 1))
-        p.drawRoundedRect(r.adjusted(0, 0, -1, -1), 10, 10)
+        p.drawRoundedRect(r.adjusted(1, 1, -1, -1), 10, 10)
 
         meta_h = 44
         thumb_r = QRect(r.x(), r.y(), r.width(), r.height() - meta_h)
@@ -137,7 +137,12 @@ class ProjectCard(QWidget):
         p.setBrush(QColor(13, 13, 30, 230))
         p.setPen(Qt.NoPen)
         bottom_cp = QPainterPath()
-        bottom_cp.addRoundedRect(meta_r.x(), meta_r.y(), meta_r.width(), meta_r.height(), 10, 10)
+        # Extend upward by 10px so top corners are clipped away — only bottom corners remain rounded
+        bottom_cp.addRoundedRect(
+            meta_r.x(), meta_r.y() - 10,
+            meta_r.width(), meta_r.height() + 10,
+            10, 10
+        )
         p.setClipPath(bottom_cp)
         p.drawRect(meta_r)
         p.setClipping(False)
@@ -167,7 +172,7 @@ class ProjectCard(QWidget):
         if last_opened:
             try:
                 dt = datetime.fromisoformat(last_opened)
-                delta = (datetime.now(timezone.utc) - dt).days
+                delta = (datetime.now() - dt).days
                 if delta == 0:
                     info_parts.append("今天")
                 elif delta == 1:
