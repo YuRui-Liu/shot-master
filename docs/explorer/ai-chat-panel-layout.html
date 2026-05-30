@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#1 AI 配乐对话面板 — 布局确认</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#1e1e2e;--surface:#27273a;--surface2:#313145;--border:#3d3d55;
+    --text:#cdd6f4;--text2:#a6adc8;--accent:#3b6fd4;--accent2:#4a83f0;
+    --green:#a6e3a1;--yellow:#f9e2af;--purple:#cba6f7;--sfx:#e8a838;
+  }
+  body{background:var(--bg);color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+    font-size:13px;line-height:1.55;padding:28px 22px 70px;max-width:1180px;margin:0 auto;}
+  h1{font-size:21px;color:var(--purple);margin-bottom:6px;}
+  .sub{color:var(--text2);font-size:13px;margin-bottom:24px;}
+  h2{font-size:15px;color:#89b4fa;margin:30px 0 14px;padding-left:11px;border-left:3px solid #89b4fa;}
+  h3{font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:600;}
+
+  .variants{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+  .variant{flex:1;min-width:330px;background:var(--surface);border:2px solid var(--border);
+    border-radius:10px;padding:16px;cursor:pointer;transition:border-color .15s;position:relative;}
+  .variant:hover{border-color:var(--accent2);}
+  .variant.sel{border-color:#89b4fa;box-shadow:0 0 0 3px rgba(137,180,250,.22);}
+  .vlabel{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;margin-bottom:10px;
+    background:rgba(137,180,250,.18);color:#89b4fa;}
+  .rec{background:rgba(166,227,161,.18);color:var(--green);}
+  .chosen{position:absolute;top:10px;right:10px;background:var(--green);color:#1e1e2e;
+    font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;display:none;}
+  .variant.sel .chosen{display:block;}
+  .desc{font-size:12px;color:var(--text2);margin-bottom:12px;min-height:48px;}
+
+  /* 编辑器整窗微缩 */
+  .mini{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:#12121c;font-size:9px;}
+  .mini-top{height:42px;background:#000;display:flex;align-items:center;justify-content:center;color:#555;border-bottom:1px solid var(--border);}
+  .mini-over{height:14px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 4px;color:var(--text2);}
+  .mini-body{display:flex;height:150px;}
+  .mini-tracks{flex:1;background:#1a1a2a;padding:4px;display:flex;flex-direction:column;gap:3px;}
+  .trk{height:16px;border-radius:2px;display:flex;align-items:center;padding:0 4px;color:#fff;font-size:8px;}
+  .trk.v{background:#3a5a8a;} .trk.b{background:#5a9e6f;} .trk.s{background:#c2884c;} .trk.d{background:#8a5aa8;}
+  .mini-insp{width:80px;background:var(--surface);border-left:1px solid var(--border);padding:4px;color:var(--text2);}
+  .mini-ai{background:var(--surface2);border-left:2px solid var(--accent);padding:4px;color:var(--accent2);display:flex;flex-direction:column;}
+  .mini-bar{height:16px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 4px;gap:3px;color:var(--text2);}
+  .pill{padding:1px 5px;border:1px solid var(--border);border-radius:7px;font-size:8px;}
+  .pill.on{background:rgba(137,180,250,.2);border-color:var(--accent);color:var(--accent);}
+  .tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:rgba(166,227,161,.15);color:var(--green);}
+  .hint{font-size:11px;color:var(--text2);font-style:italic;margin-top:9px;}
+
+  /* 面板内部详图 */
+  .detail{display:flex;gap:20px;flex-wrap:wrap;}
+  .panel-demo{width:300px;background:var(--surface);border:1px solid var(--accent);border-radius:8px;overflow:hidden;}
+  .pd-head{background:var(--surface2);padding:7px 10px;font-size:12px;font-weight:600;color:var(--accent2);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);}
+  .pd-sessions{font-size:10px;color:var(--text2);}
+  .pd-chat{height:170px;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:7px;background:#12121c;}
+  .msg{max-width:88%;padding:6px 9px;border-radius:8px;font-size:11px;line-height:1.5;}
+  .msg.u{align-self:flex-end;background:var(--accent);color:#fff;}
+  .msg.a{align-self:flex-start;background:var(--surface2);color:var(--text);}
+  .msg.a .k{color:var(--green);font-weight:600;}
+  .pd-dir{background:#1a1a2a;border-top:1px solid var(--border);padding:7px 9px;font-size:10px;}
+  .pd-dir .label{color:var(--yellow);font-weight:600;margin-bottom:3px;}
+  .pd-dir .global{color:var(--text);}
+  .pd-dir .seg{color:var(--text2);margin-top:3px;}
+  .pd-input{padding:7px;border-top:1px solid var(--border);background:var(--surface);}
+  .pd-input textarea{width:100%;height:38px;background:#12121c;border:1px solid var(--border);border-radius:5px;
+    color:var(--text);font-size:11px;padding:5px;resize:none;font-family:inherit;}
+  .pd-btns{display:flex;gap:6px;margin-top:6px;}
+  .btn{flex:1;padding:5px;border:none;border-radius:5px;font-size:11px;cursor:pointer;}
+  .btn.ghost{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+  .btn.primary{background:var(--accent);color:#fff;}
+  .note{font-size:11px;color:var(--text2);line-height:1.7;}
+  .note b{color:var(--text);}
+
+  .confirm{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-top:28px;}
+  .confirm h3{color:var(--yellow);margin-bottom:8px;}
+  #pick{color:var(--text);font-weight:600;}
+</style>
+</head>
+<body>
+
+<h1>#1 AI 配乐对话面板 — 布局确认</h1>
+<p class="sub">交互已定：发指令 → 文本 LLM 归并成「配乐方向」→ 更新各段 prompt（<b>不自动生成</b>，你自己点生成）。单会话。<br>
+现在只确认<b>界面摆位</b>。点方案卡选择。</p>
+
+<h2>方案 A / B / C — AI 面板摆在哪</h2>
+<div class="variants">
+
+  <!-- A -->
+  <div class="variant sel" id="vA" onclick="sel('A')">
+    <span class="vlabel rec">方案 A · 右侧上下分栏（推荐）</span><span class="chosen">✓ 已选</span>
+    <h3>AI 面板常驻右上，Inspector 在右下</h3>
+    <p class="desc">右栏上半是 AI 对话（始终可见，像 ACE）；选中某段 cue 时下半显示该段属性。两者同屏，符合"边对话边看段落"。</p>
+    <div class="mini">
+      <div class="mini-top">▶ 视频预览</div>
+      <div class="mini-over">overview timeline ▮▮▮</div>
+      <div class="mini-body">
+        <div class="mini-tracks">
+          <div class="trk v">视频</div><div class="trk b">BGM ▮▮▮</div>
+          <div class="trk s">SFX ▮ ▮</div><div class="trk d">对白</div>
+        </div>
+        <div class="mini-ai" style="width:96px;">
+          <div style="font-weight:600;">🤖 AI 配乐</div>
+          <div style="flex:1;font-size:8px;margin-top:2px;color:var(--text2);">对话…<br>方向…</div>
+          <div style="border-top:1px solid var(--border);padding-top:2px;color:var(--text2);">🎛 段属性</div>
+        </div>
+      </div>
+      <div class="mini-bar"><span class="pill">原声</span><span class="pill on">配乐</span><span class="pill">混音</span> 生成…</div>
+    </div>
+    <div class="hint">改动：右栏拆上下；<span class="tag">Inspector 容器 + AIChatPanel 垂直分栏</span></div>
+  </div>
+
+  <!-- B -->
+  <div class="variant" id="vB" onclick="sel('B')">
+    <span class="vlabel">方案 B · 右侧 Tab 切换</span><span class="chosen">✓ 已选</span>
+    <h3>右栏 Tab：[🎛 属性 | 🤖 AI 配乐]</h3>
+    <p class="desc">右栏顶部两个 Tab 切换。省空间、不挤；但 AI 对话和段属性不能同屏看，需来回切。</p>
+    <div class="mini">
+      <div class="mini-top">▶ 视频预览</div>
+      <div class="mini-over">overview timeline ▮▮▮</div>
+      <div class="mini-body">
+        <div class="mini-tracks">
+          <div class="trk v">视频</div><div class="trk b">BGM ▮▮▮</div>
+          <div class="trk s">SFX ▮ ▮</div><div class="trk d">对白</div>
+        </div>
+        <div class="mini-ai" style="width:96px;">
+          <div style="display:flex;gap:2px;font-size:8px;"><span class="pill">🎛属性</span><span class="pill on">🤖AI</span></div>
+          <div style="flex:1;font-size:8px;margin-top:3px;color:var(--text2);">对话…<br>方向…<br>输入框</div>
+        </div>
+      </div>
+      <div class="mini-bar"><span class="pill">原声</span><span class="pill on">配乐</span><span class="pill">混音</span> 生成…</div>
+    </div>
+    <div class="hint">改动：右栏加 QTabWidget；<span class="tag">Inspector / AIChat 各一 tab</span></div>
+  </div>
+
+  <!-- C -->
+  <div class="variant" id="vC" onclick="sel('C')">
+    <span class="vlabel">方案 C · 底部对话条</span><span class="chosen">✓ 已选</span>
+    <h3>AI 对话放底部操作栏上方一整条</h3>
+    <p class="desc">右栏保持纯 Inspector；AI 对话做成底部一条横向输入区 + 可展开历史。最不动现有布局，但对话区窄、历史展示弱。</p>
+    <div class="mini">
+      <div class="mini-top">▶ 视频预览</div>
+      <div class="mini-over">overview timeline ▮▮▮</div>
+      <div class="mini-body">
+        <div class="mini-tracks">
+          <div class="trk v">视频</div><div class="trk b">BGM ▮▮▮</div>
+          <div class="trk s">SFX ▮ ▮</div><div class="trk d">对白</div>
+        </div>
+        <div class="mini-insp">🎛 段属性</div>
+      </div>
+      <div style="height:24px;background:var(--surface2);border-top:2px solid var(--accent);display:flex;align-items:center;padding:0 4px;gap:3px;color:var(--accent2);font-size:8px;">🤖 <input style="flex:1;height:14px;background:#12121c;border:1px solid var(--border);border-radius:3px;" disabled> <span class="pill on">发送</span></div>
+      <div class="mini-bar"><span class="pill">原声</span><span class="pill on">配乐</span><span class="pill">混音</span> 生成…</div>
+    </div>
+    <div class="hint">改动：底部加一条 AIChatBar；<span class="tag">最小布局改动</span></div>
+  </div>
+
+</div>
+
+<h2>AI 面板内部结构（A/B 共用，C 为精简版）</h2>
+<div class="detail">
+  <div class="panel-demo">
+    <div class="pd-head"><span>🤖 AI 配乐</span><span class="pd-sessions">单会话</span></div>
+    <div class="pd-chat">
+      <div class="msg u">史诗感电影配乐，开头平缓铺垫，中段高潮激昂，结尾缓慢淡出</div>
+      <div class="msg a"><span class="k">已更新配乐方向</span>：整体 = 史诗管弦；情绪曲线 平缓→激昂→淡出。已重算 5 段 prompt（未生成）。</div>
+      <div class="msg u">节奏再快一点，加入笛子</div>
+      <div class="msg a"><span class="k">已调整</span>：节奏 +，乐器 +竹笛。覆盖了上一轮的舒缓设定。</div>
+    </div>
+    <div class="pd-dir">
+      <div class="label">📋 当前配乐方向（结构化）</div>
+      <div class="global">全局：史诗管弦 + 竹笛，中速偏快，情绪 平缓→激昂→淡出</div>
+      <div class="seg">分段（B 预留）：段1 钢琴前奏 · 段3 弦乐高潮 …</div>
+    </div>
+    <div class="pd-input">
+      <textarea placeholder="用自然语言描述/修改配乐…"></textarea>
+      <div class="pd-btns">
+        <button class="btn ghost">仅更新方向</button>
+        <button class="btn primary">更新并查看 prompt</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:1;min-width:300px;">
+    <div class="note">
+      <b>面板四块：</b><br>
+      ① <b>会话区</b>：对话历史（你的指令 + AI 的方向变更摘要），单会话持久化。<br><br>
+      ② <b>当前配乐方向</b>（结构化）：LLM 归并后的全局方向 + 分段方向（分段为 B 预留，首版可空）。这是单一可信源。<br><br>
+      ③ <b>输入框 + 双按钮</b>：「仅更新方向」（只改方向不动 prompt 显示）/「更新并查看 prompt」（写入各段 music_prompt，你去 Inspector / 点生成）。<b>都不自动烧积分生成</b>。<br><br>
+      ④ 更新后，各段 Inspector 的 prompt 实时反映新方向；你逐段试听旧候选或点「生成」出新候选。<br><br>
+      <b>数据流：</b>指令 → 文本 LLM（复用 deepseek/refine 配置）→ 配乐方向 JSON → 写入 session 各段 music_prompt → 持久化。<b>不触发 RunningHub。</b>
+    </div>
+  </div>
+</div>
+
+<div class="confirm">
+  <h3>📋 当前选择</h3>
+  <div>面板摆位：<span id="pick">方案 A（右侧上下分栏）</span></div>
+  <p class="note" style="margin-top:6px;">选定摆位后我写 spec。内部四块结构（会话/方向/双按钮/联动 Inspector）如上，若要调也一并告诉我。</p>
+</div>
+
+<script>
+  const L={A:'方案 A（右侧上下分栏，推荐）',B:'方案 B（右侧 Tab 切换）',C:'方案 C（底部对话条）'};
+  function sel(k){['A','B','C'].forEach(x=>document.getElementById('v'+x).classList.remove('sel'));
+    document.getElementById('v'+k).classList.add('sel');document.getElementById('pick').textContent=L[k];}
+</script>
+</body>
+</html>
