@@ -4,7 +4,28 @@ from __future__ import annotations
 import sys
 
 
+def _maybe_run_agent(argv: list[str]) -> int | None:
+    """打包后同一 exe 兼作 agent 宿主：检测 `--run-agent <name>`。
+
+    命中 → 在本进程跑对应 agent server，返回其退出码（不再启动 GUI）；
+    未命中 → 返回 None，照常启动 GUI。
+    （冻结态 sys.executable 是 app.exe，无法 `python -m`，故走此分发。）
+    """
+    if "--run-agent" not in argv:
+        return None
+    i = argv.index("--run-agent")
+    which = argv[i + 1] if i + 1 < len(argv) else ""
+    rest = argv[i + 2:]
+    if which == "screenwriter":
+        from screenwriter_agent.__main__ import main as agent_main
+        return agent_main(rest)
+    return None
+
+
 def main() -> int:
+    rc = _maybe_run_agent(sys.argv)
+    if rc is not None:
+        return rc
     from PySide6.QtWidgets import QApplication
     from drama_shot_master.ui.app_shell import AppShell
     from drama_shot_master.ui.theme import apply_theme, apply_app_icon, current_theme

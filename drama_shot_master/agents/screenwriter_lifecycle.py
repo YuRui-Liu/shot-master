@@ -17,6 +17,28 @@ _PROVIDER_DEFAULT_MODELS = {
 }
 
 
+def _is_frozen() -> bool:
+    """是否运行于打包后的可执行（Nuitka / PyInstaller）。
+
+    Nuitka standalone 在每个编译模块注入 __compiled__；PyInstaller 设 sys.frozen。
+    打包后 sys.executable 是 app.exe（无 `-m` 模块分发能力）。
+    """
+    return bool(getattr(sys, "frozen", False)) or ("__compiled__" in globals())
+
+
+def _agent_command(port: int) -> list[str]:
+    """构造拉起 screenwriter_agent 的命令。
+
+    开发态：`python -m screenwriter_agent --port N`
+    冻结态：`app.exe --run-agent screenwriter --port N`（同一 exe 兼作 agent 宿主，
+    见 main._maybe_run_agent）。
+    """
+    if _is_frozen():
+        return [sys.executable, "--run-agent", "screenwriter",
+                "--port", str(port)]
+    return [sys.executable, "-m", "screenwriter_agent", "--port", str(port)]
+
+
 class ScreenwriterLifecycle:
     """单例：主软件启动时 spawn agent；退出时 terminate。"""
 
@@ -95,8 +117,7 @@ class ScreenwriterLifecycle:
                 if model:
                     env[f"SCREENWRITER_{upper}_MODEL"] = model
         self._proc = subprocess.Popen(
-            [sys.executable, "-m", "screenwriter_agent",
-             "--port", str(self.base_port)],
+            _agent_command(self.base_port),
             stdout=log_f, stderr=subprocess.STDOUT,
             env=env, close_fds=True)
         self._pid_file.write_text(str(self._proc.pid))
