@@ -68,3 +68,46 @@ def test_welcome_page_has_required_signals(tmp_path):
     for sig_name in ("project_selected", "new_project_requested",
                      "open_dir_requested", "settings_requested"):
         assert hasattr(page, sig_name), f"missing signal: {sig_name}"
+
+
+def test_welcome_page_refresh_shows_empty_state(tmp_path):
+    _app()
+    from drama_shot_master.core.recent_projects import RecentProjectsManager
+    from drama_shot_master.ui.pages.welcome_page import WelcomePage
+    mgr = RecentProjectsManager(tmp_path / "r.json")
+    page = WelcomePage(mgr)
+    page.refresh()
+    assert page._cards_layout.count() >= 1
+
+
+def test_welcome_page_refresh_shows_projects(tmp_path):
+    _app()
+    from drama_shot_master.core.recent_projects import RecentProjectsManager
+    from drama_shot_master.ui.pages.welcome_page import WelcomePage
+    mgr = RecentProjectsManager(tmp_path / "r.json")
+    mgr.push(str(tmp_path), "TestProj")
+    page = WelcomePage(mgr)
+    page.refresh()
+    assert page._cards_layout.count() >= 2
+
+
+def test_welcome_page_project_selected_signal(tmp_path):
+    _app()
+    from drama_shot_master.core.recent_projects import RecentProjectsManager
+    from drama_shot_master.ui.pages.welcome_page import WelcomePage
+    from drama_shot_master.ui.widgets.project_card import ProjectCard
+    mgr = RecentProjectsManager(tmp_path / "r.json")
+    mgr.push(str(tmp_path), "TestProj")
+    page = WelcomePage(mgr)
+    page.refresh()
+
+    got = []
+    page.project_selected.connect(got.append)
+
+    for i in range(page._cards_layout.count()):
+        w = page._cards_layout.itemAt(i).widget()
+        if isinstance(w, ProjectCard) and not w._is_add:
+            w.clicked.emit(str(tmp_path))
+            break
+
+    assert got == [str(tmp_path)]

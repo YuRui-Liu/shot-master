@@ -402,4 +402,89 @@ QPushButton#AccentButton {{
 }}
 QPushButton#AccentButton:hover {{ background: #2f6df0; }}
 QPushButton#AccentButton:pressed {{ background: #1f55c8; }}
+
+/* ═══════════════════════════════════════════════════
+   欢迎首页
+   ═══════════════════════════════════════════════════ */
+
+#WelcomeNavBar {{
+    background: {welcome_nav_bg};
+    border-bottom: 1px solid {welcome_nav_border};
+}}
+
+#WelcomeAppIcon {{
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:1,
+        stop:0 {accent}, stop:1 #a06cff);
+    border-radius: 5px;
+}}
+
+#WelcomeAppName {{
+    color: {welcome_app_name_fg};
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}}
+
+#WelcomeSettingsBtn {{
+    color: {fg_muted};
+    background: rgba(26,26,50,0.8);
+    border: 1px solid {welcome_btn_secondary_border};
+    border-radius: 5px;
+    padding: 0 10px;
+    font-size: 11px;
+}}
+#WelcomeSettingsBtn:hover {{ background: {bg_elevated}; }}
+
+#WelcomeTitle {{
+    color: {welcome_title_fg};
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 1px;
+}}
+
+#WelcomeSubtitle {{
+    color: {welcome_subtitle_fg};
+    font-size: 12px;
+    letter-spacing: 3px;
+}}
+
+#WelcomeBtnPrimary {{
+    color: white;
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+        stop:0 {accent}, stop:1 #a06cff);
+    border: none;
+    border-radius: 18px;
+    padding: 0 28px;
+    font-size: 13px;
+    font-weight: 700;
+}}
+#WelcomeBtnPrimary:hover {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+    stop:0 #6ab0ff, stop:1 #b07fff); }}
+#WelcomeBtnPrimary:pressed {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+    stop:0 #3a8adf, stop:1 #8a5ccf); }}
+
+#WelcomeBtnSecondary {{
+    color: {welcome_btn_secondary_fg};
+    background: {welcome_btn_secondary_bg};
+    border: 1px solid {welcome_btn_secondary_border};
+    border-radius: 18px;
+    padding: 0 20px;
+    font-size: 13px;
+}}
+#WelcomeBtnSecondary:hover {{ background: rgba(30,30,60,0.8); }}
+
+#WelcomeEmptyHint {{
+    color: {fg_muted};
+    font-size: 14px;
+}}
+
+#PageDot {{
+    background: {welcome_page_dot};
+    border-radius: 3px;
+}}
+
+#PageDotActive {{
+    background: {welcome_page_dot_active};
+    border-radius: 3px;
+}}
 QPushButton#AccentButton:disabled {{ background: #2a3550; color: #8b93a7; }}
