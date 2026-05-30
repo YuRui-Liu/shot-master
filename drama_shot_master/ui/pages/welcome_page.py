@@ -17,6 +17,13 @@ from drama_shot_master.ui.widgets.project_card import ProjectCard
 
 _MAX_CARDS = 4
 
+# 各 depth 的相对宽度（flex），与 fullmockup.html 一致
+_DEPTH_FLEX = {"far": 0.65, "near": 0.85, "center": 1.4, "add": 0.5}
+# 中心卡的宽高比（竖向缩略图，w/h）；其余卡按 flex 比例推宽度
+_CENTER_ASPECT = 0.64
+# 卡片间距（与 _cards_layout spacing 保持一致）
+_CARD_GAP = 14
+
 
 class WelcomePage(QWidget):
     """欢迎首页。与 AppShell 通信通过信号，不持有 AppShell 引用。"""
@@ -81,8 +88,8 @@ class WelcomePage(QWidget):
         hero = QWidget()
         hero.setObjectName("WelcomeHero")
         lay = QVBoxLayout(hero)
-        lay.setContentsMargins(0, 24, 0, 16)
-        lay.setSpacing(8)
+        lay.setContentsMargins(0, 28, 0, 24)
+        lay.setSpacing(10)
         lay.setAlignment(Qt.AlignCenter)
 
         title = QLabel("糯米AI分镜影视创作台")
@@ -101,19 +108,25 @@ class WelcomePage(QWidget):
         subtitle.setAlignment(Qt.AlignCenter)
         lay.addWidget(subtitle)
 
+        lay.addSpacing(10)
+
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(10)
+        btn_row.setSpacing(12)
         btn_row.setAlignment(Qt.AlignCenter)
 
         self._btn_new = QPushButton("＋  新建项目")
         self._btn_new.setObjectName("WelcomeBtnPrimary")
-        self._btn_new.setFixedHeight(36)
+        self._btn_new.setFixedHeight(40)
+        self._btn_new.setMinimumWidth(150)
+        self._btn_new.setCursor(Qt.PointingHandCursor)
         self._btn_new.clicked.connect(self.new_project_requested)
         btn_row.addWidget(self._btn_new)
 
         self._btn_open = QPushButton("打开目录")
         self._btn_open.setObjectName("WelcomeBtnSecondary")
-        self._btn_open.setFixedHeight(36)
+        self._btn_open.setFixedHeight(40)
+        self._btn_open.setMinimumWidth(120)
+        self._btn_open.setCursor(Qt.PointingHandCursor)
         self._btn_open.clicked.connect(self.open_dir_requested)
         btn_row.addWidget(self._btn_open)
 
@@ -124,8 +137,8 @@ class WelcomePage(QWidget):
         w = QWidget()
         w.setObjectName("WelcomeCardsArea")
         self._cards_layout = QHBoxLayout(w)
-        self._cards_layout.setContentsMargins(24, 0, 24, 0)
-        self._cards_layout.setSpacing(12)
+        self._cards_layout.setContentsMargins(24, 8, 24, 8)
+        self._cards_layout.setSpacing(_CARD_GAP)
         return w
 
     def _make_pagination(self) -> QWidget:
@@ -145,20 +158,29 @@ class WelcomePage(QWidget):
         self._rebuild_pagination(projects)
 
     def _rebuild_cards(self, projects: list[dict]) -> None:
-        while self._cards_layout.count():
-            item = self._cards_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        self._clear_layout(self._cards_layout)
+        self._cards = []
 
         if not projects:
-            empty = QLabel("创建你的第一个项目")
-            empty.setObjectName("WelcomeEmptyHint")
-            empty.setAlignment(Qt.AlignCenter)
-            self._cards_layout.addWidget(empty)
+            # 空状态：居中竖排 —— 引导文案 + 新建虚线卡
+            wrap = QWidget()
+            wlay = QVBoxLayout(wrap)
+            wlay.setContentsMargins(0, 0, 0, 0)
+            wlay.setSpacing(14)
+            wlay.setAlignment(Qt.AlignCenter)
+            hint = QLabel("创建你的第一个项目")
+            hint.setObjectName("WelcomeEmptyHint")
+            hint.setAlignment(Qt.AlignCenter)
+            wlay.addWidget(hint, 0, Qt.AlignCenter)
             add_card = ProjectCard(None, depth="add", is_add_button=True)
             add_card.clicked.connect(lambda _: self.new_project_requested.emit())
-            self._cards_layout.addWidget(add_card, 1, Qt.AlignVCenter)
-            self._apply_card_heights()
+            wlay.addWidget(add_card, 0, Qt.AlignCenter)
+            self._cards.append(add_card)
+
+            self._cards_layout.addStretch(1)
+            self._cards_layout.addWidget(wrap, 0, Qt.AlignVCenter)
+            self._cards_layout.addStretch(1)
+            self._relayout_cards()
             return
 
         show = projects[:_MAX_CARDS]
@@ -171,18 +193,28 @@ class WelcomePage(QWidget):
         else:
             depths = ["far", "near", "center", "near"]
 
-        stretch_map = {"far": 65, "near": 85, "center": 140}
-
+        # 居中走马灯：两端弹簧把卡片组推到画布中线，卡片用固定竖向尺寸
+        self._cards_layout.addStretch(1)
         for i, (proj, depth) in enumerate(zip(show, depths)):
             card = ProjectCard(proj, depth=depth, color_index=i)
             card.clicked.connect(self._on_card_clicked)
-            # 垂直居中 → 矮卡浮在中线，配合高度比例形成景深阶梯
-            self._cards_layout.addWidget(card, stretch_map.get(depth, 85), Qt.AlignVCenter)
+            self._cards_layout.addWidget(card, 0, Qt.AlignVCenter)
+            self._cards.append(card)
 
         add_card = ProjectCard(None, depth="add", is_add_button=True)
         add_card.clicked.connect(lambda _: self.new_project_requested.emit())
-        self._cards_layout.addWidget(add_card, 50, Qt.AlignVCenter)
-        self._apply_card_heights()
+        self._cards_layout.addWidget(add_card, 0, Qt.AlignVCenter)
+        self._cards.append(add_card)
+        self._cards_layout.addStretch(1)
+        self._relayout_cards()
+
+    @staticmethod
+    def _clear_layout(layout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
 
     def _rebuild_pagination(self, projects: list[dict]) -> None:
         while self._page_layout.count():
@@ -205,19 +237,44 @@ class WelcomePage(QWidget):
         else:
             self.new_project_requested.emit()
 
-    def _apply_card_heights(self) -> None:
-        """按各卡 depth 高度比例设定固定高度，配合 AlignVCenter 形成景深阶梯。"""
-        avail = self._cards_area.height()
-        if avail <= 0:
+    def _relayout_cards(self) -> None:
+        """按竖向缩略图比例计算每张卡的固定宽高，形成居中景深走马灯。
+
+        - 高度 = 可用高 × depth 高度比例（center 最高）
+        - 宽度 = (center 宽 / center flex) × depth flex；center 宽由 _CENTER_ASPECT 决定
+        - 若总宽超出可用宽，整体等比缩小，保证不撑破/不溢出
+        """
+        cards = [c for c in getattr(self, "_cards", []) if c is not None]
+        if not cards:
             return
-        for i in range(self._cards_layout.count()):
-            card = self._cards_layout.itemAt(i).widget()
-            if isinstance(card, ProjectCard):
-                card.setFixedHeight(max(1, int(avail * card.height_ratio())))
+        avail_h = self._cards_area.height()
+        avail_w = self._cards_area.width() - 48   # 减去左右内边距
+        if avail_h <= 0 or avail_w <= 0:
+            return
+
+        center_w = avail_h * _CENTER_ASPECT
+        unit_w = center_w / _DEPTH_FLEX["center"]
+        sizes = []
+        for c in cards:
+            h = avail_h * c.height_ratio()
+            w = unit_w * _DEPTH_FLEX.get(c._depth, 0.85)
+            sizes.append([w, h])
+
+        total_w = sum(s[0] for s in sizes) + _CARD_GAP * (len(sizes) - 1)
+        if total_w > avail_w:
+            scale = avail_w / total_w
+            sizes = [[w * scale, h * scale] for w, h in sizes]
+
+        for c, (w, h) in zip(cards, sizes):
+            c.setFixedSize(max(1, int(w)), max(1, int(h)))
+
+    # 兼容旧调用名（测试/历史代码）
+    def _apply_card_heights(self) -> None:
+        self._relayout_cards()
 
     def resizeEvent(self, event):  # noqa: N802
         super().resizeEvent(event)
-        self._apply_card_heights()
+        self._relayout_cards()
 
     def paintEvent(self, event):  # noqa: N802
         p = QPainter(self)

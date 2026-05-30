@@ -149,3 +149,24 @@ def test_welcome_page_cards_have_staggered_heights(tmp_path):
             heights[w._depth] = w.height()
     # 景深阶梯：center 最高 > near > far，且都被设成了固定高度（非 0）
     assert heights["center"] > heights["near"] > heights["far"] > 0
+
+
+def test_welcome_page_cards_are_portrait_and_centered(tmp_path):
+    _app()
+    from drama_shot_master.core.recent_projects import RecentProjectsManager
+    from drama_shot_master.ui.pages.welcome_page import WelcomePage
+    from drama_shot_master.ui.widgets.project_card import ProjectCard
+    mgr = RecentProjectsManager(tmp_path / "r.json")
+    d = tmp_path / "p0"
+    d.mkdir()
+    mgr.push(str(d), "P0")
+    page = WelcomePage(mgr)
+    page.resize(1600, 980)
+    page.refresh()
+    page._relayout_cards()
+    center = next(c for c in page._cards if c._depth == "center")
+    # 竖向缩略图：宽 < 高（不再是撑满宽度的横向大块）
+    assert center.width() < center.height()
+    # 卡片组不铺满整宽 → 背景/光晕从两侧透出
+    total = sum(c.width() for c in page._cards)
+    assert total < page._cards_area.width() - 48

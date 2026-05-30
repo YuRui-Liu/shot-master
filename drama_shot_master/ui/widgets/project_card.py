@@ -94,20 +94,24 @@ class ProjectCard(QWidget):
         p.end()
 
     def _paint_add(self, p: QPainter, r: QRect) -> None:
-        pen = QPen(QColor("#252540"))
+        pen = QPen(QColor("#2f2f52"))
         pen.setStyle(Qt.DashLine)
-        pen.setWidth(1)
+        pen.setWidth(2)
         p.setPen(pen)
         p.setBrush(Qt.NoBrush)
         p.drawRoundedRect(r.adjusted(1, 1, -1, -1), 10, 10)
-        p.setPen(QColor("#353555"))
-        font = QFont(self.font())
-        font.setPixelSize(28)
-        p.setFont(font)
-        p.drawText(QRect(r.x(), r.y(), r.width(), r.height() - 20), Qt.AlignCenter, "＋")
-        font.setPixelSize(10)
-        p.setFont(font)
-        p.drawText(QRect(r.x(), r.bottom() - 28, r.width(), 20), Qt.AlignCenter, "新建项目")
+
+        # "＋" 图标 + "新建项目" 文字，整体在卡片中央上下成组居中
+        p.setPen(QColor("#454569"))
+        icon_font = QFont(self.font())
+        icon_font.setPixelSize(34)
+        p.setFont(icon_font)
+        cy = r.center().y()
+        p.drawText(QRect(r.x(), cy - 32, r.width(), 40), Qt.AlignCenter, "＋")
+        text_font = QFont(self.font())
+        text_font.setPixelSize(11)
+        p.setFont(text_font)
+        p.drawText(QRect(r.x(), cy + 8, r.width(), 20), Qt.AlignCenter, "新建项目")
 
     def _paint_project(self, p: QPainter, r: QRect) -> None:
         colors = _THUMB_COLORS[self._color_index]

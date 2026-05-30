@@ -452,11 +452,12 @@ QPushButton#AccentButton:pressed {{ background: #1f55c8; }}
     color: white;
     background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
         stop:0 {accent}, stop:1 #a06cff);
-    border: none;
-    border-radius: 18px;
-    padding: 0 28px;
+    border: 1px solid transparent;
+    border-radius: 20px;
+    padding: 0 30px;
     font-size: 13px;
     font-weight: 700;
+    letter-spacing: 1px;
 }}
 #WelcomeBtnPrimary:hover {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
     stop:0 #6ab0ff, stop:1 #b07fff); }}
@@ -467,8 +468,8 @@ QPushButton#AccentButton:pressed {{ background: #1f55c8; }}
     color: {welcome_btn_secondary_fg};
     background: {welcome_btn_secondary_bg};
     border: 1px solid {welcome_btn_secondary_border};
-    border-radius: 18px;
-    padding: 0 20px;
+    border-radius: 20px;
+    padding: 0 24px;
     font-size: 13px;
 }}
 #WelcomeBtnSecondary:hover {{ background: rgba(30,30,60,0.8); }}
