@@ -45,6 +45,21 @@ def build_grid_user_prompt(tpl_text: str, sb: dict, grp: list,
     )
 
 
+def resolve_group_shots(sb: dict, shot_ids: list) -> list:
+    """按 shot_ids 顺序从 sb['shots'] 取出 shot dict；缺失的 id 跳过。"""
+    by_id = {}
+    for s in sb.get("shots", []):
+        sid = s.get("shotId") or s.get("shot_id") or s.get("id")
+        if sid is not None:
+            by_id[str(sid)] = s
+    out = []
+    for sid in shot_ids:
+        s = by_id.get(str(sid))
+        if s is not None:
+            out.append(s)
+    return out
+
+
 @router.post("/prompts")
 async def prompts(req: PromptsReq, request: Request):
     project_dir = Path(req.project_dir)
@@ -129,12 +144,31 @@ async def prompts(req: PromptsReq, request: Request):
 
             # 2) N 宫格分镜图
             tpl_grid, _ = load_template("grid_prompt", project_dir=project_dir)
-            grid_size = {"single": 1, "4": 4, "9": 9}.get(opts["grid_mode"], 9)
             shots = sb.get("shots", [])
-            groups = [shots[i:i + grid_size] for i in range(0, len(shots), grid_size)]
-            for gi, grp in enumerate(groups, start=1):
+            user_groups = opts.get("groups") or []
+            if user_groups:
+                # 显式分组：每组按自己的 grid_mode + shot_ids 生成 S{gi}.md
+                plan = []
+                for gi, g in enumerate(user_groups, start=1):
+                    grp = resolve_group_shots(sb, g.get("shot_ids", []))
+                    plan.append((gi, grp, g.get("grid_mode", "9")))
+                only = opts.get("only_group_index")
+                if only is not None:
+                    plan = [t for t in plan if t[0] == only]
+                n_groups = len(user_groups)
+            else:
+                # 回退：按统一 grid_mode 切块
+                grid_size = {"single": 1, "4": 4, "9": 9}.get(opts["grid_mode"], 9)
+                plan = [(gi, shots[i:i + grid_size], opts["grid_mode"])
+                        for gi, i in enumerate(
+                            range(0, len(shots), grid_size), start=1)]
+                n_groups = len(plan)
+
+            for gi, grp, gmode in plan:
                 yield sse_event("status", {"phase": "streaming"})
-                prompt = build_grid_user_prompt(tpl_grid, sb, grp, gi, opts)
+                group_opts = dict(opts)
+                group_opts["grid_mode"] = gmode
+                prompt = build_grid_user_prompt(tpl_grid, sb, grp, gi, group_opts)
                 acc: list[str] = []
                 for c in client.stream_chat([{"role": "user", "content": prompt}]):
                     if await request.is_disconnected():
@@ -154,7 +188,7 @@ async def prompts(req: PromptsReq, request: Request):
                                      "episode_id": req.episode_id,
                                      "result": {
                 "character_refs": len(sb.get("characters", [])) if opts["include_character_refs"] else 0,
-                "grid_sheets": len(groups)}, "warnings": []})
+                "grid_sheets": n_groups}, "warnings": []})
         except Exception as e:
             import traceback as _tb
             tb = _tb.format_exc()

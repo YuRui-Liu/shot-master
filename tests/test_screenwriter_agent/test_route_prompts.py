@@ -35,3 +35,22 @@ def test_prompts_episode_paths(tmp_path):
         assert r.json()["error"]["code"] != "UPSTREAM_PRODUCT_MISSING", (
             "分镜_E1.json 已存在，不应返回 UPSTREAM_PRODUCT_MISSING"
         )
+
+
+def test_resolve_group_shots_orders_and_skips_missing():
+    from screenwriter_agent.routes.prompts import resolve_group_shots
+    sb = {"shots": [{"shotId": "S01_1"}, {"shotId": "S01_2"},
+                    {"shotId": "S01_3"}]}
+    out = resolve_group_shots(sb, ["S01_2", "S01_3", "NOPE"])
+    assert [s["shotId"] for s in out] == ["S01_2", "S01_3"]
+
+
+def test_prompts_options_has_groups_fields():
+    from screenwriter_agent.models.requests import PromptsOptions
+    o = PromptsOptions()
+    assert o.groups == []
+    assert o.only_group_index is None
+    o2 = PromptsOptions(groups=[{"grid_mode": "9", "shot_ids": ["a"]}],
+                        only_group_index=1)
+    assert o2.groups[0]["grid_mode"] == "9"
+    assert o2.only_group_index == 1

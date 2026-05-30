@@ -77,11 +77,13 @@ class StoryboardReq(BaseModel):
 
 
 class PromptsOptions(BaseModel):
-    grid_mode: str = "9"                  # "single" | "4" | "9"
+    grid_mode: str = "9"                  # "single" | "4" | "9"（无 groups 时的回退切块）
     include_character_refs: bool = True
     style_extra: str = ""
     negative_preset: str = "标准 SDXL"
     quality_boost: bool = True
+    groups: list = Field(default_factory=list)   # [{"grid_mode":..,"shot_ids":[..]}]
+    only_group_index: int | None = None          # 1-based；仅生成该组
 
 
 class PromptsReq(BaseModel):
