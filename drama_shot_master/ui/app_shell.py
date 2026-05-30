@@ -180,8 +180,41 @@ class AppShell(QMainWindow):
         self._open_dir()   # 弹出目录选择对话框
 
     def _enter_main_ui(self) -> None:
-        """直接切换（无动画），Task 7 会加上动画。"""
+        """欢迎页 fade-out（250ms）→ 主界面出现 + 侧边栏 slide-in（300ms）。"""
+        from PySide6.QtCore import QPropertyAnimation, QEasingCurve, QAbstractAnimation
+        from PySide6.QtWidgets import QGraphicsOpacityEffect
+
+        effect = QGraphicsOpacityEffect(self.welcome_page)
+        effect.setOpacity(1.0)
+        self.welcome_page.setGraphicsEffect(effect)
+
+        fade = QPropertyAnimation(effect, b"opacity", self)
+        fade.setDuration(250)
+        fade.setStartValue(1.0)
+        fade.setEndValue(0.0)
+        fade.setEasingCurve(QEasingCurve.InQuad)
+        fade.finished.connect(self._finish_enter_main_ui)
+        fade.start(QAbstractAnimation.DeleteWhenStopped)
+        self._fade_anim = fade   # 持有引用防止被 GC
+
+    def _finish_enter_main_ui(self) -> None:
+        from PySide6.QtCore import QPropertyAnimation, QEasingCurve, QAbstractAnimation
+        from drama_shot_master.ui.widgets.flow_sidebar import EXPANDED_W
+
+        self.welcome_page.setGraphicsEffect(None)
+        self.sidebar.setMinimumWidth(0)
+        self.sidebar.setMaximumWidth(0)
         self.outer_stack.setCurrentIndex(1)
+
+        slide = QPropertyAnimation(self.sidebar, b"maximumWidth", self)
+        slide.setDuration(300)
+        slide.setStartValue(0)
+        slide.setEndValue(EXPANDED_W)
+        slide.setEasingCurve(QEasingCurve.OutCubic)
+        slide.finished.connect(
+            lambda: self.sidebar.setMinimumWidth(EXPANDED_W))
+        slide.start(QAbstractAnimation.DeleteWhenStopped)
+        self._slide_anim = slide
 
     def _open_dir_path(self, path) -> None:
         """加载指定目录（复用 _open_dir 的实际加载逻辑，无对话框）。"""
