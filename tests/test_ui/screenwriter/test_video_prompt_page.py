@@ -112,3 +112,45 @@ def test_global_copy_button_exists_and_toasts():
     from PySide6.QtWidgets import QApplication as _QA
     assert _QA.clipboard().text() == "hello prompt"
     assert msgs and "复制" in msgs[0]
+
+
+# ── Fix-J: 模板下拉 + 语言切换 + 持久化 ──────────────────────────────
+
+def test_template_and_language_controls_exist_defaults():
+    """工具栏有模板下拉 + 语言下拉，默认 ltx / en。"""
+    _app()
+    p = VideoPromptPage(_Stub())
+    assert hasattr(p, "_template_combo")
+    assert hasattr(p, "_lang_combo")
+    assert p.current_template_id() == "ltx"
+    assert p.current_language() == "en"
+
+
+def test_generate_body_includes_template_and_language(tmp_path):
+    """生成请求体 options 带 template_id + language。"""
+    _app()
+    (tmp_path / "分镜_E1.json").write_text(json.dumps(_min_sb()), encoding="utf-8")
+    p = VideoPromptPage(_Stub())
+    p.set_project(tmp_path)
+    captured = {}
+    p._start_stream = lambda path, body, params=None: captured.update(body)
+    p._on_generate_clicked()
+    opts = captured["options"]
+    assert opts["template_id"] == "ltx"
+    assert opts["language"] == "en"
+
+
+def test_template_choice_persists_per_project(tmp_path):
+    """切到简洁/中文 → 存 video_prompts/_config.json → 重载项目恢复。"""
+    _app()
+    (tmp_path / "分镜_E1.json").write_text(json.dumps(_min_sb()), encoding="utf-8")
+    p = VideoPromptPage(_Stub())
+    p.set_project(tmp_path)
+    p.set_template_id("simple")
+    p.set_language("zh")
+    assert (tmp_path / "video_prompts" / "_config.json").is_file()
+    # 新页面重载同项目
+    p2 = VideoPromptPage(_Stub())
+    p2.set_project(tmp_path)
+    assert p2.current_template_id() == "simple"
+    assert p2.current_language() == "zh"

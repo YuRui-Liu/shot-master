@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QPlainTextEdit, QTableWidget, QTableWidgetItem,
     QAbstractItemView, QSplitter, QWidget, QMessageBox,
-    QHeaderView,
+    QHeaderView, QComboBox,
 )
 
 from drama_shot_master.ui.widgets.screenwriter.base_stage_page import _BaseStagePage
@@ -82,6 +82,19 @@ class VideoPromptPage(_BaseStagePage):
 
     def _build_toolbar(self) -> QHBoxLayout:
         bar = QHBoxLayout()
+        bar.addWidget(QLabel("模板:"))
+        self._template_combo = QComboBox()
+        # (显示名, id)；新 LTX2.3 增强默认在前
+        self._template_combo.addItem("LTX2.3 增强（画面/运镜/音效）", "ltx")
+        self._template_combo.addItem("简洁（Camera:…）", "simple")
+        self._template_combo.currentIndexChanged.connect(self._on_template_changed)
+        bar.addWidget(self._template_combo)
+        bar.addWidget(QLabel("语言:"))
+        self._lang_combo = QComboBox()
+        self._lang_combo.addItem("English", "en")   # 默认全英文
+        self._lang_combo.addItem("中文", "zh")
+        self._lang_combo.currentIndexChanged.connect(self._on_language_changed)
+        bar.addWidget(self._lang_combo)
         self._gen_btn = QPushButton("生成视频提示词")
         self._gen_btn.setEnabled(False)
         self._gen_btn.clicked.connect(self._on_generate_clicked)
@@ -92,6 +105,66 @@ class VideoPromptPage(_BaseStagePage):
         bar.addWidget(self._stop_btn)
         bar.addStretch(1)
         return bar
+
+    # —— 模板 / 语言 选择 + 按项目持久化 ————————————————————
+
+    def current_template_id(self) -> str:
+        return self._template_combo.currentData()
+
+    def current_language(self) -> str:
+        return self._lang_combo.currentData()
+
+    def _set_combo_by_data(self, combo: QComboBox, value: str) -> None:
+        idx = combo.findData(value)
+        if idx >= 0:
+            combo.blockSignals(True)
+            combo.setCurrentIndex(idx)
+            combo.blockSignals(False)
+
+    def set_template_id(self, tid: str) -> None:
+        self._set_combo_by_data(self._template_combo, tid)
+        self._save_template_config()
+
+    def set_language(self, lang: str) -> None:
+        self._set_combo_by_data(self._lang_combo, lang)
+        self._save_template_config()
+
+    def _on_template_changed(self, *_):
+        self._save_template_config()
+
+    def _on_language_changed(self, *_):
+        self._save_template_config()
+
+    def _config_path(self):
+        if self._project_dir is None:
+            return None
+        return self._project_dir / "video_prompts" / "_config.json"
+
+    def _save_template_config(self) -> None:
+        cp = self._config_path()
+        if cp is None:
+            return
+        try:
+            cp.parent.mkdir(parents=True, exist_ok=True)
+            cp.write_text(json.dumps({
+                "template": self.current_template_id(),
+                "language": self.current_language(),
+            }, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+
+    def _load_template_config(self) -> None:
+        cp = self._config_path()
+        if cp is None or not cp.is_file():
+            return
+        try:
+            cfg = json.loads(cp.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        if cfg.get("template"):
+            self._set_combo_by_data(self._template_combo, cfg["template"])
+        if cfg.get("language"):
+            self._set_combo_by_data(self._lang_combo, cfg["language"])
 
     def _build_global_panel(self) -> QWidget:
         w = QWidget()
@@ -168,6 +241,7 @@ class VideoPromptPage(_BaseStagePage):
 
         self._current_episode = "E1"
         self._episode_sel.set_project(path)
+        self._load_template_config()        # 按项目恢复模板/语言选择
 
         upstream = storyboard_episode_read_path_in(path, self._current_episode)
         if upstream is None:
@@ -298,6 +372,10 @@ class VideoPromptPage(_BaseStagePage):
         body = {
             "project_dir": str(self._project_dir),
             "episode_id": self._current_episode,
+            "options": {
+                "template_id": self.current_template_id(),
+                "language": self.current_language(),
+            },
         }
         self._start_stream("/video_prompt", body)
 
