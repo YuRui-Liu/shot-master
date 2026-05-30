@@ -11,7 +11,7 @@ from screenwriter_agent.core.atomic_write import atomic_write_text
 # 5 套内置模板的 id
 BUILTIN_IDS = ("ideate", "script", "script_outline", "script_episode",
                 "storyboard", "character_ref", "grid_prompt", "video_prompt",
-                "voice_design", "sfx_cues")
+                "video_prompt_ltx", "voice_design", "sfx_cues")
 
 # 内置模板目录（.md 文件与本文件同目录）
 _BUILTIN_DIR = Path(__file__).resolve().parent

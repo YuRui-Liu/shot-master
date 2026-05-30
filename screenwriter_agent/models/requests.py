@@ -115,6 +115,8 @@ class VideoPromptOptions(BaseModel):
     fps: int = 24
     aspect_ratio: str = "9:16"
     style_note: str = ""
+    template_id: str = "ltx"        # "ltx"=画面/运镜/音效 LTX2.3增强(默认) | "simple"=Camera:…
+    language: str = "en"            # "en"=全英文(默认) | "zh"=全中文
 
 
 class VideoPromptReq(BaseModel):

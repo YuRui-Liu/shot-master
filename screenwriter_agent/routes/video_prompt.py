@@ -21,6 +21,21 @@ from screenwriter_agent.models.requests import VideoPromptReq
 router = APIRouter()
 
 
+def video_template_id(template_id: str) -> str:
+    """模板选择：ltx→video_prompt_ltx（画面/运镜/音效），其余→video_prompt（简洁）。"""
+    return "video_prompt_ltx" if template_id == "ltx" else "video_prompt"
+
+
+def build_video_user_prompt(tpl_text: str, sb: dict, opts) -> str:
+    """渲染视频提示词 user prompt：注入分镜 JSON + fps + 比例 + 语言。"""
+    return tpl_text.format(
+        storyboard_json=json.dumps(sb, ensure_ascii=False, indent=2),
+        fps=opts.fps,
+        aspect_ratio=opts.aspect_ratio,
+        language=opts.language,
+    )
+
+
 @router.post("/video_prompt")
 async def video_prompt(req: VideoPromptReq, request: Request):
     project_dir = Path(req.project_dir)
@@ -67,12 +82,9 @@ async def video_prompt(req: VideoPromptReq, request: Request):
             except Exception:
                 sb = {}
 
-            tpl_text, _ = load_template("video_prompt", project_dir=project_dir)
-            prompt = tpl_text.format(
-                storyboard_json=json.dumps(sb, ensure_ascii=False, indent=2),
-                fps=req.options.fps,
-                aspect_ratio=req.options.aspect_ratio,
-            )
+            tpl_id = video_template_id(req.options.template_id)
+            tpl_text, _ = load_template(tpl_id, project_dir=project_dir)
+            prompt = build_video_user_prompt(tpl_text, sb, req.options)
 
             client = LLMClient(
                 api_key=api_key,
