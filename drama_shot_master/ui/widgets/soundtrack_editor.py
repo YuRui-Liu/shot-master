@@ -50,8 +50,6 @@ class SoundtrackEditor(QWidget):
         self._play_mode: str = "raw"   # "raw" | "bgm" | "mix"
         from drama_shot_master.ui.widgets.overlay_audio import OverlayMixer
         self._overlay = OverlayMixer(self)
-        self._preview_fp = {"bgm": None, "sfx": None}   # 已构建轨的指纹
-        self._preview_worker = None
         self._build_ui()
         self._setup_shortcuts()
         self._try_load_existing()
@@ -758,89 +756,58 @@ class SoundtrackEditor(QWidget):
 
     def _on_play_mode_changed(self, mode: str) -> None:
         self._play_mode = mode
-        # 视频源始终用原始 mp4（保留画面+原声），配乐/混音靠叠加轨
+        # 视频源始终用原始 mp4（保留画面+原声），配乐/混音靠叠加轨实时同时播放
         src = self._resolve_video_source()
         if src and self._video_preview:
             self._video_preview.set_source(src)
-        if mode == "raw":
-            self._apply_play_mode_tracks("raw")
+        # 即时设时间表（零渲染，不合成）→ 启用对应轨 → 对齐+恢复播放
+        self._build_overlay_schedules()
+        self._apply_play_mode_tracks(mode)
+        self._sync_overlay_to_video()
+        if mode != "raw" and self._session is None:
+            self.progress_label.setText("尚无 BGM 候选，请先「开始配乐」生成。")
+        else:
             self.progress_label.setText("")
-            return
-        self._ensure_preview_tracks(mode)
+
+    def _build_overlay_schedules(self) -> None:
+        """从 session/sfx_session 直接构建叠加轨时间表（各段选定候选 mp3）。
+
+        纯调度、零渲染、不合成——合成留给用户后续手动出片。
+        """
+        bgm_clips = []
+        if self._session is not None:
+            for s in self._session.segments:
+                ci = getattr(s, "chosen_candidate", None)
+                if ci is not None and 0 <= ci < len(s.candidates):
+                    p = s.candidates[ci].path
+                    if p:
+                        bgm_clips.append((float(s.t_start), float(s.t_end), p))
+        self._overlay.set_schedule("bgm", bgm_clips)
+
+        sfx_clips = []
+        if self._sfx_session is not None:
+            for sh in self._sfx_session.shots:
+                if not getattr(sh, "enabled", True):
+                    continue
+                ci = getattr(sh, "chosen_candidate", None)
+                if ci is not None and 0 <= ci < len(sh.candidates):
+                    p = sh.candidates[ci].path
+                    if p:
+                        t0 = float(sh.t_start)
+                        sfx_clips.append((t0, t0 + float(sh.duration), p))
+        self._overlay.set_schedule("sfx", sfx_clips)
 
     def _apply_play_mode_tracks(self, mode: str) -> None:
         self._overlay.set_enabled("bgm", mode in ("bgm", "mix"))
         self._overlay.set_enabled("sfx", mode == "mix")
 
     def _sync_overlay_to_video(self) -> None:
-        """把叠加轨对齐到视频实时位置，并按视频播放态恢复播放。
-
-        切到配乐/混音（或预览轨刚就绪）时调用：仅 unmute 不够——QMediaPlayer
-        处于暂停态不会自行恢复，必须 seek 到当前播放头并 play。"""
+        """把叠加轨对齐到视频实时位置，并按视频播放态恢复播放。"""
         if self._video_preview is None:
             return
         self._overlay.seek(self._video_preview.position())
         if self._video_preview.is_playing():
             self._overlay.play()
-
-    def _ensure_preview_tracks(self, mode: str) -> None:
-        """按需后台构建 BGM/(SFX) 预览轨；指纹未变则直接启用。"""
-        if self._session is None:
-            self.progress_label.setText("尚无 BGM 候选，请先「开始配乐」生成。")
-            return
-        if self._preview_worker is not None and self._preview_worker.isRunning():
-            return
-        need_sfx = (mode == "mix")
-        bgm_fp = self._preview_fingerprint("bgm")
-        sfx_fp = self._preview_fingerprint("sfx") if need_sfx else None
-        bgm_ready = (self._preview_fp["bgm"] == bgm_fp
-                     and self._overlay.track_path("bgm"))
-        sfx_ready = (not need_sfx) or (self._preview_fp["sfx"] == sfx_fp
-                                       and self._overlay.track_path("sfx"))
-        if bgm_ready and sfx_ready:
-            self._apply_play_mode_tracks(mode)
-            self._sync_overlay_to_video()    # 暖缓存也要 seek+resume，否则切过来不出声
-            self.progress_label.setText("")
-            return
-
-        work_dir = self._work_dir()
-        sess = self._session
-        sfx_sess = self._sfx_session
-
-        def task():
-            from sound_track_agent import facade
-            from sound_track_agent.mixdown import assemble_sfx_track
-            bgm_wav = facade.build_accent_preview(sess, work_dir)
-            sfx_wav = None
-            if need_sfx and sfx_sess is not None:
-                sfx_wav = assemble_sfx_track(
-                    sfx_sess.shots, work_dir / "sfx_track.wav")
-            return {"bgm": str(bgm_wav) if bgm_wav else None,
-                    "sfx": str(sfx_wav) if sfx_wav else None,
-                    "bgm_fp": bgm_fp, "sfx_fp": sfx_fp, "mode": mode}
-
-        self.progress_label.setText("正在生成配乐预览…")
-        self._preview_worker = FunctionWorker(task)
-        self._preview_worker.finished_with_result.connect(self._on_preview_built)
-        self._preview_worker.failed.connect(
-            lambda err: self.progress_label.setText(f"配乐预览生成失败：{err}"))
-        self._preview_worker.start()
-
-    def _on_preview_built(self, res: dict):
-        if res.get("bgm"):
-            self._overlay.set_track("bgm", res["bgm"])
-            self._preview_fp["bgm"] = res["bgm_fp"]
-        if res.get("sfx"):
-            self._overlay.set_track("sfx", res["sfx"])
-            self._preview_fp["sfx"] = res["sfx_fp"]
-        # 用「当前」播放模式应用（构建期间用户可能改了模式）
-        self._apply_play_mode_tracks(self._play_mode)
-        self.progress_label.setText("")
-        # 若当前模式比构建时更高（如 bgm→mix），缺的轨再补建一次
-        if self._play_mode != res.get("mode") and self._play_mode != "raw":
-            self._ensure_preview_tracks(self._play_mode)
-            return
-        self._sync_overlay_to_video()
 
     def _on_video_playing_changed(self, playing: bool) -> None:
         if playing:
@@ -858,47 +825,6 @@ class SoundtrackEditor(QWidget):
         if task_out and Path(task_out).exists():
             return task_out
         return None
-
-    def _preview_fingerprint(self, kind: str) -> str:
-        """预览轨内容指纹：影响 build 产物的字段变 → 指纹变 → 触发重建。"""
-        import hashlib, json
-        if kind == "bgm":
-            sess = self._session
-            if sess is None:
-                return ""
-            def _ap(a):
-                if hasattr(a, "to_dict"):
-                    return a.to_dict()
-                if hasattr(a, "t"):
-                    return {"t": getattr(a, "t", None),
-                            "intensity": getattr(a, "intensity", None),
-                            "confirmed": getattr(a, "confirmed", False)}
-                return a   # 已是 dict / 基本类型
-            data = {
-                "segs": [(getattr(s, "chosen_candidate", None),
-                          float(getattr(s, "volume", 1.0)))
-                         for s in sess.segments],
-                "accents": [_ap(a)
-                            for a in (getattr(sess, "accent_points", []) or [])],
-                "accent_on": bool(getattr(sess, "accent_mix_enabled", True)),
-                "pump": float(getattr(sess, "pump_strength", 0.6)),
-            }
-        else:  # sfx
-            sess = self._sfx_session
-            if sess is None:
-                return ""
-            data = {"shots": [
-                (bool(getattr(s, "enabled", True)),
-                 getattr(s, "chosen_candidate", None),
-                 float(getattr(s, "volume", 1.0)),
-                 (s.candidates[s.chosen_candidate].path
-                  if s.chosen_candidate is not None
-                  and 0 <= s.chosen_candidate < len(s.candidates) else None))
-                for s in sess.shots]}
-        # default=str 兜底：任何意外的非序列化字段 stringify，绝不让指纹计算
-        # 崩掉整个播放动作（指纹只需稳定+唯一，str 化即可）
-        blob = json.dumps(data, ensure_ascii=False, sort_keys=True, default=str)
-        return hashlib.blake2b(blob.encode("utf-8"), digest_size=8).hexdigest()
 
     def _resolve_video_source(self):
         """叠加预览：所有模式都用原始 mp4（保留画面+原声）。"""
