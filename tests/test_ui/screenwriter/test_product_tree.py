@@ -60,3 +60,18 @@ def test_set_status_streaming():
     assert p in t.tree_items
     t.set_status(p, "streaming")
     assert "●" in t.tree_items[p].text(0)
+
+
+def test_build_from_sb_with_groups(tmp_path):
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from drama_shot_master.ui.widgets.screenwriter._product_tree import _ProductTree
+    sb = {"characters": [], "shots": [{"shotId": f"S{i}"} for i in range(10)]}
+    t = _ProductTree()
+    t.build_from_sb(tmp_path, sb, groups=[{"shot_ids": ["a"] * 9},
+                                          {"shot_ids": ["b"]}],
+                    include_character_refs=False)
+    names = [p.name for p in t.tree_items]
+    assert "S1.md" in names and "S2.md" in names and "S3.md" not in names

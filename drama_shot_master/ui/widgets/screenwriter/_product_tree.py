@@ -26,10 +26,12 @@ class _ProductTree(QTreeWidget):
         self.tree_items: dict[Path, QTreeWidgetItem] = {}
 
     def build_from_sb(self, prompts_dir: Path, sb: dict,
-                      *, grid_mode: str,
+                      *, grid_mode: str = "9",
+                      groups: list | None = None,
                       include_character_refs: bool,
                       episode_id: str = ""):
-        """按分镜.json 推算预期文件，构建树 + 状态点。"""
+        """按分镜.json 推算预期文件，构建树 + 状态点。
+        groups 非空时按组数渲染 N宫格/S{k}.md；否则按 grid_mode 统一切块。"""
         self.clear()
         self.tree_items = {}
         if include_character_refs:
@@ -46,8 +48,11 @@ class _ProductTree(QTreeWidget):
                 self._add_file_item(char_group, p, status)
         # 网格
         shots = sb.get("shots") or []
-        grid_size = {"single": 1, "4": 4, "9": 9}.get(grid_mode, 9)
-        n_groups = ceil(len(shots) / grid_size) if shots else 0
+        if groups:
+            n_groups = len(groups)
+        else:
+            grid_size = {"single": 1, "4": 4, "9": 9}.get(grid_mode, 9)
+            n_groups = ceil(len(shots) / grid_size) if shots else 0
         grid_group = QTreeWidgetItem(self, [f"📁 N 宫格 ({n_groups})"])
         grid_group.setExpanded(True)
         for i in range(1, n_groups + 1):
