@@ -50,6 +50,7 @@ class SoundtrackEditor(QWidget):
         self._play_mode: str = "raw"   # "raw" | "bgm" | "mix"
         from drama_shot_master.ui.widgets.overlay_audio import OverlayMixer
         self._overlay = OverlayMixer(self)
+        self._dir_worker = None
         self._build_ui()
         self._setup_shortcuts()
         self._try_load_existing()
@@ -136,13 +137,22 @@ class SoundtrackEditor(QWidget):
         left_w.setLayout(left_col)
         main_h.addWidget(left_w, 1)
 
+        from PySide6.QtWidgets import QSplitter
+        from drama_shot_master.ui.widgets.soundtrack_ai_chat import AIChatPanel
+        right_col = QSplitter(Qt.Vertical)
+        right_col.setFixedWidth(300)
+        self._ai_chat = AIChatPanel()
+        self._ai_chat.directiveRequested.connect(self._on_directive_requested)
+        right_col.addWidget(self._ai_chat)
         self._inspector_container = QWidget()
-        self._inspector_container.setFixedWidth(280)
         ic_lay = QVBoxLayout(self._inspector_container)
         ic_lay.setContentsMargins(0, 0, 0, 0)
         self._current_inspector = EmptyInspector()
         ic_lay.addWidget(self._current_inspector)
-        main_h.addWidget(self._inspector_container)
+        right_col.addWidget(self._inspector_container)
+        right_col.setStretchFactor(0, 1)
+        right_col.setStretchFactor(1, 1)
+        main_h.addWidget(right_col)
 
         main_w = QWidget()
         main_w.setLayout(main_h)
@@ -254,6 +264,8 @@ class SoundtrackEditor(QWidget):
         if src and self._video_preview:
             self._video_preview.set_source(src)
         self._refresh_track_view()
+        if self._session is not None and getattr(self, "_ai_chat", None):
+            self._ai_chat.set_directive(self._session.directive)
 
     def _try_load_sfx_session(self):
         """加载 SFX session，支持多路径回退（兼容历史工作目录不一致情况）。
@@ -825,6 +837,42 @@ class SoundtrackEditor(QWidget):
         if task_out and Path(task_out).exists():
             return task_out
         return None
+
+    def _on_directive_requested(self, instruction: str, apply_prompts: bool):
+        if self._session is None:
+            self._ai_chat.append_error("尚无 session，请先「开始配乐」生成段落。")
+            return
+        if self._dir_worker is not None and self._dir_worker.isRunning():
+            return
+        from sound_track_agent.provider import build_soundtrack_provider
+        provider = build_soundtrack_provider(self.cfg)
+        cur = self._session.directive
+        n = len(self._session.segments)
+
+        def task():
+            from sound_track_agent import directive_composer
+            return directive_composer.synthesize_directive(
+                provider, cur, instruction, n)
+
+        self._ai_chat.set_busy(True)
+        self._dir_worker = FunctionWorker(task)
+        self._dir_worker.finished_with_result.connect(
+            lambda d: self._on_directive_built(d, apply_prompts))
+        self._dir_worker.failed.connect(
+            lambda err: (self._ai_chat.set_busy(False),
+                         self._ai_chat.append_error(f"AI 失败：{err}")))
+        self._dir_worker.start()
+
+    def _on_directive_built(self, new_dir, apply_prompts: bool):
+        self._session.directive = new_dir
+        if apply_prompts:
+            from sound_track_agent.facade import apply_directive_to_prompts
+            apply_directive_to_prompts(self._session)
+        self._persist_session()
+        self._ai_chat.set_directive(new_dir)
+        self._ai_chat.set_busy(False)
+        self._refresh_inspector()
+        self._refresh_track_view()
 
     def _resolve_video_source(self):
         """叠加预览：所有模式都用原始 mp4（保留画面+原声）。"""
