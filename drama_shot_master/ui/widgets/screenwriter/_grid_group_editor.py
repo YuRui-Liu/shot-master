@@ -4,10 +4,10 @@
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QComboBox, QPushButton, QLabel, QHeaderView,
+    QComboBox, QPushButton, QLabel, QHeaderView, QToolButton,
 )
 
 _MODE_LABELS = [("single", "单帧"), ("4", "四宫格"), ("9", "九宫格")]
@@ -61,7 +61,21 @@ class _GridGroupEditor(QWidget):
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(2)
-        v.addWidget(QLabel("分组："))
+        # 折叠头（默认展开）：点击切换 _body 显隐，腾地方给右侧预览
+        self._header_btn = QToolButton()
+        self._header_btn.setText("分组")
+        self._header_btn.setCheckable(True)
+        self._header_btn.setChecked(True)
+        self._header_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._header_btn.setArrowType(Qt.DownArrow)
+        self._header_btn.setStyleSheet("QToolButton{border:none;font-weight:600;}")
+        self._header_btn.toggled.connect(self._on_toggle)
+        v.addWidget(self._header_btn)
+
+        self._body = QWidget()
+        bv = QVBoxLayout(self._body)
+        bv.setContentsMargins(0, 0, 0, 0)
+        bv.setSpacing(2)
         self._table = QTableWidget(0, 6)
         self._table.setHorizontalHeaderLabels(
             ["组", "起始", "结束", "模式", "生成", "状态"])
@@ -69,7 +83,8 @@ class _GridGroupEditor(QWidget):
         h.setSectionResizeMode(self._COL_START, QHeaderView.Stretch)
         h.setSectionResizeMode(self._COL_END, QHeaderView.Stretch)
         self._table.verticalHeader().setVisible(False)
-        v.addWidget(self._table)
+        self._table.setMinimumHeight(70)
+        bv.addWidget(self._table)
         bar = QHBoxLayout()
         add_btn = QPushButton("+ 添加组")
         add_btn.clicked.connect(self._add_group)
@@ -78,7 +93,21 @@ class _GridGroupEditor(QWidget):
         self._gen_all_btn = QPushButton("全部生成")
         self._gen_all_btn.clicked.connect(lambda: self.generateAll.emit())
         bar.addWidget(self._gen_all_btn)
-        v.addLayout(bar)
+        bv.addLayout(bar)
+        v.addWidget(self._body)
+
+    def _on_toggle(self, on: bool) -> None:
+        self._header_btn.setArrowType(Qt.DownArrow if on else Qt.RightArrow)
+        self._body.setVisible(on)
+
+    def _fit_table_height(self) -> None:
+        """把表高贴合行数（不被 splitter 压扁，多组时上限内可滚动）。"""
+        rows = self._table.rowCount()
+        rh = self._table.verticalHeader().defaultSectionSize() or 30
+        hh = self._table.horizontalHeader().height() or 26
+        h = min(max(hh + rows * rh + 6, 70), 320)
+        self._table.setMinimumHeight(h)
+        self._table.setMaximumHeight(h)
 
     # —— 公共 API ——
 
@@ -163,6 +192,7 @@ class _GridGroupEditor(QWidget):
             st = QTableWidgetItem("○" if valid else "✗ 超容量")
             self._table.setItem(r, self._COL_STATUS, st)
             gen_btn.setEnabled(valid)
+        self._fit_table_height()
 
     def _on_row_changed(self, row: int) -> None:
         if not (0 <= row < len(self._groups)):

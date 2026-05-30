@@ -119,3 +119,34 @@ def test_editor_default_grid_mode_4():
     ed.set_shots([f"S{i}" for i in range(1, 9)])   # 8 镜 → 2 组 4
     g = ed.groups()
     assert len(g) == 2 and all(x["grid_mode"] == "4" for x in g)
+
+
+# ── 可折叠 + 默认展开 + 表高自适应（修显示不全）────────────────
+
+def test_editor_starts_expanded():
+    _app()
+    from drama_shot_master.ui.widgets.screenwriter._grid_group_editor import _GridGroupEditor
+    ed = _GridGroupEditor()
+    assert ed._header_btn.isChecked() is True       # 默认展开
+    assert ed._body.isVisibleTo(ed) is True
+
+
+def test_editor_toggle_collapses_body():
+    _app()
+    from drama_shot_master.ui.widgets.screenwriter._grid_group_editor import _GridGroupEditor
+    ed = _GridGroupEditor()
+    ed._header_btn.click()                          # 折叠
+    assert ed._header_btn.isChecked() is False
+    assert ed._body.isVisibleTo(ed) is False
+    ed._header_btn.click()                          # 再展开
+    assert ed._body.isVisibleTo(ed) is True
+
+
+def test_table_height_fits_rows_not_squished():
+    _app()
+    from drama_shot_master.ui.widgets.screenwriter._grid_group_editor import _GridGroupEditor
+    ed = _GridGroupEditor()                          # 默认四宫格
+    ed.set_shots([f"S{i}" for i in range(1, 9)])     # 8 镜 → 2 组
+    # 表高被设为贴合行数（固定 min==max），且不被压成 0/1 行
+    assert ed._table.minimumHeight() == ed._table.maximumHeight()
+    assert ed._table.minimumHeight() >= 70
