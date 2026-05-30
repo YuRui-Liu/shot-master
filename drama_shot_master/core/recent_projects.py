@@ -18,7 +18,7 @@ class RecentProjectsManager:
         return cls(Path(settings_path).parent / "recent_projects.json")
 
     def load(self) -> list[dict]:
-        """返回有效项目列表（path 必须存在），按 last_opened 降序。"""
+        """返回有效项目列表（path 必须存在），保持写入时的先后顺序（最近在前）。"""
         raw = self._read_raw()
         valid = [p for p in raw if Path(p.get("path", "")).exists()]
         if len(valid) != len(raw):

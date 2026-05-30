@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-import pytest
 from drama_shot_master.core.recent_projects import RecentProjectsManager
 
 
