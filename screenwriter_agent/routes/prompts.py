@@ -19,6 +19,32 @@ from screenwriter_agent.models.requests import PromptsReq
 router = APIRouter()
 
 
+def build_grid_user_prompt(tpl_text: str, sb: dict, grp: list,
+                           group_index: int, opts: dict) -> str:
+    """拼出"本组宫格提示词"的 user prompt：模板 + 尺寸/角色/本组镜头上下文。
+
+    注入 aspect_ratio（尺寸映射）+ characters（Character Lock）+ globalStyle，
+    供模型按 9 节英文结构生成带布局约束的合成宫格图提示词。
+    """
+    return (
+        tpl_text
+        + "\n\n## 运行参数\n"
+        + f"grid_mode={opts.get('grid_mode', '9')}\n"
+        + f"aspect_ratio={sb.get('aspectRatio', '16:9')}\n"
+        + f"group_index={group_index}\n"
+        + f"quality_boost={opts.get('quality_boost', True)}\n"
+        + f"style_extra={opts.get('style_extra', '')}\n"
+        + f"negative_preset={opts.get('negative_preset', '')}\n"
+        + "\n## 全局风格 globalStyle\n"
+        + sb.get("globalStyle", "")
+        + "\n\n## 角色（# Character Lock 来源）\n```json\n"
+        + json.dumps(sb.get("characters", []), ensure_ascii=False, indent=2)
+        + "\n```\n\n## 本组镜头（按顺序映射 F1, F2, …）\n```json\n"
+        + json.dumps(grp, ensure_ascii=False, indent=2)
+        + "\n```\n"
+    )
+
+
 @router.post("/prompts")
 async def prompts(req: PromptsReq, request: Request):
     project_dir = Path(req.project_dir)
@@ -108,16 +134,7 @@ async def prompts(req: PromptsReq, request: Request):
             groups = [shots[i:i + grid_size] for i in range(0, len(shots), grid_size)]
             for gi, grp in enumerate(groups, start=1):
                 yield sse_event("status", {"phase": "streaming"})
-                prompt = (tpl_grid
-                          + "\n\n## 全局风格\n"
-                          + sb.get("globalStyle", "")
-                          + f"\n## grid_mode\n{opts['grid_mode']}\n"
-                          + f"## quality_boost\n{opts['quality_boost']}\n"
-                          + f"## negative_preset\n{opts['negative_preset']}\n"
-                          + f"## 风格补充\n{opts['style_extra']}\n"
-                          + "## 本组镜头\n```json\n"
-                          + json.dumps(grp, ensure_ascii=False, indent=2)
-                          + "\n```\n")
+                prompt = build_grid_user_prompt(tpl_grid, sb, grp, gi, opts)
                 acc: list[str] = []
                 for c in client.stream_chat([{"role": "user", "content": prompt}]):
                     if await request.is_disconnected():
