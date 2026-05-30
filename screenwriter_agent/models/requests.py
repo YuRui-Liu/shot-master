@@ -61,7 +61,9 @@ class ScriptReq(BaseModel):
 class StoryboardOptions(BaseModel):
     aspect_ratio: str = "9:16"
     fps: int = 24
-    shot_duration_default: float = 3.0
+    shot_duration_default: float = 3.0          # 向后兼容：缺时长的兜底单值
+    shot_duration_min: float = 4.0              # 镜头时长范围下限（秒）
+    shot_duration_max: float = 10.0             # 镜头时长范围上限（秒）
     density: str = "常规"
 
 

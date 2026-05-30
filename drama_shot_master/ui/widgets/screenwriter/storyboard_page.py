@@ -89,10 +89,17 @@ class StoryboardPage(_BaseStagePage):
         self._fps_spin = QSpinBox(); self._fps_spin.setRange(12, 60)
         self._fps_spin.setValue(24)
         bar.addWidget(self._fps_spin)
-        bar.addWidget(QLabel("默认时长:"))
-        self._default_dur_spin = QDoubleSpinBox()
-        self._default_dur_spin.setRange(0.5, 30.0); self._default_dur_spin.setValue(3.0)
-        bar.addWidget(self._default_dur_spin)
+        bar.addWidget(QLabel("时长范围:"))
+        self._dur_min_spin = QDoubleSpinBox()
+        self._dur_min_spin.setRange(0.5, 30.0); self._dur_min_spin.setValue(4.0)
+        self._dur_min_spin.setSingleStep(0.5)
+        bar.addWidget(self._dur_min_spin)
+        bar.addWidget(QLabel("–"))
+        self._dur_max_spin = QDoubleSpinBox()
+        self._dur_max_spin.setRange(0.5, 30.0); self._dur_max_spin.setValue(10.0)
+        self._dur_max_spin.setSingleStep(0.5)
+        bar.addWidget(self._dur_max_spin)
+        bar.addWidget(QLabel("s"))
         bar.addWidget(QLabel("密度:"))
         self._density_combo = QComboBox()
         self._density_combo.addItems(["稀疏", "常规", "紧凑"])
@@ -422,7 +429,8 @@ class StoryboardPage(_BaseStagePage):
             "options": {
                 "aspect_ratio": self._aspect_combo.currentText(),
                 "fps": self._fps_spin.value(),
-                "shot_duration_default": self._default_dur_spin.value(),
+                "shot_duration_min": self._dur_min_spin.value(),
+                "shot_duration_max": self._dur_max_spin.value(),
                 "density": self._density_combo.currentText(),
             },
         }

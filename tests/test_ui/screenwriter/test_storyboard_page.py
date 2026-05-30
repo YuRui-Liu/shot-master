@@ -110,6 +110,28 @@ def test_upstream_check_blocks_generate(tmp_path, monkeypatch):
     assert called
 
 
+def test_duration_range_spins_default_4_10():
+    """默认时长改为范围控件，默认 4–10s。"""
+    _app()
+    p = StoryboardPage(_StubClient())
+    assert p._dur_min_spin.value() == 4.0
+    assert p._dur_max_spin.value() == 10.0
+
+
+def test_generate_body_includes_duration_range(tmp_path):
+    """生成请求体应带 shot_duration_min / shot_duration_max。"""
+    _app()
+    (tmp_path / "剧本_E1.md").write_text("# 测试剧本", encoding="utf-8")
+    p = StoryboardPage(_StubClient())
+    p.set_project(tmp_path)
+    captured = {}
+    p._start_stream = lambda path, body, params=None: captured.update(body)
+    p._on_generate_clicked()
+    opts = captured["options"]
+    assert opts["shot_duration_min"] == 4.0
+    assert opts["shot_duration_max"] == 10.0
+
+
 def test_advance_does_not_auto_generate(tmp_path):
     """推进到分镜（start_generation_if_idle）不应自动跑生成——
     用户需先设时长范围，再手动点「生成分镜」。"""

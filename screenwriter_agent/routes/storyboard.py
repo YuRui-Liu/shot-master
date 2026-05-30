@@ -69,7 +69,8 @@ async def storyboard(req: StoryboardReq, request: Request):
                       + md
                       + f"\n\n## 参数\nfps={opts['fps']}, "
                       + f"aspect_ratio={opts['aspect_ratio']}, "
-                      + f"default_duration={opts['shot_duration_default']}, "
+                      + f"duration_range={opts['shot_duration_min']}-"
+                      + f"{opts['shot_duration_max']}s, "
                       + f"density={opts['density']}\n\n"
                       + "**只输出一个 JSON 代码块**。")
             messages = [{"role": "user", "content": prompt}]

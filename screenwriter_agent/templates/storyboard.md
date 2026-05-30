@@ -68,7 +68,7 @@ cinematic 9:16 vertical video, ancient Chinese palace interior golden hour light
 
 - 剧本中每个 `## 镜头 XX` 对应 JSON 中一个 `shot` 对象
 - `shotId` = `S01_XX`（XX 为两位数字，与剧本锚点一致）
-- `duration` ← 从剧本 `**时长**` 字段读取；若缺失使用 `{{shot_duration_default}}`
+- `duration` ← 从剧本 `**时长**` 字段读取；若缺失，则在参数 `duration_range`（如 4-10s）范围内按镜头节奏**变奏取值**（爆点/动作镜头偏长、过渡镜头偏短），不要全部取同一值
 - `description` ← 剧本 `**画面**` 字段内容（原文保留）
 - `composition` ← 镜头景别（从 description 中提取首个景别词：特写/近景/中景/远景/全景/鸟瞰）
 - `stylePrompt` ← 按上方规范生成，角色外貌必须固定一致
