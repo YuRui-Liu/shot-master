@@ -24,7 +24,7 @@ from drama_shot_master.ui.nav_config import FUNCS, PHASES, LABELS
 class AppShell(QMainWindow):
     def __init__(self, cfg=None):
         super().__init__()
-        self.setWindowTitle("Drama-Shot-Master")
+        self.setWindowTitle("糯米AI分镜影视创作台")
         self.resize(1360, 860)
         self.pages = {}
         self._phase_of = {k: t for t, ks in PHASES for k in ks}
@@ -55,6 +55,9 @@ class AppShell(QMainWindow):
         from drama_shot_master.ui.panels.trim_panel import TrimPanel
 
         self.cfg = self._injected_cfg if self._injected_cfg is not None else load_config()
+        from drama_shot_master.core.recent_projects import RecentProjectsManager
+        settings_path = self.cfg.settings_path if self.cfg.settings_path else Path("settings.json")
+        self.recent_mgr = RecentProjectsManager.alongside_settings(Path(settings_path))
         self.state = AppState()
         self.video_store = VideoTaskStore.from_list(self.cfg.video_tasks)
         self.dub_store = DubTaskStore.from_list(self.cfg.dub_tasks)
@@ -90,14 +93,20 @@ class AppShell(QMainWindow):
         body_w = QWidget()
         body_w.setLayout(body)
 
-        root = QVBoxLayout()
+        main_ui = QWidget()
+        root = QVBoxLayout(main_ui)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         root.addWidget(self.command_bar)
         root.addWidget(body_w, 1)
-        central = QWidget()
-        central.setLayout(root)
-        self.setCentralWidget(central)
+
+        # outer_stack: 0=欢迎页，1=主界面
+        from drama_shot_master.ui.pages.welcome_page import WelcomePage
+        self.welcome_page = WelcomePage(self.recent_mgr)
+        self.outer_stack = QStackedWidget()
+        self.outer_stack.addWidget(self.welcome_page)   # index 0
+        self.outer_stack.addWidget(main_ui)             # index 1
+        self.setCentralWidget(self.outer_stack)
 
         # 任务中心 dock
         from drama_shot_master.core.task_aggregator import TaskAggregator
@@ -143,6 +152,49 @@ class AppShell(QMainWindow):
         self.task_center_dock.visibilityChanged.connect(
             self.command_bar.btn_task_center.setChecked)
 
+        # 欢迎页信号连接
+        self.welcome_page.project_selected.connect(self._on_welcome_project_selected)
+        self.welcome_page.new_project_requested.connect(self._on_welcome_new_project)
+        self.welcome_page.open_dir_requested.connect(self._open_dir)
+        self.welcome_page.settings_requested.connect(self._open_unified_settings)
+
+    # ------------------------------------------------------------------ #
+    # 欢迎首页 ↔ 主界面 切换
+    # ------------------------------------------------------------------ #
+
+    def show_welcome(self) -> None:
+        """切换到欢迎首页（从主界面返回时调用）。"""
+        self.welcome_page.refresh()
+        self.outer_stack.setCurrentIndex(0)
+
+    def _on_welcome_project_selected(self, path: str) -> None:
+        p = Path(path)
+        if not p.exists():
+            self.welcome_page.refresh()   # 目录已消失，刷新列表
+            return
+        self._enter_main_ui()
+        self._open_dir_path(p)
+
+    def _on_welcome_new_project(self) -> None:
+        self._enter_main_ui()
+        self._open_dir()   # 弹出目录选择对话框
+
+    def _enter_main_ui(self) -> None:
+        """直接切换（无动画），Task 7 会加上动画。"""
+        self.outer_stack.setCurrentIndex(1)
+
+    def _open_dir_path(self, path) -> None:
+        """加载指定目录（复用 _open_dir 的实际加载逻辑，无对话框）。"""
+        from drama_shot_master.ui.state import remember_dirs
+        p = Path(path)
+        self.state.load_dir(p)
+        self._populate_batch_pages()
+        remember_dirs(self.state, self.cfg)
+        self.command_bar.set_dir(f"{self.state.current_dir}")
+        self._refresh_counts()
+        self._set_status(f"已加载 {len(self.state.images)} 张")
+        self.recent_mgr.push(str(p))
+
     def _on_nav_changed(self, key: str):
         self.switchTo(self.pages[key])
 
@@ -172,6 +224,9 @@ class AppShell(QMainWindow):
         target_key = self.cfg.last_active_function
         key = target_key if target_key in self.pages else FUNCS[0][1]
         self.switchTo(self.pages[key])
+        # 启动时始终先显示欢迎页
+        self.welcome_page.refresh()
+        self.outer_stack.setCurrentIndex(0)
 
     def _refresh_counts(self, *args):
         self.command_bar.set_count(

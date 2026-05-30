@@ -32,7 +32,7 @@ def main() -> int:
     from drama_shot_master.config import load_config
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Drama-Shot-Master")
+    app.setApplicationName("糯米AI分镜影视创作台")
     _early_cfg = load_config()
     apply_theme(app, current_theme(_early_cfg))
     apply_app_icon(app)
