@@ -156,3 +156,15 @@ def test_cue_copy_shows_visible_toast(tmp_path):
     t = getattr(p, "_toast_widget", None)
     assert t is not None and not t.isHidden()
     assert "复制" in t.text()
+
+
+def test_revalidate_reloads_sb_after_in_session_storyboard(tmp_path):
+    """配音页同 video：revalidate_upstream 须重载 _sb 并启用生成。"""
+    _app()
+    p = AudioPromptPage(_Stub())
+    p.set_project(tmp_path)
+    assert p._sb is None and p._gen_btn.isEnabled() is False
+    (tmp_path / "分镜_E1.json").write_text(json.dumps(_min_sb()), encoding="utf-8")
+    p.revalidate_upstream()
+    assert p._sb is not None
+    assert p._gen_btn.isEnabled() is True

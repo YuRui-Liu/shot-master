@@ -232,3 +232,16 @@ def test_sse_partial_object_updates_both(tmp_path):
                     str(tmp_path))
     assert p._global_prompt_edit.toPlainText().strip() == "GP-SSE"
     assert p._shots_table.item(0, p._COL_ID).text() == "S09"
+
+
+def test_revalidate_reloads_sb_after_in_session_storyboard(tmp_path):
+    """会话内：set_project 时无分镜→_sb None；之后生成分镜，
+    revalidate_upstream 必须重载 _sb 并启用生成（修复 disk 有/_sb stale 的误报）。"""
+    _app()
+    p = VideoPromptPage(_Stub())
+    p.set_project(tmp_path)                       # 此刻无 分镜_E1.json
+    assert p._sb is None and p._gen_btn.isEnabled() is False
+    (tmp_path / "分镜_E1.json").write_text(json.dumps(_min_sb()), encoding="utf-8")
+    p.revalidate_upstream()
+    assert p._sb is not None, "revalidate 应重载 _sb"
+    assert p._gen_btn.isEnabled() is True

@@ -145,10 +145,28 @@ class AudioPromptPage(_BaseStagePage):
     # set_project
     # ------------------------------------------------------------------
 
+    def _reload_storyboard(self) -> None:
+        """从分镜文件重载 _sb + 刷新生成按钮可用性（与 set_project 一致）。
+        修复：切 stage 后只 _load_from_disk 会让 _sb stale → 误报"分镜缺失"。"""
+        if self._project_dir is None:
+            self._sb = None
+            self._gen_btn.setEnabled(False)
+            return
+        upstream = storyboard_episode_read_path_in(
+            self._project_dir, self._current_episode)
+        self._sb = None
+        if upstream is not None:
+            try:
+                self._sb = json.loads(upstream.read_text(encoding="utf-8"))
+            except Exception:
+                self._sb = None
+        self._gen_btn.setEnabled(self._sb is not None)
+
     def revalidate_upstream(self) -> None:
         """切回本 stage 时重新校验上游分镜并刷新生成按钮/已有产物。"""
         if self._project_dir is None:
             return
+        self._reload_storyboard()                       # 关键：重载 _sb
         self._load_from_disk(self._project_dir, self._current_episode)
 
     def set_project(self, path: Path | None) -> None:
