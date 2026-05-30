@@ -291,29 +291,44 @@ class VideoPromptPage(_BaseStagePage):
         self._load_from_disk(self._project_dir, ep_id)
 
     def _load_from_disk(self, project_dir: Path, episode_id: str) -> None:
-        """若 video_prompts/{ep}/global.md + shots.json 已存在则填充 UI。"""
+        """读 video_prompts/{ep}/shots.json：
+        - 新格式：对象 {global_prompt, shots:[...]} → 字段取值
+        - 旧格式：裸数组 [...] + 同目录 global.md → 回退读
+        """
         vdir = video_prompt_dir_in(project_dir, episode_id)
-        global_md = vdir / "global.md"
         shots_json = vdir / "shots.json"
+        global_md = vdir / "global.md"
 
-        if global_md.is_file():
-            try:
-                self._global_prompt_edit.setPlainText(
-                    self._strip_global_header(
-                        global_md.read_text(encoding="utf-8")))
-            except OSError:
-                pass
-        else:
-            self._global_prompt_edit.clear()
-
+        global_text = ""
+        shots: list = []
         if shots_json.is_file():
             try:
-                shots = json.loads(shots_json.read_text(encoding="utf-8"))
-                self._populate_shots_table(shots)
-                return
+                data = json.loads(shots_json.read_text(encoding="utf-8"))
             except Exception:
-                pass
-        self._shots_table.setRowCount(0)
+                data = None
+            if isinstance(data, dict):                  # 新对象格式
+                global_text = str(data.get("global_prompt", ""))
+                shots = data.get("shots", []) or []
+            elif isinstance(data, list):                # 旧裸数组
+                shots = data
+                if global_md.is_file():
+                    try:
+                        global_text = self._strip_global_header(
+                            global_md.read_text(encoding="utf-8"))
+                    except OSError:
+                        global_text = ""
+        elif global_md.is_file():                       # 仅有旧 global.md
+            try:
+                global_text = self._strip_global_header(
+                    global_md.read_text(encoding="utf-8"))
+            except OSError:
+                global_text = ""
+
+        if global_text:
+            self._global_prompt_edit.setPlainText(global_text)
+        else:
+            self._global_prompt_edit.clear()
+        self._populate_shots_table(shots)
 
     def _populate_shots_table(self, shots: list[dict]) -> None:
         self._shots_table.setRowCount(0)

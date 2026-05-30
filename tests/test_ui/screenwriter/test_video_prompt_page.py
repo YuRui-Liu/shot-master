@@ -181,3 +181,37 @@ def test_global_copy_shows_visible_toast():
     t = getattr(p, "_toast_widget", None)
     assert t is not None and not t.isHidden()
     assert "复制" in t.text()
+
+
+# ── 单文件合并：shots.json 对象格式 + 旧两文件回退 ──────────────────
+
+def test_load_new_object_format(tmp_path):
+    """shots.json 为对象 {global_prompt, shots} → 全局框 + 表都填充。"""
+    _app()
+    (tmp_path / "分镜_E1.json").write_text(json.dumps(_min_sb()), encoding="utf-8")
+    vdir = tmp_path / "video_prompts" / "E1"; vdir.mkdir(parents=True)
+    (vdir / "shots.json").write_text(json.dumps({
+        "global_prompt": "GP-NEW",
+        "shots": [{"shot_id": "S01_01", "local_prompt": "x", "duration_s": 5.0}],
+    }), encoding="utf-8")
+    p = VideoPromptPage(_Stub())
+    p.set_project(tmp_path)
+    assert p._global_prompt_edit.toPlainText().strip() == "GP-NEW"
+    assert p._shots_table.item(0, p._COL_ID).text() == "S01_01"
+    assert p._shots_table.item(0, p._COL_DUR).text() == "5.0"
+
+
+def test_load_legacy_two_files_fallback(tmp_path):
+    """旧格式：global.md + shots.json 裸数组 → 回退读，全局来自 global.md。"""
+    _app()
+    (tmp_path / "分镜_E1.json").write_text(json.dumps(_min_sb()), encoding="utf-8")
+    vdir = tmp_path / "video_prompts" / "E1"; vdir.mkdir(parents=True)
+    (vdir / "global.md").write_text(
+        "# global_prompt\n\nGP-OLD", encoding="utf-8")
+    (vdir / "shots.json").write_text(json.dumps(
+        [{"shot_id": "S01_02", "local_prompt": "y", "duration_s": 4.0}]),
+        encoding="utf-8")
+    p = VideoPromptPage(_Stub())
+    p.set_project(tmp_path)
+    assert p._global_prompt_edit.toPlainText().strip() == "GP-OLD"   # 去头
+    assert p._shots_table.item(0, p._COL_ID).text() == "S01_02"
