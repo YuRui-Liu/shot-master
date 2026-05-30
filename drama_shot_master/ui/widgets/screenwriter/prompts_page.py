@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from drama_shot_master.ui.widgets.screenwriter.base_stage_page import _BaseStagePage
 from drama_shot_master.ui.widgets.screenwriter._product_tree import _ProductTree
+from drama_shot_master.ui.widgets.screenwriter._grid_group_editor import _GridGroupEditor
 from drama_shot_master.ui.widgets.screenwriter._upstream_banner import _UpstreamBanner
 from drama_shot_master.ui.widgets.screenwriter.stream_worker import StreamWorker
 from drama_shot_master.ui.widgets.screenwriter._episode_selector import _EpisodeSelector
@@ -60,12 +61,6 @@ class PromptsPage(_BaseStagePage):
 
     def _build_param_bar(self) -> QHBoxLayout:
         bar = QHBoxLayout()
-        bar.addWidget(QLabel("grid:"))
-        self._grid_combo = QComboBox()
-        self._grid_combo.addItems(["single", "4", "9"])
-        self._grid_combo.setCurrentText("9")
-        self._grid_combo.currentTextChanged.connect(self._rebuild_tree)
-        bar.addWidget(self._grid_combo)
         self._char_refs_chk = QCheckBox("角色参考")
         self._char_refs_chk.setChecked(True)
         self._char_refs_chk.toggled.connect(self._rebuild_tree)
@@ -97,6 +92,11 @@ class PromptsPage(_BaseStagePage):
     def _build_left(self) -> QWidget:
         w = QWidget()
         v = QVBoxLayout(w); v.setContentsMargins(0, 0, 0, 0)
+        self._group_editor = _GridGroupEditor()
+        self._group_editor.generateAll.connect(self._on_generate_clicked)
+        self._group_editor.generateGroup.connect(self._on_generate_group)
+        self._group_editor.groupsChanged.connect(self._rebuild_tree)
+        v.addWidget(self._group_editor)
         self._tree = _ProductTree()
         self._tree.fileActivated.connect(self._on_file_activated)
         v.addWidget(self._tree, 1)
@@ -170,6 +170,10 @@ class PromptsPage(_BaseStagePage):
             self._sb = json.loads(upstream.read_text(encoding="utf-8"))
         except Exception:
             self._sb = None
+        if self._sb is not None:
+            self._group_editor.set_shots(
+                [str(s.get("shotId") or s.get("shot_id") or s.get("id") or "")
+                 for s in (self._sb.get("shots") or [])])
         self._rebuild_tree()
         self._gen_btn.setEnabled(self._sb is not None)
         self._complete_btn.setEnabled(True)
@@ -205,6 +209,10 @@ class PromptsPage(_BaseStagePage):
             self._sb = json.loads(upstream.read_text(encoding="utf-8"))
         except Exception:
             self._sb = None
+        if self._sb is not None:
+            self._group_editor.set_shots(
+                [str(s.get("shotId") or s.get("shot_id") or s.get("id") or "")
+                 for s in (self._sb.get("shots") or [])])
         self._rebuild_tree()
         self._gen_btn.setEnabled(self._sb is not None)
         self._complete_btn.setEnabled(True)
@@ -246,7 +254,7 @@ class PromptsPage(_BaseStagePage):
             return
         self._tree.build_from_sb(
             self._prompts_dir, self._sb,
-            grid_mode=self._grid_combo.currentText(),
+            groups=self._group_editor.groups(),
             include_character_refs=self._char_refs_chk.isChecked())
 
     def _on_file_activated(self, path: Path):
@@ -340,15 +348,34 @@ class PromptsPage(_BaseStagePage):
             "project_dir": str(self._project_dir),
             "episode_id": self._current_episode,
             "options": {
-                "grid_mode": self._grid_combo.currentText(),
                 "include_character_refs": self._char_refs_chk.isChecked(),
                 "style_extra": self._style_extra_edit.text().strip(),
                 "negative_preset": self._negative_combo.currentText(),
                 "quality_boost": self._quality_chk.isChecked(),
+                "groups": self._group_editor.groups(),
             },
         }
         self._rebuild_tree()       # 现 prompts/ 已清空，树全 ○
         self._start_stream("/prompts", body, params)
+
+    def _on_generate_group(self, index: int):
+        if self._project_dir is None or self._sb is None:
+            QMessageBox.warning(self, "上游缺失",
+                                 "请先在「分镜」阶段生成分镜.json。")
+            return
+        body = {
+            "project_dir": str(self._project_dir),
+            "episode_id": self._current_episode,
+            "options": {
+                "include_character_refs": False,
+                "style_extra": self._style_extra_edit.text().strip(),
+                "negative_preset": self._negative_combo.currentText(),
+                "quality_boost": self._quality_chk.isChecked(),
+                "groups": self._group_editor.groups(),
+                "only_group_index": index,
+            },
+        }
+        self._start_stream("/prompts", body, None)
 
     def _start_stream(self, path: str, body: dict, params=None):
         if self._project_dir is None:

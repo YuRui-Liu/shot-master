@@ -138,3 +138,27 @@ def test_generate_body_includes_episode_id(tmp_path):
     except Exception:
         pass
     assert captured.get("episode_id") == "E1"
+
+
+def test_generate_all_body_includes_groups(tmp_path):
+    _app()
+    (tmp_path / "分镜.json").write_text(json.dumps(_sb_min()), encoding="utf-8")
+    p = PromptsPage(_StubClient())
+    p.set_project(tmp_path)
+    captured = {}
+    p._start_stream = lambda path, body, params=None: captured.update(body)
+    p._group_editor.generateAll.emit()
+    assert "groups" in captured["options"]
+    assert captured["options"].get("only_group_index") is None
+
+
+def test_generate_single_group_body_includes_index(tmp_path):
+    _app()
+    (tmp_path / "分镜.json").write_text(json.dumps(_sb_min()), encoding="utf-8")
+    p = PromptsPage(_StubClient())
+    p.set_project(tmp_path)
+    captured = {}
+    p._start_stream = lambda path, body, params=None: captured.update(body)
+    p._group_editor.generateGroup.emit(1)
+    assert captured["options"]["only_group_index"] == 1
+    assert "groups" in captured["options"]
