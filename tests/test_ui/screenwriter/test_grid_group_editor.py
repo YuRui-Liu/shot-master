@@ -44,3 +44,53 @@ def test_group_is_valid():
     assert group_is_valid({"grid_mode": "9", "shot_ids": ["a", "b"]}) is True
     assert group_is_valid({"grid_mode": "single", "shot_ids": ["a", "b"]}) is False
     assert group_is_valid({"grid_mode": "4", "shot_ids": []}) is False
+
+
+from PySide6.QtWidgets import QApplication
+
+
+def _app():
+    return QApplication.instance() or QApplication([])
+
+
+def test_editor_set_shots_builds_default_groups():
+    _app()
+    from drama_shot_master.ui.widgets.screenwriter._grid_group_editor import _GridGroupEditor
+    ed = _GridGroupEditor()
+    ed.set_shots([f"S01_{i}" for i in range(1, 11)])
+    g = ed.groups()
+    assert len(g) == 2
+    assert g[0]["grid_mode"] == "9" and len(g[0]["shot_ids"]) == 9
+    assert g[1]["grid_mode"] == "single"
+
+
+def test_editor_generate_group_signal():
+    _app()
+    from drama_shot_master.ui.widgets.screenwriter._grid_group_editor import _GridGroupEditor
+    ed = _GridGroupEditor()
+    ed.set_shots(["A", "B"])
+    got = []
+    ed.generateGroup.connect(got.append)
+    ed._emit_generate_group(1)        # 1-based
+    assert got == [1]
+
+
+def test_editor_generate_all_signal():
+    _app()
+    from drama_shot_master.ui.widgets.screenwriter._grid_group_editor import _GridGroupEditor
+    ed = _GridGroupEditor()
+    ed.set_shots(["A", "B", "C", "D"])
+    got = []
+    ed.generateAll.connect(lambda: got.append(True))
+    ed._gen_all_btn.click()
+    assert got == [True]
+
+
+def test_editor_add_group_appends():
+    _app()
+    from drama_shot_master.ui.widgets.screenwriter._grid_group_editor import _GridGroupEditor
+    ed = _GridGroupEditor()
+    ed.set_shots(["A", "B", "C"])
+    n0 = len(ed.groups())
+    ed._add_group()
+    assert len(ed.groups()) == n0 + 1
