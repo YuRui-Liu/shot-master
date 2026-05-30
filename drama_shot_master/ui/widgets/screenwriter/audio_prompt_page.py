@@ -141,6 +141,12 @@ class AudioPromptPage(_BaseStagePage):
     # set_project
     # ------------------------------------------------------------------
 
+    def revalidate_upstream(self) -> None:
+        """切回本 stage 时重新校验上游分镜并刷新生成按钮/已有产物。"""
+        if self._project_dir is None:
+            return
+        self._load_from_disk(self._project_dir, self._current_episode)
+
     def set_project(self, path: Path | None) -> None:
         old = self._project_dir
         self._project_dir = path

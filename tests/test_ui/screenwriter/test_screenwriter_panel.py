@@ -189,6 +189,26 @@ def test_stage_advance_triggers_auto_generation_on_target_page(tmp_path):
     assert called == [True], "stageAdvanceRequested 应同时触发下一 page 自动生成"
 
 
+def test_stage_change_revalidates_target_upstream(tmp_path):
+    """切换 stage（stepper/advance 都走 stageChanged）应让目标页重新校验上游，
+    修复会话内生成分镜后切到「分镜提示词」仍误报"上游缺失"。"""
+    _app()
+    pA = tmp_path / "A"; pA.mkdir()
+    (pA / "创意.json").write_text("{}", encoding="utf-8")
+    cfg = _StubCfg(projects=[str(pA)])
+    panel = ScreenwriterPanel(cfg)
+    panel._task_manager._table.selectRow(0)
+    panel._task_manager._on_selection_changed()
+    # 给每个有 revalidate_upstream 的 page 装探针
+    calls = []
+    for i, pg in enumerate(panel._pages):
+        if hasattr(pg, "revalidate_upstream"):
+            pg.revalidate_upstream = (lambda idx=i: calls.append(idx))
+    # 切到 stage 2（分镜）
+    panel._wizard_host.set_stage(2)
+    assert 2 in calls, "切换到目标 stage 应触发其 revalidate_upstream"
+
+
 def test_stage_advance_target_with_existing_output_skips_auto_gen(tmp_path):
     """已有 剧本.md 时再点'推进'：切到 ScriptPage 但不强制再生（避免覆盖）。"""
     _app()

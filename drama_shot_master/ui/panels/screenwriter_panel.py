@@ -80,6 +80,15 @@ class ScreenwriterPanel(QWidget):
                 pg.statusMessage.connect(self.statusMessage)
             if hasattr(pg, "stageAdvanceRequested"):
                 pg.stageAdvanceRequested.connect(self._on_stage_advance_requested)
+        # 切 stage（stepper 点击 / 推进）都走 stageChanged → 重新校验目标页上游，
+        # 修复会话内生成分镜后切到「分镜提示词」仍误报"上游缺失"
+        self._wizard_host.stageChanged.connect(self._on_stage_changed)
+
+    def _on_stage_changed(self, idx: int) -> None:
+        if 0 <= idx < len(self._pages):
+            target = self._pages[idx]
+            if hasattr(target, "revalidate_upstream"):
+                target.revalidate_upstream()
 
     def _on_task_selected(self, path: Path | None) -> None:
         if path is not None:

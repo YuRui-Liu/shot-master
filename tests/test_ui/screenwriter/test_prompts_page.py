@@ -76,6 +76,21 @@ def test_upstream_present_hides_banner(tmp_path):
     assert p._upstream_banner.isHidden()
 
 
+def test_revalidate_upstream_clears_stale_banner(tmp_path):
+    """会话内：set_project 时分镜还没生成→banner 显示；之后生成了分镜，
+    revalidate_upstream() 应清掉"上游缺失"并启用生成（修复切 stage 不刷新）。"""
+    _app()
+    p = PromptsPage(_StubClient())
+    p.set_project(tmp_path)                       # 此刻无 分镜_E1.json
+    assert not p._upstream_banner.isHidden()      # 显示缺失
+    # 用户在分镜阶段生成了分镜
+    (tmp_path / "分镜_E1.json").write_text(
+        json.dumps(_sb_min()), encoding="utf-8")
+    p.revalidate_upstream()                       # 切回本 stage 时触发
+    assert p._upstream_banner.isHidden()          # banner 已清
+    assert p._gen_btn.isEnabled() is True
+
+
 def test_partial_for_inactive_project_does_not_touch_tree(tmp_path):
     _app()
     pA = tmp_path / "A"; pA.mkdir()

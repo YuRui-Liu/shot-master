@@ -208,6 +208,29 @@ class StoryboardPage(_BaseStagePage):
             self._stream_label.setText("")
         self._on_project_switched(old, path)
 
+    def revalidate_upstream(self) -> None:
+        """切回本 stage 时重新校验上游剧本并刷新 banner + 重载分镜
+        （Fix-C 后本页推进不再自动生成，banner 刷新改由此方法负责）。"""
+        if self._project_dir is None:
+            return
+        upstream = script_episode_read_path_in(
+            self._project_dir, self._current_episode)
+        if upstream is None:
+            self._upstream_banner.show_missing(
+                stage_name="剧本", expected_file="剧本.md")
+            self._gen_btn.setEnabled(False)
+        else:
+            self._upstream_banner.hide_banner()
+            self._gen_btn.setEnabled(True)
+        read_path = storyboard_episode_read_path_in(
+            self._project_dir, self._current_episode)
+        self._sb_path = (read_path if read_path is not None
+                         else storyboard_episode_path_in(
+                             self._project_dir, self._current_episode))
+        if not self._dirty:                      # 不覆盖用户未保存编辑
+            self._load_from_disk()
+        self._view_json_btn.setEnabled(self._sb is not None)
+
     def _load_from_disk(self):
         self._sb = None
         if self._sb_path and self._sb_path.is_file():

@@ -213,6 +213,12 @@ class PromptsPage(_BaseStagePage):
         self._editor.blockSignals(False)
         self._original_text = ""
 
+    def revalidate_upstream(self) -> None:
+        """切回本 stage 时重新校验上游分镜并刷新 banner（修会话内生成后误报缺失）。"""
+        if self._project_dir is None:
+            return
+        self._on_episode_changed(self._current_episode)
+
     def try_release(self) -> bool:
         if not self._is_dirty():
             return True
