@@ -53,6 +53,13 @@ class SoundtrackEditor(QWidget):
         self._dir_worker = None
         from drama_shot_master.ui.widgets.daw.track_mix import load_mix
         self._mix = load_mix(self._work_dir())
+        from drama_shot_master.ui.widgets.daw.mix_stream_engine import (
+            MixStreamEngine, MixStreamOutput)
+        from sound_track_agent.overlay_session import load_overlay
+        self._overlay_session = load_overlay(self._work_dir())
+        self._mix_engine = MixStreamEngine()
+        self._mix_engine.set_segments(self._overlay_session.segments)
+        self._mix_output = MixStreamOutput(self._mix_engine)
         self._build_ui()
         self._setup_shortcuts()
         self._try_load_existing()
@@ -866,8 +873,11 @@ class SoundtrackEditor(QWidget):
     def _on_video_playing_changed(self, playing: bool) -> None:
         if playing:
             self._overlay.play()
+            self._mix_engine.play()
+            self._mix_output.start()
         else:
             self._overlay.pause()
+            self._mix_engine.pause()
 
     def _scored_mp4(self):
         """已生成的 scored MP4 路径：优先当前 session.output，回退 task['output']。"""
@@ -933,6 +943,7 @@ class SoundtrackEditor(QWidget):
             total = self._track_view._duration if self._track_view else 0
             self._daw_toolbar.set_time(t, total)
         self._overlay.sync(t)
+        self._mix_engine.set_playhead(t)
 
     def _on_overview_cue_clicked(self, track: str, idx: int, t_start: float):
         from drama_shot_master.ui.widgets.daw.selection import _CueRef
