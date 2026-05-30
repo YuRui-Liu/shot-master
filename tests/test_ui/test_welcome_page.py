@@ -1,0 +1,48 @@
+# tests/test_ui/test_welcome_page.py
+import os
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtWidgets import QApplication
+
+
+def _app():
+    return QApplication.instance() or QApplication([])
+
+
+# ── ProjectCard ────────────────────────────────────────────────────────────
+
+def test_project_card_emits_path_on_click():
+    _app()
+    from drama_shot_master.ui.widgets.project_card import ProjectCard
+    from PySide6.QtTest import QTest
+    from PySide6.QtCore import Qt
+    card = ProjectCard({"name": "TestProj", "path": "/some/path", "last_opened": "", "shot_count": 3})
+    card.show()
+    got = []
+    card.clicked.connect(got.append)
+    QTest.mouseClick(card, Qt.LeftButton)
+    assert got == ["/some/path"]
+
+
+def test_add_card_emits_empty_string_on_click():
+    _app()
+    from drama_shot_master.ui.widgets.project_card import ProjectCard
+    card = ProjectCard(None, is_add_button=True)
+    card.show()
+    got = []
+    card.clicked.connect(got.append)
+    from PySide6.QtTest import QTest
+    from PySide6.QtCore import Qt
+    QTest.mouseClick(card, Qt.LeftButton)
+    assert got == [""]
+
+
+def test_project_card_depth_opacity():
+    _app()
+    from drama_shot_master.ui.widgets.project_card import ProjectCard
+    far = ProjectCard({"name": "A", "path": "/a", "last_opened": "", "shot_count": 0}, depth="far")
+    center = ProjectCard({"name": "B", "path": "/b", "last_opened": "", "shot_count": 0}, depth="center")
+    far_effect = far.graphicsEffect()
+    center_effect = center.graphicsEffect()
+    assert far_effect is None or far_effect.opacity() < 0.6
+    assert center_effect is None or center_effect.opacity() >= 0.99
