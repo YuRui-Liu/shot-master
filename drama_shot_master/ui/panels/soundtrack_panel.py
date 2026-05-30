@@ -12,7 +12,7 @@ from PySide6.QtCore import Qt, Signal, QEvent, QObject
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox, QAbstractItemView,
+    QHeaderView, QMessageBox, QAbstractItemView, QFileDialog,
 )
 
 from drama_shot_master.ui.panels.base_panel import BasePanel
@@ -73,8 +73,9 @@ class SoundtrackPanel(BasePanel):
         root = QVBoxLayout(self)
         bar = QHBoxLayout()
         self.btn_new = QPushButton("新建")
+        self.btn_open = QPushButton("打开")
         self.btn_del = QPushButton("删除")
-        for b in (self.btn_new, self.btn_del):
+        for b in (self.btn_new, self.btn_open, self.btn_del):
             bar.addWidget(b)
         bar.addStretch(1)
         root.addLayout(bar)
@@ -99,6 +100,7 @@ class SoundtrackPanel(BasePanel):
         self.table.viewport().installEventFilter(self)
 
         self.btn_new.clicked.connect(self._on_new)
+        self.btn_open.clicked.connect(self._on_open)
         self.btn_del.clicked.connect(self._on_del)
 
     def eventFilter(self, obj, ev):
@@ -175,6 +177,45 @@ class SoundtrackPanel(BasePanel):
         self._persist_cb()
         self.refresh()
         self._select_task(task["id"])
+
+    def _on_open(self):
+        d = QFileDialog.getExistingDirectory(self, "打开配乐工作目录（含 session.json）")
+        if d:
+            if not self.open_work_dir(d):
+                QMessageBox.warning(self, "打开失败",
+                                    "该目录不是有效的配乐工作目录（缺 session.json）")
+
+    def open_work_dir(self, work_dir: str) -> bool:
+        """载入含 session.json 的工作目录为任务。成功 True，无效 False。"""
+        import json
+        from pathlib import Path
+        wd = Path(work_dir)
+        sj = wd / "session.json"
+        if not sj.is_file():
+            return False
+        try:
+            sess = json.loads(sj.read_text(encoding="utf-8"))
+        except Exception:
+            return False
+        tid = wd.name
+        if any(t.get("id") == tid for t in self._tasks()):
+            self.refresh(); self._select_task(tid)
+            return True
+        task = {
+            "id": tid,
+            "name": wd.parent.name or tid,
+            "mp4": sess.get("source_mp4", "") or "",
+            "style": sess.get("global_style", "") or "",
+            "workflow_id": "",
+            "status": "完成" if sess.get("output") else "空闲",
+            "output": sess.get("output", "") or "",
+            "output_dir": str(wd.parent),
+        }
+        self._tasks().append(task)
+        self._persist_cb()
+        self.refresh()
+        self._select_task(tid)
+        return True
 
     def _on_item_changed(self, item):
         if item.column() != 0:
