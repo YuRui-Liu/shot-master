@@ -154,3 +154,30 @@ def test_template_choice_persists_per_project(tmp_path):
     p2.set_project(tmp_path)
     assert p2.current_template_id() == "simple"
     assert p2.current_language() == "zh"
+
+
+# ── Fix-K: 复制按钮不裁切（Fixed 列宽 + minWidth）──────────────────────
+
+def test_shots_copy_button_not_clipped(tmp_path):
+    _app()
+    (tmp_path / "分镜_E1.json").write_text(json.dumps(_min_sb()), encoding="utf-8")
+    vdir = tmp_path / "video_prompts" / "E1"; vdir.mkdir(parents=True)
+    (vdir / "global.md").write_text("x", encoding="utf-8")
+    (vdir / "shots.json").write_text(json.dumps(_real_shots()), encoding="utf-8")
+    p = VideoPromptPage(_Stub())
+    p.set_project(tmp_path)
+    btn = p._shots_table.cellWidget(0, p._COL_COPY)
+    assert btn is not None and btn.minimumWidth() >= 56
+    assert p._shots_table.columnWidth(p._COL_COPY) >= 56
+
+
+def test_global_copy_shows_visible_toast():
+    """复制后出现可见 toast（不依赖 app-shell 死掉的 statusMessage 链）。"""
+    _app()
+    p = VideoPromptPage(_Stub())
+    p.resize(400, 300)
+    p._global_prompt_edit.setPlainText("hello")
+    p._global_copy_btn.click()
+    t = getattr(p, "_toast_widget", None)
+    assert t is not None and not t.isHidden()
+    assert "复制" in t.text()

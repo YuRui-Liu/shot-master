@@ -208,8 +208,10 @@ class VideoPromptPage(_BaseStagePage):
             self._COL_ID, QHeaderView.ResizeToContents)
         self._shots_table.horizontalHeader().setSectionResizeMode(
             self._COL_DUR, QHeaderView.ResizeToContents)
+        # 复制列固定宽：ResizeToContents 不量 cellWidget 会塌缩裁切按钮文字
         self._shots_table.horizontalHeader().setSectionResizeMode(
-            self._COL_COPY, QHeaderView.ResizeToContents)
+            self._COL_COPY, QHeaderView.Fixed)
+        self._shots_table.setColumnWidth(self._COL_COPY, 68)
         self._shots_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._shots_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._shots_table.cellClicked.connect(self._on_table_cell_clicked)
@@ -332,6 +334,7 @@ class VideoPromptPage(_BaseStagePage):
                 QTableWidgetItem(str(shot.get("duration_s",
                                               shot.get("duration", "")))))
             copy_btn = QPushButton("复制")
+            copy_btn.setMinimumWidth(60)
             prompt_text = str(shot.get("local_prompt", ""))
             copy_btn.clicked.connect(
                 lambda _=False, t=prompt_text: self._copy_to_clipboard(t))
@@ -339,7 +342,9 @@ class VideoPromptPage(_BaseStagePage):
 
     def _copy_to_clipboard(self, text: str) -> None:
         from PySide6.QtWidgets import QApplication
+        from drama_shot_master.ui.widgets.toast import show_toast
         QApplication.clipboard().setText(text)
+        show_toast(self, "✓ 已复制到剪贴板")     # 可见轻提示
         self.statusMessage.emit("✓ 已复制到剪贴板")
 
     def _on_table_cell_clicked(self, row: int, col: int) -> None:

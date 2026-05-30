@@ -131,3 +131,28 @@ def test_cue_copy_button_toasts(tmp_path):
     from PySide6.QtWidgets import QApplication as _QA
     assert "终于到了" in _QA.clipboard().text()
     assert msgs and "复制" in msgs[0]
+
+
+# ── Fix-K: cue 复制按钮不裁切 ───────────────────────────────────────
+
+def test_cue_copy_button_not_clipped(tmp_path):
+    _app()
+    _setup(tmp_path)
+    p = AudioPromptPage(_Stub())
+    p.set_project(tmp_path)
+    btn = p._cue_table.cellWidget(0, p._CCOL_COPY)
+    assert btn is not None and btn.minimumWidth() >= 56
+    assert p._cue_table.columnWidth(p._CCOL_COPY) >= 56
+
+
+def test_cue_copy_shows_visible_toast(tmp_path):
+    """配音页复制后出现可见 toast。"""
+    _app()
+    _setup(tmp_path)
+    p = AudioPromptPage(_Stub())
+    p.resize(400, 300)
+    p.set_project(tmp_path)
+    p._cue_table.cellWidget(0, p._CCOL_COPY).click()
+    t = getattr(p, "_toast_widget", None)
+    assert t is not None and not t.isHidden()
+    assert "复制" in t.text()

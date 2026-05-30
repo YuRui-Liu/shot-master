@@ -133,7 +133,9 @@ class AudioPromptPage(_BaseStagePage):
         hh.setSectionResizeMode(self._CCOL_LINE, QHeaderView.Stretch)
         hh.setSectionResizeMode(self._CCOL_SFX, QHeaderView.Stretch)
         hh.setSectionResizeMode(self._CCOL_BGM, QHeaderView.Stretch)
-        hh.setSectionResizeMode(self._CCOL_COPY, QHeaderView.ResizeToContents)
+        # 复制列固定宽：ResizeToContents 不量 cellWidget 会塌缩裁切按钮文字
+        hh.setSectionResizeMode(self._CCOL_COPY, QHeaderView.Fixed)
+        self._cue_table.setColumnWidth(self._CCOL_COPY, 68)
         self._cue_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._cue_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         v.addWidget(self._cue_table, 1)
@@ -302,6 +304,7 @@ class AudioPromptPage(_BaseStagePage):
                                              cue.get("bgm_mood",
                                                      cue.get("bgm", ""))))))
             copy_btn = QPushButton("复制")
+            copy_btn.setMinimumWidth(60)
             copy_text = str(cue.get("dialogue", cue.get("line", "")))
             copy_btn.clicked.connect(
                 lambda _=False, t=copy_text: self._copy_to_clipboard(t))
@@ -309,7 +312,9 @@ class AudioPromptPage(_BaseStagePage):
 
     def _copy_to_clipboard(self, text: str) -> None:
         from PySide6.QtWidgets import QApplication
+        from drama_shot_master.ui.widgets.toast import show_toast
         QApplication.clipboard().setText(text)
+        show_toast(self, "✓ 已复制到剪贴板")     # 可见轻提示
         self.statusMessage.emit("✓ 已复制到剪贴板")
 
     # ------------------------------------------------------------------
