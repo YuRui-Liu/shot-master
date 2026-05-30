@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#2 轨级混音控件 — 布局确认</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#1e1e2e;--surface:#27273a;--surface2:#313145;--border:#3d3d55;
+    --text:#cdd6f4;--text2:#a6adc8;--accent:#3b6fd4;--green:#5a9e6f;--sfx:#c2884c;
+    --red:#e05252;--yellow:#f9e2af;
+  }
+  body{background:var(--bg);color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+    font-size:13px;line-height:1.55;padding:28px 22px 70px;max-width:1120px;margin:0 auto;}
+  h1{font-size:21px;color:#cba6f7;margin-bottom:6px;}
+  .sub{color:var(--text2);font-size:13px;margin-bottom:24px;}
+  h2{font-size:15px;color:#89b4fa;margin:30px 0 14px;padding-left:11px;border-left:3px solid #89b4fa;}
+  h3{font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:600;}
+
+  .variants{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+  .variant{flex:1;min-width:340px;background:var(--surface);border:2px solid var(--border);
+    border-radius:10px;padding:16px;cursor:pointer;transition:border-color .15s;position:relative;}
+  .variant:hover{border-color:#4a83f0;}
+  .variant.sel{border-color:#89b4fa;box-shadow:0 0 0 3px rgba(137,180,250,.22);}
+  .vlabel{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;margin-bottom:10px;
+    background:rgba(137,180,250,.18);color:#89b4fa;}
+  .rec{background:rgba(90,158,111,.22);color:#a6e3a1;}
+  .chosen{position:absolute;top:10px;right:10px;background:#a6e3a1;color:#1e1e2e;
+    font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;display:none;}
+  .variant.sel .chosen{display:block;}
+  .desc{font-size:12px;color:var(--text2);margin-bottom:12px;min-height:42px;}
+
+  /* 编辑器微缩 */
+  .mini{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:#12121c;}
+  .mini-top{height:34px;background:#000;display:flex;align-items:center;justify-content:center;color:#555;font-size:9px;}
+  .mini-body{display:flex;}
+  /* 方案A：左侧轨道头列 */
+  .hdr-col{width:130px;background:var(--surface);border-right:1px solid var(--border);}
+  .hdr-row{height:34px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:3px;padding:0 5px;}
+  .hdr-name{font-size:9px;color:var(--text2);width:30px;}
+  .ms{width:14px;height:14px;border-radius:3px;font-size:8px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);color:var(--text2);}
+  .ms.m.on{background:var(--red);color:#fff;border-color:var(--red);}
+  .ms.s.on{background:var(--yellow);color:#1e1e2e;border-color:var(--yellow);}
+  .vol{flex:1;height:4px;background:var(--surface2);border-radius:2px;position:relative;}
+  .vol::after{content:'';position:absolute;left:0;top:0;height:100%;width:70%;background:var(--accent);border-radius:2px;}
+  .lanes{flex:1;background:#1a1a2a;}
+  .lane{height:34px;border-bottom:1px solid #222;display:flex;align-items:center;padding:0 6px;}
+  .clip{height:18px;border-radius:2px;font-size:8px;color:#fff;display:flex;align-items:center;padding:0 4px;}
+  .clip.v{background:#3a5a8a;width:90%;} .clip.b{background:var(--green);width:80%;} .clip.s{background:var(--sfx);width:30%;}
+  /* 方案D：底部 mixer 条 */
+  .lanes-full{flex:1;background:#1a1a2a;}
+  .lane2{height:30px;border-bottom:1px solid #222;display:flex;align-items:center;padding:0 6px;gap:4px;}
+  .lane2 .nm{font-size:9px;color:var(--text2);width:34px;}
+  .mixer-strip{display:flex;background:var(--surface);border-top:2px solid var(--accent);padding:5px;gap:6px;}
+  .chan{flex:1;background:var(--surface2);border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:3px;align-items:center;}
+  .chan .cn{font-size:9px;color:var(--text2);}
+  .chan .row{display:flex;gap:3px;}
+  .chan .vbar{width:100%;height:4px;background:#12121c;border-radius:2px;position:relative;}
+  .chan .vbar::after{content:'';position:absolute;left:0;top:0;height:100%;width:65%;background:var(--accent);border-radius:2px;}
+
+  .hint{font-size:11px;color:var(--text2);font-style:italic;margin-top:9px;}
+  .tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:rgba(166,227,161,.15);color:#a6e3a1;}
+
+  /* 通道控件详图 */
+  .chan-demo{display:inline-flex;gap:4px;align-items:center;background:var(--surface);border:1px solid var(--border);
+    border-radius:6px;padding:8px 12px;margin-top:6px;}
+  .chan-demo .nm{font-size:13px;color:var(--text);width:54px;}
+  .bm,.bs{width:24px;height:24px;border-radius:4px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);color:var(--text2);cursor:pointer;}
+  .bm.on{background:var(--red);color:#fff;border-color:var(--red);}
+  .bs.on{background:var(--yellow);color:#1e1e2e;border-color:var(--yellow);}
+  .slider{width:120px;height:6px;background:#12121c;border-radius:3px;position:relative;}
+  .slider .fill{position:absolute;left:0;top:0;height:100%;background:var(--accent);border-radius:3px;}
+  .slider .knob{position:absolute;top:-3px;width:12px;height:12px;border-radius:50%;background:#fff;}
+  .pct{font-size:11px;color:var(--text2);width:34px;}
+
+  .confirm{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-top:28px;}
+  .confirm h3{color:var(--yellow);margin-bottom:8px;}
+  #pick{color:var(--text);font-weight:600;}
+  .note{font-size:11px;color:var(--text2);line-height:1.7;}
+  .note b{color:var(--text);}
+</style>
+</head>
+<body>
+
+<h1>#2 轨级混音控件 — 布局确认</h1>
+<p class="sub">已定：M(静音)/S(独奏)/音量 三件套（砍声像），覆盖 <b>原声 / BGM / SFX</b> 三轨。控件实时作用于叠加播放。<br>点方案卡选布局。</p>
+
+<h2>方案 A / D — 混音控件摆哪</h2>
+<div class="variants">
+
+  <!-- A -->
+  <div class="variant sel" id="vA" onclick="sel('A')">
+    <span class="vlabel rec">方案 A · 左侧轨道头列（推荐）</span><span class="chosen">✓ 已选</span>
+    <h3>每条轨左侧一行：名称 + M + S + 音量条</h3>
+    <p class="desc">把现在的 60px 画字标签换成 ~130px 真控件列，每轨一行，与右侧波形轨对齐。最像 ACE / 剪映的轨道头。</p>
+    <div class="mini">
+      <div class="mini-top">▶ 视频预览</div>
+      <div class="mini-body">
+        <div class="hdr-col">
+          <div class="hdr-row"><span class="hdr-name">原声</span><span class="ms m">M</span><span class="ms s">S</span><span class="vol"></span></div>
+          <div class="hdr-row"><span class="hdr-name">BGM</span><span class="ms m">M</span><span class="ms s on">S</span><span class="vol"></span></div>
+          <div class="hdr-row"><span class="hdr-name">SFX</span><span class="ms m on">M</span><span class="ms s">S</span><span class="vol"></span></div>
+          <div class="hdr-row" style="opacity:.4;"><span class="hdr-name">对白</span><span style="font-size:8px;">（只读）</span></div>
+        </div>
+        <div class="lanes">
+          <div class="lane"><span class="clip v">视频</span></div>
+          <div class="lane"><span class="clip b">BGM ▮▮▮</span></div>
+          <div class="lane"><span class="clip s">SFX</span></div>
+          <div class="lane"><span class="clip" style="background:#8a5aa8;width:60%;">对白</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="hint">改动：<span class="tag">DawTrackView 去掉画字标签 + 新 TrackHeaderColumn 控件（垂直静态对齐）</span></div>
+  </div>
+
+  <!-- D -->
+  <div class="variant" id="vD" onclick="sel('D')">
+    <span class="vlabel">方案 D · 底部 Mixer 条</span><span class="chosen">✓ 已选</span>
+    <h3>时间线下方一条横向 3 通道 mixer</h3>
+    <p class="desc">轨道画字标签不动；底部加一条调音台，3 个通道（原声/BGM/SFX），每通道 M/S + 音量。改动隔离、不动时间线绘制。</p>
+    <div class="mini">
+      <div class="mini-top">▶ 视频预览</div>
+      <div class="mini-body">
+        <div class="lanes-full">
+          <div class="lane2"><span class="nm">原声</span><span class="clip v" style="width:88%;">视频</span></div>
+          <div class="lane2"><span class="nm">BGM</span><span class="clip b" style="width:78%;">BGM ▮▮▮</span></div>
+          <div class="lane2"><span class="nm">SFX</span><span class="clip s">SFX</span></div>
+        </div>
+      </div>
+      <div class="mixer-strip">
+        <div class="chan"><span class="cn">原声</span><div class="row"><span class="ms m">M</span><span class="ms s">S</span></div><span class="vbar"></span></div>
+        <div class="chan"><span class="cn">BGM</span><div class="row"><span class="ms m">M</span><span class="ms s on">S</span></div><span class="vbar"></span></div>
+        <div class="chan"><span class="cn">SFX</span><div class="row"><span class="ms m on">M</span><span class="ms s">S</span></div><span class="vbar"></span></div>
+      </div>
+    </div>
+    <div class="hint">改动：<span class="tag">新 MixerStrip widget 加到底部，不动 DawTrackView</span></div>
+  </div>
+
+</div>
+
+<h2>单通道控件细节（A/D 共用）</h2>
+<div class="chan-demo">
+  <span class="nm">BGM</span>
+  <span class="bm">M</span>
+  <span class="bs on">S</span>
+  <span class="slider"><span class="fill" style="width:70%;"></span><span class="knob" style="left:64%;"></span></span>
+  <span class="pct">100%</span>
+</div>
+<div class="note" style="margin-top:10px;">
+  <b>M 静音</b>：点亮红 = 该轨不出声。<br>
+  <b>S 独奏</b>：点亮黄 = 只听亮 S 的轨（其余自动静音）；多轨可同时 S；无 S 时按各自 M 状态。<br>
+  <b>音量条</b>：0–150%（拖动实时改 OverlayMixer / 视频音量）。<br>
+  <b>对白轨</b>：目前没独立音频（混在视频原声里），显示为只读占位，不给 M/S/音量。<br>
+  <b>持久化</b>：每轨 mute/solo/volume 存进任务（session 或 task），重开还在。<br>
+  <b>实时</b>：所有改动立刻作用于当前叠加播放，无需重生成。
+</div>
+
+<div class="confirm">
+  <h3>📋 当前选择</h3>
+  <div>布局：<span id="pick">方案 A（左侧轨道头列，推荐）</span></div>
+  <p class="note" style="margin-top:6px;">选定布局后我写 spec。单通道控件细节（M/S/音量 + 独奏逻辑 + 持久化 + 对白只读）如上，要调一并说。</p>
+</div>
+
+<script>
+  const L={A:'方案 A（左侧轨道头列，推荐）',D:'方案 D（底部 Mixer 条）'};
+  function sel(k){['A','D'].forEach(x=>document.getElementById('v'+x).classList.remove('sel'));
+    document.getElementById('v'+k).classList.add('sel');document.getElementById('pick').textContent=L[k];}
+</script>
+</body>
+</html>
