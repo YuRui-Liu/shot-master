@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资源库（角色/场景/道具 ref）— 设计确认</title>
+<style>
+  :root{
+    --bg:#1e1f22; --navy:#13162a; --panel:#202234; --panel2:#262943;
+    --border:#2c2f48; --border-lo:#23253a;
+    --blue:#4a9eff; --blue-dim:#2f5e96; --periw:#8b7fd9; --mauve:#a78bfa;
+    --fg:#e8eaed; --fg2:#c4c8d4; --muted:#9aa0a6; --faint:#5a6076;
+    --done:#4ec98f; --warn:#e0a85a; --fail:#e07a7a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:#0a0b12;color:var(--fg);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;font-size:13px;}
+  .page{max-width:1180px;margin:0 auto;padding:20px 22px 56px;}
+  h1{font-size:18px;margin:0 0 3px;}
+  .sub{color:var(--muted);font-size:12px;line-height:1.65;margin:0 0 14px;} .sub code{background:#1c1f2e;border:1px solid #2a2e44;border-radius:4px;padding:1px 5px;font-size:11px;} .sub b{color:var(--fg2);}
+
+  .win{height:600px;border:1px solid #000;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6);background:var(--bg);display:flex;flex-direction:column;}
+  .head{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border-lo);}
+  .head .ttl{font-size:14px;font-weight:650;} .head .ttl .en{font-size:10px;color:var(--faint);letter-spacing:2px;margin-left:6px;}
+  .head .sp{flex:1;}
+  .head .gate{font-size:10px;color:var(--warn);border:1px solid #5a4a28;background:rgba(224,168,90,.08);border-radius:12px;padding:3px 10px;}
+  .head .gate b{color:#f0c789;}
+
+  /* tabs 角色/场景/道具 */
+  .tabs{display:flex;gap:2px;padding:8px 18px 0;border-bottom:1px solid var(--border-lo);}
+  .tab{font-size:12.5px;color:var(--muted);padding:7px 16px;border-radius:7px 7px 0 0;cursor:pointer;border:1px solid transparent;border-bottom:none;}
+  .tab .c{font-size:10px;color:var(--faint);margin-left:5px;}
+  .tab.active{color:#fff;font-weight:600;background:var(--panel);border-color:var(--border);}
+  .tab.active .c{color:var(--blue);}
+
+  /* toolbar */
+  .toolbar{display:flex;align-items:center;gap:9px;padding:11px 18px;}
+  .toolbar .src{font-size:11px;color:var(--muted);}
+  .toolbar .sp{flex:1;}
+  .btn{font-size:11.5px;border-radius:7px;padding:6px 13px;border:1px solid var(--border);color:var(--fg2);background:transparent;display:inline-flex;align-items:center;gap:6px;}
+  .btn .i{width:14px;height:14px;}
+  .btn.pri{background:var(--blue);color:#06122a;border-color:var(--blue);font-weight:600;}
+  .btn.ghost{color:var(--muted);}
+
+  /* grid of ref entries */
+  .grid{flex:1;overflow:auto;padding:6px 18px 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:13px;align-content:start;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:11px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 4px 10px rgba(0,0,0,.25);}
+  .card .thumb{height:124px;position:relative;background:linear-gradient(135deg,#1a1d33,#24284a);display:flex;align-items:center;justify-content:center;}
+  .card .thumb .ph{color:#3a3f5e;font-size:30px;}
+  .card .thumb img{width:100%;height:100%;object-fit:cover;}
+  .card .st{position:absolute;top:7px;right:7px;font-size:8.5px;border-radius:8px;padding:1px 7px;backdrop-filter:blur(4px);}
+  .st.ready{color:var(--done);border:1px solid #2c5a44;background:rgba(78,201,143,.15);}
+  .st.gen{color:var(--warn);border:1px solid #5a4a28;background:rgba(224,168,90,.15);}
+  .st.empty{color:var(--faint);border:1px solid var(--border);background:rgba(0,0,0,.3);}
+  .card .body{padding:9px 10px;display:flex;flex-direction:column;gap:6px;}
+  .card .nm{font-size:12px;font-weight:600;color:var(--fg);}
+  .card .ref{font-size:9px;color:var(--faint);font-family:monospace;}
+  .card .acts{display:flex;gap:5px;margin-top:2px;}
+  .card .a{flex:1;font-size:10px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:4px 0;color:var(--muted);}
+  .card .a.blue{color:var(--blue);border-color:var(--blue-dim);}
+  /* add card */
+  .card.add{border-style:dashed;align-items:center;justify-content:center;color:var(--faint);min-height:200px;cursor:pointer;gap:8px;}
+  .card.add .pl{font-size:28px;font-weight:300;} .card.add .t{font-size:11px;}
+
+  .notes{margin-top:20px;border-top:1px solid var(--border);padding-top:14px;font-size:12px;color:var(--muted);line-height:1.75;} .notes b{color:var(--fg);} .k{color:#9cc7ff;}
+  .ask{margin-top:11px;font-size:12.5px;color:var(--fg2);line-height:1.8;} .ask b{color:#fff;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>资源库 · 角色 / 场景 / 道具 参考图 — 设计确认</h1>
+  <p class="sub">新独立页（compass <code>ref_index</code> 落盘 <code>characters/scenes/props/ref_index.json</code> + <code>名_ref.png</code>）。作用：管理跨镜头一致性的 <b>@ref 参考图</b>，喂给「分镜板·出图」用 <code>@周翠英_ref.png</code> 引用。借鉴 OnlyShot：圣经内嵌出图 prompt → 批量出 ref → 出片前完备性校验。</p>
+
+  <div class="win">
+    <div class="head">
+      <span class="ttl">资源库<span class="en">ASSET LIBRARY</span></span>
+      <span class="sp"></span>
+      <span class="gate">完备性：<b>15/17</b> 就绪 · 2 项缺图（出图前需补全）</span>
+    </div>
+    <div class="tabs">
+      <div class="tab active">角色 <span class="c">6</span></div>
+      <div class="tab">场景 <span class="c">8</span></div>
+      <div class="tab">道具 <span class="c">3</span></div>
+    </div>
+    <div class="toolbar">
+      <span class="src">来源：从剧本/风格圣经自动提取 + 手动</span>
+      <span class="sp"></span>
+      <span class="btn ghost"><span class="i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>导入图</span>
+      <span class="btn"><span class="i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v4M22 12h-4"/></svg></span>批量生成缺图</span>
+      <span class="btn pri"><span class="i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14M5 12h14"/></svg></span>从剧本提取角色</span>
+    </div>
+    <div class="grid">
+      <!-- ready -->
+      <div class="card"><div class="thumb"><div class="ph">👤</div><span class="st ready">✓ 就绪</span></div>
+        <div class="body"><div class="nm">周翠英（女主）</div><div class="ref">@周翠英_ref.png</div>
+          <div class="acts"><span class="a blue">查看</span><span class="a">↻ 重生</span></div></div></div>
+      <div class="card"><div class="thumb"><div class="ph">👤</div><span class="st ready">✓ 就绪</span></div>
+        <div class="body"><div class="nm">沈墨（男主）</div><div class="ref">@沈墨_ref.png</div>
+          <div class="acts"><span class="a blue">查看</span><span class="a">↻ 重生</span></div></div></div>
+      <!-- generating -->
+      <div class="card"><div class="thumb"><div class="ph">⟳</div><span class="st gen">⟳ 生成中</span></div>
+        <div class="body"><div class="nm">陆夫人（反派）</div><div class="ref">@陆夫人_ref.png</div>
+          <div class="acts"><span class="a">取消</span></div></div></div>
+      <!-- empty -->
+      <div class="card"><div class="thumb"><div class="ph">+</div><span class="st empty">○ 缺图</span></div>
+        <div class="body"><div class="nm">管家老张</div><div class="ref" style="color:var(--fail)">未生成 · 出图前需补</div>
+          <div class="acts"><span class="a blue">✦ 生成</span><span class="a">导入</span></div></div></div>
+      <div class="card"><div class="thumb"><div class="ph">👤</div><span class="st ready">✓ 就绪</span></div>
+        <div class="body"><div class="nm">小丫鬟</div><div class="ref">@小丫鬟_ref.png</div>
+          <div class="acts"><span class="a blue">查看</span><span class="a">↻ 重生</span></div></div></div>
+      <div class="card add"><div class="pl">+</div><div class="t">手动新增角色</div></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <b>要点</b>：① 3 个 tab（角色/场景/道具）对应 compass <code>characters/scenes/props</code> 三个 <code>ref_index.json</code>；② 每卡=一个 ref 条目（缩略图 + 名 + <code>@名_ref.png</code> 引用 + 状态 就绪✓/生成中⟳/缺图○）；③ 顶部<b>完备性闸门</b>（OnlyShot 失败模式4：进"分镜板·出图"前缺图阻断，给 生成/导入/跳过）；④ 来源：<b>从剧本/风格圣经自动提取</b>（LLM 抽角色/场景 → 内嵌出图 prompt → 批量出 ref，套当前 STYLE BIBLE 的 ref_fingerprint 锁一致性）+ 手动导入；⑤ 生成走已就绪的 compass Task(type=image) + provider 适配层。
+  </div>
+  <div class="ask">
+    <b>资源库这版 OK 吗？</b> 可调：缩略图大小 / 是否要每条 ref 的"生成 prompt 可编辑"入口（圣经内嵌）/ 完备性闸门的提示位置。<br>
+    确认后，所有片段就都设计完了 → 我开 <b>Wave 1</b>（分镜板合并 / 视频后期合并 / 资源库页 / OverviewPage，并行建+smoke），再做 <b>Wave 2</b> 破坏性 rewire（你真机验证）。
+  </div>
+</div>
+</body>
+</html>

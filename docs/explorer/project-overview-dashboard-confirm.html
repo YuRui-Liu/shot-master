@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目「概览」+ 侧栏 — v3（资源库独立 / 分镜板4合1 / 视频生成+后期）</title>
+<style>
+  :root{
+    --bg:#1e1f22; --navy:#13162a; --panel:#202234;
+    --border:#2c2f48; --border-lo:#23253a;
+    --blue:#4a9eff; --blue-dim:#2f5e96; --periw:#8b7fd9; --mauve:#a78bfa;
+    --fg:#e8eaed; --fg2:#c4c8d4; --muted:#9aa0a6; --faint:#5a6076;
+    --done:#4ec98f; --locked:#4a4f63;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:#0a0b12;color:var(--fg);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;font-size:13px;}
+  .page{max-width:1320px;margin:0 auto;padding:20px 22px 56px;}
+  h1{font-size:18px;margin:0 0 3px;}
+  .sub{color:var(--muted);font-size:12px;line-height:1.65;margin:0 0 14px;}
+  .sub code{background:#1c1f2e;border:1px solid #2a2e44;border-radius:4px;padding:1px 5px;font-size:11px;} .sub b{color:var(--fg2);}
+
+  .win{display:flex;height:582px;border:1px solid #000;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6);background:var(--bg);}
+  .side{width:196px;flex:0 0 196px;background:var(--navy);border-right:1px solid var(--border-lo);display:flex;flex-direction:column;}
+  .brand{display:flex;align-items:center;gap:9px;padding:12px 13px;border-bottom:1px solid var(--border-lo);}
+  .brand img{width:25px;height:25px;border-radius:7px;} .brand .nm{font-size:12px;font-weight:650;color:#d0d8f0;} .brand .pj{font-size:9.5px;color:var(--faint);}
+  .nav{padding:6px 7px;display:flex;flex-direction:column;flex:1;overflow:auto;gap:1px;}
+  .item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;position:relative;cursor:pointer;}
+  .item:hover{background:#1b1e36;}
+  .item .ic{width:16px;height:16px;flex:0 0 16px;color:var(--muted);} .item .tx{font-size:12.5px;color:var(--fg2);flex:1;}
+  .item .step{font-size:9px;color:var(--faint);width:14px;}
+  .item.ov{margin-bottom:4px;} .item.ov .ic{color:var(--blue);}
+  .item.active{background:linear-gradient(90deg,rgba(74,158,255,.2),rgba(74,158,255,.04));}
+  .item.active::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:2px;background:var(--blue);}
+  .item.active .tx{color:#fff;font-weight:600;} .item.active .ic{color:var(--blue);}
+  .item.done .ic{color:var(--done);}
+  .item.cur{background:linear-gradient(90deg,rgba(74,158,255,.14),transparent);} .item.cur .tx{color:#fff;font-weight:600;} .item.cur .ic{color:var(--blue);}
+  .item.locked{opacity:.4;cursor:not-allowed;} .item.locked .tx{color:var(--locked);}
+  .item .sub2{font-size:8.5px;color:var(--faint);}
+  .item .tag{font-size:8px;color:var(--periw);border:1px solid #4a3d6e;border-radius:7px;padding:0 5px;}
+  .grp{font-size:9px;color:var(--faint);letter-spacing:1px;margin:9px 10px 3px;text-transform:uppercase;}
+  .next-hint{font-size:9.5px;color:var(--blue);background:rgba(74,158,255,.08);border:1px solid #243a5a;border-radius:6px;padding:3px 8px;margin:1px 8px 2px 24px;}
+  .lock-hint{font-size:9px;color:var(--faint);margin:0 10px 2px 24px;}
+  .foot{border-top:1px solid var(--border-lo);padding:6px 7px;display:flex;gap:4px;}
+  .foot .item{flex:1;justify-content:center;padding:6px;}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border-lo);}
+  .topbar h2{font-size:14px;margin:0;font-weight:650;} .topbar .en{font-size:11px;color:var(--faint);letter-spacing:2px;}
+  .topbar .sp{flex:1;} .topbar .pill{font-size:10.5px;color:var(--muted);border:1px solid var(--border);border-radius:14px;padding:3px 11px;}
+  .body{flex:1;overflow:auto;padding:15px 18px;}
+
+  .bible{display:flex;gap:13px;align-items:center;background:linear-gradient(135deg,var(--panel),#1b1d2e);border:1px solid var(--border);border-left:3px solid var(--periw);border-radius:11px;padding:12px 15px;}
+  .bible .orb{width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--mauve),var(--blue-dim));box-shadow:0 0 14px rgba(139,127,217,.5);}
+  .bible .bc{flex:1;min-width:0;} .bible .bt{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
+  .bible .t{font-size:12.5px;font-weight:650;} .bible .set{font-size:9px;color:#bda7fa;border:1px solid #4a3d6e;border-radius:10px;padding:1px 8px;}
+  .bible .desc{font-size:10.5px;color:var(--muted);} .bible .desc b{color:var(--fg2);}
+  .bible .edit{font-size:11px;color:var(--blue);border:1px solid var(--blue-dim);border-radius:7px;padding:5px 12px;background:rgba(74,158,255,.06);white-space:nowrap;}
+
+  .nab{display:flex;align-items:center;gap:10px;margin:12px 0 4px;background:rgba(74,158,255,.07);border:1px solid #243a5a;border-radius:9px;padding:8px 13px;}
+  .nab .ai{width:16px;height:16px;color:var(--blue);} .nab .tx{font-size:11.5px;color:#bcd4f5;flex:1;} .nab .tx b{color:#fff;}
+  .nab .go{font-size:11px;color:#06122a;background:var(--blue);font-weight:600;border-radius:6px;padding:5px 13px;}
+
+  /* 5 阶段流水线 */
+  .flow{display:flex;gap:8px;margin-top:13px;align-items:stretch;}
+  .pc{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:12px;position:relative;display:flex;flex-direction:column;box-shadow:0 4px 12px rgba(0,0,0,.25);}
+  .pc.cur{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue),0 6px 16px rgba(74,158,255,.18);}
+  .pc.locked{opacity:.5;}
+  .pc .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+  .pc .nm{font-size:12px;color:var(--fg2);font-weight:600;}
+  .sb{font-size:8px;border-radius:8px;padding:1px 6px;}
+  .sb.done{color:var(--done);border:1px solid #2c5a44;} .sb.cur{color:var(--blue);border:1px solid #2c4a6e;} .sb.lock{color:var(--faint);border:1px solid var(--border);}
+  .pc .big{font-size:25px;font-weight:750;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-1px;}
+  .pc .big .den{font-size:13px;color:var(--faint);font-weight:600;}
+  .pc .meta{font-size:9.5px;color:var(--muted);margin:4px 0 7px;line-height:1.4;}
+  .pc .bar{height:4px;background:#16182a;border-radius:2px;overflow:hidden;margin-top:auto;}
+  .pc .bar i{display:block;height:100%;border-radius:2px;}
+  .pc.done .bar i{background:var(--done);} .pc.cur .bar i{background:linear-gradient(90deg,var(--blue),var(--periw));} .pc.locked .bar i{background:var(--locked);}
+  .arrow{display:flex;align-items:center;color:var(--faint);font-size:14px;flex:0 0 10px;}
+  .pc .tools{font-size:8.5px;color:var(--faint);margin-top:5px;}
+  .subline{font-size:9px;color:var(--muted);display:flex;justify-content:space-between;margin-top:3px;}
+  .subline .single{color:var(--periw);}
+
+  .notes{margin-top:20px;border-top:1px solid var(--border);padding-top:14px;font-size:12px;color:var(--muted);line-height:1.75;}
+  .notes b{color:var(--fg);} .k{color:#9cc7ff;} .warn{color:#e0b88a;}
+  .ask{margin-top:11px;font-size:12.5px;color:var(--fg2);line-height:1.8;} .ask b{color:#fff;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>项目「概览」+ 侧栏 — v3（资源库独立 · 分镜板4合1 · 视频生成+后期）</h1>
+  <p class="sub">新 IA：<b>剧本→资源库→分镜板→视频生成→视频后期</b>，与 compass 4 stage 对齐（资源库=assets，分镜板=storyboard，视频生成+后期=production）。分镜板 = 出图(核心)+拆/拼/裁(子工具，4合1)；视频后期=配音/配乐。</p>
+
+  <div class="win">
+    <div class="side">
+      <div class="brand"><img src="../../drama_shot_master/assets/app_icon.png" alt="icon"><div><div class="nm">糯米AI分镜</div><div class="pj">替嫁新娘的逆袭 · P-006</div></div></div>
+      <div class="nav">
+        <div class="item ov active"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span><span class="tx">概览</span></div>
+        <div class="grp">项目流水线</div>
+        <div class="item done"><span class="step">⓪</span><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/></svg></span><span class="tx">剧本创作</span></div>
+        <div class="item cur"><span class="step">①</span><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7l8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/></svg></span><span class="tx">资源库</span></div>
+        <div class="next-hint">▸ 当前：补全 角色/场景/道具 参考图</div>
+        <div class="item locked"><span class="step">②</span><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span><span class="tx">分镜板</span><span class="tag">出图+拆拼裁</span></div>
+        <div class="lock-hint">需先完成「资源库」</div>
+        <div class="item locked"><span class="step">③</span><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M10 9l5 3-5 3V9z"/></svg></span><span class="tx">视频生成</span></div>
+        <div class="item locked"><span class="step">④</span><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg></span><span class="tx">视频后期</span><span class="tag">配音·配乐</span></div>
+      </div>
+      <div class="foot">
+        <div class="item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.3 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L2.1 11a7 7 0 0 0 0 2"/></svg></span><span class="tx">设置</span></div>
+        <div class="item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></span><span class="tx">帮助</span></div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="topbar"><h2>概览</h2><span class="en">OVERVIEW</span><span class="sp"></span><span class="pill">短剧 · 12 集 · 9:16</span></div>
+      <div class="body">
+        <div class="bible"><div class="orb"></div>
+          <div class="bc"><div class="bt"><span class="t">全片风格圣经 · STYLE BIBLE</span><span class="set">已设定 · 真人</span></div>
+          <div class="desc"><b>电影感暖调（real/cinematic-warm-v1）</b>：Panavision 65 + Vision3 500T 暖色调，浅景深、胶片颗粒。</div></div>
+          <div class="edit">编辑</div></div>
+
+        <div class="nab"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/></svg></span>
+          <span class="tx">下一步 · <b>资源库</b>：还有 0 项参考图待生成，完成后解锁「分镜板」</span><span class="go">去补全 →</span></div>
+
+        <!-- 5 阶段横向流水线 -->
+        <div class="flow">
+          <div class="pc done"><div class="hd"><span class="nm">剧本创作</span><span class="sb done">✓</span></div>
+            <div class="big">1<span class="den">/1</span></div><div class="meta">编剧 · 1集 9场</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="arrow">›</div>
+          <div class="pc cur"><div class="hd"><span class="nm">资源库</span><span class="sb cur">●</span></div>
+            <div class="big">17<span class="den">/17</span></div><div class="meta">角色6 · 场景8 · 道具3</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="arrow">›</div>
+          <div class="pc locked"><div class="hd"><span class="nm">分镜板</span><span class="sb lock">🔒</span></div>
+            <div class="big">0<span class="den">/108</span></div><div class="meta">出图 · 0/0 已出图</div>
+            <div class="bar"><i style="width:0"></i></div><div class="tools">子工具：拆图 / 拼图 / 裁边</div></div>
+          <div class="arrow">›</div>
+          <div class="pc locked"><div class="hd"><span class="nm">视频生成</span><span class="sb lock">🔒</span></div>
+            <div class="big">0<span class="den">/12</span></div><div class="meta">生视频 · 按集</div><div class="bar"><i style="width:0"></i></div></div>
+          <div class="arrow">›</div>
+          <div class="pc locked"><div class="hd"><span class="nm">视频后期</span><span class="sb lock">🔒</span></div>
+            <div class="big" style="font-size:19px">配音·配乐</div>
+            <div class="subline"><span>配音</span><span>0/12</span></div>
+            <div class="subline"><span>配乐</span><span class="single">项目级·0/1</span></div>
+            <div class="bar" style="margin-top:8px"><i style="width:0"></i></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <b>v3 结构</b>（与 compass stage 对齐）：剧本创作=screenwriter / <b>资源库</b>=assets(新独立页) / <b>分镜板</b>=storyboard(出图核心+拆拼裁子工具,4功能合1页) / 视频生成+视频后期=production。门禁整阶段置灰。<br>
+    <span class="warn">⚠ 这是比"外壳"更大的重构</span>：① 新建<b>资源库页</b>(角色/场景/道具 ref，接 compass ref_index) ② <b>分镜板页</b>把现有 出图+拆+拼+裁 4 页合并(子工具切换) ③ <b>nav_config 改 5 阶段</b>(新增 asset_library，合并 imggen/split/combine/trim→storyboard，dubbing/soundtrack→视频后期)，并更新阶段A 的 PHASE_STAGE_MAP(现 2 个 production 子阶段)。
+  </div>
+  <div class="ask">
+    <b>确认这版 IA 吗？</b>（两处可定：视频生成/视频后期是<b>两个并列功能</b>还是合成一个"③视频出片"阶段两子组？分镜板里 4 子工具是<b>顶部 tab 切换</b>还是别的）<br>
+    确认后我给你<b>分步实现计划</b>（nav 重构 → OverviewPage → 资源库页 → 分镜板合并），逐块来、每块你真机验证。<b>先不动代码</b>，等你点头 IA。
+  </div>
+</div>
+</body>
+</html>
