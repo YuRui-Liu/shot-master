@@ -22,6 +22,25 @@ from screenwriter_agent.models.script_index_schema import ScriptIndex
 router = APIRouter()
 
 
+def build_outline_prompt(tpl_text: str, sel: dict, episode_count: int,
+                         opts: dict) -> str:
+    """组装剧本大纲 user prompt：模板 + 选定候选 + 参数 + （非空时）题材规则。
+
+    ②c 题材驱动：opts['genre_context'] 非空时追加 '## 题材规则'；空则同现状。"""
+    prompt = (tpl_text
+              + "\n\n## 选定候选\n```json\n"
+              + json.dumps(sel, ensure_ascii=False, indent=2)
+              + "\n```\n\n## 参数\n"
+              + f"episode_count={episode_count}\n"
+              + f"duration_sec={opts['duration_sec']}\n"
+              + f"language_style={opts['language_style']}\n")
+    genre_ctx = (opts.get("genre_context") or "").strip()
+    if genre_ctx:
+        prompt += "## 题材规则\n" + genre_ctx + "\n"
+    prompt += "**只输出一个 JSON 代码块**。"
+    return prompt
+
+
 @router.post("/script/outline")
 async def script_outline(req: ScriptOutlineReq, request: Request):
     project_dir = Path(req.project_dir)
@@ -70,14 +89,7 @@ async def script_outline(req: ScriptOutlineReq, request: Request):
             yield sse_event("status", {"phase": "thinking"})
             tpl_text, _ = load_template("script_outline", project_dir=project_dir)
             opts = req.options.model_dump()
-            prompt = (tpl_text
-                      + "\n\n## 选定候选\n```json\n"
-                      + json.dumps(sel, ensure_ascii=False, indent=2)
-                      + "\n```\n\n## 参数\n"
-                      + f"episode_count={req.episode_count}\n"
-                      + f"duration_sec={opts['duration_sec']}\n"
-                      + f"language_style={opts['language_style']}\n"
-                      + "**只输出一个 JSON 代码块**。")
+            prompt = build_outline_prompt(tpl_text, sel, req.episode_count, opts)
             messages = [{"role": "user", "content": prompt}]
 
             client = LLMClient(api_key=api_key, base_url=base_url, model=model,

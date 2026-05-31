@@ -46,7 +46,7 @@ STORYBOARD_TABS = [
 
 # 视频后期容器页 tab：(底层 panel key, tab 中文标题)。
 VIDEOPOST_TABS = [
-    ("compose", "成片"),
+    ("compose", "智能转场"),
     ("dubbing", "配音"),
     ("soundtrack", "配乐"),
 ]
@@ -63,7 +63,7 @@ FUNCS = [
     ("裁边", "trim"),
     ("出图", "imggen"),
     ("生视频", "video_gen"),
-    ("成片", "compose"),
+    ("智能转场", "compose"),
     ("配音", "dubbing"),
     ("配乐", "soundtrack"),
 ]

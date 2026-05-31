@@ -13,6 +13,10 @@ class IdeateContext(BaseModel):
     candidate_count: int = 3
     duration_sec: int = 60
     extra_constraints: str = ""
+    # ②c 题材+风格驱动（架构 A 客户端组装）：纯文本，客户端用
+    # build_genre_context / build_style_context 组装好传入；空则行为同现状（向后兼容）。
+    genre_context: str = ""
+    style_context: str = ""
 
 
 class ChatMessage(BaseModel):
@@ -48,6 +52,9 @@ class ScriptOptions(BaseModel):
     language_style: str = "口语化"
     fps: int = 24
     duration_sec: int = 60
+    # ②c 题材+风格驱动：纯文本，客户端组装。空则同现状（向后兼容）。
+    genre_context: str = ""
+    style_context: str = ""
 
 
 class ScriptReq(BaseModel):
@@ -65,6 +72,9 @@ class StoryboardOptions(BaseModel):
     shot_duration_min: float = 4.0              # 镜头时长范围下限（秒）
     shot_duration_max: float = 10.0             # 镜头时长范围上限（秒）
     density: str = "常规"
+    # ②c 题材+风格驱动：纯文本，客户端组装。空则同现状（向后兼容）。
+    genre_context: str = ""
+    style_context: str = ""
 
 
 class StoryboardReq(BaseModel):
@@ -84,6 +94,11 @@ class PromptsOptions(BaseModel):
     quality_boost: bool = True
     groups: list = Field(default_factory=list)   # [{"grid_mode":..,"shot_ids":[..]}]
     only_group_index: int | None = None          # 1-based；仅生成该组
+    # ②c 题材+风格驱动：纯文本，客户端组装。空则同现状（向后兼容）。
+    # render 阶段（globalStyle，不含 ref_fingerprint）；ref 阶段由客户端单独组装传 style_context_ref。
+    genre_context: str = ""
+    style_context: str = ""
+    style_context_ref: str = ""                  # 角色参考图阶段（含 ref_fingerprint）
 
 
 class PromptsReq(BaseModel):
@@ -119,6 +134,10 @@ class VideoPromptOptions(BaseModel):
     style_note: str = ""
     template_id: str = "ltx"        # "ltx"=画面/运镜/音效 LTX2.3增强(默认) | "simple"=Camera:…
     language: str = "en"            # "en"=全英文(默认) | "zh"=全中文
+    # ②c 题材+风格驱动：纯文本，客户端组装。导演台 global_prompt 用 style_context；
+    # genre_context 供全片基调参考。空则同现状（向后兼容）。
+    genre_context: str = ""
+    style_context: str = ""
 
 
 class VideoPromptReq(BaseModel):

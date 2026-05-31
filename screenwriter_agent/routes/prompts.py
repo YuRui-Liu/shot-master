@@ -25,7 +25,12 @@ def build_grid_user_prompt(tpl_text: str, sb: dict, grp: list,
 
     注入 aspect_ratio（尺寸映射）+ characters（Character Lock）+ globalStyle，
     供模型按 9 节英文结构生成带布局约束的合成宫格图提示词。
+
+    ②c 风格驱动：opts['style_context']（render 阶段，不含 ref_fingerprint）非空时
+    优先作为 globalStyle；空则回退 sb['globalStyle']（向后兼容）。
     """
+    global_style = (opts.get("style_context") or "").strip() \
+        or sb.get("globalStyle", "")
     return (
         tpl_text
         + "\n\n## 运行参数\n"
@@ -36,13 +41,29 @@ def build_grid_user_prompt(tpl_text: str, sb: dict, grp: list,
         + f"style_extra={opts.get('style_extra', '')}\n"
         + f"negative_preset={opts.get('negative_preset', '')}\n"
         + "\n## 全局风格 globalStyle\n"
-        + sb.get("globalStyle", "")
+        + global_style
         + "\n\n## 角色（# Character Lock 来源）\n```json\n"
         + json.dumps(sb.get("characters", []), ensure_ascii=False, indent=2)
         + "\n```\n\n## 本组镜头（按顺序映射 F1, F2, …）\n```json\n"
         + json.dumps(grp, ensure_ascii=False, indent=2)
         + "\n```\n"
     )
+
+
+def build_char_ref_prompt(tpl_text: str, ch: dict, sb: dict, opts: dict) -> str:
+    """拼出角色参考图 user prompt：模板 + 角色 JSON + 全局风格 + 风格补充。
+
+    ②c 风格驱动：opts['style_context_ref']（ref 阶段，含 ref_fingerprint）非空时
+    优先作为全局风格；空则回退 sb['globalStyle']（向后兼容）。
+    """
+    global_style = (opts.get("style_context_ref") or "").strip() \
+        or sb.get("globalStyle", "")
+    return (tpl_text
+            + "\n\n## 角色\n```json\n"
+            + json.dumps(ch, ensure_ascii=False, indent=2)
+            + "\n```\n## 全局风格\n"
+            + global_style
+            + f"\n## 风格补充\n{opts.get('style_extra', '')}\n")
 
 
 def resolve_group_shots(sb: dict, shot_ids: list) -> list:
@@ -120,12 +141,7 @@ async def prompts(req: PromptsReq, request: Request):
                     if not name:
                         continue
                     yield sse_event("status", {"phase": "streaming"})
-                    prompt = (tpl_text
-                              + "\n\n## 角色\n```json\n"
-                              + json.dumps(ch, ensure_ascii=False, indent=2)
-                              + "\n```\n## 全局风格\n"
-                              + sb.get("globalStyle", "")
-                              + f"\n## 风格补充\n{opts['style_extra']}\n")
+                    prompt = build_char_ref_prompt(tpl_text, ch, sb, opts)
                     acc: list[str] = []
                     for c in client.stream_chat([{"role": "user", "content": prompt}]):
                         if await request.is_disconnected():

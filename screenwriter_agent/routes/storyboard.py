@@ -22,6 +22,33 @@ from screenwriter_agent.models.requests import StoryboardReq
 router = APIRouter()
 
 
+def build_storyboard_prompt(tpl_text: str, md: str, opts: dict) -> str:
+    """组装分镜 user prompt：模板 + 剧本.md + 参数 + （非空时）题材规则 / 全局风格初值。
+
+    ②c 题材+风格驱动：
+      - opts['genre_context'] 非空 → 追加 '## 题材规则'；
+      - opts['style_context'] 非空 → 追加 '## 全局风格 globalStyle（初值）'，
+        提示模型据此填 storyboard.globalStyle。
+    空则与现状完全一致（向后兼容）。"""
+    prompt = (tpl_text
+              + "\n\n## 剧本.md（输入）\n"
+              + md
+              + f"\n\n## 参数\nfps={opts['fps']}, "
+              + f"aspect_ratio={opts['aspect_ratio']}, "
+              + f"duration_range={opts['shot_duration_min']}-"
+              + f"{opts['shot_duration_max']}s, "
+              + f"density={opts['density']}\n")
+    genre_ctx = (opts.get("genre_context") or "").strip()
+    if genre_ctx:
+        prompt += "\n## 题材规则\n" + genre_ctx + "\n"
+    style_ctx = (opts.get("style_context") or "").strip()
+    if style_ctx:
+        prompt += ("\n## 全局风格 globalStyle（初值，请据此填 storyboard.globalStyle）\n"
+                   + style_ctx + "\n")
+    prompt += "\n**只输出一个 JSON 代码块**。"
+    return prompt
+
+
 @router.post("/storyboard")
 async def storyboard(req: StoryboardReq, request: Request):
     project_dir = Path(req.project_dir)
@@ -64,15 +91,7 @@ async def storyboard(req: StoryboardReq, request: Request):
             tpl_text, _ = load_template("storyboard", project_dir=project_dir)
             md = script_path.read_text(encoding="utf-8")
             opts = req.options.model_dump()
-            prompt = (tpl_text
-                      + "\n\n## 剧本.md（输入）\n"
-                      + md
-                      + f"\n\n## 参数\nfps={opts['fps']}, "
-                      + f"aspect_ratio={opts['aspect_ratio']}, "
-                      + f"duration_range={opts['shot_duration_min']}-"
-                      + f"{opts['shot_duration_max']}s, "
-                      + f"density={opts['density']}\n\n"
-                      + "**只输出一个 JSON 代码块**。")
+            prompt = build_storyboard_prompt(tpl_text, md, opts)
             messages = [{"role": "user", "content": prompt}]
 
             client = LLMClient(api_key=api_key, base_url=base_url, model=model,

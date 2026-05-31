@@ -19,6 +19,19 @@ from screenwriter_agent.models.requests import IdeateChatReq, IdeateSelectReq
 router = APIRouter()
 
 
+def build_ideate_system_content(tpl_text: str, ctx: dict) -> str:
+    """组装 ideate system prompt：模板 + context JSON 块 + （非空时）题材规则。
+
+    ②c 题材驱动：ctx['genre_context'] 非空时把题材规则追加到 system_msg 末尾；
+    空则与现状完全一致（向后兼容）。"""
+    content = (tpl_text + "\n\n## 当前 context\n```json\n"
+               + json.dumps(ctx, ensure_ascii=False, indent=2) + "\n```")
+    genre_ctx = (ctx.get("genre_context") or "").strip()
+    if genre_ctx:
+        content += "\n\n## 题材规则\n" + genre_ctx
+    return content
+
+
 @router.post("/ideate/select")
 def ideate_select(req: IdeateSelectReq):
     p = Path(req.project_dir)
@@ -97,10 +110,8 @@ async def ideate_chat(req: IdeateChatReq, request: Request):
             yield sse_event("status", {"phase": "thinking"})
             tpl_text, _src = load_template("ideate", project_dir=project_dir)
             ctx = req.context.model_dump()
-            ctx_block = json.dumps(ctx, ensure_ascii=False, indent=2)
-            system_msg = {"role": "system", "content":
-                          tpl_text + "\n\n## 当前 context\n```json\n"
-                          + ctx_block + "\n```"}
+            system_msg = {"role": "system",
+                          "content": build_ideate_system_content(tpl_text, ctx)}
             messages = [system_msg] + [m.model_dump() for m in req.messages]
             client = LLMClient(api_key=api_key, base_url=base_url, model=model,
                                reasoning_effort=req.reasoning_effort)

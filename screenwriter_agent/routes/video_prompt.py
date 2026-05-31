@@ -27,13 +27,27 @@ def video_template_id(template_id: str) -> str:
 
 
 def build_video_user_prompt(tpl_text: str, sb: dict, opts) -> str:
-    """渲染视频提示词 user prompt：注入分镜 JSON + fps + 比例 + 语言。"""
-    return tpl_text.format(
+    """渲染视频提示词 user prompt：注入分镜 JSON + fps + 比例 + 语言。
+
+    ②c 风格+题材驱动（导演台 LTX 2.3，保持 global + per-shot + 时间结构）：
+      - opts.style_context 非空 → 追加 '## 导演台全局风格 global_prompt（基底）'，
+        提示模型据此产出 global_prompt（风格统一全片）；
+      - opts.genre_context 非空 → 追加 '## 题材基调' 供全片基调参考。
+    空则与现状完全一致（向后兼容）。"""
+    prompt = tpl_text.format(
         storyboard_json=json.dumps(sb, ensure_ascii=False, indent=2),
         fps=opts.fps,
         aspect_ratio=opts.aspect_ratio,
         language=opts.language,
     )
+    style_ctx = (getattr(opts, "style_context", "") or "").strip()
+    if style_ctx:
+        prompt += ("\n\n## 导演台全局风格 global_prompt（基底，请据此产出 global_prompt）\n"
+                   + style_ctx)
+    genre_ctx = (getattr(opts, "genre_context", "") or "").strip()
+    if genre_ctx:
+        prompt += "\n\n## 题材基调\n" + genre_ctx
+    return prompt
 
 
 def write_video_output(out_dir, data: dict) -> str:
