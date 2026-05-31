@@ -57,7 +57,9 @@ class WelcomePage(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        root.addWidget(self._make_nav_bar())
+        # 旧 nav bar（糯米AI + 全局设置）已被全局无边框标题栏 FramelessTitleBar 取代，
+        # 不再在欢迎页内渲染——避免与窗口标题栏双栏叠加。hero 直接作为欢迎页顶部。
+        # _make_nav_bar 暂保留（兼容历史引用），但不挂入布局。
         root.addWidget(self._make_hero())
 
         self._cards_area = self._make_cards_area()

@@ -10,22 +10,30 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QObject, QEvent
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QMenu,
 )
 from PySide6.QtGui import QAction, QCursor
 from drama_shot_master.ui.widgets.flow_sidebar import FlowSidebar
 from drama_shot_master.ui.widgets.project_command_bar import ProjectCommandBar
+from drama_shot_master.ui.widgets.title_bar import FramelessTitleBar
 from drama_shot_master.ui.theme import apply_window_icon, apply_titlebar, current_theme
 from drama_shot_master.ui import nav_config
 from drama_shot_master.ui.nav_config import NAV_ITEMS, LABELS
+
+# 无边框窗口边缘缩放命中余量（px）
+_RESIZE_MARGIN = 8
 
 
 class AppShell(QMainWindow):
     def __init__(self, cfg=None):
         super().__init__()
         self.setWindowTitle("糯米AI分镜影视创作台")
+        # 无边框窗口：去重复原生标题栏，改用自绘 FramelessTitleBar。
+        # 保留 Qt.Window（顶层窗口语义），仅去掉系统边框/原生标题栏。
+        # 用户已接受放弃 Windows Aero Snap（无边框需手动管理拖动/缩放）。
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         self.resize(1360, 860)
         # self.pages: 扁平 nav_key → 页（含容器页）。键序=NAV_ITEMS。
         self.pages = {}
@@ -145,7 +153,24 @@ class AppShell(QMainWindow):
         self.outer_stack = QStackedWidget()
         self.outer_stack.addWidget(self.welcome_page)   # index 0
         self.outer_stack.addWidget(main_ui)             # index 1
-        self.setCentralWidget(self.outer_stack)
+
+        # 无边框：自绘标题栏置顶，下接 outer_stack。central = 容器 VBox[title_bar, outer_stack]。
+        # 标题栏「⚙ 全局设置」复用统一设置入口。
+        self.title_bar = FramelessTitleBar()
+        self.title_bar.settingsRequested.connect(self._open_unified_settings)
+        central = QWidget()
+        central_lay = QVBoxLayout(central)
+        central_lay.setContentsMargins(0, 0, 0, 0)
+        central_lay.setSpacing(0)
+        central_lay.addWidget(self.title_bar)
+        central_lay.addWidget(self.outer_stack, 1)
+        self.setCentralWidget(central)
+
+        # 无边框窗口需手动边缘缩放：装一个 eventFilter 到窗口，命中边缘 8px → 切光标 + 拖动 setGeometry。
+        self._resize_filter = _ResizeFilter(self, margin=_RESIZE_MARGIN)
+        self.setMouseTracking(True)
+        central.setMouseTracking(True)
+        self.installEventFilter(self._resize_filter)
 
         # 任务中心 dock
         from drama_shot_master.core.task_aggregator import TaskAggregator
@@ -1256,11 +1281,20 @@ class AppShell(QMainWindow):
     # 生命周期
     # ------------------------------------------------------------------ #
 
+    def changeEvent(self, e):
+        # 窗口最大化/还原状态变化时同步标题栏 □/❐ 图标（如系统快捷键触发）。
+        super().changeEvent(e)
+        if e.type() == QEvent.WindowStateChange:
+            tb = getattr(self, "title_bar", None)
+            if tb is not None and hasattr(tb, "_sync_max_icon"):
+                tb._sync_max_icon()
+
     def showEvent(self, e):
         super().showEvent(e)
         if not getattr(self, "_titlebar_themed", False):
             self._titlebar_themed = True
             apply_window_icon(self)
+            # 无边框下原生标题栏不显示，此调用无害（保留以兼容主题流程）。
             apply_titlebar(self, current_theme(self.cfg))
 
     def closeEvent(self, e):
@@ -1302,3 +1336,130 @@ class AppShell(QMainWindow):
         except Exception:
             pass
         super().closeEvent(e)
+
+
+class _ResizeFilter(QObject):
+    """无边框窗口边缘缩放：装到顶层窗口的 eventFilter。
+
+    检测光标是否落在窗口 左/右/上/下/四角 的 margin 命中区 → 切对应箭头光标；
+    左键按住命中区拖动 → setGeometry 实时缩放。最大化时禁用（不缩放）。
+    用户已接受无 Aero Snap。
+
+    仅在标题栏/外壳空白区生效；落在内部子控件（按钮/列表等）上时由 Qt 正常分发，
+    不抢交互——靠命中区只取窗口最外圈 margin，子控件几乎都在 margin 内侧。
+    """
+
+    # 边缘命中位掩码
+    _LEFT, _RIGHT, _TOP, _BOTTOM = 1, 2, 4, 8
+
+    def __init__(self, win: QMainWindow, margin: int = 8):
+        super().__init__(win)
+        self._win = win
+        self._margin = margin
+        self._edge = 0
+        self._pressed = False
+        self._start_geo = None
+        self._start_global = None
+
+    def eventFilter(self, obj, event):  # noqa: N802
+        et = event.type()
+        win = self._win
+        if win is None:
+            return False
+        if win.isMaximized() or win.isFullScreen():
+            # 最大化/全屏不缩放，恢复默认光标
+            if self._edge and et == QEvent.MouseMove:
+                win.unsetCursor()
+                self._edge = 0
+            return False
+
+        if et == QEvent.MouseMove:
+            gp = event.globalPosition().toPoint()
+            if self._pressed and self._edge:
+                self._resize_to(gp)
+                return True
+            edge = self._edge_at(gp)
+            if edge != self._edge:
+                self._edge = edge
+                self._apply_cursor(edge)
+            return False
+
+        if et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            edge = self._edge_at(event.globalPosition().toPoint())
+            if edge:
+                self._edge = edge
+                self._pressed = True
+                self._start_geo = win.geometry()
+                self._start_global = event.globalPosition().toPoint()
+                return True
+            return False
+
+        if et == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+            if self._pressed:
+                self._pressed = False
+                self._start_geo = None
+                return True
+            return False
+
+        return False
+
+    # -- 命中判定 / 光标 / 缩放 -- #
+
+    def _edge_at(self, global_pt) -> int:
+        win = self._win
+        tl = win.mapFromGlobal(global_pt)
+        x, y = tl.x(), tl.y()
+        w, h = win.width(), win.height()
+        m = self._margin
+        edge = 0
+        if 0 <= x <= w and 0 <= y <= h:
+            if x <= m:
+                edge |= self._LEFT
+            if x >= w - m:
+                edge |= self._RIGHT
+            if y <= m:
+                edge |= self._TOP
+            if y >= h - m:
+                edge |= self._BOTTOM
+        return edge
+
+    def _apply_cursor(self, edge: int) -> None:
+        win = self._win
+        if not edge:
+            win.unsetCursor()
+            return
+        left_right = edge in (self._LEFT, self._RIGHT)
+        top_bottom = edge in (self._TOP, self._BOTTOM)
+        tlbr = edge in (self._LEFT | self._TOP, self._RIGHT | self._BOTTOM)
+        trbl = edge in (self._RIGHT | self._TOP, self._LEFT | self._BOTTOM)
+        if left_right:
+            win.setCursor(Qt.SizeHorCursor)
+        elif top_bottom:
+            win.setCursor(Qt.SizeVerCursor)
+        elif tlbr:
+            win.setCursor(Qt.SizeFDiagCursor)
+        elif trbl:
+            win.setCursor(Qt.SizeBDiagCursor)
+        else:
+            win.unsetCursor()
+
+    def _resize_to(self, global_pt) -> None:
+        win = self._win
+        geo = self._start_geo
+        if geo is None:
+            return
+        dx = global_pt.x() - self._start_global.x()
+        dy = global_pt.y() - self._start_global.y()
+        left, top = geo.left(), geo.top()
+        right, bottom = geo.right(), geo.bottom()
+        min_w = max(win.minimumWidth(), 480)
+        min_h = max(win.minimumHeight(), 360)
+        if self._edge & self._LEFT:
+            left = min(left + dx, right - min_w)
+        if self._edge & self._RIGHT:
+            right = max(right + dx, left + min_w)
+        if self._edge & self._TOP:
+            top = min(top + dy, bottom - min_h)
+        if self._edge & self._BOTTOM:
+            bottom = max(bottom + dy, top + min_h)
+        win.setGeometry(left, top, right - left + 1, bottom - top + 1)
