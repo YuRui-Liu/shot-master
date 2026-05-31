@@ -46,9 +46,14 @@ def compute_offsets(durations: list[float], trans_durs: list[float]) -> list[flo
 
 
 def _norm_chain(idx: int, w: int, h: int, fps: int, pix: str) -> tuple[str, str]:
+    # settb/asettb 统一时间基：xfade/acrossfade 要求两路输入时间基一致；
+    # 否则 concat 输出(1/1000000)与归一化片段(1/30)混用会报
+    # "input link timebases do not match" 而整体失败。
     v = (f"[{idx}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,"
-         f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,fps={fps},format={pix},setsar=1[v{idx}]")
-    a = (f"[{idx}:a]aresample=48000,aformat=channel_layouts=stereo[a{idx}]")
+         f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,fps={fps},format={pix},setsar=1,"
+         f"settb=1/{fps}[v{idx}]")
+    a = (f"[{idx}:a]aresample=48000,aformat=channel_layouts=stereo,"
+         f"asettb=1/48000[a{idx}]")
     return v, a
 
 
@@ -96,7 +101,8 @@ def build_ffmpeg_args(comp: CompositionModel, out_path: str,
         else:
             dur_i = durs[i]
             silence = (f"anullsrc=channel_layout=stereo:sample_rate=48000,"
-                       f"atrim=duration={dur_i},asetpts=PTS-STARTPTS[a{i}]")
+                       f"atrim=duration={dur_i},asetpts=PTS-STARTPTS,"
+                       f"asettb=1/48000[a{i}]")
             parts.append(silence)
 
         vlabels.append(f"[v{i}]")
@@ -127,9 +133,11 @@ def build_ffmpeg_args(comp: CompositionModel, out_path: str,
             aout = "[aout]" if is_last else f"[ax{i}]"
 
             if t == "none":
-                # Hard cut via concat (no overlap)
-                parts.append(f"{vcur}{vlabels[i]}concat=n=2:v=1:a=0{vout}")
-                parts.append(f"{acur}{alabels[i]}concat=n=2:v=0:a=1{aout}")
+                # Hard cut via concat (no overlap)。concat 会把时间基重置为 1/1000000，
+                # 若其输出随后喂给 xfade/acrossfade 会与归一化片段(1/30, 1/48000)不匹配，
+                # 故在 concat 后补 settb/asettb 还原统一时间基。
+                parts.append(f"{vcur}{vlabels[i]}concat=n=2:v=1:a=0,settb=1/{fps}{vout}")
+                parts.append(f"{acur}{alabels[i]}concat=n=2:v=0:a=1,asettb=1/48000{aout}")
                 acc += durs[i]
             else:
                 # xfade / acrossfade with fold-left offset

@@ -83,3 +83,19 @@ def test_empty_kept_raises():
     comp = CompositionModel(clips=[])
     with pytest.raises(ValueError):
         tr.build_ffmpeg_args(comp, "/o.mp4", ffmpeg="ffmpeg", probe=lambda p: 8.0)
+
+
+def test_concat_output_gets_settb_for_xfade_compat():
+    """混合 硬切+xfade：concat 输出必须补 settb/asettb，否则与归一化片段时间基
+    不匹配导致 ffmpeg xfade 'input link timebases do not match' 整体失败（回归）。"""
+    clips = [
+        ReelClip.new(path="/0.mp4", duration=8.0, user_transition="none", user_duration=0.5),
+        ReelClip.new(path="/1.mp4", duration=8.0, user_transition="dissolve", user_duration=0.5),
+        ReelClip.new(path="/2.mp4", duration=8.0),
+    ]
+    comp = CompositionModel(clips=clips, fps=30, width=1920, height=1080)
+    fc = " ".join(tr.build_ffmpeg_args(comp, "/o.mp4", ffmpeg="ffmpeg", probe=lambda p: 8.0))
+    assert "concat=n=2:v=1:a=0,settb=1/30" in fc
+    assert "concat=n=2:v=0:a=1,asettb=1/48000" in fc
+    # 归一化链也带 settb（保证纯 xfade 两路时间基一致）
+    assert "setsar=1,settb=1/30" in fc
