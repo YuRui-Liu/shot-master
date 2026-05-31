@@ -18,4 +18,6 @@ def test_appshell_registers_all_functions():
     app = _app()
     w = AppShell()
     w.show(); app.processEvents()
-    assert len(w.pages) == len(FUNCS)
+    # Wave2a：底层 8 个真实功能页存 _func_pages（self.pages 改为扁平 6 项导航）。
+    assert len(w._func_pages) == len(FUNCS)
+    assert set(w._func_pages.keys()) == {k for _l, k in FUNCS}

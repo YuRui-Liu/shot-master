@@ -13,7 +13,7 @@ def test_imggen_page_is_task_workspace():
     from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
     from drama_shot_master.ui.panels.imggen_task_manager_panel import ImgGenTaskManagerPanel
     w = AppShell()
-    page = w.pages["imggen"]
+    page = w._func_pages["imggen"]
     assert isinstance(page, TaskWorkspacePage)
     assert isinstance(page.manager, ImgGenTaskManagerPanel)
     assert w._imggen_manager() is page.manager
@@ -23,7 +23,7 @@ def test_imggen_select_creates_editor_inline():
     _app()
     from drama_shot_master.ui.panels.imggen_panel import ImgGenPanel
     w = AppShell()
-    page = w.pages["imggen"]; m = page.manager
+    page = w._func_pages["imggen"]; m = page.manager
     if not m.store.all():
         m.store.add("T1", payload={}); m.refresh()
     t = m.store.all()[0]

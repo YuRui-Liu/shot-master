@@ -13,7 +13,7 @@ def test_soundtrack_page_is_task_workspace():
     from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
     from drama_shot_master.ui.panels.soundtrack_panel import SoundtrackPanel
     w = AppShell()
-    page = w.pages["soundtrack"]
+    page = w._func_pages["soundtrack"]
     assert isinstance(page, TaskWorkspacePage)
     assert isinstance(page.manager, SoundtrackPanel)
     assert w._soundtrack_panel() is page.manager
@@ -23,7 +23,7 @@ def test_soundtrack_select_creates_editor_inline():
     _app()
     from drama_shot_master.ui.widgets.soundtrack_editor import SoundtrackEditor
     w = AppShell()
-    page = w.pages["soundtrack"]; m = page.manager
+    page = w._func_pages["soundtrack"]; m = page.manager
     tasks = m.cfg.soundtrack_tasks
     if not tasks:
         m._on_new()
