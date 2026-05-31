@@ -31,6 +31,7 @@ class ProjectCard(QWidget):
 
     Args:
         project: 项目信息字典 {"name", "path", "last_opened", "shot_count"}，
+                 可选携带 "project_id"（来自 compass.registry，缺失不崩、不显也行）。
                  None 时显示"新建"虚线卡。
         depth:   "far" | "near" | "center" | "add"，控制大小和透明度。
         color_index: 缩略图渐变色序号（0-3），默认 0。
@@ -75,6 +76,11 @@ class ProjectCard(QWidget):
     def height_ratio(self) -> float:
         """相对卡片区可用高度的高度比例（景深用）。"""
         return self._height_ratio
+
+    def project_id(self) -> str | None:
+        """携带的 compass 项目 ID（来自 registry）；旧数据缺该字段时返回 None。"""
+        pid = (self._project or {}).get("project_id")
+        return pid if pid else None
 
     def mousePressEvent(self, event):  # noqa: N802
         if event.button() == Qt.LeftButton:

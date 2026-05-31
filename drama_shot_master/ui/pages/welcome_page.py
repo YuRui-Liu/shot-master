@@ -40,9 +40,14 @@ class WelcomePage(QWidget):
     settings_requested = Signal()
 
     def __init__(self, recent_mgr: RecentProjectsManager,
-                 parent: QWidget | None = None):
+                 parent: QWidget | None = None,
+                 registry=None):
         super().__init__(parent)
         self._mgr = recent_mgr
+        # R2-5 阶段B（双轨过渡）：可选 compass.registry 数据源。
+        # 有项目时优先用 registry（含 project_id）；空/不可用时降级回 recent_mgr。
+        # 默认 None → 行为与旧版完全一致（仅走 recent_mgr.load()）。
+        self._registry = registry
         self.setObjectName("WelcomePage")
         self.setAttribute(Qt.WA_OpaquePaintEvent)
         self._build_ui()
@@ -157,10 +162,42 @@ class WelcomePage(QWidget):
         return w
 
     def refresh(self) -> None:
-        """从 RecentProjectsManager 重新加载最近项目并重建卡片区。"""
-        projects = self._mgr.load()
+        """重新加载项目并重建卡片区。
+
+        数据源优先 compass.registry.list_projects()（含 project_id）；
+        registry 空/不可用时降级回 recent_mgr.load()（双轨过渡，防漂移）。
+        """
+        projects = self._load_projects()
         self._rebuild_cards(projects)
         self._rebuild_pagination(projects)
+
+    def _load_projects(self) -> list[dict]:
+        """挑选数据源：registry 有项目→registry；否则→recent_mgr。
+
+        registry 调用任意异常/返回空 → 静默降级，保证首页永不因数据源崩。
+        registry 摘要字段（project_name/path/...）归一化为 ProjectCard 期望的
+        {name, path, last_opened, shot_count, project_id} 形状。
+        """
+        if self._registry is not None:
+            try:
+                summaries = self._registry.list_projects()
+            except Exception:
+                summaries = None
+            if summaries:
+                return [self._summary_to_card(s) for s in summaries]
+        return self._mgr.load()
+
+    @staticmethod
+    def _summary_to_card(summary: dict) -> dict:
+        """registry 摘要 → ProjectCard 卡片字典（保留 project_id）。"""
+        s = summary or {}
+        return {
+            "name": s.get("project_name") or s.get("name") or "",
+            "path": s.get("path") or s.get("dir") or "",
+            "last_opened": s.get("last_modified") or s.get("last_opened") or "",
+            "shot_count": s.get("shot_count") or s.get("episode_count") or 0,
+            "project_id": s.get("project_id"),
+        }
 
     def _rebuild_cards(self, projects: list[dict]) -> None:
         # 删除旧的自由子控件（卡片 + 空状态提示）
