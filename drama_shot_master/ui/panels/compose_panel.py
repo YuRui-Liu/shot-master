@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSplitter,
     QProgressBar, QFileDialog,
@@ -14,6 +15,7 @@ from drama_shot_master.core.ffmpeg_locate import probe_duration
 from drama_shot_master.core import transition_render as tr
 from drama_shot_master.ui.widgets.video_preview_widget import VideoPreviewWidget
 from drama_shot_master.ui.widgets.compose.clip_strip import ClipStrip
+from drama_shot_master.ui.widgets.compose.thumbs import grab_thumb_qimage
 from drama_shot_master.ui.widgets.compose.trim_bar import TrimBar
 from drama_shot_master.ui.widgets.compose.transition_inspector import TransitionInspector
 from drama_shot_master.ui.worker import FunctionWorker
@@ -36,6 +38,7 @@ class ComposePanel(QWidget):
         self._task_id = task_id
         self._model = CompositionModel.from_dict(payload or {"clips": []})
         self._worker = None
+        self._tworker = None
         self._sel_clip = None
         self._model_output = ""
         self._build_ui()
@@ -102,6 +105,48 @@ class ComposePanel(QWidget):
 
     def _reload(self):
         self._strip.set_model(self._model)
+        self._start_thumbs()
+
+    # ── 片段缩略图：后台抽帧 → 注入 ClipStrip（卡片不再空白）──
+    def _pending_thumb_clips(self):
+        """尚无缩略图的片段 (clip_id, path, t_sec)。t_sec 取 in_point 后一点，避开黑场。"""
+        out = []
+        for c in self._model.clips:
+            if self._strip.has_thumb(c.clip_id):
+                continue
+            t = (c.in_point or 0.0) + 0.1
+            out.append((c.clip_id, c.path, t))
+        return out
+
+    def _start_thumbs(self):
+        """后台为缺图片段抽帧（不阻塞 UI）。"""
+        pending = self._pending_thumb_clips()
+        if not pending:
+            return
+
+        def job():
+            imgs = {}
+            for cid, path, t in pending:
+                img = grab_thumb_qimage(path, t)
+                if img is not None:
+                    imgs[cid] = img
+            return imgs
+
+        self._tworker = FunctionWorker(job)
+        self._tworker.finished_with_result.connect(self._on_thumbs_ready)
+        self._tworker.start()
+
+    def _on_thumbs_ready(self, imgs: dict):
+        for cid, img in (imgs or {}).items():
+            self._strip.set_thumb(cid, QPixmap.fromImage(img))
+
+    def _load_thumbs_sync(self, provider=None):
+        """同步抽帧入口（测试/无线程）。provider(path, t_sec) → QImage|None。"""
+        provider = provider or grab_thumb_qimage
+        for cid, path, t in self._pending_thumb_clips():
+            img = provider(path, t)
+            if img is not None:
+                self._strip.set_thumb(cid, QPixmap.fromImage(img))
 
     def _list_output_dir(self):
         d = getattr(self.cfg, "video_output_dir", "") or ""

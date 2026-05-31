@@ -53,6 +53,9 @@ class _ClipCard(QFrame):
         self.setProperty("dropped", on); self.style().unpolish(self); self.style().polish(self)
 
     def set_thumb(self, pixmap):
+        if pixmap is not None and not pixmap.isNull():
+            pixmap = pixmap.scaled(128, 152, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                                   Qt.TransformationMode.SmoothTransformation)
         self.thumb.setPixmap(pixmap)
 
 
@@ -82,6 +85,7 @@ class ClipStrip(QWidget):
         self._model = None
         self._cards: dict[str, _ClipCard] = {}
         self._connectors: list[_Connector] = []
+        self._thumbs: dict[str, object] = {}   # clip_id → QPixmap（跨重建保留）
         self._sel_clip = None
         self._sel_conn = None
         scroll = QScrollArea(self); scroll.setWidgetResizable(True)
@@ -109,6 +113,8 @@ class ClipStrip(QWidget):
             card = _ClipCard(c, self._emit_clip, self._emit_keep, self._emit_move)
             card.set_dropped(not c.keep)
             self._cards[c.clip_id] = card
+            if c.clip_id in self._thumbs:           # 重建后重挂缓存缩略图
+                card.set_thumb(self._thumbs[c.clip_id])
             self._row.addWidget(card)
             if c.keep and c.clip_id in kept_index and kept_index[c.clip_id] < len(kept) - 1:
                 idx = kept_index[c.clip_id]
@@ -173,9 +179,13 @@ class ClipStrip(QWidget):
         self._rebuild()
 
     def set_thumb(self, clip_id, pixmap):
+        self._thumbs[clip_id] = pixmap
         card = self._cards.get(clip_id)
         if card:
             card.set_thumb(pixmap)
+
+    def has_thumb(self, clip_id) -> bool:
+        return clip_id in self._thumbs
 
     def move_clip(self, clip_id: str, delta: int):
         """Move clip by delta (-1 left / +1 right) in the full clips list, rebuild and emit orderChanged."""
