@@ -52,6 +52,7 @@ class Config:
     video_output_dir: str = ""                   # 空 = 用 state.output_dir
     video_timeline_cache: dict = field(default_factory=dict)
     video_tasks: list = field(default_factory=list)
+    compose_tasks: list = field(default_factory=list)
     soundtrack_tasks: list = field(default_factory=list)
     dub_tasks: list = field(default_factory=list)
     dub_workflow_ids: dict = field(default_factory=lambda: {
@@ -158,6 +159,7 @@ class Config:
                 "video_output_dir": self.video_output_dir,
                 "video_timeline_cache": self.video_timeline_cache,
                 "video_tasks": self.video_tasks,
+                "compose_tasks": self.compose_tasks,
                 "soundtrack_tasks": self.soundtrack_tasks,
                 "dub_tasks": self.dub_tasks,
                 "dub_workflow_ids": self.dub_workflow_ids,
@@ -344,6 +346,8 @@ def load_config(env_path: Path = Path(".env"),
                     cfg.video_timeline_cache = data["video_timeline_cache"]
                 if "video_tasks" in data and isinstance(data["video_tasks"], list):
                     cfg.video_tasks = data["video_tasks"]
+                if "compose_tasks" in data and isinstance(data["compose_tasks"], list):
+                    cfg.compose_tasks = data["compose_tasks"]
                 if "soundtrack_tasks" in data and isinstance(data["soundtrack_tasks"], list):
                     cfg.soundtrack_tasks = data["soundtrack_tasks"]
                 if "dub_tasks" in data and isinstance(data["dub_tasks"], list):
