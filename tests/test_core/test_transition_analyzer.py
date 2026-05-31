@@ -52,3 +52,27 @@ def test_map_mid_score_directional_by_motion():
 def test_map_low_score_creative():
     eff, dur = ta.map_to_transition(0.2, "none")
     assert eff in ("circleopen", "pixelize")
+
+
+def test_analyze_fills_unlocked_skips_locked():
+    from drama_shot_master.core.composition_model import ReelClip, CompositionModel
+    clips = [
+        ReelClip.new(path="/0.mp4", duration=8.0),
+        ReelClip.new(path="/1.mp4", duration=8.0, locked=True,
+                     user_transition="wipeleft", user_duration=0.6),
+        ReelClip.new(path="/2.mp4", duration=8.0),
+    ]
+    comp = CompositionModel(clips=clips)
+    prog = []
+    ta.analyze_composition(
+        comp,
+        frame_provider=lambda path, t, n: [],
+        score_fn=lambda prev, nxt: (0.85, {"hist": 0.8, "feature": 0.9, "motion": 0.0, "score": 0.85}, "none"),
+        progress_cb=lambda i, total: prog.append((i, total)),
+    )
+    kept = comp.kept_clips()
+    assert kept[0].auto_transition == "dissolve"      # 0.85 high → dissolve
+    assert kept[0].cv_scores.get("score") == 0.85
+    assert kept[1].user_transition == "wipeleft"      # locked cut untouched
+    assert kept[1].auto_transition is None
+    assert prog and prog[-1][1] == 2                   # 2 cuts, progress reported
