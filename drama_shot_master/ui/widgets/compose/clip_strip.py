@@ -57,16 +57,18 @@ class _ClipCard(QFrame):
 
 
 class _Connector(QToolButton):
-    def __init__(self, index, label, on_click):
+    def __init__(self, index, label, on_click, state: str = "plain", score=None):
         super().__init__()
         self.index = index
         self.setObjectName("ComposeConnector")
+        self.setProperty("state", state)
         self.setText(label)
         self.setCursor(Qt.PointingHandCursor)
         self.clicked.connect(lambda: on_click(self.index))
 
     def set_selected(self, on: bool):
-        self.setProperty("selected", on); self.style().unpolish(self); self.style().polish(self)
+        self.setProperty("selected", "true" if on else "false")
+        self.style().unpolish(self); self.style().polish(self)
 
 
 class ClipStrip(QWidget):
@@ -110,19 +112,46 @@ class ClipStrip(QWidget):
             self._row.addWidget(card)
             if c.keep and c.clip_id in kept_index and kept_index[c.clip_id] < len(kept) - 1:
                 idx = kept_index[c.clip_id]
-                conn = _Connector(idx, self._conn_label(kept[idx]), self._emit_conn)
+                state = self.connector_state(idx)
+                score = kept[idx].cv_scores.get("score") if kept[idx].cv_scores else None
+                conn = _Connector(idx, self._conn_label(kept[idx], state, score), self._emit_conn,
+                                  state=state, score=score)
                 self._connectors.append(conn)
                 self._row.addWidget(conn)
         self._row.addStretch(1)
 
     @staticmethod
-    def _conn_label(clip) -> str:
+    def _conn_label(clip, state: str = "plain", score=None) -> str:
         from drama_shot_master.core.transition_render import XFADE_EFFECTS
         name = clip.effective_transition()
         if name == "none":
-            return "▭"
-        label = next((e["label"] for e in XFADE_EFFECTS if e["name"] == name), name)
-        return f"{label}\n{clip.effective_duration()}s"
+            base = "▭"
+        else:
+            label = next((e["label"] for e in XFADE_EFFECTS if e["name"] == name), name)
+            base = f"{label}\n{clip.effective_duration()}s"
+        if state == "ai" and score is not None:
+            return f"{base}\n匹配 {score:.2f}"
+        if state == "locked":
+            return f"{base}\n🔒锁定"
+        if state == "manual":
+            return f"{base}\n手动"
+        return base
+
+    def connector_state(self, idx: int) -> str:
+        """切口 idx（kept 序）状态：locked / manual / ai / plain。"""
+        if not self._model:
+            return "plain"
+        kept = self._model.kept_clips()
+        if idx < 0 or idx >= len(kept) - 1:
+            return "plain"
+        c = kept[idx]
+        if c.locked:
+            return "locked"
+        if c.user_transition:
+            return "manual"
+        if c.cv_scores and c.cv_scores.get("score") is not None:
+            return "ai"
+        return "plain"
 
     def select_clip(self, clip_id: str):
         self._set_sel_clip(clip_id); self.clipSelected.emit(clip_id)
