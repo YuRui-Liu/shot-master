@@ -132,8 +132,8 @@ def test_nav_gated_production_has_two_navs():
 
 
 def test_storyboard_and_videopost_tabs():
-    """容器页 tab 定义：分镜板 4 tab、视频后期 2 tab，key 为真实底层 panel。"""
+    """容器页 tab 定义：分镜板 4 tab、视频后期 3 tab（成片在首），key 为真实底层 panel。"""
     sb_keys = [k for k, _l in nc.STORYBOARD_TABS]
     assert sb_keys == ["imggen", "split", "combine", "trim"]
     vp_keys = [k for k, _l in nc.VIDEOPOST_TABS]
-    assert vp_keys == ["dubbing", "soundtrack"]
+    assert vp_keys == ["compose", "dubbing", "soundtrack"]
