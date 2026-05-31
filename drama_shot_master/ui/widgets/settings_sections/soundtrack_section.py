@@ -22,7 +22,7 @@ class SoundtrackSection(QWidget):
         form = QFormLayout()
 
         self.workflow_edit = QLineEdit()
-        form.addRow("ACE-Step Workflow ID", self.workflow_edit)
+        form.addRow("ACE-Step ID", self.workflow_edit)
 
         out_row = QHBoxLayout()
         self.out_edit = QLineEdit()

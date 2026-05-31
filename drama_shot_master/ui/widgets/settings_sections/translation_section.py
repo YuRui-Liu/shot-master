@@ -31,10 +31,6 @@ class TranslationSection(QWidget):
         super().__init__(parent)
         self._cfg = cfg
         self._test_worker = None  # FunctionWorker handle to prevent GC
-        # cfg 是否“显式声明”了翻译 provider；若否，validate 保持宽松，
-        # 以兼容旧 cfg 结构（避免 unified dialog 保存路径被新校验卡死）。
-        self._provider_explicit = hasattr(cfg, "current_translator") \
-            and bool(getattr(cfg, "current_translator", "") or "")
         self._build_ui()
         self.load_from(cfg)
 
@@ -46,17 +42,20 @@ class TranslationSection(QWidget):
         # Provider selector row
         sel_row = QHBoxLayout()
         sel_row.addWidget(QLabel("翻译服务："))
+        self.rb_disabled = QRadioButton("不启用")
         self.rb_tencent = QRadioButton("腾讯云机器翻译（推荐）")
         self.rb_deeplx = QRadioButton("DeepLX (自部署)")
         self.provider_group = QButtonGroup(self)
+        self.provider_group.addButton(self.rb_disabled, 2)
         self.provider_group.addButton(self.rb_tencent, 0)
         self.provider_group.addButton(self.rb_deeplx, 1)
+        sel_row.addWidget(self.rb_disabled)
         sel_row.addWidget(self.rb_tencent)
         sel_row.addWidget(self.rb_deeplx)
         sel_row.addStretch(1)
         root.addLayout(sel_row)
 
-        # Stack with two panes
+        # Stack with two panes (index 0=tencent, 1=deeplx)
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_tencent_pane())
         self.stack.addWidget(self._build_deeplx_pane())
@@ -73,9 +72,17 @@ class TranslationSection(QWidget):
         root.addLayout(test_row)
         root.addStretch(1)
 
-        # idToggled also fires on programmatic setChecked(); filter for "checked".
-        self.provider_group.idToggled.connect(
-            lambda idx, checked: checked and self.stack.setCurrentIndex(idx))
+        def _on_provider_toggled(idx: int, checked: bool) -> None:
+            if not checked:
+                return
+            disabled = (idx == 2)
+            self.stack.setVisible(not disabled)
+            self.btn_test.setVisible(not disabled)
+            self.lbl_test.setVisible(not disabled)
+            if not disabled:
+                self.stack.setCurrentIndex(idx)
+
+        self.provider_group.idToggled.connect(_on_provider_toggled)
 
     def _build_tencent_pane(self) -> QWidget:
         w = QWidget()
@@ -125,13 +132,25 @@ class TranslationSection(QWidget):
     # ───────── load / save / validate ─────────
 
     def load_from(self, cfg) -> None:
-        provider = (getattr(cfg, "current_translator", "") or "tencent").lower()
+        provider = (getattr(cfg, "current_translator", "") or "").lower()
         if provider == "deeplx":
             self.rb_deeplx.setChecked(True)
             self.stack.setCurrentIndex(1)
-        else:
+            self.stack.setVisible(True)
+            self.btn_test.setVisible(True)
+            self.lbl_test.setVisible(True)
+        elif provider == "tencent":
             self.rb_tencent.setChecked(True)
             self.stack.setCurrentIndex(0)
+            self.stack.setVisible(True)
+            self.btn_test.setVisible(True)
+            self.lbl_test.setVisible(True)
+        else:
+            # 空字符串或未知值 → 不启用
+            self.rb_disabled.setChecked(True)
+            self.stack.setVisible(False)
+            self.btn_test.setVisible(False)
+            self.lbl_test.setVisible(False)
         self.tc_sid.setText(getattr(cfg, "tencent_translator_secret_id", "") or "")
         self.tc_skey.setText(getattr(cfg, "tencent_translator_secret_key", "") or "")
         region = getattr(cfg, "tencent_translator_region", "ap-beijing") \
@@ -142,7 +161,12 @@ class TranslationSection(QWidget):
         self.dl_url.setText(getattr(cfg, "deeplx_url", "") or "")
 
     def save_to(self, cfg) -> None:
-        provider = "tencent" if self.rb_tencent.isChecked() else "deeplx"
+        if self.rb_disabled.isChecked():
+            provider = ""
+        elif self.rb_tencent.isChecked():
+            provider = "tencent"
+        else:
+            provider = "deeplx"
         cfg.update_settings(
             current_translator=provider,
             tencent_translator_secret_id=self.tc_sid.text().strip(),
@@ -152,7 +176,10 @@ class TranslationSection(QWidget):
             deeplx_url=self.dl_url.text().strip(),
         )
         # 同步到 os.environ（让旧 translate_en_to_zh 立刻看到新值）
-        os.environ["_CURRENT_TRANSLATOR"] = provider
+        if provider:
+            os.environ["_CURRENT_TRANSLATOR"] = provider
+        else:
+            os.environ.pop("_CURRENT_TRANSLATOR", None)
         if cfg.tencent_translator_secret_id:
             os.environ["TENCENTCLOUD_SECRET_ID"] = cfg.tencent_translator_secret_id
         if cfg.tencent_translator_secret_key:
@@ -166,8 +193,7 @@ class TranslationSection(QWidget):
         clear_cache()
 
     def validate(self) -> tuple[bool, str]:
-        # 旧 cfg（无 current_translator 字段）保持宽松：不强卡，避免老路径回归。
-        if not self._provider_explicit and not self._user_touched():
+        if self.rb_disabled.isChecked():
             return True, ""
         if self.rb_tencent.isChecked():
             if not self.tc_sid.text().strip() or not self.tc_skey.text().strip():
@@ -176,12 +202,6 @@ class TranslationSection(QWidget):
             if not self.dl_url.text().strip():
                 return False, "DeepLX 需要填 URL"
         return True, ""
-
-    def _user_touched(self) -> bool:
-        """若用户在 UI 里填了任意凭证/URL，则视为已显式选择 provider。"""
-        return bool(
-            self.tc_sid.text().strip() or self.tc_skey.text().strip()
-            or self.dl_url.text().strip())
 
     def cancel_workers(self) -> None:
         # FunctionWorker terminates when dialog closes; we just drop the handle.

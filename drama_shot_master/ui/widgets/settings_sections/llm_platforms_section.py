@@ -109,7 +109,7 @@ class _PlatformBlock(QWidget):
         self.lbl_status.setStyleSheet(f"color: {color}")
 
     def load(self, base_url: str, api_key: str):
-        self.base_url_edit.setText(base_url or "")
+        self.base_url_edit.setText(base_url or self._default_base_url)
         self.api_key_edit.setText(api_key or "")
 
     def values(self) -> tuple[str, str]:

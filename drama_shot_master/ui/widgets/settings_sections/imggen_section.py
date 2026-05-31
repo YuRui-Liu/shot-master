@@ -37,10 +37,11 @@ class ImgGenSection(QWidget):
         f.addRow("提供方", self.provider)
 
         self.base_url = QLineEdit()
+        self.base_url.setPlaceholderText("https://ark.cn-beijing.volces.com")
         f.addRow("Base URL", self.base_url)
 
         self.model = QLineEdit()
-        self.model.setPlaceholderText("如豆包 Seedream 模型 id")
+        self.model.setPlaceholderText("doubao-seedream-4-0-250828")
         f.addRow("模型 ID", self.model)
 
         self.api_key = QLineEdit()
@@ -93,12 +94,16 @@ class ImgGenSection(QWidget):
         cur = getattr(cfg, "imggen_provider", None) or "doubao"
         idx = next((i for i, (_l, k) in enumerate(_PROVIDERS) if k == cur), 0)
         self.provider.setCurrentIndex(idx)
-        self.base_url.setText(getattr(cfg, "imggen_base_url", "") or "")
-        self.model.setText(getattr(cfg, "imggen_model", "") or "")
+        self.base_url.setText(getattr(cfg, "imggen_base_url", "") or "https://ark.cn-beijing.volces.com")
+        self.model.setText(getattr(cfg, "imggen_model", "") or "doubao-seedream-4-0-250828")
         api_key = getattr(cfg, "imggen_api_key", "") or (
             getattr(cfg, "api_keys", {}) or {}).get(cur, "")
         self.api_key.setText(api_key)
         self.out_dir.setText(getattr(cfg, "imggen_output_dir", "") or "")
+        main_out = (getattr(cfg, "last_output_dir", "") or "").strip()
+        self.out_dir.setPlaceholderText(
+            f"空 = 跟随主面板输出目录：{main_out}" if main_out
+            else "空 = 跟随主面板输出目录")
         self.no_watermark.setChecked(
             not bool(getattr(cfg, "imggen_watermark", False)))
 

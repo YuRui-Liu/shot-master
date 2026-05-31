@@ -71,6 +71,8 @@ def build_translation_provider(cfg=None) -> TranslationProvider | None:
         return os.environ.get(env_key, default)
 
     name = _get("current_translator", "_CURRENT_TRANSLATOR", "tencent").lower()
+    if not name or name in ("none", "disabled"):
+        return None
     if name == "tencent":
         sid = _get("tencent_translator_secret_id", "TENCENTCLOUD_SECRET_ID")
         skey = _get("tencent_translator_secret_key", "TENCENTCLOUD_SECRET_KEY")
