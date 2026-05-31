@@ -114,8 +114,14 @@ def _run_with_splash(cfg, *, shell_factory=None, lifecycle_factory=None):
     splash.set_progress(1.0)
     _pump()
 
-    # close splash 再 show 主窗（避免置顶 splash 盖主窗）
+    # close splash 再 show 主窗（避免置顶 splash 盖主窗）。
+    # deleteLater 让 splash 的 C++ 对象在事件循环内被回收，而非进程退出时由
+    # Python GC 在 QApplication 析构后才回收——后者是 Windows 退出 native 崩溃
+    # （exit 5）的典型成因之一。
     splash.close()
+    _dl = getattr(splash, "deleteLater", None)
+    if callable(_dl):
+        _dl()
     w.show()
     return w
 
@@ -156,10 +162,32 @@ def main() -> int:
     try:
         ret = app.exec()
     finally:
+        # 确定性 teardown，规避 Windows 退出 exit 5 native 崩溃：
+        # 根因——app.exec() 返回后，若把 AppShell / lifecycle 交给 Python 解释器
+        # 退出时的 GC 析构，QWidget 的 C++ 对象可能在 QApplication 已销毁之后才被
+        # 回收（析构顺序不可控）→ 触发 Qt 内部断言/段错误（exit 5）。
+        # 这里手动按序拆解：先停子进程 → 再删主窗并排空 deleteLater 队列 →
+        # 解除引用 → 最后让 QApplication 在所有子 QObject 之后正常析构。
         try:
             lifecycle.terminate()
         except Exception:
             pass
+        try:
+            w.screenwriter_lifecycle = None     # 断开对 lifecycle 的强引用
+            w.hide()
+            w.deleteLater()
+        except Exception:
+            pass
+        # 排空挂起的 deleteLater，让上面 deleteLater 的 C++ 对象在 QApplication
+        # 仍存活时即被回收，而非进程退出阶段。
+        try:
+            app.processEvents()
+            app.sendPostedEvents(None, 0)       # QEvent.DeferredDelete
+        except Exception:
+            pass
+        # 显式解除 Python 端引用，避免解释器退出时残留 QWidget 触发晚析构。
+        w = None
+        lifecycle = None
     return ret
 
 

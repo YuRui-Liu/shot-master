@@ -8,9 +8,10 @@ mockup 参考：docs/explorer/loading-splash-confirm.html。
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QRect, QPointF
+from PySide6.QtCore import Qt, QRect, QRectF, QPointF, QTimer
 from PySide6.QtGui import (
-    QPainter, QColor, QLinearGradient, QRadialGradient, QBrush, QPixmap,
+    QPainter, QColor, QLinearGradient, QConicalGradient, QRadialGradient,
+    QBrush, QPen, QPixmap,
 )
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy,
@@ -110,7 +111,20 @@ class SplashScreen(QWidget):
         self._stage_rows: list[_StageRow] = []
         self._stages = list(_DEFAULT_STAGES)
 
+        # 环形 loading 动画：QTimer 自增角度 → update() 触发 paintEvent 重绘旋转弧。
+        # （HTML mockup 的 .mark .ring 用 CSS spin 2.4s linear，这里用 ~60fps 定时器复刻。）
+        self._ring_angle = 0.0
+        self._spin_timer = QTimer(self)
+        self._spin_timer.setInterval(16)            # ≈60fps
+        self._spin_timer.timeout.connect(self._advance_spin)
+        self._spin_timer.start()
+
         self._build_ui()
+
+    def _advance_spin(self) -> None:
+        """每帧推进环角度并请求重绘（驱动品牌图标外圈旋转弧）。"""
+        self._ring_angle = (self._ring_angle + 6.0) % 360.0
+        self.update()
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
@@ -222,9 +236,15 @@ class SplashScreen(QWidget):
         if p is not None:
             pix = QPixmap(str(p))
             if not pix.isNull():
+                # HiDPI 防糊：按屏幕 devicePixelRatio 渲染到物理像素，再回设逻辑 DPR，
+                # 让 Qt 以 1/dpr 缩放显示——避免在 2x 屏上把 62px 逻辑图拉伸成模糊块。
+                dpr = self.devicePixelRatioF() or 1.0
+                target = 62
                 pix = pix.scaled(
-                    62, 62, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                    int(target * dpr), int(target * dpr),
+                    Qt.KeepAspectRatio, Qt.SmoothTransformation,
                 )
+                pix.setDevicePixelRatio(dpr)
                 self._icon_lbl.setPixmap(pix)
                 return
         # 无图标降级：纯色占位
@@ -335,10 +355,51 @@ class SplashScreen(QWidget):
         p.setBrush(Qt.NoBrush)
         p.drawRoundedRect(0, 0, w - 1, h - 1, radius, radius)
 
+        # 品牌图标外圈旋转弧（环形 loading 动画，QTimer 驱动 self._ring_angle）
+        self._paint_spinner_ring(p)
+
         # 主进度条（底部 holder 位置自绘）
         self._paint_progress_bar(p)
 
         p.end()
+
+    def _paint_spinner_ring(self, p: QPainter) -> None:
+        """绕品牌图标画一段旋转的渐隐弧（复刻 mockup .mark .ring 的 spin 动画）。"""
+        lbl = getattr(self, "_icon_lbl", None)
+        if lbl is None:
+            return
+        top_left = lbl.mapTo(self, lbl.rect().topLeft())
+        # 比图标稍大一圈的外接环
+        pad = 5
+        x = top_left.x() - pad
+        y = top_left.y() - pad
+        d = lbl.width() + pad * 2
+        rect = QRectF(x, y, d, d)
+        # 用 conical 渐变让弧首尾自然渐隐，整体随 angle 旋转
+        grad = QConicalGradient(rect.center(), -self._ring_angle)
+        head = QColor(_BLUE)
+        tail = QColor(_BLUE)
+        tail.setAlpha(0)
+        grad.setColorAt(0.0, head)
+        grad.setColorAt(0.28, head)
+        grad.setColorAt(0.30, tail)
+        grad.setColorAt(1.0, tail)
+        pen = QPen(QBrush(grad), 2.2)
+        pen.setCapStyle(Qt.RoundCap)
+        p.setPen(pen)
+        p.setBrush(Qt.NoBrush)
+        p.drawArc(rect, 0, 360 * 16)
+
+    def closeEvent(self, e):  # noqa: N802
+        """关闭时停掉旋转定时器，避免遗留 QTimer 在窗口析构后回调。"""
+        if getattr(self, "_spin_timer", None) is not None:
+            self._spin_timer.stop()
+        super().closeEvent(e)
+
+    def hideEvent(self, e):  # noqa: N802
+        if getattr(self, "_spin_timer", None) is not None:
+            self._spin_timer.stop()
+        super().hideEvent(e)
 
     def _paint_glow(self, p: QPainter, x: int, y: int, size: int,
                     color: QColor) -> None:
