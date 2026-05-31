@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · Web 端到端验证</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .wrap { max-width: 720px; margin: 32px auto; padding: 0 20px; }
+  .head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .head .logo { width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--blue), var(--periw)); }
+  .row { display: flex; gap: 10px; align-items: center; margin: 12px 0; }
+  .row input[type="text"] { flex: 1; }
+  .stat { margin-left: auto; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="logo"></div>
+    <div>
+      <h1>糯米AI · Web UI 端到端验证</h1>
+      <div class="faint">QWebEngine 渲染 HTML 设计系统 ↔ fetch ↔ media_agent(本地后端, 零 Qt)</div>
+    </div>
+    <div class="stat"><span id="dot" class="dot"></span><span id="health">连接后端中…</span></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">拆图 · 推断网格（调 /imaging/infer_grid）</div>
+    <div class="row">
+      <input type="text" id="img" placeholder="图片绝对路径（自动从启动器注入）">
+      <button id="go">推断网格 ▶</button>
+    </div>
+    <div class="faint">本页验证：设计令牌渲染保真 + 浏览器 fetch 直调 Python 后端能力（无 Qt 参与后端）。</div>
+    <div class="result" id="result">等待操作…</div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <span class="badge">设计系统 tokens.css</span>
+    <span class="badge" style="margin-left:8px;">蓝→紫渐变按钮</span>
+    <span class="badge" style="margin-left:8px;">media_agent REST</span>
+  </div>
+</div>
+
+<script>
+  const qs = new URLSearchParams(location.search);
+  const API = qs.get("api") || "http://127.0.0.1:18450";
+  const IMG = qs.get("img") || "";
+  const $ = (id) => document.getElementById(id);
+  if (IMG) $("img").value = IMG;
+
+  async function checkHealth() {
+    try {
+      const r = await fetch(API + "/health");
+      const b = await r.json();
+      $("dot").className = "dot ok";
+      $("health").textContent = "后端已连接 · v" + b.version;
+    } catch (e) {
+      $("dot").className = "dot err";
+      $("health").textContent = "后端未连接";
+    }
+  }
+
+  async function inferGrid() {
+    const src = $("img").value.trim();
+    if (!src) { $("result").textContent = "请先填图片路径"; return; }
+    $("result").textContent = "推断中…";
+    try {
+      const r = await fetch(API + "/imaging/infer_grid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ src_path: src }),
+      });
+      const b = await r.json();
+      if (r.ok) {
+        $("result").textContent = `✓ 推断网格：${b.rows} 行 × ${b.cols} 列\n（后端 imaging 纯 PIL/numpy 计算，零 Qt）`;
+      } else {
+        $("result").textContent = "后端返回错误：" + JSON.stringify(b);
+      }
+    } catch (e) {
+      $("result").textContent = "调用失败：" + e;
+    }
+  }
+
+  $("go").addEventListener("click", inferGrid);
+  checkHealth();
+  if (IMG) setTimeout(inferGrid, 600);   // 启动器注入样例图 → 自动跑一次，便于截图验证
+</script>
+</body>
+</html>
