@@ -495,3 +495,14 @@ QPushButton#AccentButton:pressed {{ background: #1f55c8; }}
     border-radius: 3px;
 }}
 QPushButton#AccentButton:disabled {{ background: #2a3550; color: #8b93a7; }}
+
+/* ---------- 成片合成 ComposePanel ---------- */
+#ComposeClipCard {{ background:#12122a; border:1px solid #252540; border-radius:9px; }}
+#ComposeClipCard[selected="true"] {{ border:1px solid {accent}; }}
+#ComposeClipCard[dropped="true"] {{ background:#0e0e1c; }}
+#ComposeClipThumb {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #1a3060, stop:1 #2a1850); border-radius:8px; }}
+#ComposeConnector {{ border:1px dashed #3a3a5a; border-radius:15px; min-width:30px; min-height:30px; color:#7a8aaa; background:#10122a; }}
+#ComposeConnector[selected="true"] {{ border:2px solid {accent}; color:#a0c8ff; }}
+#ComposeTitle {{ font-size:15px; font-weight:700; color:{fg}; }}
+#ComposePrimary {{ color:#fff; border:none; border-radius:18px; padding:8px 18px; font-weight:700;
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 {accent}, stop:1 #a06cff); }}

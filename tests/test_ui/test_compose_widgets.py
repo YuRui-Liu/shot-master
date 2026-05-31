@@ -55,3 +55,19 @@ def test_inspector_emits_override_and_lock():
     assert got[-1][1] == "smoothleft"
     assert got[-1][2] == 0.8
     assert got[-1][3] is True
+
+
+def test_compose_panel_instantiates_and_loads_dir(tmp_path):
+    _app()
+    from drama_shot_master.config import load_config
+    from drama_shot_master.ui.panels.compose_panel import ComposePanel
+    cfg = load_config()
+    panel = ComposePanel(cfg, payload={"clips": []})
+    f1 = tmp_path / "a.mp4"; f1.write_bytes(b"x")
+    f2 = tmp_path / "b.mp4"; f2.write_bytes(b"x")
+    panel.add_clips([str(f1), str(f2)])
+    assert len(panel.model().clips) == 2
+    assert hasattr(panel, "renderRequested")
+    assert hasattr(panel, "sendToSoundtrack")
+    assert hasattr(panel, "dirty")
+    assert hasattr(panel, "to_payload")
