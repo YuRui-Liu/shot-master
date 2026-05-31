@@ -99,3 +99,13 @@ def test_concat_output_gets_settb_for_xfade_compat():
     assert "concat=n=2:v=0:a=1,asettb=1/48000" in fc
     # 归一化链也带 settb（保证纯 xfade 两路时间基一致）
     assert "setsar=1,settb=1/30" in fc
+
+
+def test_transition_longer_than_clip_degrades_to_cut():
+    clips = [ReelClip.new(path="/0.mp4", duration=0.4, user_transition="dissolve", user_duration=0.5),
+             ReelClip.new(path="/1.mp4", duration=8.0)]
+    comp = CompositionModel(clips=clips, fps=30, width=1920, height=1080)
+    fc = " ".join(tr.build_ffmpeg_args(comp, "/o.mp4", ffmpeg="ffmpeg", probe=lambda p: None))
+    # 0.4s clip < 0.5s transition → degrade to hard cut (concat), no xfade
+    assert "xfade" not in fc
+    assert "concat" in fc

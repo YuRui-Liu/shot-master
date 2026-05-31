@@ -25,11 +25,14 @@ class ComposePanel(QWidget):
     statusMessage = Signal(str)
     dirty = Signal()
     renderRequested = Signal()
+    renderStarted = Signal(str)    # task_id
+    renderCompleted = Signal(str, str)  # task_id, out_path
     sendToSoundtrack = Signal(str)
 
-    def __init__(self, cfg, payload: dict | None = None, parent=None):
+    def __init__(self, cfg, payload: dict | None = None, task_id: str = "", parent=None):
         super().__init__(parent)
         self.cfg = cfg
+        self._task_id = task_id
         self._model = CompositionModel.from_dict(payload or {"clips": []})
         self._worker = None
         self._sel_clip = None
@@ -158,14 +161,17 @@ class ComposePanel(QWidget):
         if msg != "ok":
             self.statusMessage.emit(msg)
         out_dir = getattr(self.cfg, "video_output_dir", "") or "."
-        out = str(Path(out_dir) / f"{self._model.output_prefix}_{id(self):x}.mp4")
+        name = self._task_id or f"{id(self):x}"
+        out = str(Path(out_dir) / f"{self._model.output_prefix}_{name}.mp4")
         self._progress.setVisible(True); self._progress.setRange(0, 0)
         self._status.setText("渲染中…"); self._b_render.setEnabled(False)
         comp = CompositionModel.from_dict(self._model.to_dict())
         self._worker = FunctionWorker(tr.render, comp, out)
         self._worker.finished_with_result.connect(self._on_render_done)
         self._worker.failed.connect(self._on_render_failed)
-        self._worker.start(); self.renderRequested.emit()
+        self._worker.start()
+        self.renderRequested.emit()
+        self.renderStarted.emit(self._task_id)
 
     def _on_render_done(self, out_path):
         self._model_output = out_path
@@ -173,6 +179,7 @@ class ComposePanel(QWidget):
         self._b_send.setEnabled(True); self._status.setText("成片完成")
         self._preview.set_source(out_path)
         self.statusMessage.emit(f"成片完成：{out_path}")
+        self.renderCompleted.emit(self._task_id, out_path)
 
     def _on_render_failed(self, err):
         self._progress.setVisible(False); self._b_render.setEnabled(True)

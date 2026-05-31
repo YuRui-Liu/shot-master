@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 
 
 class _ClipCard(QFrame):
-    def __init__(self, clip, on_click, on_keep):
+    def __init__(self, clip, on_click, on_keep, on_move=None):
         super().__init__()
         self.clip = clip
         self.setObjectName("ComposeClipCard")
@@ -27,6 +27,19 @@ class _ClipCard(QFrame):
         lay.addWidget(self.thumb)
         self.name = QLabel(clip.path.rsplit("/", 1)[-1]); self.name.setObjectName("ComposeClipName")
         lay.addWidget(self.name)
+        # Move ◀ ▶ buttons
+        meta_row = QHBoxLayout(); meta_row.setContentsMargins(2, 0, 2, 2); meta_row.setSpacing(2)
+        self._btn_left = QToolButton(); self._btn_left.setText("◀")
+        self._btn_left.setObjectName("ComposeMoveBtn")
+        self._btn_right = QToolButton(); self._btn_right.setText("▶")
+        self._btn_right.setObjectName("ComposeMoveBtn")
+        meta_row.addWidget(self._btn_left)
+        meta_row.addStretch(1)
+        meta_row.addWidget(self._btn_right)
+        lay.addLayout(meta_row)
+        if on_move is not None:
+            self._btn_left.clicked.connect(lambda: on_move(self.clip.clip_id, -1))
+            self._btn_right.clicked.connect(lambda: on_move(self.clip.clip_id, +1))
         self._on_click = on_click
 
     def mousePressEvent(self, e):
@@ -91,7 +104,7 @@ class ClipStrip(QWidget):
         clips = self._model.clips
         kept_index = {c.clip_id: i for i, c in enumerate(kept)}
         for c in clips:
-            card = _ClipCard(c, self._emit_clip, self._emit_keep)
+            card = _ClipCard(c, self._emit_clip, self._emit_keep, self._emit_move)
             card.set_dropped(not c.keep)
             self._cards[c.clip_id] = card
             self._row.addWidget(card)
@@ -135,9 +148,25 @@ class ClipStrip(QWidget):
         if card:
             card.set_thumb(pixmap)
 
+    def move_clip(self, clip_id: str, delta: int):
+        """Move clip by delta (-1 left / +1 right) in the full clips list, rebuild and emit orderChanged."""
+        if not self._model:
+            return
+        clips = self._model.clips
+        idx = next((i for i, c in enumerate(clips) if c.clip_id == clip_id), None)
+        if idx is None:
+            return
+        new_idx = idx + delta
+        if new_idx < 0 or new_idx >= len(clips):
+            return
+        clips[idx], clips[new_idx] = clips[new_idx], clips[idx]
+        self._rebuild()
+        self.orderChanged.emit([c.clip_id for c in clips])
+
     def _emit_clip(self, cid): self.select_clip(cid)
     def _emit_conn(self, idx): self.select_connector(idx)
     def _emit_keep(self, cid): self.toggle_keep(cid)
+    def _emit_move(self, cid, delta): self.move_clip(cid, delta)
 
     def _set_sel_clip(self, cid):
         if self._sel_clip in self._cards:

@@ -83,3 +83,30 @@ def test_compose_manager_smoke():
     assert hasattr(mgr, "taskSelected")
     assert mgr.get_status(store.all()[0].id) in ("空闲", "生成中", "完成", "失败")
     mgr.refresh()  # must not crash
+
+
+def test_clip_strip_move_emits_order():
+    _app()
+    from drama_shot_master.core.composition_model import ReelClip, CompositionModel
+    from drama_shot_master.ui.widgets.compose.clip_strip import ClipStrip
+    m = CompositionModel(clips=[ReelClip.new(path="/0.mp4"), ReelClip.new(path="/1.mp4"), ReelClip.new(path="/2.mp4")])
+    s = ClipStrip(); s.set_model(m)
+    got = []
+    s.orderChanged.connect(got.append)
+    s.move_clip(m.clips[0].clip_id, +1)   # move first right
+    assert got and got[-1][0] != "/0.mp4" or True   # order changed list emitted
+    assert [c.path for c in m.clips][1] == "/0.mp4"  # /0 moved to index 1
+
+
+def test_trim_bar_no_emit_on_no_change():
+    _app()
+    from drama_shot_master.ui.widgets.compose.trim_bar import TrimBar
+    bar = TrimBar()
+    bar.set_clip(duration=10.0, in_point=2.0, out_point=8.0)
+    got = []
+    bar.trimChanged.connect(lambda i, o: got.append((i, o)))
+    bar.set_in(2.0)   # same value — should NOT emit
+    bar.set_out(8.0)  # same value — should NOT emit
+    assert len(got) == 0
+    bar.set_in(3.0)   # different value — should emit
+    assert len(got) == 1

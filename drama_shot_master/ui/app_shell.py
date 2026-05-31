@@ -179,24 +179,25 @@ class AppShell(QMainWindow):
             if isinstance(page, BatchToolPage):
                 page.thumb.selectionChanged.connect(self._refresh_counts)
 
-        # 概览页：阶段卡点击 → 跳对应 nav 页；风格圣经编辑暂 noop 日志。
+        # 概览页：阶段卡点击 → 跳对应 nav 页；风格圣经/题材编辑 → 弹选择器写 project.json。
         overview = self.pages.get("overview")
         if overview is not None:
             if hasattr(overview, "stageActivated"):
                 overview.stageActivated.connect(self._on_overview_stage)
             if hasattr(overview, "styleBibleEditRequested"):
-                overview.styleBibleEditRequested.connect(
-                    lambda: self._log_noop("styleBibleEditRequested"))
-        # 资源库三信号暂 noop 日志（Wave2b 接后端）。
+                overview.styleBibleEditRequested.connect(self._on_edit_style_bible)
+            if hasattr(overview, "genreEditRequested"):
+                overview.genreEditRequested.connect(self._on_edit_genre)
+        # 资源库三信号接后端：生成→RefImageGenerator；导入→拷图登记；提取→暂 noop。
         al = self.pages.get("asset_library")
         if al is not None:
-            for sig_name in ("importRequested", "extractRequested"):
-                sig = getattr(al, sig_name, None)
-                if sig is not None:
-                    sig.connect(lambda n=sig_name: self._log_noop(n))
             if hasattr(al, "generateRequested"):
-                al.generateRequested.connect(
-                    lambda name: self._log_noop(f"generateRequested({name})"))
+                al.generateRequested.connect(self._on_asset_generate)
+            if hasattr(al, "importRequested"):
+                al.importRequested.connect(self._on_asset_import)
+            if hasattr(al, "extractRequested"):
+                al.extractRequested.connect(
+                    lambda: self._log_noop("extractRequested"))
 
         self.sidebar.currentChanged.connect(self._on_nav_changed)
         self.sidebar.settingsRequested.connect(self._open_unified_settings)
@@ -300,6 +301,39 @@ class AppShell(QMainWindow):
             "episode_count": 0,
         })
         registry.save()
+
+        # 新建向导：依次弹题材选择器 + 风格圣经选择器，写回 project.json。
+        # 取消任一步则跳过该步（降级），不阻断项目创建。
+        self._prompt_new_project_genre_style(project_dir)
+
+    def _prompt_new_project_genre_style(self, project_dir: Path) -> None:
+        """新建项目向导：题材选择器 → 风格圣经选择器，结果写 project.json。
+
+        任一对话框取消/未选 → 跳过该字段。异常降级不崩。
+        """
+        try:
+            from drama_shot_master.ui.dialogs.genre_picker_dialog import GenrePickerDialog
+            from drama_shot_master.ui.dialogs.style_bible_dialog import StyleBibleDialog
+
+            gdlg = GenrePickerDialog(parent=self)
+            gdlg.exec()
+            gres = gdlg.result_value()
+            if gres and gres.get("genre"):
+                self._write_manifest_fields(
+                    project_dir,
+                    params_update={"genre": gres.get("genre"),
+                                   "sub": gres.get("sub", [])},
+                )
+
+            sdlg = StyleBibleDialog(parent=self)
+            sdlg.exec()
+            sres = sdlg.result_value()
+            if sres:
+                self._write_manifest_fields(project_dir, style_bible=dict(sres))
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "新建项目题材/风格向导失败，降级跳过", exc_info=True)
 
     # ------------------------------------------------------------------ #
     # 罗盘项目 scope 接线（Wave2b）：概览仪表盘 + 侧栏门禁
@@ -455,6 +489,188 @@ class AppShell(QMainWindow):
         """Wave2b 前的占位：信号到达仅记日志，不接后端。"""
         import logging
         logging.getLogger(__name__).info("nav signal noop: %s", what)
+
+    # ------------------------------------------------------------------ #
+    # 题材 / 风格圣经编辑 + 资源库出图接线（Tb）
+    # ------------------------------------------------------------------ #
+
+    def _current_project_dir(self) -> Path | None:
+        """当前罗盘项目目录（与批处理 current_dir 物理分离）。"""
+        return getattr(self.state, "current_project_dir", None)
+
+    def _on_edit_style_bible(self) -> None:
+        """概览「编辑风格圣经」→ 弹 StyleBibleDialog → 写 project.json.style_bible。"""
+        project_dir = self._current_project_dir()
+        if project_dir is None:
+            self._set_status("请先打开/新建项目再编辑风格圣经")
+            return
+        from drama_shot_master.ui.dialogs.style_bible_dialog import StyleBibleDialog
+        dlg = StyleBibleDialog(parent=self)
+        dlg.exec()
+        result = dlg.result_value()
+        if not result:
+            return
+        self._write_manifest_fields(project_dir, style_bible=dict(result))
+        self._refresh_overview_manifest(project_dir)
+
+    def _on_edit_genre(self) -> None:
+        """概览「编辑题材」→ 弹 GenrePickerDialog → 写 project.json.params.genre/sub。"""
+        project_dir = self._current_project_dir()
+        if project_dir is None:
+            self._set_status("请先打开/新建项目再编辑题材")
+            return
+        from drama_shot_master.ui.dialogs.genre_picker_dialog import GenrePickerDialog
+        dlg = GenrePickerDialog(parent=self)
+        dlg.exec()
+        result = dlg.result_value()
+        if not result or not result.get("genre"):
+            return
+        self._write_manifest_fields(
+            project_dir,
+            params_update={"genre": result.get("genre"), "sub": result.get("sub", [])},
+        )
+        self._refresh_overview_manifest(project_dir)
+
+    def _write_manifest_fields(self, project_dir: Path, *,
+                               style_bible: dict | None = None,
+                               params_update: dict | None = None) -> None:
+        """读 project.json → 改 style_bible / params → save_manifest。异常降级不崩。"""
+        try:
+            from drama_shot_master.core.compass.manifest import (
+                load_manifest, save_manifest,
+            )
+            manifest = load_manifest(project_dir)
+            if style_bible is not None:
+                manifest.style_bible = dict(style_bible)
+            if params_update is not None:
+                params = dict(manifest.params or {})
+                params.update(params_update)
+                manifest.params = params
+                # 顶层 genre 同步（兼容旧读法）
+                if "genre" in params_update and params_update["genre"]:
+                    manifest.genre = params_update["genre"]
+            save_manifest(manifest, project_dir)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "写 project.json 题材/风格失败", exc_info=True)
+
+    def _refresh_overview_manifest(self, project_dir: Path) -> None:
+        """重读 manifest 刷新概览页。"""
+        overview = self.pages.get("overview")
+        if overview is not None and hasattr(overview, "set_manifest"):
+            overview.set_manifest(self._load_manifest_for(project_dir))
+
+    def _current_asset_kind(self) -> str:
+        """资源库当前 tab → kind（characters/scenes/props）；越界兜底 characters。"""
+        from drama_shot_master.ui.pages.asset_library_page import _KINDS
+        al = self.pages.get("asset_library")
+        idx = 0
+        tabs = getattr(al, "_tabs", None)
+        if tabs is not None:
+            idx = tabs.currentIndex()
+        if 0 <= idx < len(_KINDS):
+            return _KINDS[idx][0]
+        return _KINDS[0][0]
+
+    def _make_ref_generator(self, project_dir: Path):
+        """组装 RefImageGenerator：把 make_image_provider(cfg).generate 包成
+        (task, abs_out)->None 的 image_backend（写文件落盘）。
+        """
+        from drama_shot_master.services.ref_generator import RefImageGenerator
+        from drama_shot_master.providers.image_gen import make_image_provider
+
+        def image_backend(task, abs_out: Path) -> None:
+            provider = make_image_provider(self.cfg)
+            refs = [Path(p) for p in (getattr(task, "ref_files", None) or [])]
+            images = provider.generate(
+                getattr(task, "prompt", "") or "",
+                refs, size=None, n=1,
+            )
+            if not images:
+                raise RuntimeError("出图返回空")
+            abs_out = Path(abs_out)
+            abs_out.parent.mkdir(parents=True, exist_ok=True)
+            abs_out.write_bytes(images[0])
+
+        return RefImageGenerator(
+            self.cfg, project_dir, image_backend=image_backend)
+
+    def _on_asset_generate(self, name: str) -> None:
+        """资源库「生成」→ RefImageGenerator.generate_ref。
+
+        name 为空（批量按钮）→ 暂提示需选具体条目；有 name → 单条出图。
+        风格 id 取 project.json.style_bible.ref。成功刷新资源库；失败提示。
+        """
+        project_dir = self._current_project_dir()
+        if project_dir is None:
+            self._set_status("请先打开/新建项目再生成参考图")
+            return
+        name = (name or "").strip()
+        if not name:
+            self._set_status("请选择具体资源条目再生成（批量出图待接入）")
+            return
+        kind = self._current_asset_kind()
+        style_id = ""
+        try:
+            from drama_shot_master.core.compass.manifest import load_manifest
+            manifest = load_manifest(project_dir)
+            style_id = (manifest.style_bible or {}).get("ref", "") or ""
+        except Exception:
+            style_id = ""
+        try:
+            gen = self._make_ref_generator(project_dir)
+            ok, msg = gen.generate_ref(kind, name, base_prompt=name, style_id=style_id)
+        except Exception as exc:
+            ok, msg = False, str(exc)
+        if ok:
+            al = self.pages.get("asset_library")
+            if al is not None and hasattr(al, "set_project"):
+                al.set_project(project_dir)
+            self._set_status(f"已生成参考图：{name}")
+        else:
+            self._set_status(f"生成失败：{msg}")
+
+    def _on_asset_import(self) -> None:
+        """资源库「导入图」→ QFileDialog 选图 → 拷进 <kind>/ → 登记 ref_index。"""
+        project_dir = self._current_project_dir()
+        if project_dir is None:
+            self._set_status("请先打开/新建项目再导入参考图")
+            return
+        from PySide6.QtWidgets import QFileDialog
+        files, _ = QFileDialog.getOpenFileNames(
+            self, "导入参考图", str(Path.home()),
+            "图片 (*.png *.jpg *.jpeg *.webp *.bmp)")
+        if not files:
+            return
+        kind = self._current_asset_kind()
+        self._import_ref_files(project_dir, kind, files)
+        al = self.pages.get("asset_library")
+        if al is not None and hasattr(al, "set_project"):
+            al.set_project(project_dir)
+        self._set_status(f"已导入 {len(files)} 张参考图")
+
+    def _import_ref_files(self, project_dir: Path, kind: str,
+                          files: list[str]) -> None:
+        """把选中图片拷进 <project>/<kind>/ 并登记 ref_index（source=imported）。"""
+        import shutil
+        try:
+            from drama_shot_master.core.compass.ref_index import (
+                load_ref_index, save_ref_index,
+            )
+            kind_dir = Path(project_dir) / kind
+            kind_dir.mkdir(parents=True, exist_ok=True)
+            idx = load_ref_index(kind_dir)
+            for f in files:
+                src = Path(f)
+                name = src.stem
+                dst_name = f"{name}_ref{src.suffix.lower()}"
+                shutil.copyfile(src, kind_dir / dst_name)
+                idx.add(name, dst_name, source="imported", status="ready")
+            save_ref_index(idx, kind_dir)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning("导入参考图失败", exc_info=True)
 
     def switchTo(self, page):
         self.stack.setCurrentWidget(page)
@@ -905,11 +1121,14 @@ class AppShell(QMainWindow):
         manager = ComposeTaskManagerPanel(self.compose_store, self._persist_compose)
 
         def editor_factory(task):
-            return ComposePanel(self.cfg, payload=task.composition)
+            return ComposePanel(self.cfg, payload=task.composition, task_id=task.id)
 
         def wire_editor(editor, task):
             editor.sendToSoundtrack.connect(self._on_compose_send_soundtrack)
             editor.statusMessage.connect(self._set_status)
+            editor.dirty.connect(lambda: self._on_compose_dirty(task.id, editor.to_payload()))
+            editor.renderStarted.connect(lambda tid=task.id: self._on_compose_status(tid, "生成中"))
+            editor.renderCompleted.connect(self._on_compose_rendered)
 
         page = TaskWorkspacePage(
             manager=manager,
@@ -933,6 +1152,20 @@ class AppShell(QMainWindow):
         self.compose_store.update(task_id, composition=payload)
         self._persist_compose()
 
+    def _on_compose_status(self, task_id: str, status: str):
+        self.compose_store.update(task_id, status=status)
+        mgr = self._func_pages["compose"].manager
+        if hasattr(mgr, "set_task_status"):
+            mgr.set_task_status(task_id, status)
+        self._persist_compose()
+
+    def _on_compose_rendered(self, task_id: str, out_path: str):
+        self.compose_store.update(task_id, output_mp4=out_path, status="完成")
+        mgr = self._func_pages["compose"].manager
+        if hasattr(mgr, "set_task_status"):
+            mgr.set_task_status(task_id, "完成")
+        self._persist_compose()
+
     def _on_compose_renamed(self, task_id: str, name: str):
         page = self._func_pages.get("compose")
         if page is not None and hasattr(page, "update_task_name"):
@@ -941,8 +1174,9 @@ class AppShell(QMainWindow):
     def _on_compose_send_soundtrack(self, mp4_path: str):
         try:
             from pathlib import Path
+            from drama_shot_master.core.compose_task_store import _gen_task_id
             tasks = list(getattr(self.cfg, "soundtrack_tasks", []))
-            tasks.append({"id": "", "name": Path(mp4_path).stem, "mp4": mp4_path, "status": "空闲"})
+            tasks.append({"id": _gen_task_id(), "name": Path(mp4_path).stem, "mp4": mp4_path, "status": "空闲"})
             self.cfg.soundtrack_tasks = tasks
             self.cfg.update_settings(soundtrack_tasks=tasks)
             self._set_status(f"已送去配乐：{mp4_path}")

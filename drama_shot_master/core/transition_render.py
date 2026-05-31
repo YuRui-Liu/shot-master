@@ -112,10 +112,23 @@ def build_ffmpeg_args(comp: CompositionModel, out_path: str,
     trans = [c.effective_transition() for c in kept[:-1]]
     tdurs = [c.effective_duration() for c in kept[:-1]]
 
+    # FIX m3: degrade transition to hard cut when transition duration >= min clip length
+    eff_trans = []
+    eff_tdurs = []
+    for k in range(len(trans)):
+        t_name = trans[k]
+        t_dur = tdurs[k]
+        if t_name != "none" and t_dur >= min(durs[k], durs[k + 1]):
+            eff_trans.append("none")
+            eff_tdurs.append(0.0)
+        else:
+            eff_trans.append(t_name)
+            eff_tdurs.append(t_dur)
+
     if n == 1:
         filter_complex = ";".join(parts)
         vmap, amap = "[v0]", "[a0]"
-    elif all(t == "none" for t in trans):
+    elif all(t == "none" for t in eff_trans):
         # Fast path: single concat for all-none transitions
         concat_in = "".join(vlabels[i] + alabels[i] for i in range(n))
         parts.append(f"{concat_in}concat=n={n}:v=1:a=1[vout][aout]")
@@ -126,8 +139,8 @@ def build_ffmpeg_args(comp: CompositionModel, out_path: str,
         vcur, acur = vlabels[0], alabels[0]
         acc = durs[0]  # running video duration from clip 0
         for i in range(1, n):
-            t = trans[i - 1]
-            d = tdurs[i - 1]
+            t = eff_trans[i - 1]
+            d = eff_tdurs[i - 1]
             is_last = (i == n - 1)
             vout = "[vout]" if is_last else f"[vx{i}]"
             aout = "[aout]" if is_last else f"[ax{i}]"

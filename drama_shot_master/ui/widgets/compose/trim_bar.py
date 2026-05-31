@@ -31,14 +31,20 @@ class TrimBar(QWidget):
     def out_point(self) -> float: return self._out
 
     def set_in(self, v: float):
+        old = self._in
         self._in = max(0.0, min(float(v), self._out - 0.1))
         self._scrub.set_range(self._dur, self._in, self._out)
-        self._update_label(); self.trimChanged.emit(self._in, self._out)
+        self._update_label()
+        if self._in != old:
+            self.trimChanged.emit(self._in, self._out)
 
     def set_out(self, v: float):
+        old = self._out
         self._out = min(self._dur, max(float(v), self._in + 0.1))
         self._scrub.set_range(self._dur, self._in, self._out)
-        self._update_label(); self.trimChanged.emit(self._in, self._out)
+        self._update_label()
+        if self._out != old:
+            self.trimChanged.emit(self._in, self._out)
 
     def _on_handle(self, which: str, t: float):
         self.set_in(t) if which == "in" else self.set_out(t)
