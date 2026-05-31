@@ -17,15 +17,15 @@ class _Cfg:
 def test_panel_constructs():
     _app()
     panel = ScreenwriterPanel(_Cfg())
-    assert hasattr(panel, "_task_manager")
+    # 单视图：去掉任务栏后无 _task_manager / _task_bar
+    assert not hasattr(panel, "_task_manager")
+    assert not hasattr(panel, "_task_bar")
     assert hasattr(panel, "_wizard_host")
-    assert hasattr(panel, "_task_bar")
     assert panel._wizard_host._stack.count() == 6   # 6 阶段（Stage5 视频提示词 + Stage6 配音配乐）
 
 
-def test_panel_table_cols():
+def test_panel_set_project_api():
     _app()
     panel = ScreenwriterPanel(_Cfg())
-    hdr = panel._task_manager._table.horizontalHeaderItem
-    assert hdr(0).text() == "名称"
-    assert hdr(1).text() == "状态"
+    # 无项目时注入 None 应安全（全 page set_project(None)）
+    assert panel.set_project(None) is True

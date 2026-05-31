@@ -29,22 +29,23 @@ class _StubCfg:
         self._saved.update(kw)
 
 
-def test_panel_builds_with_splitter_and_4_pages():
+def test_panel_builds_single_view_with_6_pages():
+    """单视图：无任务栏（_task_bar），向导宿主充满面板，6 步。"""
     _app()
     panel = ScreenwriterPanel(_StubCfg())
-    assert panel._task_manager is not None
+    assert not hasattr(panel, "_task_bar")
+    assert not hasattr(panel, "_task_manager")
     assert panel._wizard_host is not None
     assert panel._wizard_host._stack.count() == 6   # 扩展为 6 步
 
 
-def test_task_selection_propagates_to_all_pages(tmp_path):
+def test_set_project_propagates_to_all_pages(tmp_path):
     _app()
     pA = tmp_path / "A"; pA.mkdir()
     cfg = _StubCfg(projects=[str(pA)])
     panel = ScreenwriterPanel(cfg)
-    # 模拟用户选第 0 行
-    panel._task_manager._table.selectRow(0)
-    panel._task_manager._on_selection_changed()
+    # AppShell 罗盘 scope 注入当前项目
+    assert panel.set_project(pA) is True
     # 4 个 page 的 _project_dir 都应是 pA
     for i in range(4):
         page = panel._wizard_host._stack.widget(i)
@@ -69,16 +70,14 @@ def test_dirty_page_blocks_task_switch(tmp_path):
     cfg = _StubCfg(projects=[str(pA), str(pB)])
     panel = ScreenwriterPanel(cfg)
     # 先选 A
-    panel._task_manager._table.selectRow(0)
-    panel._task_manager._on_selection_changed()
+    panel.set_project(pA)
     # 注入：让所有 page 的 try_release 返 False
     for i in range(4):
         page = panel._wizard_host._stack.widget(i)
         if hasattr(page, "try_release"):
             page.try_release = lambda: False  # type: ignore
-    # 试着切到 B
-    panel._task_manager._table.selectRow(1)
-    panel._task_manager._on_selection_changed()
+    # 试着切到 B（应被拒，返回 False）
+    assert panel.set_project(pB) is False
     # 各 page 的 _project_dir 仍是 pA（切换被拒）
     for i in range(4):
         page = panel._wizard_host._stack.widget(i)
@@ -124,15 +123,13 @@ def test_two_projects_streaming_concurrently_keeps_both_workers(tmp_path):
     storyboard._workers[pB] = wB
 
     # 选 A
-    panel._task_manager._table.selectRow(0)
-    panel._task_manager._on_selection_changed()
+    panel.set_project(pA)
     # A 的 worker 显示在 IdeatePage
     assert ideate._project_dir == pA
     assert ideate._active_worker() is wA
 
     # 切到 B
-    panel._task_manager._table.selectRow(1)
-    panel._task_manager._on_selection_changed()
+    panel.set_project(pB)
     # A 的 worker 没死
     assert wA.isRunning() is True
     # B 的 worker 仍在 StoryboardPage
@@ -140,20 +137,6 @@ def test_two_projects_streaming_concurrently_keeps_both_workers(tmp_path):
     # 当前显示 B
     assert ideate._project_dir == pB
     assert storyboard._project_dir == pB
-
-
-def test_external_dir_removal_prunes_on_refresh(tmp_path):
-    _app()
-    pA = tmp_path / "A"; pA.mkdir()
-    pB = tmp_path / "B"; pB.mkdir()
-    cfg = _StubCfg(projects=[str(pA), str(pB)])
-    panel = ScreenwriterPanel(cfg)
-    # 外部删 A
-    import shutil
-    shutil.rmtree(pA)
-    panel._task_manager.refresh()
-    assert str(pA) not in cfg.screenwriter_projects
-    assert str(pB) in cfg.screenwriter_projects
 
 
 def test_prompts_page_is_real_not_placeholder():
@@ -176,8 +159,7 @@ def test_stage_advance_triggers_auto_generation_on_target_page(tmp_path):
     }), encoding="utf-8")
     cfg = _StubCfg(projects=[str(pA)])
     panel = ScreenwriterPanel(cfg)
-    panel._task_manager._table.selectRow(0)
-    panel._task_manager._on_selection_changed()
+    panel.set_project(pA)
     # Mock 下一阶段 page 的 start_generation_if_idle
     called = []
     panel._pages[1].start_generation_if_idle = lambda: called.append(True)
@@ -197,8 +179,7 @@ def test_stage_change_revalidates_target_upstream(tmp_path):
     (pA / "创意.json").write_text("{}", encoding="utf-8")
     cfg = _StubCfg(projects=[str(pA)])
     panel = ScreenwriterPanel(cfg)
-    panel._task_manager._table.selectRow(0)
-    panel._task_manager._on_selection_changed()
+    panel.set_project(pA)
     # 给每个有 revalidate_upstream 的 page 装探针
     calls = []
     for i, pg in enumerate(panel._pages):
@@ -209,16 +190,20 @@ def test_stage_change_revalidates_target_upstream(tmp_path):
     assert 2 in calls, "切换到目标 stage 应触发其 revalidate_upstream"
 
 
-def test_stage_advance_target_with_existing_output_skips_auto_gen(tmp_path):
+def test_stage_advance_target_with_existing_output_skips_auto_gen(tmp_path, monkeypatch):
     """已有 剧本.md 时再点'推进'：切到 ScriptPage 但不强制再生（避免覆盖）。"""
     _app()
     pA = tmp_path / "A"; pA.mkdir()
     (pA / "创意.json").write_text("{}", encoding="utf-8")
     (pA / "剧本.md").write_text("# 已有剧本", encoding="utf-8")
     cfg = _StubCfg(projects=[str(pA)])
+    # 旧版单集结构（剧本.md 无 剧本.json）会触发迁移询问对话框；本测不关心迁移，
+    # 拦成「否」（保持只读），避免 offscreen 下模态阻塞。
+    import drama_shot_master.ui.panels.screenwriter_panel as m
+    monkeypatch.setattr(m.QMessageBox, "question",
+                        staticmethod(lambda *a, **k: m.QMessageBox.No))
     panel = ScreenwriterPanel(cfg)
-    panel._task_manager._table.selectRow(0)
-    panel._task_manager._on_selection_changed()
+    panel.set_project(pA)
     called = []
     panel._pages[1].start_generation_if_idle = lambda: called.append(True)
     panel._pages[0].stageAdvanceRequested.emit(1)
@@ -227,24 +212,17 @@ def test_stage_advance_target_with_existing_output_skips_auto_gen(tmp_path):
     assert called == [True]
 
 
-def test_screenwriter_panel_has_collapsible_bar():
-    _app()
-    from drama_shot_master.ui.panels.screenwriter_panel import ScreenwriterPanel
-    from drama_shot_master.ui.widgets.collapsible_task_bar import CollapsibleTaskBar
-    panel = ScreenwriterPanel(_StubCfg())
-    assert hasattr(panel, "_task_bar")
-    assert isinstance(panel._task_bar, CollapsibleTaskBar)
-
-
-def test_screenwriter_task_bar_wraps_task_manager():
+def test_screenwriter_panel_is_single_view_no_task_bar():
+    """流D：编剧面板去掉任务栏 → 单视图（无 _task_bar / _task_manager）。"""
     _app()
     from drama_shot_master.ui.panels.screenwriter_panel import ScreenwriterPanel
     panel = ScreenwriterPanel(_StubCfg())
-    assert panel._task_bar._manager is panel._task_manager
+    assert not hasattr(panel, "_task_bar")
+    assert not hasattr(panel, "_task_manager")
 
 
 def test_legacy_project_prompts_migration(tmp_path, monkeypatch):
-    """选中旧项目（剧本.md + no 剧本.json）→ 弹迁移对话框 → 点[是] → 自动迁移。"""
+    """注入旧项目（剧本.md + no 剧本.json）→ 弹迁移对话框 → 点[是] → 自动迁移。"""
     _app()
     pA = tmp_path / "Legacy"; pA.mkdir()
     (pA / "创意.json").write_text("{}", encoding="utf-8")
@@ -256,8 +234,7 @@ def test_legacy_project_prompts_migration(tmp_path, monkeypatch):
                          staticmethod(lambda *a, **k: m.QMessageBox.Yes))
 
     panel = ScreenwriterPanel(cfg)
-    panel._task_manager._table.selectRow(0)
-    panel._task_manager._on_selection_changed()
+    panel.set_project(pA)
 
     # 迁移后：剧本.json 存在 + 剧本_E1.md 存在 + 旧 剧本.md 已重命名
     assert (pA / "剧本.json").is_file()
