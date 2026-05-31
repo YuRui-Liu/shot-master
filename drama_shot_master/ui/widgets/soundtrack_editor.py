@@ -57,6 +57,8 @@ class SoundtrackEditor(QWidget):
             MixStreamEngine, MixStreamOutput)
         from sound_track_agent.overlay_session import load_overlay
         self._overlay_session = load_overlay(self._work_dir())
+        self._overlay_collapsed = False
+        self._overlay_sel_id = None
         self._mix_engine = MixStreamEngine()
         self._mix_engine.set_segments(self._overlay_session.segments)
         self._mix_output = MixStreamOutput(self._mix_engine)
@@ -132,6 +134,8 @@ class SoundtrackEditor(QWidget):
         self._track_view.rubberBandReleased.connect(self._on_rubber_band)
         self._track_view.contextMenuRequested.connect(self._on_context_menu)
         self._track_view.playheadDragged.connect(self._on_track_playhead_dragged)
+        self._track_view.overlayCollapseToggled.connect(self._on_overlay_collapse_toggled)
+        self._track_view.overlaySegmentClicked.connect(self._on_overlay_segment_clicked)
         self._scrollbar = QScrollBar(Qt.Horizontal)
         self._scrollbar.setRange(0, 1000)
         self._scrollbar.valueChanged.connect(
@@ -140,14 +144,27 @@ class SoundtrackEditor(QWidget):
         self._minimap.viewportRequested.connect(
             lambda off: self._scrollbar.setValue(int(off * 1000)))
         from drama_shot_master.ui.widgets.daw.track_header_column import TrackHeaderColumn
-        from PySide6.QtWidgets import QHBoxLayout as _QHBox, QWidget as _QW
+        from drama_shot_master.ui.widgets.daw.overlay_header import OverlayHeaderSection
+        from PySide6.QtWidgets import (
+            QHBoxLayout as _QHBox, QVBoxLayout as _QVBox, QWidget as _QW)
         self._track_header = TrackHeaderColumn()
         self._track_header.muteToggled.connect(self._on_mute_toggled)
         self._track_header.soloToggled.connect(self._on_solo_toggled)
         self._track_header.volumeChanged.connect(self._on_volume_changed)
         self._track_header.set_state(self._mix)
+        # 动态叠加区头部列：固定轨 header 之下垂直堆叠
+        self._overlay_header = OverlayHeaderSection()
+        self._overlay_header.collapseToggled.connect(self._on_overlay_collapse_toggled)
+        self._overlay_header.laneMuteToggled.connect(self._on_overlay_lane_mute)
+        self._overlay_header.laneVolumeChanged.connect(self._on_overlay_lane_volume)
+        header_col = _QVBox()
+        header_col.setContentsMargins(0, 0, 0, 0); header_col.setSpacing(0)
+        header_col.addWidget(self._track_header)
+        header_col.addWidget(self._overlay_header)
+        header_col.addStretch(1)
+        header_col_w = _QW(); header_col_w.setLayout(header_col)
         tv_row = _QHBox(); tv_row.setContentsMargins(0, 0, 0, 0); tv_row.setSpacing(0)
-        tv_row.addWidget(self._track_header)
+        tv_row.addWidget(header_col_w)
         tv_row.addWidget(self._track_view, 1)
         tv_row_w = _QW(); tv_row_w.setLayout(tv_row)
         left_col.addWidget(tv_row_w, 1)
@@ -325,6 +342,11 @@ class SoundtrackEditor(QWidget):
             EmptyInspector, BgmInspector, SfxInspector, DialogueInspector,
         )
         refs = self._selection.get()
+        # 选区互斥：存在固定轨选区时清 overlay 选中
+        if refs:
+            self._overlay_sel_id = None
+            if self._track_view is not None:
+                self._track_view.set_overlay_selection(None)
         if len(refs) != 1:
             new_insp = EmptyInspector()
         else:
@@ -392,6 +414,61 @@ class SoundtrackEditor(QWidget):
         if self._overview_timeline is not None:
             self._overview_timeline.set_duration(total)
             self._overview_timeline.set_cues(cues)
+        self._refresh_overlay_view()
+
+    # ── overlay 渲染 + lane 控件刷新 ──────────────────────────────────
+
+    def _refresh_overlay_view(self):
+        """把 overlay 片段推给 track_view 叠加区与 overlay_header 列。"""
+        if self._track_view is None:
+            return
+        segs = self._overlay_session.segments
+        self._track_view.set_overlay(segs, collapsed=self._overlay_collapsed)
+        self._track_view.set_overlay_selection(self._overlay_sel_id)
+        if getattr(self, "_overlay_header", None) is not None:
+            self._overlay_header.set_overlay(segs, collapsed=self._overlay_collapsed)
+
+    def _on_overlay_collapse_toggled(self):
+        self._overlay_collapsed = not self._overlay_collapsed
+        self._refresh_overlay_view()
+
+    def _on_overlay_segment_clicked(self, seg_id: str, mod):
+        from drama_shot_master.ui.widgets.daw.inspector import EmptyInspector
+        from drama_shot_master.ui.widgets.daw.inspector.overlay_inspector import (
+            OverlayInspector)
+        # 选区互斥：点 overlay → 清固定轨选区
+        self._selection.clear()
+        seg = self._overlay_session.get(seg_id)
+        if seg is None:
+            self._overlay_sel_id = None
+            self._swap_inspector(EmptyInspector())
+            self._refresh_overlay_view()
+            return
+        self._overlay_sel_id = seg_id
+        insp = OverlayInspector()
+        insp.set_segment(seg)
+        self._swap_inspector(insp)
+        self._refresh_overlay_view()
+
+    def _on_overlay_lane_mute(self, kind: str, lane: int, muted: bool):
+        for s in self._overlay_session.segments_in_lane(kind, lane):
+            s.enabled = not muted
+        self._after_overlay_change()
+
+    def _on_overlay_lane_volume(self, kind: str, lane: int, volume: float):
+        for s in self._overlay_session.segments_in_lane(kind, lane):
+            s.volume = volume
+        self._after_overlay_change()
+
+    def _after_overlay_change(self):
+        """overlay lane 改动即时落盘 + 刷新混音引擎 + 重绘。不入 undo。"""
+        from sound_track_agent.overlay_session import save_overlay
+        try:
+            save_overlay(self._work_dir(), self._overlay_session)
+        except Exception:
+            pass
+        self._mix_engine.set_segments(self._overlay_session.segments)
+        self._refresh_overlay_view()
 
     # 向后兼容别名（部分测试直接调 _rebuild_overview）
     def _rebuild_overview(self):
