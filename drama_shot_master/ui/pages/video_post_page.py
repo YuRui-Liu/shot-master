@@ -46,3 +46,8 @@ class VideoPostPage(QWidget):
         if 0 <= idx < len(self._keys):
             return self._keys[idx]
         return ""
+
+    def set_current_tab(self, key: str) -> None:
+        """按 key 切到对应页签；未知 key 静默忽略（不抛）。"""
+        if key in self._keys:
+            self.tabs.setCurrentIndex(self._keys.index(key))

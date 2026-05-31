@@ -18,7 +18,8 @@ from PySide6.QtGui import QAction, QCursor
 from drama_shot_master.ui.widgets.flow_sidebar import FlowSidebar
 from drama_shot_master.ui.widgets.project_command_bar import ProjectCommandBar
 from drama_shot_master.ui.theme import apply_window_icon, apply_titlebar, current_theme
-from drama_shot_master.ui.nav_config import FUNCS, PHASES, LABELS
+from drama_shot_master.ui import nav_config
+from drama_shot_master.ui.nav_config import NAV_ITEMS, LABELS
 
 
 class AppShell(QMainWindow):
@@ -26,8 +27,12 @@ class AppShell(QMainWindow):
         super().__init__()
         self.setWindowTitle("糯米AI分镜影视创作台")
         self.resize(1360, 860)
+        # self.pages: 扁平 nav_key → 页（含容器页）。键序=NAV_ITEMS。
         self.pages = {}
-        self._phase_of = {k: t for t, ks in PHASES for k in ks}
+        # self._func_pages: 底层 8 个真实 panel 页（key 不变），供接线/任务激活取 manager。
+        self._func_pages = {}
+        # nav_key → 面包屑前缀（阶段标题 / NAV 显示名）；phase_of 兼容扁平 key。
+        self._phase_of = {k: nav_config.phase_of(k) for _l, k in NAV_ITEMS}
         self._status_text = ""
         # main.py 传入已 spawn 过 lifecycle 并反写过端口的 cfg；
         # 没传则 _build_pages 自己 load_config() 兜底（兼容旧入口）
@@ -73,16 +78,47 @@ class AppShell(QMainWindow):
             "soundtrack": self._make_soundtrack_page,
             "dubbing": self._make_dub_page,
         }
+        # 1) 构造 8 个底层真实页存入 self._func_pages（key 不变）。
+        from drama_shot_master.ui.nav_config import FUNCS
         for _label, key in FUNCS:
             page = builders[key]()
             page.setObjectName(f"page_{key}")   # 稳定 objectName，便于 QSS 选择与 findChild
-            self.pages[key] = page
+            self._func_pages[key] = page
+
+        # 2) 组装容器页 / 新页。
+        from drama_shot_master.ui.pages.storyboard_page import StoryboardPage
+        from drama_shot_master.ui.pages.video_post_page import VideoPostPage
+        from drama_shot_master.ui.pages.overview_page import OverviewPage
+        from drama_shot_master.ui.pages.asset_library_page import AssetLibraryPage
+
+        storyboard = StoryboardPage()
+        storyboard.set_tabs([
+            (k, label, self._func_pages[k]) for k, label in nav_config.STORYBOARD_TABS
+        ])
+        video_post = VideoPostPage()
+        video_post.set_tabs([
+            (k, label, self._func_pages[k]) for k, label in nav_config.VIDEOPOST_TABS
+        ])
+        overview = OverviewPage()
+        asset_library = AssetLibraryPage()
+
+        # 3) 扁平导航页字典（键序=NAV_ITEMS）。剧本创作/视频生成直接复用底层页。
+        self.pages = {
+            "overview": overview,
+            "screenwriter": self._func_pages["screenwriter"],
+            "asset_library": asset_library,
+            "storyboard": storyboard,
+            "video_gen": self._func_pages["video_gen"],
+            "video_post": video_post,
+        }
+        for _label, key in NAV_ITEMS:
+            self.pages[key].setObjectName(f"page_{key}")
 
     def _build_ui(self):
         self.command_bar = ProjectCommandBar()
         self.sidebar = FlowSidebar()
         self.stack = QStackedWidget()
-        for _label, key in FUNCS:
+        for _label, key in NAV_ITEMS:
             self.stack.addWidget(self.pages[key])
 
         body = QHBoxLayout()
@@ -130,7 +166,8 @@ class AppShell(QMainWindow):
 
     def _wire(self):
         from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
-        for page in self.pages.values():
+        # 遍历底层 8 页（含嵌套在容器页里的）接 statusMessage / 网格选择。
+        for page in self._func_pages.values():
             # BatchToolPage→page.panel；TaskWorkspacePage→page.manager；manager 页→page 本身
             panel = getattr(page, "panel", None)
             src = panel if panel is not None else getattr(page, "manager", page)
@@ -138,6 +175,26 @@ class AppShell(QMainWindow):
                 src.statusMessage.connect(self._set_status)
             if isinstance(page, BatchToolPage):
                 page.thumb.selectionChanged.connect(self._refresh_counts)
+
+        # 概览页：阶段卡点击 → 跳对应 nav 页；风格圣经编辑暂 noop 日志。
+        overview = self.pages.get("overview")
+        if overview is not None:
+            if hasattr(overview, "stageActivated"):
+                overview.stageActivated.connect(self._on_overview_stage)
+            if hasattr(overview, "styleBibleEditRequested"):
+                overview.styleBibleEditRequested.connect(
+                    lambda: self._log_noop("styleBibleEditRequested"))
+        # 资源库三信号暂 noop 日志（Wave2b 接后端）。
+        al = self.pages.get("asset_library")
+        if al is not None:
+            for sig_name in ("importRequested", "extractRequested"):
+                sig = getattr(al, sig_name, None)
+                if sig is not None:
+                    sig.connect(lambda n=sig_name: self._log_noop(n))
+            if hasattr(al, "generateRequested"):
+                al.generateRequested.connect(
+                    lambda name: self._log_noop(f"generateRequested({name})"))
+
         self.sidebar.currentChanged.connect(self._on_nav_changed)
         self.sidebar.settingsRequested.connect(self._open_unified_settings)
         self.sidebar.helpRequested.connect(self._open_help_menu)
@@ -242,7 +299,32 @@ class AppShell(QMainWindow):
         self.recent_mgr.push(str(p))
 
     def _on_nav_changed(self, key: str):
-        self.switchTo(self.pages[key])
+        page = self.pages.get(key)
+        if page is not None:
+            self.switchTo(page)
+
+    def _on_overview_stage(self, stage_or_key: str):
+        """概览阶段卡 → 跳对应扁平 nav 页。
+
+        概览卡 stage_key 用 compass stage 命名（screenwriter/assets/storyboard/
+        production），映射到 self.pages 的 nav_key；production 默认去 video_gen。
+        若已是合法 nav_key（如直接传 video_post）则原样使用。
+        """
+        mapping = {
+            "screenwriter": "screenwriter",
+            "assets": "asset_library",
+            "storyboard": "storyboard",
+            "production": "video_gen",
+        }
+        nav_key = mapping.get(stage_or_key, stage_or_key)
+        page = self.pages.get(nav_key)
+        if page is not None:
+            self.switchTo(page)
+
+    def _log_noop(self, what: str):
+        """Wave2b 前的占位：信号到达仅记日志，不接后端。"""
+        import logging
+        logging.getLogger(__name__).info("nav signal noop: %s", what)
 
     def switchTo(self, page):
         self.stack.setCurrentWidget(page)
@@ -266,9 +348,9 @@ class AppShell(QMainWindow):
         if self.state.output_dir:
             self.command_bar.set_output(str(self.state.output_dir))
         self._refresh_counts()
-        # 恢复上次活跃功能页
+        # 恢复上次活跃功能页（默认概览）
         target_key = self.cfg.last_active_function
-        key = target_key if target_key in self.pages else FUNCS[0][1]
+        key = target_key if target_key in self.pages else "overview"
         self.switchTo(self.pages[key])
         # 启动时始终先显示欢迎页
         self.welcome_page.refresh()
@@ -280,13 +362,13 @@ class AppShell(QMainWindow):
 
     def _populate_batch_pages(self):
         from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
-        for page in self.pages.values():
+        for page in self._func_pages.values():
             if isinstance(page, BatchToolPage):
                 page.populate(self.state.images)
 
     def _refresh_batch_validity(self):
         from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
-        for page in self.pages.values():
+        for page in self._func_pages.values():
             if isinstance(page, BatchToolPage):
                 page.refresh_validity()
 
@@ -295,11 +377,12 @@ class AppShell(QMainWindow):
     # ------------------------------------------------------------------ #
 
     def _current_key(self) -> str:
-        return self._key_of(self.stack.currentWidget()) or FUNCS[0][1]
+        return self._key_of(self.stack.currentWidget()) or "overview"
 
     def breadcrumb_text(self) -> str:
         key = self._current_key()
-        return f"{self._phase_of.get(key, '')} › {LABELS.get(key, '')}"
+        prefix = self._phase_of.get(key) or nav_config.phase_of(key) or ""
+        return f"{prefix} › {LABELS.get(key, '')}"
 
     def _set_status(self, msg):
         self._status_text = msg
@@ -312,12 +395,27 @@ class AppShell(QMainWindow):
         self._refresh_counts()
 
     def _activate_task(self, kind: str, tid: str):
-        key = {"video": "video_gen", "dub": "dubbing",
-               "imggen": "imggen", "soundtrack": "soundtrack"}.get(kind)
-        if key is None:
+        # kind → (nav_key, 容器内 tab key 或 None, 底层 func_page key)
+        routing = {
+            "video":      ("video_gen", None, "video_gen"),
+            "imggen":     ("storyboard", "imggen", "imggen"),
+            "dub":        ("video_post", "dubbing", "dubbing"),
+            "soundtrack": ("video_post", "soundtrack", "soundtrack"),
+        }
+        route = routing.get(kind)
+        if route is None:
             return
-        self.switchTo(self.pages[key])
-        mgr = getattr(self.pages[key], "manager", None)
+        nav_key, tab_key, func_key = route
+        nav_page = self.pages.get(nav_key)
+        if nav_page is None:
+            return
+        self.switchTo(nav_page)
+        # 容器页：切到对应 tab
+        if tab_key is not None and hasattr(nav_page, "set_current_tab"):
+            nav_page.set_current_tab(tab_key)
+        # manager 从底层页取
+        func_page = self._func_pages.get(func_key)
+        mgr = getattr(func_page, "manager", None) if func_page is not None else None
         if mgr is not None and hasattr(mgr, "_select_task"):
             mgr._select_task(tid)
 
@@ -480,7 +578,7 @@ class AppShell(QMainWindow):
         return page
 
     def _video_manager(self):
-        return self.pages["video_gen"].manager
+        return self._func_pages["video_gen"].manager
 
     def _persist_tasks(self):
         try:
@@ -505,7 +603,7 @@ class AppShell(QMainWindow):
             self.task_center_dock.refresh()
 
     def _on_task_renamed(self, task_id: str, name: str):
-        page = self.pages.get("video_gen")
+        page = self._func_pages.get("video_gen")
         if page is not None and hasattr(page, "update_task_name"):
             page.update_task_name(task_id, name)
 
@@ -556,7 +654,7 @@ class AppShell(QMainWindow):
 
     def _soundtrack_panel(self):
         """返回 manager（SoundtrackPanel）；兜底裸 QWidget 时返回 None。"""
-        p = self.pages.get("soundtrack")
+        p = self._func_pages.get("soundtrack")
         return getattr(p, "manager", None)
 
     def _on_soundtrack_dirty(self, task_id: str, payload: dict):
@@ -567,7 +665,7 @@ class AppShell(QMainWindow):
         self._persist_soundtrack()
 
     def _on_soundtrack_renamed(self, task_id: str, name: str):
-        page = self.pages.get("soundtrack")
+        page = self._func_pages.get("soundtrack")
         if page is not None and hasattr(page, "update_task_name"):
             page.update_task_name(task_id, name)
 
@@ -628,7 +726,7 @@ class AppShell(QMainWindow):
         return page
 
     def _dub_manager(self):
-        return self.pages["dubbing"].manager
+        return self._func_pages["dubbing"].manager
 
     def _persist_dub_tasks(self):
         try:
@@ -653,7 +751,7 @@ class AppShell(QMainWindow):
             self.task_center_dock.refresh()
 
     def _on_dub_renamed(self, task_id, name):
-        self.pages["dubbing"].update_task_name(task_id, name)
+        self._func_pages["dubbing"].update_task_name(task_id, name)
 
     # ------------------------------------------------------------------ #
     # 编剧 Agent page（Task 22）
@@ -700,7 +798,7 @@ class AppShell(QMainWindow):
         return page
 
     def _imggen_manager(self):
-        return self.pages["imggen"].manager
+        return self._func_pages["imggen"].manager
 
     def _persist_imggen_tasks(self):
         try:
@@ -724,7 +822,7 @@ class AppShell(QMainWindow):
             self.task_center_dock.refresh()
 
     def _on_imggen_renamed(self, task_id, name):
-        self.pages["imggen"].update_task_name(task_id, name)
+        self._func_pages["imggen"].update_task_name(task_id, name)
 
     # ------------------------------------------------------------------ #
     # 生命周期
@@ -739,22 +837,22 @@ class AppShell(QMainWindow):
 
     def closeEvent(self, e):
         # 让视频任务页落盘所有缓存编辑器（含已浮出窗），再整体持久化
-        vp = self.pages.get("video_gen")
+        vp = self._func_pages.get("video_gen")
         if vp is not None and hasattr(vp, "flush_all"):
             vp.flush_all()
         self._persist_tasks()
         # 让配音任务页落盘所有缓存编辑器（含已浮出窗），再整体持久化
-        dp = self.pages.get("dubbing")
+        dp = self._func_pages.get("dubbing")
         if dp is not None and hasattr(dp, "flush_all"):
             dp.flush_all()
         self._persist_dub_tasks()
         # 让图片生成页落盘所有缓存编辑器（含已浮出窗），再整体持久化
-        ip = self.pages.get("imggen")
+        ip = self._func_pages.get("imggen")
         if ip is not None and hasattr(ip, "flush_all"):
             ip.flush_all()
         self._persist_imggen_tasks()
         # 让配乐页落盘所有缓存编辑器（含已浮出窗），再整体持久化
-        sp = self.pages.get("soundtrack")
+        sp = self._func_pages.get("soundtrack")
         if sp is not None and hasattr(sp, "flush_all"):
             sp.flush_all()
         self._persist_soundtrack()

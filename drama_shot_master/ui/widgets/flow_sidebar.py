@@ -1,7 +1,9 @@
 """FlowSidebar：原生流程式侧栏（替换 qfluentwidgets NavigationInterface）。
 
-按 nav_config.PHASES 渲染：阶段标题(非点击 QLabel) + 功能项(checkable QToolButton, 互斥)；
-底部 设置/帮助 按钮。可折叠为纯图标条。发 currentChanged(key)。
+阶段C Wave2a：扁平渲染——按 nav_config.NAV_ITEMS 逐项渲染 checkable QToolButton
+（互斥），不再渲染阶段 header 分组 QLabel。「概览」置顶、设置/帮助固定底部。
+门禁/「下一步」提示仍按 manifest.STAGE_NAMES 键挂在对应阶段的 nav 项下方。
+可折叠为纯图标条。发 currentChanged(nav_key)。
 """
 from __future__ import annotations
 
@@ -28,9 +30,10 @@ class FlowSidebar(QWidget):
         self.setObjectName("FlowSidebar")
         self._buttons: dict[str, QToolButton] = {}
         self._phase_labels: list[QLabel] = []
-        # func_key → 门禁阶段（STAGE_NAMES 之一）反向映射；_build 里填充。
+        # nav_key → 门禁阶段（STAGE_NAMES 之一）反向映射；_build 里填充
+        # （概览不门禁，不入此表）。
         self._phase_of: dict[str, str] = {}
-        # 阶段(STAGE_NAMES) → 该阶段标签下的「下一步」小字提示 QLabel。
+        # 阶段(STAGE_NAMES) → 该阶段首个 nav 项下方的「下一步」小字提示 QLabel。
         self._next_action_labels: dict[str, QLabel] = {}
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
@@ -54,28 +57,30 @@ class FlowSidebar(QWidget):
         self.btn_home.clicked.connect(self.homeRequested)
         lay.addWidget(self.btn_home)
 
-        for phase_title, keys in nav_config.PHASES:
-            lbl = QLabel(phase_title)
-            lbl.setObjectName("navPhase")
-            self._phase_labels.append(lbl)
-            lay.addWidget(lbl)
-            # 阶段标题下的「下一步」小字提示（默认空、隐藏）；按 STAGE_NAMES 键存。
-            stage = nav_config.PHASE_STAGE_MAP[phase_title]
-            hint = QLabel("")
-            hint.setObjectName("navNextAction")
-            hint.setWordWrap(True)
-            hint.setVisible(False)
-            self._next_action_labels[stage] = hint
-            lay.addWidget(hint)
-            for key in keys:
-                btn = self._make_item(nav_config.LABELS[key], nav_config.ICONS[key])
-                btn.setCheckable(True)
-                self._group.addButton(btn)
-                self._buttons[key] = btn
-                # func_key → 门禁阶段（STAGE_NAMES 之一）反向映射。
-                self._phase_of[key] = stage
-                btn.clicked.connect(lambda _=False, k=key: self.currentChanged.emit(k))
-                lay.addWidget(btn)
+        # 扁平渲染：依 NAV_ITEMS 逐项渲染 checkable 按钮（无阶段 header 分组）。
+        # 「下一步」小字提示按 STAGE_NAMES 挂在该阶段「首个」nav 项下方。
+        for label, nav_key in nav_config.NAV_ITEMS:
+            icon = nav_config.nav_icon(nav_key)
+            btn = self._make_item(label, icon)
+            btn.setCheckable(True)
+            self._group.addButton(btn)
+            self._buttons[nav_key] = btn
+            btn.clicked.connect(lambda _=False, k=nav_key: self.currentChanged.emit(k))
+            lay.addWidget(btn)
+
+            stage = nav_config.NAV_STAGE.get(nav_key)
+            # nav_key → 门禁阶段反向映射（概览无阶段，不入表）。
+            if stage is not None:
+                self._phase_of[nav_key] = stage
+                # 每个 stage 的「下一步」提示挂在该阶段首个 nav 项下方
+                # （production 有 video_gen+video_post，提示挂 video_gen）。
+                if stage not in self._next_action_labels:
+                    hint = QLabel("")
+                    hint.setObjectName("navNextAction")
+                    hint.setWordWrap(True)
+                    hint.setVisible(False)
+                    self._next_action_labels[stage] = hint
+                    lay.addWidget(hint)
 
         lay.addStretch(1)
         sep = QFrame()
@@ -92,8 +97,8 @@ class FlowSidebar(QWidget):
     def _make_item(self, text: str, icon_filename: str) -> QToolButton:
         btn = QToolButton()
         btn.setText(text)
-        p = nav_config.icon_path(icon_filename)
-        if p is not None:
+        p = nav_config.icon_path(icon_filename) if icon_filename else None
+        if p is not None and p.is_file():
             btn.setIcon(QIcon(str(p)))
         btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)

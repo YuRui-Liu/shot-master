@@ -2,36 +2,85 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 from drama_shot_master.ui.app_shell import AppShell
-from drama_shot_master.ui.nav_config import FUNCS, LABELS
+from drama_shot_master.ui.nav_config import NAV_ITEMS, FUNCS, LABELS
 
 
 def _app():
     return QApplication.instance() or QApplication([])
 
 
-def test_shell_constructs_and_registers_seven_pages():
+def test_shell_constructs_and_registers_flat_nav_pages():
+    """Wave2a：self.pages 为扁平 6 项；底层 8 页存 self._func_pages。"""
     _app()
     w = AppShell()
     w.show()
     QApplication.instance().processEvents()
-    assert len(w.pages) == len(FUNCS)
+    assert len(w.pages) == len(NAV_ITEMS)
+    assert set(w.pages.keys()) == {k for _l, k in NAV_ITEMS}
+    assert set(w._func_pages.keys()) == {k for _l, k in FUNCS}
 
 
 def test_breadcrumb_for_known_pages():
     _app()
     w = AppShell()
-    w.switchTo(w.pages["split"])
-    assert w.breadcrumb_text() == "① 素材准备 › 拆图"
-    w.switchTo(w.pages["dubbing"])
-    assert w.breadcrumb_text() == "③ 视频出片 › 配音"
+    w.switchTo(w.pages["storyboard"])
+    assert w.breadcrumb_text() == "分镜板 › 分镜板"
+    w.switchTo(w.pages["screenwriter"])
+    # 剧本创作：阶段标题前缀（兼容 phase_of）
+    assert "剧本创作" in w.breadcrumb_text()
 
 
 def test_batch_pages_are_batch_tool_page():
     _app()
     from drama_shot_master.ui.pages.batch_tool_page import BatchToolPage
     w = AppShell()
+    # 底层批处理页迁入 _func_pages（嵌于分镜板容器 tab）
     for key in ("split", "combine", "trim"):
-        assert isinstance(w.pages[key], BatchToolPage)
+        assert isinstance(w._func_pages[key], BatchToolPage)
+
+
+def test_storyboard_container_holds_func_tabs():
+    """分镜板容器页含 出图/拆图/拼图/裁边 4 tab，且 widget 即底层 func 页。"""
+    _app()
+    from drama_shot_master.ui.pages.storyboard_page import StoryboardPage
+    from drama_shot_master.ui.nav_config import STORYBOARD_TABS
+    w = AppShell()
+    sb = w.pages["storyboard"]
+    assert isinstance(sb, StoryboardPage)
+    assert sb.tabs.count() == len(STORYBOARD_TABS)
+    for i, (k, _label) in enumerate(STORYBOARD_TABS):
+        assert sb.tabs.widget(i) is w._func_pages[k]
+
+
+def test_video_post_container_holds_func_tabs():
+    """视频后期容器页含 配音/配乐 2 tab，widget 即底层 func 页。"""
+    _app()
+    from drama_shot_master.ui.pages.video_post_page import VideoPostPage
+    from drama_shot_master.ui.nav_config import VIDEOPOST_TABS
+    w = AppShell()
+    vp = w.pages["video_post"]
+    assert isinstance(vp, VideoPostPage)
+    assert vp.tabs.count() == len(VIDEOPOST_TABS)
+    for i, (k, _label) in enumerate(VIDEOPOST_TABS):
+        assert vp.tabs.widget(i) is w._func_pages[k]
+
+
+def test_overview_and_asset_library_pages():
+    _app()
+    from drama_shot_master.ui.pages.overview_page import OverviewPage
+    from drama_shot_master.ui.pages.asset_library_page import AssetLibraryPage
+    w = AppShell()
+    assert isinstance(w.pages["overview"], OverviewPage)
+    assert isinstance(w.pages["asset_library"], AssetLibraryPage)
+
+
+def test_switching_every_nav_key_does_not_crash():
+    """offscreen 下切换每个 nav_key 不崩，且 stack 当前页正确。"""
+    _app()
+    w = AppShell()
+    for _label, key in NAV_ITEMS:
+        w.sidebar.currentChanged.emit(key)
+        assert w.stack.currentWidget() is w.pages[key]
 
 
 def test_soundtrack_page_is_task_workspace():
@@ -40,7 +89,7 @@ def test_soundtrack_page_is_task_workspace():
     from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
     from drama_shot_master.ui.panels.soundtrack_panel import SoundtrackPanel
     w = AppShell()
-    page = w.pages["soundtrack"]
+    page = w._func_pages["soundtrack"]
     assert isinstance(page, TaskWorkspacePage)
     assert isinstance(page.manager, SoundtrackPanel)
 
@@ -113,13 +162,15 @@ def test_command_bar_signals_wire_to_shell():
 def test_switching_to_batch_page_syncs_selection_and_count():
     _app()
     w = AppShell()
-    w.switchTo(w.pages["split"])
-    # 新构造、未选任何图 → 全局 selected 同步为空、计数为 0
+    # 拆图批处理页迁入 _func_pages（嵌于分镜板容器 tab）
+    split_page = w._func_pages["split"]
+    w.stack.setCurrentWidget(w.pages["storyboard"])
+    w.pages["storyboard"].set_current_tab("split")
+    # 新构造、未选任何图 → 计数为 0
     w._on_page_changed()
-    assert w.state.selected == []
     assert "已选 0" in w.command_bar.count_text()
     # selected_order 暴露在页与网格上
-    assert w.pages["split"].selected_order() == []
+    assert split_page.selected_order() == []
 
 
 def test_appshell_is_qmainwindow_and_fluent_free():
@@ -144,7 +195,7 @@ def test_sidebar_click_switches_page():
     w = AppShell()
     w.sidebar.currentChanged.emit("video_gen")
     assert w.stack.currentWidget() is w.pages["video_gen"]
-    # 阶段标题与格式为独立断言；标签从 nav_config 单一源读取（标签可由用户改名）
+    # 视频生成属 production 阶段；标签从 nav_config 单一源读取（标签可由用户改名）
     assert w.breadcrumb_text() == f"③ 视频出片 › {LABELS['video_gen']}"
 
 

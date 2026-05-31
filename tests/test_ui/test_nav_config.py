@@ -43,3 +43,18 @@ def test_icon_path_resolves_existing_files():
     ph = icon_path(ICON_HELP)
     assert ps is not None and ps.exists()
     assert ph is not None and ph.exists()
+
+
+def test_screenwriter_in_funcs():
+    from drama_shot_master.ui.nav_config import FUNCS
+    keys = [k for _, k in FUNCS]
+    assert "screenwriter" in keys
+    # 应该是第一项（"剧本筹备"在前）
+    assert keys[0] == "screenwriter"
+
+
+def test_screenwriter_in_phases_drama_prep():
+    # 扁平重构后：剧本创作 是 NAV_ITEMS 里 screenwriter 对应的显示名。
+    from drama_shot_master.ui.nav_config import NAV_ITEMS
+    labels = {key: label for label, key in NAV_ITEMS}
+    assert labels.get("screenwriter") == "剧本创作"

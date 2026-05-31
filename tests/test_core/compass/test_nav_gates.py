@@ -83,3 +83,57 @@ def test_gated_funcs_partition_covers_all_funcs():
         union.extend(nc.gated_funcs(stage))
     assert sorted(union) == sorted(func_keys)
     assert len(union) == len(set(union)), "功能在多个阶段重复挂载"
+
+
+# ====================================================================== #
+# Wave2a 扁平导航门禁（NAV_ITEMS / NAV_STAGE / nav_gated）
+# ====================================================================== #
+
+def test_nav_items_order_and_keys():
+    """扁平导航 6 项、顺序与键确定（概览置顶）。"""
+    keys = [k for _l, k in nc.NAV_ITEMS]
+    assert keys == [
+        "overview", "screenwriter", "asset_library",
+        "storyboard", "video_gen", "video_post",
+    ]
+
+
+def test_overview_not_gated():
+    """概览不门禁：不在 NAV_STAGE 内，stage_of 返回 None。"""
+    assert "overview" not in nc.NAV_STAGE
+    assert nc.stage_of("overview") is None
+
+
+def test_nav_stage_maps_to_valid_stage_names():
+    """除概览外每个 nav_key 都映射到合法 STAGE_NAMES。"""
+    nav_keys = {k for _l, k in nc.NAV_ITEMS if k != "overview"}
+    assert set(nc.NAV_STAGE) == nav_keys
+    for k, stage in nc.NAV_STAGE.items():
+        assert stage in STAGE_NAMES, f"{k}→{stage} 非法阶段"
+
+
+def test_video_gen_and_post_share_production():
+    """视频生成 / 视频后期 同属 production 阶段。"""
+    assert nc.NAV_STAGE["video_gen"] == "production"
+    assert nc.NAV_STAGE["video_post"] == "production"
+
+
+def test_stage_of_prefers_nav_key():
+    """stage_of 对扁平 nav_key 优先查 NAV_STAGE。"""
+    assert nc.stage_of("asset_library") == "assets"
+    assert nc.stage_of("video_post") == "production"
+
+
+def test_nav_gated_production_has_two_navs():
+    """nav_gated(production) 返回 video_gen + video_post 两个 nav_key（按序）。"""
+    assert nc.nav_gated("production") == ["video_gen", "video_post"]
+    assert nc.nav_gated("assets") == ["asset_library"]
+    assert nc.nav_gated("__nope__") == []
+
+
+def test_storyboard_and_videopost_tabs():
+    """容器页 tab 定义：分镜板 4 tab、视频后期 2 tab，key 为真实底层 panel。"""
+    sb_keys = [k for k, _l in nc.STORYBOARD_TABS]
+    assert sb_keys == ["imggen", "split", "combine", "trim"]
+    vp_keys = [k for k, _l in nc.VIDEOPOST_TABS]
+    assert vp_keys == ["dubbing", "soundtrack"]

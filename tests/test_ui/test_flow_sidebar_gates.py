@@ -19,41 +19,53 @@ def _app():
 
 
 def test_default_all_buttons_enabled():
-    """默认（不调门禁方法）所有功能按钮 enabled，行为与现状一致。"""
+    """默认（不调门禁方法）所有导航按钮 enabled，行为与现状一致。"""
     _app()
     sb = FlowSidebar()
     for key, btn in sb._buttons.items():
         assert btn.isEnabled(), f"{key} 默认应可达"
 
 
-def test_phase_of_reverse_map_covers_all_funcs():
-    """_phase_of 反向映射覆盖全部功能 key，且值为 STAGE_NAMES 之一。"""
+def test_phase_of_reverse_map_covers_gated_nav_keys():
+    """_phase_of 反向映射覆盖除概览外全部 nav_key，且值为 NAV_STAGE 对应阶段。"""
     _app()
     sb = FlowSidebar()
-    assert set(sb._phase_of.keys()) == set(sb._buttons.keys())
+    gated = {k for _l, k in nav_config.NAV_ITEMS if k != "overview"}
+    assert set(sb._phase_of.keys()) == gated
+    # 概览不门禁
+    assert "overview" not in sb._phase_of
     for key, phase in sb._phase_of.items():
-        assert phase == nav_config.PHASE_GATES[key]
+        assert phase == nav_config.NAV_STAGE[key]
 
 
 def test_set_phase_accessible_false_disables_phase_buttons():
-    """set_phase_accessible(phase, False) 禁用该阶段全部按钮，其他阶段不受影响。"""
+    """set_phase_accessible(stage, False) 禁用该阶段全部 nav 按钮，其他阶段不受影响。"""
     _app()
     sb = FlowSidebar()
-    sb.set_phase_accessible("assets", False)
-    for key in nav_config.gated_funcs("assets"):
+    sb.set_phase_accessible("production", False)
+    for key in nav_config.nav_gated("production"):
         assert not sb._buttons[key].isEnabled()
     # 其他阶段保持可达
-    for key in nav_config.gated_funcs("storyboard"):
+    for key in nav_config.nav_gated("storyboard"):
         assert sb._buttons[key].isEnabled()
 
 
-def test_set_phase_accessible_true_reenables():
-    """再 set_phase_accessible(phase, True) 恢复可达。"""
+def test_production_gate_disables_both_nav_items():
+    """production 阶段含 video_gen + video_post 两个 nav 项，门禁应同时禁用。"""
     _app()
     sb = FlowSidebar()
-    sb.set_phase_accessible("assets", False)
-    sb.set_phase_accessible("assets", True)
-    for key in nav_config.gated_funcs("assets"):
+    sb.set_phase_accessible("production", False)
+    assert not sb._buttons["video_gen"].isEnabled()
+    assert not sb._buttons["video_post"].isEnabled()
+
+
+def test_set_phase_accessible_true_reenables():
+    """再 set_phase_accessible(stage, True) 恢复可达。"""
+    _app()
+    sb = FlowSidebar()
+    sb.set_phase_accessible("production", False)
+    sb.set_phase_accessible("production", True)
+    for key in nav_config.nav_gated("production"):
         assert sb._buttons[key].isEnabled()
 
 
@@ -61,13 +73,13 @@ def test_disabling_selected_button_transfers_selection():
     """禁用当前选中按钮前先把选中态转移到下一个可达按钮（互斥组红线）。"""
     _app()
     sb = FlowSidebar()
-    # 选中 assets 阶段的 split
-    sb.set_active("split")
-    assert sb._buttons["split"].isChecked()
+    # 选中 assets 阶段的 asset_library
+    sb.set_active("asset_library")
+    assert sb._buttons["asset_library"].isChecked()
     sb.set_phase_accessible("assets", False)
-    # split 被禁用且不再选中
-    assert not sb._buttons["split"].isEnabled()
-    assert not sb._buttons["split"].isChecked()
+    # asset_library 被禁用且不再选中
+    assert not sb._buttons["asset_library"].isEnabled()
+    assert not sb._buttons["asset_library"].isChecked()
     # 选中态已转移到一个可达（enabled）按钮
     checked = [k for k, b in sb._buttons.items() if b.isChecked()]
     assert len(checked) == 1
@@ -98,8 +110,8 @@ def test_does_not_break_set_active():
     """门禁扩展不破坏 set_active。"""
     _app()
     sb = FlowSidebar()
-    sb.set_active("trim")
-    assert sb._buttons["trim"].isChecked()
+    sb.set_active("storyboard")
+    assert sb._buttons["storyboard"].isChecked()
 
 
 def test_does_not_break_set_collapsed():
