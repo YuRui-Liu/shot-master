@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .config import AgentConfig
 
@@ -14,6 +15,18 @@ def create_app(cfg: AgentConfig | None = None) -> FastAPI:
     cfg = cfg or AgentConfig()
     app = FastAPI(title="screenwriter_agent", version="0.1.0")
     app.state.cfg = cfg
+
+    # CORS：放行本地来源，使 /ui 同源页（media_agent 18450，Origin: 127.0.0.1:*）
+    # 与 file:// 页（Origin: null）跨端口 fetch 本 agent 的 SSE，
+    # 不再依赖浏览器 --disable-web-security。镜像 media_agent.server。
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["null"],
+        allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     from .routes.health import router as health_router
     app.include_router(health_router)
