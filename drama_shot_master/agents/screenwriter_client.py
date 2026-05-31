@@ -8,6 +8,59 @@ from typing import Iterable, Iterator
 import httpx
 
 
+def assemble_gen_context(project_dir, stage: str = "render") -> tuple[str, str]:
+    """读 project.json → 组装 (genre_context, style_context) 注入文本。
+
+    架构决策 A（客户端组装解耦）：主软件侧读 manifest 的 params.genre /
+    style_bible.ref，经 load_genre / get_style 取模板实体，再用
+    core.gen_context.build_genre_context / build_style_context 装配成**纯文本**，
+    经 request 字段传给 screenwriter_agent（agent 不反向依赖主包）。
+
+    - genre：params.genre 可为 {"genre": id, "sub": [...]}（题材选择器写法）
+      或裸字符串 id；取主题材 id 走 load_genre。
+    - style：style_bible.ref = style_id，走 get_style。
+    - stage：角色 ref 用 'ref'（含指纹锁一致性），其余阶段用 'render'。
+    - 缺 genre / style 或加载失败 → 该项空串（降级，行为不变），不抛。
+    """
+    from pathlib import Path as _Path
+
+    from drama_shot_master.core import gen_context as _gc
+    from drama_shot_master.core import genre_templates as _genres
+    from drama_shot_master.core import style_bible as _styles
+    from drama_shot_master.core.compass.manifest import load_manifest
+
+    manifest = load_manifest(_Path(project_dir))
+
+    # ---- 题材 ----------------------------------------------------------
+    genre_context = ""
+    raw_genre = (manifest.params or {}).get("genre")
+    genre_id = ""
+    if isinstance(raw_genre, dict):
+        genre_id = str(raw_genre.get("genre") or "")
+    elif isinstance(raw_genre, str):
+        genre_id = raw_genre
+    if genre_id:
+        try:
+            genre_dict = _genres.load_genre(genre_id)
+            genre_context = _gc.build_genre_context(genre_dict)
+        except Exception:
+            genre_context = ""
+
+    # ---- 风格 ----------------------------------------------------------
+    style_context = ""
+    bible = manifest.style_bible or {}
+    ref = bible.get("ref") if isinstance(bible, dict) else None
+    if ref:
+        try:
+            style_dict = _styles.get_style(str(ref))
+            if style_dict:
+                style_context = _gc.build_style_context(style_dict, stage=stage)
+        except Exception:
+            style_context = ""
+
+    return genre_context, style_context
+
+
 def parse_sse_lines(lines: Iterable[str]) -> Iterator[dict]:
     """把 SSE 文本（按行）解析为 {event, data:dict} 序列。"""
     cur_event = ""
@@ -107,10 +160,26 @@ class ScreenwriterClient:
         return r.json()
 
     def stream_post(self, path: str, body: dict,
-                    params: dict | None = None) -> Iterator[dict]:
+                    params: dict | None = None,
+                    stage: str = "render") -> Iterator[dict]:
         """POST + SSE 流；yield {event,data} dict。
         params: 可选 query 参数（如 {"purge_downstream":"true"}）。
-        body 中如未带 creds，自动从 cfg 注入（按 path 推 stage）。"""
+        stage: 题材/风格注入阶段；角色 ref 出图传 'ref'（含风格指纹），其余 'render'。
+        body 中如未带 creds，自动从 cfg 注入（按 path 推 stage）。
+        body 中如未带 genre_context/style_context，且带 project_dir，则按
+        project.json 自动组装注入（题材模板 + 风格圣经，客户端组装解耦 A）。"""
+        # 注入题材/风格 context：单一可信源是 project.json（params.genre / style_bible.ref）
+        if ("genre_context" not in body or "style_context" not in body):
+            project_dir = body.get("project_dir")
+            if project_dir:
+                try:
+                    genre_ctx, style_ctx = assemble_gen_context(project_dir, stage=stage)
+                except Exception:
+                    genre_ctx, style_ctx = "", ""
+                if "genre_context" not in body:
+                    body["genre_context"] = genre_ctx
+                if "style_context" not in body:
+                    body["style_context"] = style_ctx
         # 注入凭据 + model：单一可信源是主软件 cfg，agent 端按 body.creds 用
         if "creds" not in body:
             resolved = self._resolve_creds_for_path(path)

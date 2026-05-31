@@ -9,6 +9,23 @@ def _app():
     return QApplication.instance() or QApplication([])
 
 
+def _make_project(w, dirname):
+    """造一个最小 project.json 并 load 进 UI（设 current_project_dir）。返回目录。"""
+    import json
+    import tempfile
+    from pathlib import Path
+    base = Path(tempfile.mkdtemp())
+    pdir = base / dirname
+    pdir.mkdir(parents=True)
+    (pdir / "project.json").write_text(
+        json.dumps({"project_id": dirname.split("_")[0],
+                    "project_name": dirname}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    w._load_project_into_ui(pdir)
+    return pdir
+
+
 def test_shell_constructs_and_registers_flat_nav_pages():
     """Wave2a：self.pages 为扁平 6 项；底层 8 页存 self._func_pages。"""
     _app()
@@ -356,6 +373,132 @@ def test_overview_stage_click_ignores_locked_page(tmp_path):
     # 点可达的 assets → 跳资源库
     w._on_overview_stage("assets")
     assert w.stack.currentWidget() is w.pages["asset_library"]
+
+
+def test_overview_genre_edit_wired(monkeypatch):
+    """概览 genreEditRequested → 弹 GenrePickerDialog（mock）→ 写 project.json.params.genre。"""
+    import json
+    _app()
+    w = AppShell()
+    pdir = _make_project(w, "P-050_genre")
+
+    # mock GenrePickerDialog：exec noop，result_value 返回固定题材
+    import drama_shot_master.ui.dialogs.genre_picker_dialog as gpd
+
+    class _FakeGenre:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return 1
+
+        def result_value(self):
+            return {"genre": "short_drama", "sub": ["mv"]}
+
+    monkeypatch.setattr(gpd, "GenrePickerDialog", _FakeGenre)
+    w.pages["overview"].genreEditRequested.emit()
+
+    data = json.loads((pdir / "project.json").read_text(encoding="utf-8"))
+    assert data["params"]["genre"] == "short_drama"
+    assert data["params"]["sub"] == ["mv"]
+
+
+def test_overview_style_bible_edit_wired(monkeypatch):
+    """概览 styleBibleEditRequested → 弹 StyleBibleDialog（mock）→ 写 style_bible。"""
+    import json
+    _app()
+    w = AppShell()
+    pdir = _make_project(w, "P-051_style")
+
+    import drama_shot_master.ui.dialogs.style_bible_dialog as sbd
+
+    class _FakeStyle:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return 1
+
+        def result_value(self):
+            return {"ref": "real/cinematic-warm-v1", "category": "real"}
+
+    monkeypatch.setattr(sbd, "StyleBibleDialog", _FakeStyle)
+    w.pages["overview"].styleBibleEditRequested.emit()
+
+    data = json.loads((pdir / "project.json").read_text(encoding="utf-8"))
+    assert data["style_bible"]["ref"] == "real/cinematic-warm-v1"
+
+
+def test_asset_generate_calls_ref_generator(monkeypatch):
+    """资源库 generateRequested(name) → _on_asset_generate 构造 RefImageGenerator 并调 generate_ref。"""
+    _app()
+    w = AppShell()
+    pdir = _make_project(w, "P-052_gen")
+
+    calls = {}
+
+    # patch RefImageGenerator（_make_ref_generator 内按模块属性 import）
+    import drama_shot_master.services.ref_generator as rg
+
+    def _fake_init(self, cfg, project_root, *, image_backend=None, **k):
+        calls["project_root"] = project_root
+        calls["has_backend"] = image_backend is not None
+
+    def _fake_generate_ref(self, kind, name, base_prompt, style_id, **k):
+        calls["kind"] = kind
+        calls["name"] = name
+        calls["style_id"] = style_id
+        return (True, "/tmp/x.png")
+
+    monkeypatch.setattr(rg.RefImageGenerator, "__init__", _fake_init)
+    monkeypatch.setattr(rg.RefImageGenerator, "generate_ref", _fake_generate_ref)
+
+    w.pages["asset_library"].generateRequested.emit("林晚")
+
+    assert calls.get("name") == "林晚"
+    assert calls.get("kind") == "characters"   # 默认首 tab
+    assert calls.get("has_backend") is True
+
+
+def test_new_project_writes_genre_and_style(monkeypatch, tmp_path):
+    """新建项目向导（mock 两弹窗）→ project.json 写入 genre + style_bible。"""
+    import json
+    _app()
+    w = AppShell()
+
+    import drama_shot_master.ui.dialogs.genre_picker_dialog as gpd
+    import drama_shot_master.ui.dialogs.style_bible_dialog as sbd
+
+    class _FakeGenre:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return 1
+
+        def result_value(self):
+            return {"genre": "short_drama", "sub": []}
+
+    class _FakeStyle:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return 1
+
+        def result_value(self):
+            return {"ref": "real/cinematic-warm-v1", "category": "real"}
+
+    monkeypatch.setattr(gpd, "GenrePickerDialog", _FakeGenre)
+    monkeypatch.setattr(sbd, "StyleBibleDialog", _FakeStyle)
+
+    pdir = tmp_path / "P-060_new"
+    pdir.mkdir(parents=True)
+    w._init_new_project(pdir)
+
+    data = json.loads((pdir / "project.json").read_text(encoding="utf-8"))
+    assert data["params"]["genre"] == "short_drama"
+    assert data["style_bible"]["ref"] == "real/cinematic-warm-v1"
 
 
 def test_command_bar_toggle_task_center():

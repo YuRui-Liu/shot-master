@@ -184,10 +184,12 @@ class OverviewPage(QWidget):
 
     对外信号：
       styleBibleEditRequested — 点 STYLE BIBLE 卡「编辑」。
+      genreEditRequested — 点题材 chip「编辑」。
       stageActivated(stage_key) — 点某阶段卡。
     """
 
     styleBibleEditRequested = Signal()
+    genreEditRequested = Signal()
     stageActivated = Signal(str)
 
     def __init__(self, parent: QWidget | None = None):
@@ -230,6 +232,22 @@ class OverviewPage(QWidget):
         self._bible_desc.setObjectName("BibleDesc")
         self._bible_desc.setWordWrap(True)
         text_col.addWidget(self._bible_desc)
+
+        # 题材行：小 chip（当前题材，从 manifest.params.genre）+ 编辑入口。
+        genre_row = QHBoxLayout()
+        genre_row.setSpacing(7)
+        genre_row.setContentsMargins(0, 2, 0, 0)
+        self._genre_chip = QLabel("题材 · 未设定")
+        self._genre_chip.setObjectName("GenreChip")
+        genre_row.addWidget(self._genre_chip, 0, Qt.AlignVCenter)
+        self._genre_edit_btn = QPushButton("编辑")
+        self._genre_edit_btn.setObjectName("GenreEditBtn")
+        self._genre_edit_btn.setCursor(Qt.PointingHandCursor)
+        self._genre_edit_btn.clicked.connect(self.genreEditRequested)
+        genre_row.addWidget(self._genre_edit_btn, 0, Qt.AlignVCenter)
+        genre_row.addStretch(1)
+        text_col.addLayout(genre_row)
+
         lay.addLayout(text_col, 1)
 
         self._edit_btn = QPushButton("编辑")
@@ -243,9 +261,15 @@ class OverviewPage(QWidget):
             "border-left:3px solid %s;border-radius:11px;}"
             "#BibleTitle{font-size:12px;font-weight:650;color:%s;}"
             "#BibleDesc{font-size:10px;color:%s;}"
+            "#GenreChip{font-size:10px;font-weight:600;color:%s;"
+            "border:1px solid %s;border-radius:9px;padding:2px 10px;"
+            "background:rgba(139,127,217,0.12);}"
+            "#GenreEditBtn{font-size:10px;color:%s;border:1px solid %s;"
+            "border-radius:7px;padding:3px 10px;background:rgba(139,127,217,0.06);}"
             "#BibleEditBtn{font-size:11px;color:%s;border:1px solid %s;"
             "border-radius:7px;padding:5px 12px;background:rgba(74,158,255,0.06);}"
-            % (_PANEL, _BORDER, _PERIW, _FG, _MUTED, _BLUE, _BLUE_DIM)
+            % (_PANEL, _BORDER, _PERIW, _FG, _MUTED,
+               _PERIW, _PERIW, _PERIW, _PERIW, _BLUE, _BLUE_DIM)
         )
         return card
 
@@ -294,6 +318,7 @@ class OverviewPage(QWidget):
         """
         self._manifest = manifest
         self._render_bible(manifest)
+        self._render_genre(manifest)
         self._render_next_action(manifest)
         self._render_stages(manifest)
 
@@ -302,6 +327,9 @@ class OverviewPage(QWidget):
 
     def style_bible_text(self) -> str:
         return self._bible_desc.text()
+
+    def genre_text(self) -> str:
+        return self._genre_chip.text()
 
     def next_action_text(self) -> str:
         return self._next_lbl.text()
@@ -328,6 +356,28 @@ class OverviewPage(QWidget):
             self._bible_desc.setText("%s（%s）：%s" % (name, ref, suffix))
         else:
             self._bible_desc.setText("%s（%s）" % (name, ref))
+
+    def _render_genre(self, manifest) -> None:
+        """题材 chip：优先 params.genre，回退顶层 manifest.genre；空→未设定。
+
+        值可能是题材 id（如 short_drama）→ 尝试用 genre_templates 取
+        display_name，失败则原样显示 id。全程 getattr/try 兜底不崩。
+        """
+        params = getattr(manifest, "params", None) or {}
+        genre = params.get("genre") if isinstance(params, dict) else None
+        if not genre:
+            genre = getattr(manifest, "genre", "") or ""
+        if not genre:
+            self._genre_chip.setText("题材 · 未设定")
+            return
+        label = genre
+        try:
+            from drama_shot_master.core.genre_templates import load_genre
+            data = load_genre(genre) or {}
+            label = data.get("display_name") or genre
+        except Exception:
+            label = genre
+        self._genre_chip.setText("题材 · %s" % label)
 
     def _render_next_action(self, manifest) -> None:
         pipeline = getattr(manifest, "pipeline", None) or {}

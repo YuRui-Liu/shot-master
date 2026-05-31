@@ -65,6 +65,37 @@ def test_style_bible_edit_emits_signal():
     assert got == [True]
 
 
+def test_genre_edit_emits_signal():
+    _app()
+    from drama_shot_master.ui.pages.overview_page import OverviewPage
+    page = OverviewPage()
+    page.set_manifest(_manifest())
+    got = []
+    page.genreEditRequested.connect(lambda: got.append(True))
+    page._genre_edit_btn.click()
+    assert got == [True]
+
+
+def test_genre_chip_shows_params_genre():
+    _app()
+    from drama_shot_master.ui.pages.overview_page import OverviewPage
+    from drama_shot_master.core.compass.manifest import ProjectManifest
+    page = OverviewPage()
+    m = ProjectManifest(project_name="演示")
+    m.params = {"genre": "短剧"}
+    page.set_manifest(m)
+    assert "短剧" in page.genre_text()
+
+
+def test_genre_chip_unset_shows_placeholder():
+    _app()
+    from drama_shot_master.ui.pages.overview_page import OverviewPage
+    from drama_shot_master.core.compass.manifest import ProjectManifest
+    page = OverviewPage()
+    page.set_manifest(ProjectManifest())
+    assert "未设定" in page.genre_text()
+
+
 # ── 5 阶段卡 state ─────────────────────────────────────────────────────────
 
 def test_stage_cards_count_is_five():
