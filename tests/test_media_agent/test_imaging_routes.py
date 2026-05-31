@@ -90,6 +90,56 @@ def test_batch_split_sse(tmp_path):
     assert "event: complete" in body
 
 
+def _img_with_vstrip(path: Path, w=120, h=60):
+    """蓝底 + 中间整列白带 → 1 条内部竖白带（cols=2, rows=1）。"""
+    img = Image.new("RGB", (w, h), (30, 60, 200))
+    for x in range(56, 64):
+        for y in range(h):
+            img.putpixel((x, y), (255, 255, 255))
+    img.save(path)
+
+
+def test_infer_grid(tmp_path):
+    src = tmp_path / "grid.png"
+    _img_with_vstrip(src)
+    r = client.post("/imaging/infer_grid", json={"src_path": str(src)})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["rows"] == 1 and body["cols"] == 2
+
+
+def test_detect_borders(tmp_path):
+    src = tmp_path / "b.png"
+    _img_with_vstrip(src)
+    r = client.post("/imaging/detect_borders", json={"src_path": str(src)})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body["margins"]) == {"top", "right", "bottom", "left"}
+    assert body["gap"] >= 0
+
+
+def test_cell_boxes(tmp_path):
+    src = tmp_path / "c.png"
+    _img_with_vstrip(src)
+    r = client.post("/imaging/cell_boxes", json={
+        "src_path": str(src), "n_rows": 1, "n_cols": 2})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert len(body["boxes"]) == 2 and body["mode"] in ("bands", "uniform")
+
+
+def test_crop_aspect(tmp_path):
+    src = tmp_path / "wide.png"
+    _make_img(src, 200, 100)
+    out = tmp_path / "sq.png"
+    r = client.post("/imaging/crop_aspect", json={
+        "src_path": str(src), "aspect": {"w": 1, "h": 1},
+        "out_path": str(out), "fmt": "PNG"})
+    assert r.status_code == 200, r.text
+    with Image.open(out) as im:
+        assert im.width == im.height and im.width <= 200
+
+
 def test_backend_imports_without_qt():
     """子进程断言：导入 media_agent.server 不拉起 PySide6（后端零 Qt）。"""
     code = "import media_agent.server, sys; assert 'PySide6' not in sys.modules; print('OK')"

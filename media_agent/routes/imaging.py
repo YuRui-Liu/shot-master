@@ -15,7 +15,10 @@ from PIL import Image
 
 from drama_shot_master.imaging.splitter import split_image
 from drama_shot_master.imaging.combiner import combine_images
-from drama_shot_master.imaging.aspect_ops import trim_white_edges
+from drama_shot_master.imaging.aspect_ops import trim_white_edges, center_crop_to_aspect
+from drama_shot_master.imaging.border_detector import (
+    infer_grid, detect_borders, find_cell_boxes,
+)
 from drama_shot_master.imaging.saver import save_image
 from drama_shot_master.imaging.specs import (
     GridSpec, CombineSpec, Margins, AspectRatio, ScaleMode,
@@ -130,6 +133,66 @@ def combine(req: CombineRequest):
     finally:
         for im in imgs:
             im.close()
+    p = Path(req.out_path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    save_image(out, p, req.fmt.upper())
+    return {"output": str(p)}
+
+
+# ── 自动检测（返回 JSON，供前端填表单，不存盘）──
+class DetectRequest(BaseModel):
+    src_path: str
+    white_threshold: int = 240
+    min_white_ratio: float = 0.95
+
+
+@router.post("/infer_grid")
+def infer_grid_route(req: DetectRequest):
+    with Image.open(req.src_path) as src:
+        rows, cols = infer_grid(src, white_threshold=req.white_threshold,
+                                min_white_ratio=req.min_white_ratio)
+    return {"rows": rows, "cols": cols}
+
+
+@router.post("/detect_borders")
+def detect_borders_route(req: DetectRequest):
+    with Image.open(req.src_path) as src:
+        m, gap = detect_borders(src, white_threshold=req.white_threshold,
+                                min_white_ratio=req.min_white_ratio)
+    return {"margins": {"top": m.top, "right": m.right,
+                        "bottom": m.bottom, "left": m.left}, "gap": gap}
+
+
+class CellBoxesRequest(BaseModel):
+    src_path: str
+    n_rows: int
+    n_cols: int
+    white_threshold: int = 240
+    min_ratio: float = 0.95
+
+
+@router.post("/cell_boxes")
+def cell_boxes_route(req: CellBoxesRequest):
+    with Image.open(req.src_path) as src:
+        boxes, mode = find_cell_boxes(
+            src, req.n_rows, req.n_cols,
+            white_threshold=req.white_threshold, min_ratio=req.min_ratio)
+    return {"boxes": [list(b) for b in boxes], "mode": mode}
+
+
+# ── aspect 居中裁剪（存盘）──
+class CropAspectRequest(BaseModel):
+    src_path: str
+    aspect: AspectModel
+    out_path: str
+    fmt: str = "PNG"
+
+
+@router.post("/crop_aspect")
+def crop_aspect_route(req: CropAspectRequest):
+    with Image.open(req.src_path) as src:
+        out = center_crop_to_aspect(src, _aspect(req.aspect))
+        out.load()
     p = Path(req.out_path)
     p.parent.mkdir(parents=True, exist_ok=True)
     save_image(out, p, req.fmt.upper())
