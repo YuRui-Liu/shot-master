@@ -26,6 +26,11 @@ hiddenimports = [
     "screenwriter_agent.__main__",
     "screenwriter_agent.server",
     "sound_track_agent",
+    # cv2 / scenedetect：compose-cv-v2 自动转场依赖，动态加载不被 PyInstaller 自动追踪
+    # Nuitka 版需同步添加：--include-package=cv2 --include-package=scenedetect
+    "cv2",
+    "scenedetect",
+    "platformdirs.windows",
 ]
 # uvicorn 大量动态导入（loop / protocol / lifespan 自动选择）→ 收全子模块
 hiddenimports += collect_submodules("uvicorn")
@@ -57,7 +62,7 @@ excludes = [
     "mcp", "anthropic",
     "langchain", "langchain_core", "langchain_openai",
     "transformers", "huggingface_hub", "diffusers", "accelerate",
-    "matplotlib", "pandas", "scipy", "sklearn", "skimage", "cv2",
+    "matplotlib", "pandas", "scipy", "sklearn", "skimage",
     "tensorflow", "keras", "jax", "flax", "xgboost", "lightgbm",
     "pytest", "_pytest", "sphinx", "docutils",
 ]

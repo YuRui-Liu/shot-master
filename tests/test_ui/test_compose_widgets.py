@@ -110,3 +110,52 @@ def test_trim_bar_no_emit_on_no_change():
     assert len(got) == 0
     bar.set_in(3.0)   # different value — should emit
     assert len(got) == 1
+
+
+def test_compose_panel_has_analyze_and_render(tmp_path):
+    _app()
+    from drama_shot_master.config import load_config
+    from drama_shot_master.ui.panels.compose_panel import ComposePanel
+    p = ComposePanel(load_config(), payload={"clips": [
+        {"clip_id": "a", "path": "/0.mp4", "duration": 8.0},
+        {"clip_id": "b", "path": "/1.mp4", "duration": 8.0},
+    ]})
+    assert hasattr(p, "analyzeRequested")
+    called = {}
+    def fake_analyze(comp, progress_cb=None, **kw):
+        comp.kept_clips()[0].auto_transition = "dissolve"
+        comp.kept_clips()[0].cv_scores = {"score": 0.8}
+        if progress_cb: progress_cb(1, 1)
+        called["ok"] = True
+    p._run_analyze(analyzer=fake_analyze)
+    assert called.get("ok")
+    assert p.model().kept_clips()[0].auto_transition == "dissolve"
+
+
+def test_inspector_shows_cv_scores():
+    _app()
+    from drama_shot_master.ui.widgets.compose.transition_inspector import TransitionInspector
+    insp = TransitionInspector()
+    insp.set_connector(index=0, effect="dissolve", duration=0.5, source="auto",
+                       locked=False, cv_scores={"hist": 0.78, "feature": 0.88,
+                                                "motion": 0.5, "score": 0.82})
+    assert insp.has_scores() is True
+    insp.set_connector(index=1, effect="fade", duration=0.5, source="user", locked=True)
+    assert insp.has_scores() is False
+
+
+def test_connector_state_reflects_ai_locked_manual():
+    _app()
+    from drama_shot_master.core.composition_model import ReelClip, CompositionModel
+    from drama_shot_master.ui.widgets.compose.clip_strip import ClipStrip
+    c0 = ReelClip.new(path="/0.mp4", duration=8)
+    c0.auto_transition = "dissolve"; c0.auto_duration = 0.5; c0.cv_scores = {"score": 0.82}
+    c1 = ReelClip.new(path="/1.mp4", duration=8)
+    c1.user_transition = "wipeleft"; c1.locked = True
+    c2 = ReelClip.new(path="/2.mp4", duration=8)
+    c3 = ReelClip.new(path="/3.mp4", duration=8)   # plain cut (no info)
+    m = CompositionModel(clips=[c0, c1, c2, c3])
+    s = ClipStrip(); s.set_model(m)
+    assert s.connector_state(0) == "ai"
+    assert s.connector_state(1) == "locked"
+    assert s.connector_state(2) == "plain"
