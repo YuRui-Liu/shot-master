@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · ③ 分镜板 · STORYBOARD</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ===== 页面骨架 ===== */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 22px 60px; }
+
+  /* ===== 顶部栏 ===== */
+  .topbar {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+  }
+  .topbar h1 {
+    margin: 0; font-size: 20px; letter-spacing: .5px;
+    background: linear-gradient(135deg, var(--blue), var(--mauve));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .topbar .spacer { flex: 1; }
+  .shot-select { min-width: 240px; }
+  /* 一键分镜：次级蓝紫描边按钮 */
+  .btn-split-auto {
+    background: var(--panel2); color: var(--fg);
+    border: 1px solid var(--border);
+  }
+  .btn-split-auto:hover { filter: brightness(1.15); }
+  /* 拆分镜：绿色主按钮（done 系） */
+  .btn-go {
+    background: linear-gradient(135deg, var(--done), #3bb37e);
+    color: #06251a;
+  }
+
+  /* ===== 拆解表面板 ===== */
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; }
+  .panel-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; cursor: pointer; user-select: none;
+  }
+  .panel-head .ttl { font-weight: 600; font-size: 13px; }
+  .panel-head .meta { color: var(--muted); font-size: 12px; }
+  .panel-head .toggle { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .panel-body { padding: 4px 16px 16px; border-top: 1px solid var(--border-lo); }
+  .panel.collapsed .panel-body { display: none; }
+
+  /* 实体分组 */
+  .ent-group { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; flex-wrap: wrap; }
+  .ent-group + .ent-group { border-top: 1px dashed var(--border-lo); }
+  .ent-label { color: var(--muted); font-size: 12px; min-width: 56px; padding-top: 5px; }
+  .ent-chips { display: flex; flex-wrap: wrap; gap: 7px; flex: 1; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 9px; border-radius: 13px;
+    background: var(--field); border: 1px solid var(--border);
+    font-size: 12px; color: var(--fg2); white-space: nowrap;
+  }
+  .chip .av {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--blue), var(--periw));
+    display: inline-block; flex: none;
+  }
+  .chip .link { color: var(--periw); font-size: 11px; opacity: .85; }
+  .chip.role { border-color: var(--blue-dim); }
+
+  /* ===== 节拍行 B1/B2/B3 ===== */
+  .beats { margin-bottom: 16px; }
+  .beat {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 3px solid var(--done);
+    border-radius: var(--radius-sm); padding: 11px 14px; margin-bottom: 8px;
+  }
+  .beat .bid { font-weight: 700; color: var(--done); font-size: 13px; min-width: 22px; }
+  .beat .tag {
+    padding: 2px 9px; border-radius: 9px; font-size: 11px; font-weight: 600;
+    border: 1px solid transparent; white-space: nowrap;
+  }
+  .tag.setup  { background: rgba(167,139,250,.16); color: var(--mauve); border-color: #4a3d6e; }   /* 铺垫 */
+  .tag.turn   { background: rgba(139,127,217,.16); color: var(--periw); border-color: #443c66; }   /* 转折 */
+  .tag.react  { background: rgba(74,158,255,.14);  color: var(--blue);  border-color: var(--blue-dim); } /* 反应 */
+  .beat .desc { flex: 1; color: var(--fg2); font-size: 13px; }
+  .beat .tension { color: var(--warn); font-size: 12px; white-space: nowrap; }
+
+  /* ===== 每镜详情 ===== */
+  .shot-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+  .shot-grid { display: flex; gap: 16px; padding: 16px; }
+  .shot-main { flex: 1; min-width: 0; }
+  .shot-side { width: 210px; flex: none; }
+
+  /* 镜头头行 */
+  .shot-meta {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border-lo); margin-bottom: 12px;
+  }
+  .shot-meta .no {
+    width: 30px; height: 30px; border-radius: 7px; flex: none;
+    display: flex; align-items: center; justify-content: center; font-weight: 700;
+    background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a;
+  }
+  .field { display: flex; flex-direction: column; gap: 3px; }
+  .field label { font-size: 10px; color: var(--muted); letter-spacing: .3px; }
+  .field select, .field input { padding: 5px 8px; font-size: 12px; min-width: 92px; }
+  .shot-meta .status { margin-left: auto; display: flex; align-items: center; font-size: 12px; color: var(--muted); }
+
+  /* 子区块 */
+  .sub { margin-bottom: 13px; }
+  .sub-label {
+    font-size: 11px; letter-spacing: .4px; color: var(--periw);
+    font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
+  }
+  .sub-label .hint { color: var(--muted); font-weight: 400; letter-spacing: 0; }
+  .anchor-box {
+    background: var(--field); border: 1px solid var(--border-lo);
+    border-radius: var(--radius-sm); padding: 9px 12px;
+    font-size: 12px; color: var(--fg2); line-height: 1.6;
+  }
+  .ref-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ref-row select { min-width: 200px; flex: 1; }
+
+  .prompt-ta {
+    width: 100%; min-height: 130px; resize: vertical;
+    background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--fg); font: inherit; font-size: 13px; line-height: 1.6; padding: 11px 13px; outline: none;
+  }
+  .prompt-ta:focus { border-color: var(--mauve); }
+
+  .btn-row { display: flex; gap: 9px; margin-top: 11px; flex-wrap: wrap; }
+  .btn-sm { padding: 7px 14px; font-size: 13px; }
+  .btn-genimg { background: linear-gradient(135deg, var(--done), #3bb37e); color: #06251a; }
+
+  /* 电影级细节 */
+  .cine { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-lo); }
+  .cine-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
+  .cine-line { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .cine-line label { font-size: 11px; color: var(--muted); min-width: 30px; }
+  .cine-line input { flex: 1; font-size: 12px; }
+
+  /* HD 主路径提示 */
+  .hd-note {
+    display: flex; align-items: flex-start; gap: 9px;
+    background: rgba(74,158,255,.08); border: 1px solid var(--blue-dim);
+    border-radius: var(--radius-sm); padding: 9px 12px; margin-bottom: 12px;
+    font-size: 12px; color: var(--fg2);
+  }
+  .hd-note b { color: var(--blue); }
+  .hd-note .ic { color: var(--blue); }
+
+  /* 右栏分镜图预览 9:16 */
+  .side-label { font-size: 12px; font-weight: 600; color: var(--fg2); margin-bottom: 9px; }
+  .preview {
+    width: 100%; aspect-ratio: 9 / 16; border-radius: var(--radius-sm);
+    border: 1px solid var(--done); background:
+      repeating-linear-gradient(45deg, #181a2b 0 10px, #1c1e30 10px 20px);
+    display: flex; align-items: flex-start; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .preview .badge-hd {
+    position: absolute; top: 8px; left: 8px;
+    padding: 2px 9px; border-radius: 9px; font-size: 11px; font-weight: 600;
+    background: rgba(78,201,143,.18); color: var(--done); border: 1px solid #2f6b50;
+  }
+  .preview .ph {
+    margin-top: 46%; color: var(--faint); font-size: 12px; text-align: center; line-height: 1.7;
+  }
+  .side-meta { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== 顶部栏 ===== -->
+  <div class="topbar">
+    <h1>③ 分镜板 · STORYBOARD</h1>
+    <div class="spacer"></div>
+    <select class="shot-select" id="shotSel">
+      <option>1-1 城郊废品回收站</option>
+      <option>1-2 油桶后的对峙</option>
+      <option>2-1 雨夜追逐</option>
+    </select>
+    <button class="btn-split-auto" id="autoBtn">⚡ 一键分镜 ▾</button>
+    <button class="btn-go" id="splitBtn">拆分镜</button>
+  </div>
+
+  <!-- ===== 拆解表面板（可收起） ===== -->
+  <div class="panel" id="breakdown">
+    <div class="panel-head" id="bdHead">
+      <span class="ttl">拆解表 · 节拍</span>
+      <span class="meta">（18 元素 · 3 拍）</span>
+      <span class="toggle" id="bdToggle">收起 ▲</span>
+    </div>
+    <div class="panel-body">
+      <div class="ent-group">
+        <div class="ent-label">角色</div>
+        <div class="ent-chips">
+          <span class="chip role"><span class="av"></span>秦烈 <span class="link">🔗</span></span>
+          <span class="chip role"><span class="av"></span>刀疤 <span class="link">🔗</span></span>
+          <span class="chip">混混甲乙丙丁等7人</span>
+        </div>
+      </div>
+      <div class="ent-group">
+        <div class="ent-label">群演</div>
+        <div class="ent-chips">
+          <span class="chip">背景混混（2人）</span>
+        </div>
+      </div>
+      <div class="ent-group">
+        <div class="ent-label">道具</div>
+        <div class="ent-chips">
+          <span class="chip">拆迁协议 <span class="link">🔗</span></span>
+          <span class="chip">油桶</span>
+          <span class="chip">钢管 <span class="link">🔗</span></span>
+          <span class="chip">手电筒</span>
+          <span class="chip">废铁捆</span>
+        </div>
+      </div>
+      <div class="ent-group">
+        <div class="ent-label">布景陈设</div>
+        <div class="ent-chips">
+          <span class="chip">城郊废品回收站</span>
+          <span class="chip">积水地面</span>
+        </div>
+      </div>
+      <div class="ent-group">
+        <div class="ent-label">服装</div>
+        <div class="ent-chips">
+          <span class="chip">秦烈工装</span>
+          <span class="chip">刀疤皮夹克</span>
+        </div>
+      </div>
+      <div class="ent-group">
+        <div class="ent-label">发型</div>
+        <div class="ent-chips">
+          <span class="chip">刀疤右脸疤痕</span>
+        </div>
+      </div>
+      <div class="ent-group">
+        <div class="ent-label">现场特效</div>
+        <div class="ent-chips">
+          <span class="chip">暴雨声</span>
+          <span class="chip">关节咔咔响</span>
+        </div>
+      </div>
+      <div class="ent-group">
+        <div class="ent-label">声音</div>
+        <div class="ent-chips">
+          <span class="chip">探照灯光柱嗡鸣</span>
+        </div>
+      </div>
+      <div class="ent-group">
+        <div class="ent-label">特殊设备</div>
+        <div class="ent-chips">
+          <span class="chip">探照灯</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 节拍行 B1/B2/B3 ===== -->
+  <div class="beats">
+    <div class="beat">
+      <span class="bid">B1</span>
+      <span class="tag setup">铺垫</span>
+      <span class="desc">刀疤以三万报价施压，秦烈拒签并强调父辈守地之志，表面顺从实则暗蓄力量</span>
+      <span class="tension">压迫 → 隐忍抵抗</span>
+    </div>
+    <div class="beat">
+      <span class="bid">B2</span>
+      <span class="tag turn">转折</span>
+      <span class="desc">刀疤倒数施压，秦烈突转语气点破"不该挑下雨天"，起身展露战斗姿态，关节爆响震慑众人</span>
+      <span class="tension">被动挨打 → 主动挑衅</span>
+    </div>
+    <div class="beat">
+      <span class="bid">B3</span>
+      <span class="tag react">反应</span>
+      <span class="desc">刀疤轻蔑下令进攻，舔唇动作暴露轻敌，混混群起围攻——冲突爆发临界点</span>
+      <span class="tension">语言对峙 → 物理对抗开启</span>
+    </div>
+  </div>
+
+  <!-- ===== 每镜详情 ===== -->
+  <div class="shot-card">
+    <div class="shot-grid">
+
+      <!-- 主区 -->
+      <div class="shot-main">
+        <!-- 头行 -->
+        <div class="shot-meta">
+          <div class="no">1</div>
+          <div class="field">
+            <label>景别</label>
+            <select><option>全景</option><option>中景</option><option>近景</option><option>特写</option></select>
+          </div>
+          <div class="field">
+            <label>机位</label>
+            <select><option>俯拍</option><option>平拍</option><option>仰拍</option></select>
+          </div>
+          <div class="field">
+            <label>运镜</label>
+            <select><option>固定 Fixed</option><option>推 Push</option><option>摇 Pan</option><option>跟 Track</option></select>
+          </div>
+          <div class="field">
+            <label>时长</label>
+            <input type="text" value="4s" style="min-width:54px;">
+          </div>
+          <div class="status"><span class="dot ok"></span>已生成</div>
+        </div>
+
+        <!-- HD 主路径提示 -->
+        <div class="hd-note">
+          <span class="ic">★</span>
+          <div><b>单图 HD 生成为主路径</b> —— 短剧视频依赖高清分镜图，先把本镜静帧拉到 HD 质量，再驱动后续视频生成。</div>
+        </div>
+
+        <!-- 空间锚点 -->
+        <div class="sub">
+          <div class="sub-label">空间锚点 <span class="hint">B1</span></div>
+          <div class="anchor-box">
+            锈死龙门吊横贯画面中轴线，左侧库存车壳堆叠如倾斜墓碑群｜地面积水泛蓝浊光，倒映七束手电光斑驻站｜探照灯斜切光柱穿透雨幕，在地面投下动态光斑。混混群呈半包围弧形站立，秦烈踞于中央油桶旁，背对镜头。
+          </div>
+        </div>
+
+        <!-- 引用资源 -->
+        <div class="sub">
+          <div class="sub-label">引用资源 <span class="hint">（一致性来源）</span></div>
+          <div class="ref-row">
+            <span class="chip role"><span class="av"></span>秦烈 <span class="link">✕</span></span>
+            <span class="chip role"><span class="av"></span>刀疤 <span class="link">✕</span></span>
+            <select><option>＋ 添加引用资源…</option><option>混混甲</option><option>钢管</option><option>探照灯</option></select>
+          </div>
+        </div>
+
+        <!-- 本镜涉及 -->
+        <div class="sub">
+          <div class="sub-label">本镜涉及 <span class="hint">（点击引用）</span></div>
+          <div class="ref-row">
+            <span class="chip">拆迁协议 <span class="link">＋</span></span>
+            <span class="chip">钢管 <span class="link">＋</span></span>
+            <span class="chip">黑伞 <span class="link">＋</span></span>
+            <span class="chip">城郊废品回收站 <span class="link">＋</span></span>
+            <span class="chip">暴雨夜 <span class="link">＋</span></span>
+          </div>
+        </div>
+
+        <!-- 提示词 -->
+        <div class="sub">
+          <div class="sub-label">分镜文生图提示词</div>
+          <textarea class="prompt-ta" id="prompt">暴雨夜。城郊废品回收站俯拍全景：24mm 广角镜头静止俯视，锈死龙门吊横贯画面中轴线，左侧堆叠库存车壳如倾斜墓碑群；地面浑浊积水没过脚踝，泛着黄褐反光，倒映七束晃动的手电光斑，光斑随雨滴震颤微移；斜切探照灯光柱穿透暗雨幕，在泥水表面投下流动的银灰光斑。雨丝如垂直钢线坠落；七名混混持钢管呈半包围弧形站立，衣衫湿透紧贴躯干，姿态戒备而散漫；秦烈背对镜头踞于中央油桶旁，军绿背心湿透紧贴脊背，关节蓄势待发的张力。电影级质感，HD 高清画质。</textarea>
+          <div class="btn-row">
+            <button class="ghost btn-sm" id="genPromptBtn">＋ 生成提示词</button>
+            <button class="ghost btn-sm" id="saveBtn">保存</button>
+            <button class="btn-genimg btn-sm" id="genImgBtn">⚡ 生成分镜图</button>
+          </div>
+        </div>
+
+        <!-- 电影级细节 -->
+        <div class="cine">
+          <div class="sub-label">镜头细节 <span class="hint">（电影级）</span></div>
+          <div class="cine-grid">
+            <div class="field">
+              <label>焦距</label>
+              <select><option>24mm 广角</option><option>35mm</option><option>50mm 标准</option><option>85mm 人像</option></select>
+            </div>
+            <div class="field">
+              <label>轴线</label>
+              <select><option>N</option><option>L → R</option><option>R → L</option></select>
+            </div>
+            <div class="field">
+              <label>同期声</label>
+              <select><option>同期声</option><option>静音</option><option>后期配音</option></select>
+            </div>
+          </div>
+          <div class="cine-line">
+            <label>主体</label>
+            <input type="text" value="废品回收站全景：成山废铁、锈死龙门吊、积水地面倒映晃动手电光">
+          </div>
+          <div class="cine-line">
+            <label>朝向</label>
+            <input type="text" value="无主体运动">
+          </div>
+        </div>
+      </div>
+
+      <!-- 右栏：分镜图预览 -->
+      <div class="shot-side">
+        <div class="side-label">分镜图（1）</div>
+        <div class="preview">
+          <span class="badge-hd">HD</span>
+          <div class="ph">9 : 16 竖屏<br>分镜图预览<br><span class="faint">（占位）</span></div>
+        </div>
+        <div class="side-meta">
+          画幅 9:16 · 短剧竖屏<br>
+          单图 HD · 视频基底帧
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ===== 静态 mockup：按钮均为占位 stub，不接真实后端 =====
+  const $ = (id) => document.getElementById(id);
+
+  // 拆解表收起/展开
+  $("bdHead").addEventListener("click", () => {
+    const p = $("breakdown");
+    const collapsed = p.classList.toggle("collapsed");
+    $("bdToggle").textContent = collapsed ? "展开 ▼" : "收起 ▲";
+  });
+
+  // 占位交互（仅提示，不调后端）
+  function stub(name) { return () => alert(name + "：静态 mockup，未接后端。"); }
+  $("autoBtn").addEventListener("click", stub("一键分镜"));
+  $("splitBtn").addEventListener("click", stub("拆分镜"));
+  $("genPromptBtn").addEventListener("click", stub("生成提示词"));
+  $("saveBtn").addEventListener("click", stub("保存"));
+  $("genImgBtn").addEventListener("click", stub("生成分镜图（单图 HD）"));
+</script>
+</body>
+</html>

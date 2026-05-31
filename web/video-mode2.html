@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · ④ 视频碎片 · CLIPS</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ===== 应用外壳：左侧导航 + 右侧工作区（复刻参考图） ===== */
+  body { overflow: hidden; }
+  .app { display: flex; height: 100vh; }
+
+  /* 顶部自定义标题栏 */
+  .titlebar {
+    position: fixed; top: 0; left: 0; right: 0; height: 48px; z-index: 30;
+    display: flex; align-items: center; gap: 14px; padding: 0 16px;
+    background: var(--navy); border-bottom: 1px solid var(--border-lo);
+  }
+  .titlebar .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; }
+  .titlebar .brand .logo {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--blue), var(--periw));
+  }
+  .titlebar .crumb { color: var(--muted); font-size: 13px; }
+  .titlebar .crumb b { color: var(--fg); }
+  .titlebar .right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  .titlebar .task { display: flex; align-items: center; gap: 7px; color: var(--fg2); font-size: 12px; }
+  .titlebar .winctl { display: flex; gap: 6px; color: var(--muted); }
+  .titlebar .winctl span { width: 26px; text-align: center; cursor: default; }
+
+  /* 左侧导航 */
+  .side {
+    width: 180px; flex-shrink: 0; background: var(--navy);
+    border-right: 1px solid var(--border-lo);
+    padding-top: 60px; display: flex; flex-direction: column;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 11px 18px;
+    color: var(--fg2); font-size: 13.5px; cursor: pointer; border-left: 3px solid transparent;
+  }
+  .nav-item:hover { background: rgba(255,255,255,.03); }
+  .nav-item.active {
+    color: var(--done); border-left-color: var(--done);
+    background: rgba(78,201,143,.08); font-weight: 600;
+  }
+  .nav-item .ic { width: 16px; opacity: .8; }
+  .nav-spacer { flex: 1; }
+  .nav-item.bottom { color: var(--muted); }
+
+  /* 工作区 */
+  .work { flex: 1; overflow-y: auto; padding: 60px 28px 40px; }
+  .work-head {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 18px; max-width: 1180px;
+  }
+  .work-head h1 { margin: 0; font-size: 22px; }
+  .shot-select { margin-left: auto; min-width: 230px; }
+
+  /* 工作模式切换 */
+  .modebar {
+    max-width: 1180px; display: flex; align-items: center; gap: 12px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 14px; margin-bottom: 16px;
+  }
+  .modebar .lbl { color: var(--muted); font-size: 12.5px; }
+  .seg { display: flex; background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
+  .seg button {
+    background: transparent; color: var(--fg2); padding: 7px 16px;
+    border-radius: 5px; font-weight: 500;
+  }
+  .seg button.on {
+    background: linear-gradient(135deg, var(--blue), var(--periw));
+    color: #06122a; font-weight: 600;
+  }
+  .seg button:hover:not(.on) { filter: none; background: rgba(255,255,255,.04); }
+  .align-note {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    color: var(--mauve); font-size: 12.5px;
+  }
+  .align-note .badge { background: rgba(78,201,143,.16); color: var(--done); border-color: #2f6b4f; }
+
+  /* SHOT 卡列表 */
+  .shots { max-width: 1180px; display: flex; flex-direction: column; gap: 16px; }
+  .shot {
+    display: flex; gap: 18px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;
+  }
+  /* 左：分镜图竖图缩略 */
+  .thumb {
+    position: relative; width: 168px; flex-shrink: 0;
+    aspect-ratio: 9 / 16; border-radius: var(--radius-sm); overflow: hidden;
+    background: linear-gradient(160deg, #20243a, #14172a);
+    border: 1px solid var(--border-lo); display: flex; align-items: center; justify-content: center;
+  }
+  .thumb .ph { color: var(--faint); font-size: 12px; text-align: center; padding: 0 10px; }
+  .thumb .tag {
+    position: absolute; left: 8px; bottom: 8px;
+    font-size: 11px; letter-spacing: 1px; font-weight: 700; color: var(--fg);
+    background: rgba(0,0,0,.55); padding: 3px 8px; border-radius: 5px;
+  }
+  .thumb .ord {
+    position: absolute; right: 8px; top: 8px; font-size: 10px; color: var(--mauve);
+    background: rgba(138,127,217,.18); border: 1px solid #4a3d6e; padding: 2px 7px; border-radius: 9px;
+  }
+
+  /* 右：编辑区 */
+  .body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .meta { color: var(--fg2); font-size: 13px; margin-bottom: 8px; }
+  .meta .sep { color: var(--faint); margin: 0 6px; }
+  .meta .dur { color: var(--blue); font-weight: 600; }
+  .prompt-label { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .prompt-label .name { font-size: 12.5px; color: var(--periw); font-weight: 600; }
+  .prompt-label .ltx-pill {
+    font-size: 10.5px; background: rgba(74,158,255,.14); color: var(--blue);
+    border: 1px solid var(--blue-dim); padding: 1px 8px; border-radius: 9px;
+  }
+  textarea {
+    width: 100%; min-height: 118px; resize: vertical; font: inherit; line-height: 1.6;
+    background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--fg); padding: 11px 13px; outline: none;
+  }
+  textarea:focus { border-color: var(--mauve); }
+  textarea::placeholder { color: var(--faint); }
+
+  /* 范例 chip 行 */
+  .examples { display: flex; align-items: center; gap: 8px; margin: 11px 0; flex-wrap: wrap; }
+  .examples .lab { color: var(--muted); font-size: 12.5px; margin-right: 2px; }
+  .chip {
+    background: var(--panel2); color: var(--fg2); border: 1px solid var(--border);
+    border-radius: 14px; padding: 5px 13px; font-size: 12.5px; cursor: pointer;
+    transition: all .14s;
+  }
+  .chip:hover { border-color: var(--mauve); color: var(--fg); background: var(--panel); filter: none; }
+  .chip.active { background: rgba(138,127,217,.18); border-color: var(--mauve); color: var(--mauve); font-weight: 600; }
+  .chip-hint { color: var(--faint); font-size: 11.5px; margin-left: 4px; }
+
+  /* 操作按钮 */
+  .actions { display: flex; gap: 10px; margin-top: 4px; }
+  .btn-gen { /* ✦生成提示词：渐变主色（tokens 默认） */ }
+  .btn-save { background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); }
+  .btn-save:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
+  .btn-i2v {
+    background: linear-gradient(135deg, var(--done), #3aa978); color: #06231a; font-weight: 700;
+  }
+  .actions .grow { flex: 1; }
+</style>
+</head>
+<body>
+<!-- 标题栏 -->
+<div class="titlebar">
+  <div class="brand"><div class="logo"></div> 土豆AI短剧</div>
+  <div class="crumb">项目 / <b>测试剧本_废铁场之夜</b></div>
+  <div class="right">
+    <div class="task"><span class="dot ok"></span>任务中心</div>
+    <div class="winctl"><span>—</span><span>▢</span><span>✕</span></div>
+  </div>
+</div>
+
+<div class="app">
+  <!-- 左侧导航 -->
+  <nav class="side">
+    <div class="nav-item"><span class="ic">▦</span> 概览</div>
+    <div class="nav-item"><span class="ic">✎</span> 剧本</div>
+    <div class="nav-item"><span class="ic">◈</span> 资源库</div>
+    <div class="nav-item"><span class="ic">▤</span> 分镜板</div>
+    <div class="nav-item active"><span class="ic">▶</span> 视频碎片</div>
+    <div class="nav-item"><span class="ic">▢</span> 资源中心</div>
+    <div class="nav-spacer"></div>
+    <div class="nav-item bottom"><span class="ic">⚙</span> 全局设置</div>
+  </nav>
+
+  <!-- 工作区 -->
+  <main class="work">
+    <div class="work-head">
+      <h1>④ 视频碎片 · CLIPS</h1>
+      <select class="shot-select">
+        <option>1-1 城郊废品回收站</option>
+        <option>1-2 审讯室对峙</option>
+        <option>2-1 雨夜天台</option>
+      </select>
+    </div>
+
+    <!-- 工作模式切换 -->
+    <div class="modebar">
+      <span class="lbl">工作模式</span>
+      <div class="seg">
+        <button id="m1">模式1 · 高自由度·导演台</button>
+        <button id="m2" class="on">模式2 · 剧集分镜对齐</button>
+      </div>
+      <div class="align-note">
+        <span class="badge" id="alignCount">已按分镜顺序自动对齐 3 个镜头</span>
+        分镜图 ↔ 分镜 自动对齐
+      </div>
+    </div>
+
+    <!-- SHOT 卡列表（由 JS 渲染） -->
+    <div class="shots" id="shots"></div>
+  </main>
+</div>
+
+<script>
+/* ===== LTX 2.3 提示词模板（取自《生成模型提示词工程指南》一、LTX Video 2.3） =====
+   三个范例对应 LTX 不同的提示词「模式」与要点，chip 点击填入对应 textarea。 */
+const LTX_TEMPLATES = [
+  {
+    id: "lt-i2v-dialog",
+    name: "范例1",
+    title: "短剧·对白特写（中文 I2V / 分镜图为首帧）",
+    // 要点：I2V 不复述静态元素 · 现在时动作链 · 固定镜头拆句 · 微动作防 mannequin · 对白拆短语夹表演指令 · 必写音频
+    text:
+`画面：中近景，昏暗审讯室冷白顶光与桌面台灯暖光交错，水泥墙面湿冷反光；中年男子（西装领口松开、额角渗汗）缓缓抬眼直视镜头，mouth moves naturally as the character speaks，手指在桌沿无意识敲击 throughout，背景吊扇持续转动、灰尘在光柱里 drifting continuously。人脸含 natural blinks 与 subtle eyebrow raises 防冻结。
+运镜：固定（Camera holds locked still; subjects within frame continue motion），仅极慢 push-in，覆盖全片 4 秒。
+音效：低频空调嗡鸣，金属椅偶尔吱呀，男声压抑沙哑：「你以为……我会认？」[停顿、眼神下移]「……你想多了。」`
+  },
+  {
+    id: "lt-emotion-en",
+    name: "范例2",
+    title: "短剧·情绪反转特写（英文 / 单段流式现在时）",
+    // 要点：单段流式现在时 · 电影术语 · 微动作(blinks/eyebrow) · 背景元素全给动词+throughout · slow dolly-in · 对白拆短语夹表演指令
+    text:
+`Scene: medium close-up, a young woman in a worn beige coat sits by a rain-streaked window at dusk, cold blue exterior light mixing with a warm lamp, condensation beading on glass; she lowers her eyes then slowly looks up, subtle eyebrow raises on key words, natural blinks between phrases, raindrops keep sliding down the glass throughout. Camera: slow dolly-in over the full clip. Audio: soft rain hiss, distant traffic, her voice trembling and low: "I waited" [pause, voice cracks] "every single night." Nothing in this frame is still.`
+  },
+  {
+    id: "lt-mv-a2v",
+    name: "范例3",
+    title: "MV·节拍同步性能镜（英文 A2V / 画面锚定音轨）",
+    // 要点：A2V 画面诠释音频 · 大全景才用动态运镜(handheld/orbit) · 口型 synced to phrase · 背景持续运动+兜底句 · 必写音频(节拍/人声)
+    text:
+`Scene: low-angle wide shot of a singer on a fog-filled stage, magenta and cyan stage lights sweeping continuously, lens flares flickering, haze drifting throughout; the singer steps forward into a spotlight, head nodding on downbeats, shoulder lift on every snare hit, mouth moves naturally synced to each phrase, crowd silhouettes keep swaying in the foreground. Camera: handheld tracking, slow orbit. Audio: driving synth-pop track, crowd cheers swelling between phrases, powerful resonant female vocal. Nothing in this frame is still.`
+  }
+];
+
+/* 三个镜头的元数据 + 缩略说明（stub 数据，体现「分镜图↔分镜」自动对齐） */
+const SHOTS = [
+  { n: 1, meta: ["全景", "俯拍", "固定", "4s"], desc: "雨夜废品场全景\n人群打伞站立" },
+  { n: 2, meta: ["中景", "平视", "缓慢推", "3s"], desc: "男主蹲于废铁堆\n翻看地图" },
+  { n: 3, meta: ["近景", "过肩（秦烈肩后）", "固定", "2s"], desc: "面部特写\n眼神警觉" }
+];
+
+const PLACEHOLDER = "点「生成提示词」由 AI 看图生成图生视频提示词，或先选下方「范例」模板填入再编辑…";
+
+function renderShots() {
+  const root = document.getElementById("shots");
+  root.innerHTML = "";
+  SHOTS.forEach((s) => {
+    const card = document.createElement("div");
+    card.className = "shot";
+    const meta = s.meta
+      .map((m, i) => i === s.meta.length - 1
+        ? `<span class="dur">${m}</span>`
+        : `<span>${m}</span>`)
+      .join('<span class="sep">·</span>');
+
+    card.innerHTML = `
+      <div class="thumb">
+        <div class="ph">${s.desc.replace(/\n/g, "<br>")}</div>
+        <div class="ord">第 ${s.n} 个 · 自动对齐</div>
+        <div class="tag">SHOT ${s.n}</div>
+      </div>
+      <div class="body">
+        <div class="meta">${meta}</div>
+        <div class="prompt-label">
+          <span class="name">LTX 2.3 视频提示词</span>
+          <span class="ltx-pill">单段流式 · 现在时 · 长度∝时长</span>
+        </div>
+        <textarea data-shot="${s.n}" placeholder="${PLACEHOLDER}"></textarea>
+        <div class="examples" data-shot="${s.n}">
+          <span class="lab">范例：</span>
+          ${LTX_TEMPLATES.map(t =>
+            `<span class="chip" data-tpl="${t.id}" title="${t.title}">${t.name}</span>`
+          ).join("")}
+          <span class="chip-hint">点击填入对应 LTX 2.3 模板</span>
+        </div>
+        <div class="actions">
+          <button class="btn-gen" data-act="gen" data-shot="${s.n}">✦ 生成提示词</button>
+          <button class="btn-save" data-act="save" data-shot="${s.n}">保存</button>
+          <span class="grow"></span>
+          <button class="btn-i2v" data-act="i2v" data-shot="${s.n}">► 图生视频</button>
+        </div>
+      </div>`;
+    root.appendChild(card);
+  });
+}
+
+/* chip 点击：把对应 LTX 模板示例文本填入本卡 textarea，并高亮当前 chip */
+function wireExamples() {
+  document.querySelectorAll(".examples").forEach((row) => {
+    const shotN = row.getAttribute("data-shot");
+    const ta = document.querySelector(`textarea[data-shot="${shotN}"]`);
+    row.querySelectorAll(".chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const tpl = LTX_TEMPLATES.find(t => t.id === chip.getAttribute("data-tpl"));
+        if (!tpl) return;
+        ta.value = tpl.text;
+        row.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+      });
+    });
+  });
+}
+
+/* 按钮 stub：仅占位提示，不接后端 */
+function wireActions() {
+  document.querySelectorAll("button[data-act]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const act = btn.getAttribute("data-act");
+      const n = btn.getAttribute("data-shot");
+      const ta = document.querySelector(`textarea[data-shot="${n}"]`);
+      if (act === "gen") {
+        ta.value = "（stub）AI 正看 SHOT " + n + " 分镜图生成 LTX 2.3 图生视频提示词…\n实际接 screenwriter_agent POST /video_prompt (template_id='ltx', SSE)。";
+      } else if (act === "save") {
+        btn.textContent = "已保存 ✓";
+        setTimeout(() => (btn.textContent = "保存"), 1200);
+      } else if (act === "i2v") {
+        btn.textContent = "► 已入队";
+        setTimeout(() => (btn.textContent = "► 图生视频"), 1400);
+      }
+    });
+  });
+}
+
+/* 工作模式切换（本页默认模式2 高亮；点模式1 仅切高亮，stub） */
+function wireModes() {
+  const m1 = document.getElementById("m1");
+  const m2 = document.getElementById("m2");
+  m1.addEventListener("click", () => { m1.classList.add("on"); m2.classList.remove("on"); });
+  m2.addEventListener("click", () => { m2.classList.add("on"); m1.classList.remove("on"); });
+}
+
+renderShots();
+wireExamples();
+wireActions();
+wireModes();
+document.getElementById("alignCount").textContent =
+  `已按分镜顺序自动对齐 ${SHOTS.length} 个镜头`;
+</script>
+</body>
+</html>

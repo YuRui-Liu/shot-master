@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · 创作技能库</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ── 布局骨架 ─────────────────────────────────── */
+  .app { max-width: 1280px; margin: 0 auto; padding: 22px 22px 60px; }
+  .head { display: flex; align-items: center; gap: 13px; margin-bottom: 18px; }
+  .head .logo { width: 36px; height: 36px; border-radius: 10px; flex: 0 0 auto;
+    background: linear-gradient(135deg, var(--blue), var(--periw)); }
+  .head .stat { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+  /* 工具条：搜索 + 分类筛选 */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+  .search { flex: 1 1 280px; min-width: 220px; position: relative; }
+  .search input { width: 100%; padding-left: 32px; }
+  .search::before { content: "⌕"; position: absolute; left: 11px; top: 50%;
+    transform: translateY(-50%); color: var(--faint); font-size: 15px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip { font: inherit; font-size: 12.5px; padding: 6px 13px; border-radius: 20px;
+    background: var(--field); color: var(--fg2); border: 1px solid var(--border);
+    cursor: pointer; transition: .15s; }
+  .chip:hover { border-color: var(--blue-dim); color: var(--fg); }
+  .chip.on { background: linear-gradient(135deg, var(--blue), var(--periw));
+    color: #06122a; border-color: transparent; font-weight: 600; }
+
+  /* 主体：左侧卡网格 + 右侧详情 */
+  .main { display: grid; grid-template-columns: 1fr 372px; gap: 18px; align-items: start; }
+  @media (max-width: 980px) { .main { grid-template-columns: 1fr; } }
+
+  /* 技能卡网格 */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; }
+  .skill { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 15px 16px 14px; cursor: pointer; transition: .15s; display: flex; flex-direction: column;
+    position: relative; min-height: 150px; }
+  .skill:hover { border-color: var(--blue-dim); transform: translateY(-2px); }
+  .skill.sel { border-color: var(--mauve); box-shadow: 0 0 0 1px var(--mauve) inset; }
+  .skill .top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+  .skill .ico { width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto; font-size: 18px;
+    display: grid; place-items: center; background: var(--panel2); border: 1px solid var(--border); }
+  .skill .name { font-weight: 600; font-size: 14.5px; line-height: 1.35; }
+  .skill .cat { font-size: 11px; color: var(--periw); margin-top: 2px; }
+  .skill .desc { color: var(--muted); font-size: 12.5px; line-height: 1.5; flex: 1; margin-bottom: 11px; }
+  .skill .foot { display: flex; align-items: center; gap: 8px; }
+  .skill .load { padding: 6px 14px; font-size: 12.5px; }
+  .skill .modnum { margin-left: auto; font-size: 11px; color: var(--faint); }
+
+  .count { font-size: 12px; color: var(--muted); margin: 2px 0 12px; }
+  .empty { color: var(--faint); padding: 40px; text-align: center; grid-column: 1 / -1; }
+
+  /* 右侧详情面板 */
+  .detail { position: sticky; top: 18px; }
+  .detail .ph { color: var(--faint); text-align: center; padding: 60px 20px; line-height: 1.7; }
+  .detail h2 { font-size: 17px; display: flex; align-items: center; gap: 10px; }
+  .detail .dico { width: 30px; height: 30px; border-radius: 8px; font-size: 16px;
+    display: grid; place-items: center; background: var(--panel2); border: 1px solid var(--border); }
+  .detail .summary { color: var(--fg2); font-size: 13px; margin: 4px 0 14px; }
+  .kv { display: flex; gap: 8px; font-size: 12.5px; margin: 6px 0; }
+  .kv .k { color: var(--faint); flex: 0 0 64px; }
+  .kv .v { color: var(--fg2); }
+  .pillrow { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
+  .mod { display: flex; gap: 9px; padding: 9px 11px; background: var(--field);
+    border: 1px solid var(--border-lo); border-radius: var(--radius-sm); margin-bottom: 8px; }
+  .mod .mk { font-size: 12.5px; font-weight: 600; color: var(--fg); }
+  .mod .md { font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+  .mod .pri { margin-left: auto; flex: 0 0 auto; align-self: flex-start; }
+  .pri-high { color: var(--done); } .pri-mid { color: var(--warn); } .pri-low { color: var(--faint); }
+  .apply { width: 100%; margin-top: 6px; padding: 11px; }
+
+  /* 可选模块资源区 */
+  .resblock { margin-top: 26px; }
+  .resgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 13px; }
+  .res { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .res h3 { font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .res ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 12.5px; line-height: 1.7; }
+  .res ul b { color: var(--fg2); font-weight: 600; }
+
+  .divider { height: 1px; background: var(--border-lo); margin: 24px 0 18px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 头部 -->
+  <div class="head">
+    <div class="logo"></div>
+    <div>
+      <h1>创作技能库 · Skill Loader</h1>
+      <div class="faint">选择创作类型 → 加载对应流水线预设（题材/风格/分镜schema/质检/音画对齐）。支持短剧·MV·广告·纪录片·动画·口播等多类型创作。</div>
+    </div>
+    <div class="stat"><span id="dot" class="dot"></span><span id="health">后端就绪</span></div>
+  </div>
+
+  <!-- 工具条：搜索 + 分类 -->
+  <div class="toolbar">
+    <div class="search"><input type="text" id="q" placeholder="搜索技能名称 / 简述 / 关键词…"></div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <div class="main">
+    <!-- 左：技能卡网格 -->
+    <div>
+      <div class="count" id="count">—</div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <!-- 右：详情 + 应用 -->
+    <div class="card detail" id="detail">
+      <div class="ph">从左侧选择一个创作技能<br>查看流水线预设详情并应用到当前项目</div>
+    </div>
+  </div>
+
+  <!-- 可选模块资源区（整合调研成果） -->
+  <div class="resblock">
+    <div class="divider"></div>
+    <div class="section-label">可选模块资源 · 来自 4 仓库调研（只读知识库，按阶段注入 system-prompt）</div>
+    <div class="faint" style="margin-bottom:14px;">下列方法论/schema 以纯 Markdown/JSON 登记于 <code>resources/skills/</code>，零外部依赖；技能加载时按其阶段标签自动挑选注入。配音/配乐/音效/智能转场维持自有工业化方案。</div>
+    <div class="resgrid" id="resgrid"></div>
+  </div>
+
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  /* ── 分类 ─────────────────────────────────── */
+  const CATS = ["全部", "短剧", "MV", "广告/TVC", "纪录/人文", "动画", "口播/解说", "直播/转播", "互动/POV", "工具/素材"];
+
+  /* ── 示例技能数据（mockup；真实由后端扫描 skill .md 目录注入） ──
+     字段对齐 skills-loader-design.md 的 SkillManifest：
+     name/cat/icon/desc/medium(创作媒介)/output(产物)/modules(注入的可选模块,带阶段+优先级) */
+  const SKILLS = [
+    { name:"微缩世界创意短片", cat:"短剧", icon:"🌍", desc:"miniature/tilt-shift 微缩美学创意短片，强概念+反差视角。",
+      medium:"短视频", output:"分镜图prompt + 生视频切片",
+      modules:[["8段工业字段SOP","分镜prompt","high"],["风格后缀自动注入","风格","high"],["时长估算公式","生视频","mid"]] },
+    { name:"GTA6风格演示", cat:"广告/TVC", icon:"🎮", desc:"GTA6 预告片质感：高饱和都市霓虹、运镜凌厉、强品牌植入。",
+      medium:"宣传片", output:"分镜图prompt + i2v",
+      modules:[["双风格切换 style_a/b","风格","high"],["视频负向排除项清单","生视频","high"]] },
+    { name:"一镜到底广告短片", cat:"广告/TVC", icon:"🎬", desc:"long-take 一镜到底，空间连贯、节奏自驱的品牌叙事。",
+      medium:"广告", output:"连续运镜分镜",
+      modules:[["片段连贯合并规则","成片","low"],["视频4模式策略选择器","生视频","mid"]] },
+    { name:"人文纪录短片", cat:"纪录/人文", icon:"📷", desc:"真实质感、自然光、克制运镜的人文纪录片基调。",
+      medium:"纪录片", output:"分镜 + 旁白",
+      modules:[["诗意慢节奏润色层","分镜prompt","mid"],["♪/ambient 字段抽取","配乐","mid"]] },
+    { name:"平面插画自动编舞跳舞MV", cat:"MV", icon:"💃", desc:"平面插画风角色随音乐编舞，逐拍动作与镜头同步。",
+      medium:"MV", output:"9宫格分镜 + music_sync",
+      modules:[["9宫格分镜schema","分镜prompt","high"],["music_sync 音乐同步协议","配乐","high"]] },
+    { name:"旅拍大师 V2", cat:"短剧", icon:"✈️", desc:"旅拍 vlog 大师视角：地标转场、人景交融、情绪剪辑。",
+      medium:"Vlog", output:"分镜 + 转场提示",
+      modules:[["风格后缀自动注入","风格","high"],["时长估算公式","生视频","mid"]] },
+    { name:"小猫打工的一天", cat:"动画", icon:"🐱", desc:"萌系拟人动物日常叙事，单元剧式轻喜剧结构。",
+      medium:"动画短片", output:"角色一致性分镜",
+      modules:[["多角色一致性协议","分镜prompt","high"],["NOT-human 钳制句式","分镜prompt","mid"]] },
+    { name:"城市记忆叙事短片", cat:"纪录/人文", icon:"🏙️", desc:"以城市空间为载体的记忆叙事，时空交错蒙太奇。",
+      medium:"短片", output:"分镜 + 旁白",
+      modules:[["拆解策略·权力动态文戏","分镜prompt","mid"],["♪/ambient 字段抽取","配乐","mid"]] },
+    { name:"AI短剧一站式生成", cat:"短剧", icon:"🎭", desc:"剧本→分镜→出图→生视频→配音全链路一站式短剧生产。",
+      medium:"短剧", output:"全链路工程",
+      modules:[["8段工业字段SOP","分镜prompt","high"],["ref ready/pending 门控","生视频","mid"],["剧本台词结构化标记","配音","mid"]] },
+    { name:"余光2镜首饰广告Vlog", cat:"广告/TVC", icon:"💍", desc:"首饰特写广告：余光惊艳、光泽质感、二镜情绪钩子。",
+      medium:"广告", output:"特写分镜",
+      modules:[["灯光/镜头关键词库","分镜prompt","high"],["平台合规过滤器","分镜prompt","mid"]] },
+    { name:"剧情短片 Seedance 音色连贯", cat:"短剧", icon:"🎙️", desc:"剧情短片强调跨镜音色/台词连贯，情绪不断裂。",
+      medium:"短剧", output:"分镜 + 配音",
+      modules:[["台词不增删改写","分镜prompt","high"],["剧本台词结构化标记","配音","mid"]] },
+    { name:"百万爆款羊毛毡动画", cat:"动画", icon:"🧶", desc:"羊毛毡定格质感、治愈系，强平台爆款节奏钩子。",
+      medium:"动画", output:"定格风分镜",
+      modules:[["风格后缀自动注入","风格","high"],["节奏波浪/爆点节奏图","剧本","low"]] },
+    { name:"你的女友已上线 POV互动", cat:"互动/POV", icon:"📱", desc:"第一人称 POV 互动叙事，分支选项驱动剧情走向。",
+      medium:"互动视频", output:"分支分镜",
+      modules:[["视频4模式策略选择器","生视频","mid"],["视频负向排除项清单","生视频","high"]] },
+    { name:"HappyHorse 东亚文艺片", cat:"纪录/人文", icon:"🎞️", desc:"东亚文艺片调性：留白、长镜、背光颗粒、克制情绪。",
+      medium:"文艺短片", output:"分镜 + 氛围",
+      modules:[["诗意慢节奏润色层","分镜prompt","mid"],["♪/ambient 字段抽取","配乐","mid"]] },
+    { name:"商品宣传短片", cat:"广告/TVC", icon:"📦", desc:"电商商品卖点可视化，结构化卖点→镜头映射。",
+      medium:"广告", output:"卖点分镜",
+      modules:[["8段工业字段SOP","分镜prompt","high"],["视频负向排除项清单","生视频","high"]] },
+    { name:"舌尖美食短片", cat:"纪录/人文", icon:"🍜", desc:"舌尖式美食微距、蒸汽光泽、垂涎运镜与解说。",
+      medium:"美食短片", output:"微距分镜 + 解说",
+      modules:[["灯光/镜头关键词库","分镜prompt","high"],["达人口播脚本","口播","mid"]] },
+    { name:"韩国棒球赛转播现场", cat:"直播/转播", icon:"⚾", desc:"棒球转播多机位切换、慢动作回放、解说节奏。",
+      medium:"转播", output:"多机位脚本",
+      modules:[["视频4模式策略选择器","生视频","mid"]] },
+    { name:"NBA直播镜头", cat:"直播/转播", icon:"🏀", desc:"篮球直播机位语言、攻防转换运镜与高光集锦。",
+      medium:"直播", output:"机位脚本",
+      modules:[["视频4模式策略选择器","生视频","mid"]] },
+    { name:"一图成片顶级执行导演", cat:"工具/素材", icon:"🖼️", desc:"单张图扩展为成片：导演级镜头分解+运动设计。",
+      medium:"通用", output:"单图→分镜序列",
+      modules:[["视频4模式策略选择器","生视频","mid"],["时长估算公式","生视频","high"]] },
+    { name:"新品视觉TVC广告宣传", cat:"广告/TVC", icon:"📺", desc:"新品发布 TVC：高级感视觉系统、品牌色统御全片。",
+      medium:"TVC", output:"分镜 + 风格",
+      modules:[["双风格切换 style_a/b","风格","high"],["平台合规过滤器","分镜prompt","mid"]] },
+    { name:"游戏Demo视频设计师", cat:"广告/TVC", icon:"🕹️", desc:"游戏 Demo 演示：玩法展示节奏 + UI/特效呈现。",
+      medium:"Demo", output:"演示分镜",
+      modules:[["视频负向排除项清单","生视频","high"]] },
+    { name:"故事驱动型·提示词复用故事板", cat:"短剧", icon:"📋", desc:"故事板驱动，提示词模板跨镜复用，强一致性。",
+      medium:"短剧", output:"故事板schema",
+      modules:[["8段工业字段SOP","分镜prompt","high"],["风格后缀自动注入","风格","high"]] },
+    { name:"故事驱动型 Kling3 Omni", cat:"短剧", icon:"🎥", desc:"多模态故事驱动，关键帧+多帧引导的连贯叙事。",
+      medium:"短剧", output:"多帧分镜",
+      modules:[["视频4模式策略选择器","生视频","mid"],["生视频任务队列schema","生视频","mid"]] },
+    { name:"多宫格生视频", cat:"工具/素材", icon:"🔲", desc:"多宫格分镜批量生视频，防拼图被当画面内容。",
+      medium:"通用", output:"多宫格→切片",
+      modules:[["视频负向排除项清单","生视频","high"],["9宫格分镜schema","分镜prompt","high"]] },
+    { name:"视觉美学视频", cat:"MV", icon:"🎨", desc:"纯视觉美学驱动，构图/色彩/质感优先的氛围片。",
+      medium:"氛围片", output:"美学分镜",
+      modules:[["双风格切换 style_a/b","风格","high"],["灯光/镜头关键词库","分镜prompt","high"]] },
+    { name:"音乐MV", cat:"MV", icon:"🎵", desc:"标准音乐MV，歌词分段+情绪曲线+音画同步剪辑。",
+      medium:"MV", output:"9宫格 + music_sync",
+      modules:[["9宫格分镜schema","分镜prompt","high"],["music_sync 音乐同步协议","配乐","high"]] },
+    { name:"叙事驱动的美学视频", cat:"MV", icon:"🌌", desc:"叙事+美学双驱动，情绪曲线引导镜头与配乐。",
+      medium:"氛围片", output:"分镜 + 配乐",
+      modules:[["music_sync 音乐同步协议","配乐","high"],["诗意慢节奏润色层","分镜prompt","mid"]] },
+    { name:"达人口播", cat:"口播/解说", icon:"🗣️", desc:"达人口播带货/科普，脚本节奏+口播台词结构化。",
+      medium:"口播", output:"口播脚本 + 配音",
+      modules:[["剧本台词结构化标记","配音","mid"]] },
+    { name:"独立素材生成", cat:"工具/素材", icon:"🧱", desc:"单点素材（空镜/特写/转场素材）批量生成。",
+      medium:"通用", output:"素材包",
+      modules:[["灯光/镜头关键词库","分镜prompt","high"]] },
+    { name:"多人对话访谈", cat:"口播/解说", icon:"🎤", desc:"多人访谈/对话：机位轮切、说话人一致性与字幕。",
+      medium:"访谈", output:"对话分镜 + 配音",
+      modules:[["多角色一致性协议","分镜prompt","high"],["剧本台词结构化标记","配音","mid"]] },
+    { name:"视频拉片复刻", cat:"工具/素材", icon:"🔍", desc:"对参考视频逐镜拆解（拉片），复刻其镜头语言。",
+      medium:"通用", output:"拉片报告 + 分镜",
+      modules:[["拆解策略·动作17条规则","分镜prompt","mid"],["切镜硬约束","分镜prompt","mid"]] },
+  ];
+
+  /* ── 可选模块资源区（来自调研文档） ── */
+  const RESOURCES = [
+    { stage:"分镜图 prompt 生成", icon:"🧩", items:[
+      ["8段工业字段SOP","CHARACTER/BACKGROUND/ACTION/SCENE/CAMERA/LIGHT/TEXT/STYLE + 字符预算1200-1400 + 10点质检清单"],
+      ["05 八字段标准化模板","主体/场景/核心动作/台词/镜头/光影/特效/时长 · 台词不增删改写"],
+      ["多角色一致性协议","1主角ref + N文字silhouette，禁3+ref同框 + NOT-human钳制"],
+      ["风格后缀注入 + 双风格切换","visual_style.prompt_suffix 自动拼接 · per-grid style_a/b"],
+    ]},
+    { stage:"视频制作（LTX2.3）", icon:"🎬", items:[
+      ["视频负向排除项清单","无气泡/无文字/无分屏/勿渲染多宫格参考图"],
+      ["时长估算公式","对白=⌈字数÷8⌉+1s · 动作4s · 情绪3s · 单镜≤12s"],
+      ["视频4模式策略选择器","i2v / 首尾帧 / 多关键帧 / 多模态兜底"],
+      ["ref 完备性预检门控","出图→生视频 ready/pending gate，缺图阻断"],
+    ]},
+    { stage:"MV 制作", icon:"🎼", items:[
+      ["9宫格分镜schema","15s×9格 · camera三元组 · transition枚举 · per-grid prompt"],
+      ["music_sync 音乐同步协议","time_range / music_section / emotion_curve 下沉到 grid"],
+      ["资产圣经 + ref_index","character/scene/prop bible + 完整性校验"],
+    ]},
+    { stage:"配音 / 配乐 / 音效（自有方案）", icon:"🔊", items:[
+      ["剧本台词结构化标记","角色(语气) → qwen3-tts / index-tts2 音色+情绪参数"],
+      ["♪ / ambient 字段抽取","→ ACE-Step1.5XL 配乐 + stable-audio 音效提示"],
+      ["节奏波浪/爆点节奏图","四阶段曲线 + 爆点锚点 → 配乐情绪强度"],
+    ]},
+  ];
+
+  /* ── 渲染 ─────────────────────────────────── */
+  let activeCat = "全部", query = "", selected = null;
+  const PRI = { high:["高","pri-high"], mid:["中","pri-mid"], low:["低","pri-low"] };
+
+  function renderChips() {
+    $("chips").innerHTML = CATS.map(c =>
+      `<button class="chip ${c===activeCat?"on":""}" data-cat="${c}">${c}</button>`).join("");
+    $("chips").querySelectorAll(".chip").forEach(el =>
+      el.onclick = () => { activeCat = el.dataset.cat; renderChips(); renderGrid(); });
+  }
+
+  function match(s) {
+    const catOk = activeCat === "全部" || s.cat === activeCat;
+    const q = query.trim().toLowerCase();
+    const qOk = !q || (s.name + s.desc + s.cat).toLowerCase().includes(q);
+    return catOk && qOk;
+  }
+
+  function renderGrid() {
+    const list = SKILLS.filter(match);
+    $("count").textContent = `${list.length} 个技能` + (activeCat !== "全部" ? ` · ${activeCat}` : "") + ` / 共 ${SKILLS.length}`;
+    if (!list.length) { $("grid").innerHTML = `<div class="empty">没有匹配的技能</div>`; return; }
+    $("grid").innerHTML = list.map(s => {
+      const i = SKILLS.indexOf(s);
+      return `<div class="skill ${selected===i?"sel":""}" data-i="${i}">
+        <div class="top">
+          <div class="ico">${s.icon}</div>
+          <div><div class="name">${s.name}</div><div class="cat">${s.cat} · ${s.medium}</div></div>
+        </div>
+        <div class="desc">${s.desc}</div>
+        <div class="foot">
+          <button class="load" data-i="${i}">加载 ▸</button>
+          <span class="modnum">${s.modules.length} 个模块</span>
+        </div>
+      </div>`;
+    }).join("");
+    $("grid").querySelectorAll(".skill").forEach(el =>
+      el.onclick = () => select(+el.dataset.i));
+    $("grid").querySelectorAll(".load").forEach(el =>
+      el.onclick = (e) => { e.stopPropagation(); select(+el.dataset.i); });
+  }
+
+  function select(i) {
+    selected = i; renderGrid();
+    const s = SKILLS[i];
+    $("detail").classList.remove("ph");
+    $("detail").innerHTML = `
+      <div class="section-label">技能详情</div>
+      <h2><span class="dico">${s.icon}</span>${s.name}</h2>
+      <div class="summary">${s.desc}</div>
+      <div class="kv"><span class="k">创作类型</span><span class="v">${s.cat}</span></div>
+      <div class="kv"><span class="k">媒介</span><span class="v">${s.medium}</span></div>
+      <div class="kv"><span class="k">产物</span><span class="v">${s.output}</span></div>
+      <div class="section-label" style="margin-top:14px;">注入的流水线模块</div>
+      ${s.modules.map(m => {
+        const [pl, pc] = PRI[m[2]];
+        return `<div class="mod"><div><div class="mk">${m[0]}</div>
+          <div class="md">阶段 · ${m[1]}</div></div>
+          <span class="pri badge ${pc}">${pl}优先</span></div>`;
+      }).join("")}
+      <button class="apply" onclick="apply('${s.name.replace(/'/g,"")}')">应用到当前项目 ✓</button>
+      <div class="faint" id="applymsg" style="text-align:center;margin-top:8px;"></div>`;
+  }
+
+  function apply(name) {
+    $("applymsg").textContent = `已将「${name}」预设注入当前项目流水线（mockup）`;
+  }
+
+  function renderResources() {
+    $("resgrid").innerHTML = RESOURCES.map(r => `
+      <div class="res"><h3><span>${r.icon}</span>${r.stage}</h3>
+        <ul>${r.items.map(it => `<li><b>${it[0]}</b> — ${it[1]}</li>`).join("")}</ul>
+      </div>`).join("");
+  }
+
+  $("q").addEventListener("input", e => { query = e.target.value; renderGrid(); });
+
+  // 后端健康检查（与 split-tool.html 同源；mockup 下静默降级）
+  (async () => {
+    const API = new URLSearchParams(location.search).get("api") || "http://127.0.0.1:18450";
+    try { const r = await fetch(API + "/health"); if (r.ok) { $("dot").className="dot ok"; $("health").textContent="后端已连接"; return; } } catch(e){}
+    $("dot").className = "dot"; $("health").textContent = "演示数据 (mockup)";
+  })();
+
+  renderChips(); renderGrid(); renderResources();
+</script>
+</body>
+</html>
