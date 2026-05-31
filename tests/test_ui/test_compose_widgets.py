@@ -25,3 +25,17 @@ def test_clip_strip_emits_signals():
     assert ("clip", m.clips[0].clip_id) in got
     assert ("conn", 0) in got
     assert ("keep", m.clips[1].clip_id, False) in got
+
+
+def test_trim_bar_emits_in_out():
+    _app()
+    from drama_shot_master.ui.widgets.compose.trim_bar import TrimBar
+    bar = TrimBar()
+    bar.set_clip(duration=10.0, in_point=None, out_point=None)
+    got = []
+    bar.trimChanged.connect(lambda i, o: got.append((i, o)))
+    bar.set_in(1.5)
+    bar.set_out(8.0)
+    assert got[-1] == (1.5, 8.0)
+    bar.set_in(9.0)         # 超过 out → 被夹到 out 之前
+    assert bar.in_point() < bar.out_point()
