@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3c 动态轨渲染 — 布局可视化确认</title>
+<style>
+  :root{
+    /* 取自 daw_track_view.py / track_header_column.py 的真实常量 */
+    --bg:#1e1e1e; --lane:#252525; --panel:#181818; --line:#2e2e2e;
+    --video:#3a7bd5; --bgm:#5a9e6f; --sfx:#e8a838; --dialogue:#9b59b6;
+    --txt:#cdd6f4; --txt-dim:#a6adc8; --txt-faint:#6c7086;
+    --mute:#e05252; --solo:#f9e2af; --btn-border:#3d3d55;
+    --playhead:#ff4444; --accent:#5599ff;
+    --label-w:60px; --header-w:130px;
+    --canvas-w:560px;       /* 像素，代表 30s */
+    --dur:30;               /* 秒 */
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:#121212;color:var(--txt);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;}
+  .page{max-width:1320px;margin:0 auto;padding:28px 28px 64px;}
+  h1{font-size:20px;font-weight:700;margin:0 0 4px;letter-spacing:.5px;}
+  .sub{color:var(--txt-dim);font-size:13px;line-height:1.7;margin:0 0 22px;}
+  .sub code{background:#2a2a2a;border:1px solid #353535;border-radius:4px;
+    padding:1px 6px;font-size:12px;color:#e8e8e8;}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 26px;
+    font-size:12px;color:var(--txt-dim);align-items:center;}
+  .legend .chip{display:inline-flex;align-items:center;gap:6px;}
+  .legend .sw{width:13px;height:13px;border-radius:3px;display:inline-block;}
+  .legend .sw.ov{background:repeating-linear-gradient(45deg,#5a9e6f 0 4px,#7bbf90 4px 8px);}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:26px;}
+  @media(max-width:1180px){.cols{grid-template-columns:1fr;}}
+
+  .opt{background:var(--panel);border:1px solid #2c2c2c;border-radius:12px;
+    overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.45);}
+  .opt-hd{display:flex;align-items:center;gap:10px;padding:14px 16px;
+    border-bottom:1px solid #2c2c2c;background:#1c1c1c;}
+  .badge{font-size:12px;font-weight:700;background:var(--accent);color:#06122a;
+    border-radius:6px;padding:2px 9px;letter-spacing:.5px;}
+  .opt-hd h2{font-size:15px;margin:0;font-weight:650;}
+  .opt-hd .tag{margin-left:auto;font-size:11px;color:var(--txt-faint);}
+  .opt-body{padding:16px;}
+
+  /* ── DAW 编辑器外框：header 列 + canvas ── */
+  .daw{display:flex;background:var(--bg);border:1px solid #000;border-radius:6px;
+    overflow:hidden;}
+  .headers{width:var(--header-w);flex:0 0 var(--header-w);
+    background:#1a1a1a;border-right:1px solid #000;}
+  .canvas{position:relative;flex:1;min-width:0;background:var(--bg);}
+
+  /* 轴 / ruler */
+  .axis{height:14px;position:relative;border-bottom:1px solid var(--line);
+    background:#1b1b1b;}
+  .axis .tick{position:absolute;top:0;bottom:0;border-left:1px solid #333;}
+  .axis .tlab{position:absolute;top:1px;font-size:9px;color:var(--txt-faint);
+    transform:translateX(3px);}
+  .hd-axis{height:14px;border-bottom:1px solid var(--line);background:#1b1b1b;}
+
+  /* header 行 */
+  .hrow{display:flex;align-items:center;gap:4px;padding:0 6px;
+    border-bottom:1px solid #161616;}
+  .hrow .nm{font-size:11px;color:var(--txt);width:30px;flex:0 0 30px;
+    white-space:nowrap;overflow:hidden;}
+  .hrow.sub-nm .nm{color:var(--txt-dim);font-size:10px;width:46px;flex-basis:46px;}
+  .btn{width:18px;height:16px;border:1px solid var(--btn-border);border-radius:3px;
+    color:var(--txt-dim);font-size:9px;font-weight:700;display:flex;
+    align-items:center;justify-content:center;background:transparent;}
+  .btn.m.on{background:var(--mute);color:#fff;border-color:var(--mute);}
+  .btn.s.on{background:var(--solo);color:#1e1e2e;border-color:var(--solo);}
+  .slider{flex:1;height:4px;background:#3a3a3a;border-radius:2px;position:relative;
+    min-width:18px;}
+  .slider::after{content:"";position:absolute;left:0;top:0;bottom:0;width:62%;
+    background:#5a6a8a;border-radius:2px;}
+  .slider::before{content:"";position:absolute;left:60%;top:-3px;width:9px;height:9px;
+    background:#cdd6f4;border-radius:50%;}
+  .ro{font-size:9px;color:var(--txt-faint);}
+
+  /* 折叠区头（Option A） */
+  .grp-hd{display:flex;align-items:center;gap:6px;padding:0 8px;height:18px;
+    background:#202024;border-top:1px solid #000;border-bottom:1px solid #161616;
+    cursor:pointer;user-select:none;}
+  .grp-hd .caret{font-size:9px;color:var(--txt-dim);transition:transform .15s;}
+  .grp-hd .gt{font-size:10px;color:var(--txt-dim);font-weight:600;letter-spacing:.3px;}
+  .grp-hd .cnt{font-size:9px;color:var(--txt-faint);margin-left:2px;}
+  .grp-axis{height:18px;background:#202024;border-top:1px solid #000;
+    border-bottom:1px solid #161616;}
+
+  /* canvas 轨道行（背景 lane） */
+  .lane{position:relative;border-bottom:1px solid #161616;background:var(--lane);}
+  .lane.overlay{background:#202024;}
+
+  /* cue 块 */
+  .cue{position:absolute;top:2px;bottom:2px;border-radius:3px;
+    font-size:10px;color:#fff;display:flex;align-items:center;
+    padding:0 5px;white-space:nowrap;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);}
+  .cue.video{background:var(--video);} .cue.bgm{background:var(--bgm);}
+  .cue.sfx{background:var(--sfx);color:#3a2a00;} .cue.dialogue{background:var(--dialogue);}
+  .cue.sel{outline:2px solid #fff;outline-offset:-1px;filter:brightness(1.3);}
+  /* overlay cue：斜纹区分“动态生成” */
+  .cue.ov{box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);}
+  .cue.ov.bgm{background:repeating-linear-gradient(45deg,#5a9e6f 0 5px,#6cb182 5px 10px);}
+  .cue.ov.sfx{background:repeating-linear-gradient(45deg,#e8a838 0 5px,#f2bd5c 5px 10px);color:#3a2a00;}
+
+  /* playhead */
+  .playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--playhead);
+    z-index:5;}
+
+  .notes{margin-top:14px;font-size:12px;line-height:1.75;color:var(--txt-dim);}
+  .notes b{color:var(--txt);}
+  .pro{color:#9bd6a4;} .con{color:#e0a0a0;}
+  .decisions{margin-top:34px;border-top:1px solid #2c2c2c;padding-top:20px;}
+  .decisions h3{font-size:14px;margin:0 0 12px;}
+  .dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  @media(max-width:1180px){.dgrid{grid-template-columns:1fr;}}
+  .dcard{background:#1a1a1a;border:1px solid #2c2c2c;border-radius:9px;padding:14px;}
+  .dcard .q{font-size:12px;color:var(--txt);font-weight:600;margin-bottom:8px;}
+  .dcard ul{margin:0;padding-left:16px;font-size:12px;color:var(--txt-dim);line-height:1.7;}
+  .dcard .rec{color:#9bd6a4;font-weight:600;}
+  .hint{margin-top:8px;font-size:11px;color:var(--txt-faint);}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>3c 动态轨渲染 — 布局可视化确认</h1>
+  <p class="sub">
+    把 <code>OverlaySession</code> 的动态叠加子轨（<code>kind=bgm/sfx</code> × <code>lane=0,1,2…</code>）
+    渲染进 DAW 时间轴。当前只有 4 条<b>固定静态轨</b>（原声/BGM/SFX/对白，<code>_TRACK_Y</code> 模块加载即固定）。
+    下面两个布局方案请在浏览器里直接对比，选一个我就据此锁 3c 设计稿。斜纹块 = 动态生成的 overlay 片段。
+  </p>
+  <div class="legend">
+    <span class="chip"><i class="sw" style="background:var(--video)"></i>原声 video</span>
+    <span class="chip"><i class="sw" style="background:var(--bgm)"></i>BGM 固定</span>
+    <span class="chip"><i class="sw" style="background:var(--sfx)"></i>SFX 固定</span>
+    <span class="chip"><i class="sw" style="background:var(--dialogue)"></i>对白</span>
+    <span class="chip"><i class="sw ov"></i>overlay 动态片段（斜纹）</span>
+    <span class="chip"><i class="sw" style="background:var(--playhead);width:3px;height:14px;border-radius:1px"></i>播放头</span>
+  </div>
+
+  <div class="cols">
+
+    <!-- ════════ Option A ════════ -->
+    <div class="opt">
+      <div class="opt-hd">
+        <span class="badge">A</span>
+        <h2>固定轨下方 · 独立「动态叠加区」</h2>
+        <span class="tag">可折叠 · 分组</span>
+      </div>
+      <div class="opt-body">
+        <div class="daw">
+          <!-- header 列 -->
+          <div class="headers">
+            <div class="hd-axis"></div>
+            <div class="hrow" style="height:36px"><span class="nm">原声</span><span class="btn m">M</span><span class="btn s">S</span><span class="slider"></span></div>
+            <div class="hrow" style="height:40px"><span class="nm">BGM</span><span class="btn m">M</span><span class="btn s">S</span><span class="slider"></span></div>
+            <div class="hrow" style="height:36px"><span class="nm">SFX</span><span class="btn m on">M</span><span class="btn s">S</span><span class="slider"></span></div>
+            <div class="hrow" style="height:36px"><span class="nm">对白</span><span class="ro">（只读）</span></div>
+            <!-- 折叠分组头 -->
+            <div class="grp-hd"><span class="caret">▼</span><span class="gt">动态叠加区</span><span class="cnt">(3)</span></div>
+            <div class="hrow sub-nm" style="height:28px"><span class="nm">bgm·0</span><span class="btn m">M</span><span class="slider"></span></div>
+            <div class="hrow sub-nm" style="height:28px"><span class="nm">bgm·1</span><span class="btn m">M</span><span class="slider"></span></div>
+            <div class="hrow sub-nm" style="height:28px"><span class="nm">sfx·0</span><span class="btn m">M</span><span class="slider"></span></div>
+          </div>
+          <!-- canvas -->
+          <div class="canvas">
+            <div class="axis">
+              <span class="tick" style="left:0"></span><span class="tlab" style="left:0">0s</span>
+              <span class="tick" style="left:33.3%"></span><span class="tlab" style="left:33.3%">10</span>
+              <span class="tick" style="left:66.6%"></span><span class="tlab" style="left:66.6%">20</span>
+              <span class="tick" style="left:99%"></span><span class="tlab" style="left:88%">30</span>
+            </div>
+            <div class="lane" style="height:36px"><div class="cue video" style="left:0;right:0">原声</div></div>
+            <div class="lane" style="height:40px"><div class="cue bgm" style="left:0;width:40%">主题曲</div><div class="cue bgm" style="left:50%;width:46%">尾声</div></div>
+            <div class="lane" style="height:36px"><div class="cue sfx" style="left:20%;width:14%">脚步</div><div class="cue sfx" style="left:60%;width:10%">关门</div></div>
+            <div class="lane" style="height:36px"><div class="cue dialogue" style="left:8%;width:22%">A：你来了</div><div class="cue dialogue" style="left:55%;width:26%">B：我等很久</div></div>
+            <!-- 折叠区轴对齐 -->
+            <div class="grp-axis"></div>
+            <div class="lane overlay" style="height:28px"><div class="cue ov bgm" style="left:16%;width:18%">紧张 BGM</div></div>
+            <div class="lane overlay" style="height:28px"><div class="cue ov bgm sel" style="left:26%;width:20%">悬疑垫乐</div></div>
+            <div class="lane overlay" style="height:28px"><div class="cue ov sfx" style="left:58%;width:12%">心跳</div></div>
+            <div class="playhead" style="left:42%"></div>
+          </div>
+        </div>
+        <div class="notes">
+          <p><span class="pro">✓ 优点</span> 4 条固定轨布局<b>零改动、零回归风险</b>；动态区可整体折叠，空 overlay 时收起无视觉负担；直接映射 3a 的 <code>kind+lane</code> 结构（先全部 bgm lane、再全部 sfx lane）。</p>
+          <p><span class="con">✕ 取舍</span> overlay 片段与对应固定 BGM/SFX 轨在垂直上分离，跨区对照时眼睛要跳一下。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ Option B ════════ -->
+    <div class="opt">
+      <div class="opt-hd">
+        <span class="badge">B</span>
+        <h2>贴合同类固定轨 · 交错</h2>
+        <span class="tag">语义聚合</span>
+      </div>
+      <div class="opt-body">
+        <div class="daw">
+          <div class="headers">
+            <div class="hd-axis"></div>
+            <div class="hrow" style="height:36px"><span class="nm">原声</span><span class="btn m">M</span><span class="btn s">S</span><span class="slider"></span></div>
+            <div class="hrow" style="height:40px"><span class="nm">BGM</span><span class="btn m">M</span><span class="btn s">S</span><span class="slider"></span></div>
+            <div class="hrow sub-nm" style="height:28px"><span class="nm">bgm·0</span><span class="btn m">M</span><span class="slider"></span></div>
+            <div class="hrow sub-nm" style="height:28px"><span class="nm">bgm·1</span><span class="btn m">M</span><span class="slider"></span></div>
+            <div class="hrow" style="height:36px"><span class="nm">SFX</span><span class="btn m on">M</span><span class="btn s">S</span><span class="slider"></span></div>
+            <div class="hrow sub-nm" style="height:28px"><span class="nm">sfx·0</span><span class="btn m">M</span><span class="slider"></span></div>
+            <div class="hrow" style="height:36px"><span class="nm">对白</span><span class="ro">（只读）</span></div>
+          </div>
+          <div class="canvas">
+            <div class="axis">
+              <span class="tick" style="left:0"></span><span class="tlab" style="left:0">0s</span>
+              <span class="tick" style="left:33.3%"></span><span class="tlab" style="left:33.3%">10</span>
+              <span class="tick" style="left:66.6%"></span><span class="tlab" style="left:66.6%">20</span>
+              <span class="tick" style="left:99%"></span><span class="tlab" style="left:88%">30</span>
+            </div>
+            <div class="lane" style="height:36px"><div class="cue video" style="left:0;right:0">原声</div></div>
+            <div class="lane" style="height:40px"><div class="cue bgm" style="left:0;width:40%">主题曲</div><div class="cue bgm" style="left:50%;width:46%">尾声</div></div>
+            <div class="lane overlay" style="height:28px"><div class="cue ov bgm" style="left:16%;width:18%">紧张 BGM</div></div>
+            <div class="lane overlay" style="height:28px"><div class="cue ov bgm sel" style="left:26%;width:20%">悬疑垫乐</div></div>
+            <div class="lane" style="height:36px"><div class="cue sfx" style="left:20%;width:14%">脚步</div><div class="cue sfx" style="left:60%;width:10%">关门</div></div>
+            <div class="lane overlay" style="height:28px"><div class="cue ov sfx" style="left:58%;width:12%">心跳</div></div>
+            <div class="lane" style="height:36px"><div class="cue dialogue" style="left:8%;width:22%">A：你来了</div><div class="cue dialogue" style="left:55%;width:26%">B：我等很久</div></div>
+            <div class="playhead" style="left:42%"></div>
+          </div>
+        </div>
+        <div class="notes">
+          <p><span class="pro">✓ 优点</span> overlay BGM 紧贴固定 BGM、overlay SFX 紧贴固定 SFX，<b>语义聚合</b>，对照同类一目了然，更像专业 DAW 的「子轨展开」。</p>
+          <p><span class="con">✕ 取舍</span> 固定轨之间的 <code>_TRACK_Y</code> 静态布局要<b>打散重排</b>成动态计算（lane 数变化会顶下面的轨），<b>命中测试 / 拖拽 / playhead 全链路回归面更大</b>；折叠时要分别折叠 bgm/sfx 两段。</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 其余两个待定决策 -->
+  <div class="decisions">
+    <h3>顺带确认的另外两个决策（任选，可在选布局时一起告诉我）</h3>
+    <div class="dgrid">
+      <div class="dcard">
+        <div class="q">① 折叠 / 高度策略</div>
+        <ul>
+          <li><span class="rec">可折叠 + 动态高度（推荐）</span>：叠加区带标题行整体折叠，空时隐藏</li>
+          <li>总是展开：实现最简，lane 多时占满高度</li>
+        </ul>
+        <div class="hint">Option A 自带折叠头；Option B 折叠需拆两段。</div>
+      </div>
+      <div class="dcard">
+        <div class="q">② 片段交互范围（完整框选生成在 3d）</div>
+        <ul>
+          <li><span class="rec">只读渲染 + 可选中（推荐）</span>：点选→Inspector 看 prompt/音量，本阶段不拖拽/缩放</li>
+          <li>渲染 + 拖拽缩放：要扩 commands/undo 栈支持 overlay，scope 变大</li>
+          <li>纯只读：不可点，Inspector 看不到 overlay 细节</li>
+        </ul>
+      </div>
+      <div class="dcard">
+        <div class="q">③ overlay 子轨头部控件</div>
+        <ul>
+          <li><span class="rec">每 lane 一个 M + 音量（推荐）</span>：与固定轨一致的轻量控件</li>
+          <li>纯标签：只显示 bgm·0 名字，控件留到 3d</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
