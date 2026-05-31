@@ -29,7 +29,7 @@
 | 片段来源 | 自动列出 `video_output_dir` 项目生成片段 **+** 手动添加外部 mp4 |
 | ffmpeg | **随包分发 `ffmpeg.exe`/`ffprobe.exe`**，绝对路径调用（顺带治理 `pcm_cache` 同样的裸 PATH 脆弱性） |
 | 成片音轨 | **保留片段原音**，转场处 acrossfade |
-| 转场效果库 | v1 精选 ~8 个老版本兼容效果（见 §6.2） |
+| 转场效果库 | v1 分类精选集 ~18 个（万能适配/方向推进/创意 + 硬切，见 §6.2），运行时校验可用性 |
 | 配乐交接 | **手动**「送去配乐」按钮预填新建 soundtrack 任务的 mp4 字段（不自动） |
 
 ### 不在本期范围
@@ -179,8 +179,18 @@ class CompositionModel:
   - **下方右 inspector**：选中切口 → 转场编辑（效果下拉 / 时长 0.3–2.0s 滑条 / 来源 AI自动·手动覆盖 / ☐锁定 / ↺重置为AI / 应用到全部）。
   - 底部：渲染进度条 + 「归一化 1080p/30fps · 保留原音」状态 + `送去配乐 ›`。
 
-### 6.2 v1 转场效果精选集（xfade 名）
-`fade` / `dissolve` / `smoothleft` / `smoothright` / `smoothup` / `smoothdown` / `circleopen` / `pixelize` + **硬切**(none)。运行时用 `ffmpeg -h filter=xfade` 校验可用性，不可用项灰掉。
+### 6.2 v1 转场效果精选集（xfade 名，分类组织）
+
+按豆包文档三类组织（与 §5 自动映射分档对应）；UI 下拉**按类分组**展示；运行时用 `ffmpeg -h filter=xfade` 校验可用性，不可用项（多为高版本新增，如 `zoomin`/`cover*`）**灰掉**而非报错。
+
+| 类别 | 适用（视觉匹配度） | 效果（xfade 名） |
+|------|------|------|
+| **万能适配**（平缓/高匹配） | 中/高 | `fade`、`fadeblack`、`fadewhite`、`dissolve`、`distance` |
+| **方向推进**（有运动方向/中匹配） | 中 | `smoothleft`、`smoothright`、`smoothup`、`smoothdown`、`slideleft`、`slideright`、`wipeleft`、`wiperight` |
+| **创意**（大变化/低匹配） | 低 | `circleopen`、`circleclose`、`radial`、`zoomin`、`pixelize`、`squeezev` |
+| **硬切** | — | `none`（不重叠，直接 concat 该切口） |
+
+效果名集中在 `core/transition_render.py` 的 `XFADE_EFFECTS` 常量（含类别分组与中文显示名），UI 与渲染共用同一事实源；后续若开放更多 / GLSL 自定义（gl-transition）只扩此表，不动核心逻辑。
 
 ### 6.3 缩略图抽帧
 v1 用随包 `ffmpeg -ss <t> -frames:v 1`（避免引入 cv2）；后台 QThread + 限尺寸(160px) + 按 path 缓存。v2 起可改 cv2 抽帧或维持 ffmpeg。
