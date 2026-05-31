@@ -1,0 +1,1232 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "media_agent",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imaging/split": {
+      "post": {
+        "summary": "Split",
+        "operationId": "split_imaging_split_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SplitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imaging/trim": {
+      "post": {
+        "summary": "Trim",
+        "operationId": "trim_imaging_trim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imaging/combine": {
+      "post": {
+        "summary": "Combine",
+        "operationId": "combine_imaging_combine_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CombineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imaging/infer_grid": {
+      "post": {
+        "summary": "Infer Grid Route",
+        "operationId": "infer_grid_route_imaging_infer_grid_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imaging/detect_borders": {
+      "post": {
+        "summary": "Detect Borders Route",
+        "operationId": "detect_borders_route_imaging_detect_borders_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imaging/cell_boxes": {
+      "post": {
+        "summary": "Cell Boxes Route",
+        "operationId": "cell_boxes_route_imaging_cell_boxes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CellBoxesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imaging/crop_aspect": {
+      "post": {
+        "summary": "Crop Aspect Route",
+        "operationId": "crop_aspect_route_imaging_crop_aspect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CropAspectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imaging/batch_split": {
+      "post": {
+        "summary": "Batch Split",
+        "description": "批量拆图 → SSE。事件对齐 core.task_runner.TaskEvent。",
+        "operationId": "batch_split_imaging_batch_split_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchSplitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transition/analyze": {
+      "post": {
+        "summary": "Analyze",
+        "description": "对每个未锁定切口跑 CV，回填 auto_transition/auto_duration/cv_scores。",
+        "operationId": "analyze_transition_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompositionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transition/ffmpeg_args": {
+      "post": {
+        "summary": "Ffmpeg Args",
+        "description": "干跑：返回将执行的 ffmpeg 参数列表（不实际渲染），便于前端预览/调试。",
+        "operationId": "ffmpeg_args_transition_ffmpeg_args_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transition/render": {
+      "post": {
+        "summary": "Render",
+        "description": "实际渲染成片（调用 ffmpeg，长耗时）。",
+        "operationId": "render_transition_render_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imggen/generate": {
+      "post": {
+        "summary": "Generate",
+        "operationId": "generate_imggen_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imggen/batch_generate": {
+      "post": {
+        "summary": "Batch Generate",
+        "description": "批量出图 → SSE（对齐 TaskEvent）。单项失败不中断后续。",
+        "operationId": "batch_generate_imggen_batch_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchGenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/soundtrack/compose_prompt": {
+      "post": {
+        "summary": "Compose Prompt",
+        "description": "组装 BGM prompt（人读文本）+ ACE-Step 三元组 (tags,bpm,duration)。纯函数，无网络。",
+        "operationId": "compose_prompt_soundtrack_compose_prompt_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposePromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/soundtrack/generate_bgm": {
+      "post": {
+        "summary": "Generate Bgm Route",
+        "operationId": "generate_bgm_route_soundtrack_generate_bgm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateBgmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/soundtrack/batch_generate": {
+      "post": {
+        "summary": "Batch Generate",
+        "description": "批量生成 BGM → SSE（对齐 TaskEvent）。单项失败不中断后续。",
+        "operationId": "batch_generate_soundtrack_batch_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AspectModel": {
+        "properties": {
+          "w": {
+            "type": "integer",
+            "title": "W",
+            "default": 0
+          },
+          "h": {
+            "type": "integer",
+            "title": "H",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "AspectModel"
+      },
+      "BatchGenRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GenRequest"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "BatchGenRequest"
+      },
+      "BatchGenerateRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GenerateBgmRequest"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "BatchGenerateRequest"
+      },
+      "BatchSplitRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SplitRequest"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "BatchSplitRequest"
+      },
+      "CellBoxesRequest": {
+        "properties": {
+          "src_path": {
+            "type": "string",
+            "title": "Src Path"
+          },
+          "n_rows": {
+            "type": "integer",
+            "title": "N Rows"
+          },
+          "n_cols": {
+            "type": "integer",
+            "title": "N Cols"
+          },
+          "white_threshold": {
+            "type": "integer",
+            "title": "White Threshold",
+            "default": 240
+          },
+          "min_ratio": {
+            "type": "number",
+            "title": "Min Ratio",
+            "default": 0.95
+          }
+        },
+        "type": "object",
+        "required": [
+          "src_path",
+          "n_rows",
+          "n_cols"
+        ],
+        "title": "CellBoxesRequest"
+      },
+      "CombineRequest": {
+        "properties": {
+          "src_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Src Paths"
+          },
+          "target_rows": {
+            "type": "integer",
+            "title": "Target Rows"
+          },
+          "target_cols": {
+            "type": "integer",
+            "title": "Target Cols"
+          },
+          "gap": {
+            "type": "integer",
+            "title": "Gap",
+            "default": 0
+          },
+          "target_aspect": {
+            "$ref": "#/components/schemas/AspectModel",
+            "default": {
+              "w": 0,
+              "h": 0
+            }
+          },
+          "scale_mode": {
+            "type": "string",
+            "title": "Scale Mode",
+            "default": "letterbox"
+          },
+          "out_path": {
+            "type": "string",
+            "title": "Out Path"
+          },
+          "fmt": {
+            "type": "string",
+            "title": "Fmt",
+            "default": "PNG"
+          }
+        },
+        "type": "object",
+        "required": [
+          "src_paths",
+          "target_rows",
+          "target_cols",
+          "out_path"
+        ],
+        "title": "CombineRequest"
+      },
+      "ComposePromptRequest": {
+        "properties": {
+          "global_style": {
+            "type": "string",
+            "title": "Global Style"
+          },
+          "emotion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmotionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "duration": {
+            "type": "number",
+            "title": "Duration"
+          },
+          "fade_out": {
+            "type": "boolean",
+            "title": "Fade Out",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "global_style",
+          "duration"
+        ],
+        "title": "ComposePromptRequest"
+      },
+      "CompositionRequest": {
+        "properties": {
+          "composition": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Composition"
+          }
+        },
+        "type": "object",
+        "required": [
+          "composition"
+        ],
+        "title": "CompositionRequest"
+      },
+      "CropAspectRequest": {
+        "properties": {
+          "src_path": {
+            "type": "string",
+            "title": "Src Path"
+          },
+          "aspect": {
+            "$ref": "#/components/schemas/AspectModel"
+          },
+          "out_path": {
+            "type": "string",
+            "title": "Out Path"
+          },
+          "fmt": {
+            "type": "string",
+            "title": "Fmt",
+            "default": "PNG"
+          }
+        },
+        "type": "object",
+        "required": [
+          "src_path",
+          "aspect",
+          "out_path"
+        ],
+        "title": "CropAspectRequest"
+      },
+      "DetectRequest": {
+        "properties": {
+          "src_path": {
+            "type": "string",
+            "title": "Src Path"
+          },
+          "white_threshold": {
+            "type": "integer",
+            "title": "White Threshold",
+            "default": 240
+          },
+          "min_white_ratio": {
+            "type": "number",
+            "title": "Min White Ratio",
+            "default": 0.95
+          }
+        },
+        "type": "object",
+        "required": [
+          "src_path"
+        ],
+        "title": "DetectRequest"
+      },
+      "EmotionIn": {
+        "properties": {
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels",
+            "default": []
+          },
+          "valence": {
+            "type": "number",
+            "title": "Valence",
+            "default": 0.0
+          },
+          "arousal": {
+            "type": "number",
+            "title": "Arousal",
+            "default": 0.0
+          },
+          "intensity": {
+            "type": "number",
+            "title": "Intensity",
+            "default": 0.5
+          }
+        },
+        "type": "object",
+        "title": "EmotionIn"
+      },
+      "GenRequest": {
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "references": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "References",
+            "default": []
+          },
+          "size": {
+            "type": "string",
+            "title": "Size",
+            "default": "1024x1024"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N",
+            "default": 1
+          },
+          "out_dir": {
+            "type": "string",
+            "title": "Out Dir"
+          },
+          "base_name": {
+            "type": "string",
+            "title": "Base Name",
+            "default": "img"
+          },
+          "ext": {
+            "type": "string",
+            "title": "Ext",
+            "default": "png"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prompt",
+          "out_dir"
+        ],
+        "title": "GenRequest"
+      },
+      "GenerateBgmRequest": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "out_dir": {
+            "type": "string",
+            "title": "Out Dir"
+          },
+          "seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Seeds",
+            "default": [
+              1,
+              2
+            ]
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "bpm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bpm"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "global_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Style"
+          },
+          "emotion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmotionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fade_out": {
+            "type": "boolean",
+            "title": "Fade Out",
+            "default": false
+          },
+          "timeout": {
+            "type": "number",
+            "title": "Timeout",
+            "default": 600.0
+          },
+          "poll_interval": {
+            "type": "number",
+            "title": "Poll Interval",
+            "default": 5.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "out_dir"
+        ],
+        "title": "GenerateBgmRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MarginsModel": {
+        "properties": {
+          "top": {
+            "type": "integer",
+            "title": "Top",
+            "default": 0
+          },
+          "right": {
+            "type": "integer",
+            "title": "Right",
+            "default": 0
+          },
+          "bottom": {
+            "type": "integer",
+            "title": "Bottom",
+            "default": 0
+          },
+          "left": {
+            "type": "integer",
+            "title": "Left",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "MarginsModel"
+      },
+      "RenderRequest": {
+        "properties": {
+          "composition": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Composition"
+          },
+          "out_path": {
+            "type": "string",
+            "title": "Out Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "composition",
+          "out_path"
+        ],
+        "title": "RenderRequest"
+      },
+      "SplitRequest": {
+        "properties": {
+          "src_path": {
+            "type": "string",
+            "title": "Src Path"
+          },
+          "src_rows": {
+            "type": "integer",
+            "title": "Src Rows",
+            "default": 1
+          },
+          "src_cols": {
+            "type": "integer",
+            "title": "Src Cols",
+            "default": 1
+          },
+          "sub_rows": {
+            "type": "integer",
+            "title": "Sub Rows",
+            "default": 1
+          },
+          "sub_cols": {
+            "type": "integer",
+            "title": "Sub Cols",
+            "default": 1
+          },
+          "margins": {
+            "$ref": "#/components/schemas/MarginsModel",
+            "default": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "gap": {
+            "type": "integer",
+            "title": "Gap",
+            "default": 0
+          },
+          "target_aspect": {
+            "$ref": "#/components/schemas/AspectModel",
+            "default": {
+              "w": 0,
+              "h": 0
+            }
+          },
+          "out_dir": {
+            "type": "string",
+            "title": "Out Dir"
+          },
+          "base_name": {
+            "type": "string",
+            "title": "Base Name",
+            "default": "cell"
+          },
+          "fmt": {
+            "type": "string",
+            "title": "Fmt",
+            "default": "PNG"
+          }
+        },
+        "type": "object",
+        "required": [
+          "src_path",
+          "out_dir"
+        ],
+        "title": "SplitRequest"
+      },
+      "TrimRequest": {
+        "properties": {
+          "src_path": {
+            "type": "string",
+            "title": "Src Path"
+          },
+          "threshold": {
+            "type": "integer",
+            "title": "Threshold",
+            "default": 240
+          },
+          "max_iter": {
+            "type": "integer",
+            "title": "Max Iter",
+            "default": 5
+          },
+          "out_path": {
+            "type": "string",
+            "title": "Out Path"
+          },
+          "fmt": {
+            "type": "string",
+            "title": "Fmt",
+            "default": "PNG"
+          }
+        },
+        "type": "object",
+        "required": [
+          "src_path",
+          "out_path"
+        ],
+        "title": "TrimRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

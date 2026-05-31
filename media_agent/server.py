@@ -2,16 +2,34 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .config import MediaAgentConfig
+
+# 仓库根：<repo>/media_agent/server.py → parent.parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_WEB_DIR = _REPO_ROOT / "web"
 
 
 def create_app(cfg: MediaAgentConfig | None = None) -> FastAPI:
     cfg = cfg or MediaAgentConfig()
     app = FastAPI(title="media_agent", version="0.1.0")
     app.state.cfg = cfg
+
+    # CORS：放行本地来源，使 file:// 页（Origin: null）与 127.0.0.1:* 直接 fetch，
+    # 不再依赖浏览器 --disable-web-security。
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["null"],
+        allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     from .routes.health import router as health_router
     app.include_router(health_router)
@@ -27,6 +45,10 @@ def create_app(cfg: MediaAgentConfig | None = None) -> FastAPI:
 
     from .routes.soundtrack import router as soundtrack_router
     app.include_router(soundtrack_router)
+
+    # 静态同源托管 web/：经 http://127.0.0.1:18450/ui/ 访问（与 API 同源）。
+    if _WEB_DIR.is_dir():
+        app.mount("/ui", StaticFiles(directory=str(_WEB_DIR), html=True), name="ui")
 
     return app
 
