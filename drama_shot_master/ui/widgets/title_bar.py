@@ -100,7 +100,8 @@ class FramelessTitleBar(QWidget):
         # 右：三窗控按钮 ➖ □ ✕
         self.btn_min = self._make_ctrl_btn("➖", is_close=False)   # ➖
         self.btn_max = self._make_ctrl_btn("□", is_close=False)   # □
-        self.btn_close = self._make_ctrl_btn("✕", is_close=True)  # ✕
+        # ✕ 与 ➖/□ 同色（用户要求统一窗控按钮颜色，不用红 hover）
+        self.btn_close = self._make_ctrl_btn("✕", is_close=False)  # ✕
 
         self.btn_min.clicked.connect(self._on_minimize)
         self.btn_max.clicked.connect(self._on_toggle_max)
