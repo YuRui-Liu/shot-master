@@ -25,7 +25,10 @@ class TrimPanel(BasePanel):
         super().__init__(state, cfg, parent)
         self._worker = None
         root = QVBoxLayout(self)
+        root.setContentsMargins(14, 14, 14, 14)
+        root.setSpacing(13)
         box = QGroupBox("去白边参数")
+        box.setObjectName("BatchGroup")
         f = QFormLayout(box)
         self.threshold = _spin(0, 255, 240)
         self.max_iter = _spin(1, 20, 5)

@@ -6,7 +6,7 @@ from pathlib import Path
 from PIL import Image
 from PySide6.QtWidgets import (
     QVBoxLayout, QFormLayout, QGroupBox, QSpinBox, QComboBox,
-    QPushButton, QHBoxLayout, QMessageBox,
+    QPushButton, QHBoxLayout, QMessageBox, QGridLayout, QLabel,
 )
 
 from drama_shot_master.imaging.border_detector import detect_borders, infer_grid
@@ -34,51 +34,82 @@ class SplitPanel(BasePanel):
         super().__init__(state, cfg, parent)
         self._worker = None
         root = QVBoxLayout(self)
+        root.setContentsMargins(14, 14, 14, 14)
+        root.setSpacing(13)
 
+        # ---- 网格（源图/子图 行列，2 列布局）----
         grid = QGroupBox("网格")
-        gf = QFormLayout(grid)
+        grid.setObjectName("BatchGroup")
+        gv = QVBoxLayout(grid)
         self.src_rows = _spin(1, 50, 2)
         self.src_cols = _spin(1, 50, 2)
         self.sub_rows = _spin(1, 50, 1)
         self.sub_cols = _spin(1, 50, 1)
         for w in (self.src_rows, self.src_cols, self.sub_rows, self.sub_cols):
             w.valueChanged.connect(self.validityChanged)
-        gf.addRow("源图 行", self.src_rows)
-        gf.addRow("源图 列", self.src_cols)
-        gf.addRow("子图 行", self.sub_rows)
-        gf.addRow("子图 列", self.sub_cols)
+        gg = QGridLayout()
+        gg.setContentsMargins(0, 0, 0, 0)
+        gg.setHorizontalSpacing(14)
+        gg.setVerticalSpacing(9)
+        grid_cells = (("源图 行", self.src_rows, 0, 0),
+                      ("源图 列", self.src_cols, 0, 2),
+                      ("子图 行", self.sub_rows, 1, 0),
+                      ("子图 列", self.sub_cols, 1, 2))
+        for lbl, sp, r, c in grid_cells:
+            gg.addWidget(QLabel(lbl), r, c)
+            gg.addWidget(sp, r, c + 1)
+        gg.setColumnStretch(1, 1)
+        gg.setColumnStretch(3, 1)
+        gv.addLayout(gg)
         root.addWidget(grid)
 
+        # ---- 白边 / 间距（上右下左 quad + 间距 + 检测按钮）----
         mar = QGroupBox("白边 / 间距")
-        mf = QFormLayout(mar)
+        mar.setObjectName("BatchGroup")
+        mv = QVBoxLayout(mar)
         self.m_top = _spin(0, 9999, 0)
         self.m_right = _spin(0, 9999, 0)
         self.m_bottom = _spin(0, 9999, 0)
         self.m_left = _spin(0, 9999, 0)
         self.gap = _spin(0, 9999, 0)
-        mf.addRow("上", self.m_top)
-        mf.addRow("右", self.m_right)
-        mf.addRow("下", self.m_bottom)
-        mf.addRow("左", self.m_left)
-        mf.addRow("间距", self.gap)
+        quad = QGridLayout()
+        quad.setContentsMargins(0, 0, 0, 0)
+        quad.setHorizontalSpacing(14)
+        quad.setVerticalSpacing(9)
+        mar_cells = (("上", self.m_top, 0, 0), ("右", self.m_right, 0, 2),
+                     ("下", self.m_bottom, 1, 0), ("左", self.m_left, 1, 2))
+        for lbl, sp, r, c in mar_cells:
+            quad.addWidget(QLabel(lbl), r, c)
+            quad.addWidget(sp, r, c + 1)
+        quad.setColumnStretch(1, 1)
+        quad.setColumnStretch(3, 1)
+        mv.addLayout(quad)
+        gap_row = QHBoxLayout()
+        gap_row.addWidget(QLabel("间距"))
+        gap_row.addWidget(self.gap, 1)
+        mv.addLayout(gap_row)
         det_row = QHBoxLayout()
         btn_border = QPushButton("检测白边")
+        btn_border.setObjectName("BatchDetectBtn")
         btn_border.clicked.connect(self._detect_borders)
         btn_grid = QPushButton("推断网格")
+        btn_grid.setObjectName("BatchDetectBtn")
         btn_grid.clicked.connect(self._infer_grid)
         det_row.addWidget(btn_border)
         det_row.addWidget(btn_grid)
-        mf.addRow(det_row)
+        mv.addLayout(det_row)
         root.addWidget(mar)
 
         self.resample = ResampleGroup(
             list_models_fn=self._fetch_upscale_models,
             initial=self.cfg.split_resample_defaults,
         )
+        self.resample.setObjectName("BatchGroup")
         self.resample.specChanged.connect(self.validityChanged)
         root.addWidget(self.resample)
 
         out = QGroupBox("输出")
+        out.setObjectName("BatchGroup")
         of = QFormLayout(out)
         self.fmt = QComboBox(); self.fmt.addItems(["PNG", "JPG"])
         of.addRow("格式", self.fmt)

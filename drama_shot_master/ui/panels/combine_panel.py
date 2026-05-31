@@ -25,8 +25,11 @@ class CombinePanel(BasePanel):
         super().__init__(state, cfg, parent)
         self._worker = None
         root = QVBoxLayout(self)
+        root.setContentsMargins(14, 14, 14, 14)
+        root.setSpacing(13)
 
         box = QGroupBox("拼接参数")
+        box.setObjectName("BatchGroup")
         f = QFormLayout(box)
         self.t_rows = _spin(1, 50, 2)
         self.t_cols = _spin(1, 50, 2)
