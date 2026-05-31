@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>成片合成 · 转场智能体 Mockup</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body{
+    background:#07080e; color:#e8eaed; padding:20px;
+    font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    font-size:13px;
+  }
+  .label-bar{ color:#5a6a8a; font-size:11px; letter-spacing:2px; text-transform:uppercase;
+    text-align:center; margin-bottom:10px; }
+
+  .window{
+    width:100%; max-width:1280px; margin:0 auto;
+    aspect-ratio:1360/860; min-height:760px;
+    background:linear-gradient(160deg,#161a31 0%,#13162c 50%,#181230 100%);
+    border:1px solid #2a2a4a; border-radius:10px; overflow:hidden;
+    display:flex; flex-direction:column; position:relative;
+  }
+
+  /* tabs of 视频后期 container */
+  .tabs{ display:flex; gap:4px; padding:10px 14px 0; border-bottom:1px solid #1e1e3a; flex-shrink:0; }
+  .tab{ padding:8px 18px; font-size:13px; color:#7a8aaa; border-radius:7px 7px 0 0; cursor:pointer; }
+  .tab.active{ color:#e8eaed; background:rgba(74,158,255,0.10); border:1px solid #1e1e3a; border-bottom:none; font-weight:600; }
+  .tab .dot{ display:inline-block; width:6px; height:6px; border-radius:50%; background:#4a9eff; margin-right:6px; }
+
+  /* master-detail */
+  .md{ flex:1; display:flex; min-height:0; }
+  .master{ width:210px; flex-shrink:0; border-right:1px solid #1e1e3a; padding:12px 10px; display:flex; flex-direction:column; gap:8px; }
+  .master h4{ font-size:11px; color:#5a6a8a; letter-spacing:1px; margin-bottom:2px; }
+  .task{ padding:9px 11px; border-radius:8px; border:1px solid #232340; background:#10122a; cursor:pointer; }
+  .task.active{ border-color:#4a9eff66; background:rgba(74,158,255,0.08); box-shadow:0 0 18px #4a9eff14; }
+  .task .t-name{ font-size:12px; font-weight:600; color:#d0d8f0; }
+  .task .t-meta{ font-size:10px; color:#5a6a8a; margin-top:3px; }
+  .btn-newtask{ margin-top:auto; padding:8px; border:1px dashed #2f2f52; border-radius:8px; color:#7a8aaa; text-align:center; font-size:12px; cursor:pointer; }
+
+  .editor{ flex:1; display:flex; flex-direction:column; min-width:0; }
+
+  /* toolbar */
+  .toolbar{ display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid #1e1e3a; flex-shrink:0; }
+  .toolbar .title{ font-size:15px; font-weight:700; }
+  .toolbar .spacer{ flex:1; }
+  .btn{ padding:7px 13px; border-radius:8px; font-size:12px; cursor:pointer; border:1px solid #2a2a4a; background:rgba(19,19,42,0.6); color:#c4cad6; white-space:nowrap; }
+  .btn:hover{ background:rgba(30,30,60,0.8); }
+  .btn-primary{ border:none; color:#fff; font-weight:700; padding:8px 18px; border-radius:20px;
+    background:linear-gradient(90deg,#4a9eff,#a06cff); box-shadow:0 0 18px #4a9eff44; }
+
+  /* filmstrip */
+  .strip-wrap{ padding:14px 16px 6px; flex-shrink:0; }
+  .strip-hd{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .strip-hd .h{ font-size:12px; color:#9aa0a6; }
+  .strip-hd .cnt{ font-size:11px; color:#5a6a8a; }
+  .strip{ display:flex; align-items:center; gap:0; overflow-x:auto; padding-bottom:6px; }
+
+  .clip{ width:128px; flex-shrink:0; border-radius:9px; border:1px solid #252540; background:#12122a; overflow:hidden; cursor:pointer; position:relative; }
+  .clip.sel{ border-color:#4a9eff; box-shadow:0 0 0 1px #4a9eff, 0 0 22px #4a9eff22; }
+  .clip.dropped{ opacity:0.4; }
+  .clip.dropped .thumb::after{ content:"已剔除"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(8,8,18,0.55); color:#ff8a8a; font-size:12px; font-weight:700; }
+  .clip .thumb{ height:152px; position:relative;
+    background:linear-gradient(135deg,#1a3060,#2a1850); }
+  .clip.c2 .thumb{ background:linear-gradient(135deg,#281020,#1a1030); }
+  .clip.c3 .thumb{ background:linear-gradient(135deg,#102820,#1a2028); }
+  .clip.c4 .thumb{ background:linear-gradient(135deg,#201a10,#281818); }
+  .clip .keep{ position:absolute; top:6px; left:6px; width:20px; height:20px; border-radius:5px;
+    background:rgba(8,8,18,0.6); border:1px solid #4a9eff; display:flex; align-items:center; justify-content:center; color:#4a9eff; font-size:12px; }
+  .clip.dropped .keep{ border-color:#5a6a8a; color:#5a6a8a; }
+  .clip .grip{ position:absolute; top:6px; right:6px; color:#7a8aaa; font-size:13px; opacity:.7; }
+  .clip .shots{ position:absolute; bottom:34px; left:6px; font-size:9px; color:#a0c8ff; background:rgba(74,158,255,.18);
+    border:1px solid #4a9eff55; border-radius:3px; padding:1px 5px; }
+  .clip .meta{ padding:5px 7px; background:rgba(13,13,30,.85); }
+  .clip .c-name{ font-size:11px; font-weight:600; color:#d0d8f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .clip .c-dur{ font-size:9px; color:#5a6a8a; margin-top:1px; }
+
+  /* transition connector between clips */
+  .conn{ width:56px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; align-self:center; }
+  .conn .node{ width:30px; height:30px; border-radius:50%; border:1px dashed #3a3a5a; background:#10122a;
+    display:flex; align-items:center; justify-content:center; color:#7a8aaa; font-size:13px; }
+  .conn.sel .node{ border:2px solid #4a9eff; color:#a0c8ff; box-shadow:0 0 12px #4a9eff55; }
+  .conn.cut .node{ border-style:solid; border-color:#3a3a5a; color:#5a6a8a; }
+  .conn .lbl{ font-size:9px; color:#7a8aaa; white-space:nowrap; }
+  .conn.sel .lbl{ color:#a0c8ff; }
+  .conn .ai{ font-size:8px; color:#a06cff; }
+
+  /* bottom split: preview + inspector */
+  .lower{ flex:1; display:flex; min-height:0; border-top:1px solid #1e1e3a; }
+  .preview{ flex:1; display:flex; flex-direction:column; padding:12px 16px; min-width:0; }
+  .player{ flex:1; background:#000; border:1px solid #1e1e3a; border-radius:8px; position:relative; min-height:150px;
+    display:flex; align-items:center; justify-content:center; }
+  .player .play{ width:48px; height:48px; border-radius:50%; background:rgba(74,158,255,.18); border:1px solid #4a9eff;
+    display:flex; align-items:center; justify-content:center; color:#a0c8ff; font-size:18px; }
+  .player .pv-tag{ position:absolute; top:8px; left:10px; font-size:10px; color:#7a8aaa; }
+  /* trim scrub bar */
+  .trim{ margin-top:10px; }
+  .trim .tl-row{ display:flex; justify-content:space-between; font-size:10px; color:#5a6a8a; margin-bottom:4px; }
+  .scrub{ height:40px; border-radius:6px; position:relative; overflow:hidden;
+    background:repeating-linear-gradient(90deg,#1a2848 0 24px,#22305a 24px 48px); border:1px solid #252540; }
+  .scrub .keepzone{ position:absolute; top:0; bottom:0; left:14%; right:18%; background:rgba(74,158,255,.12); border-left:2px solid #4a9eff; border-right:2px solid #4a9eff; }
+  .scrub .handle{ position:absolute; top:0; bottom:0; width:8px; background:#4a9eff; cursor:ew-resize; }
+  .scrub .handle.l{ left:14%; border-radius:3px 0 0 3px; }
+  .scrub .handle.r{ right:18%; border-radius:0 3px 3px 0; }
+  .trim .hint{ font-size:10px; color:#5a6a8a; margin-top:5px; }
+
+  /* inspector */
+  .inspector{ width:248px; flex-shrink:0; border-left:1px solid #1e1e3a; padding:14px; display:flex; flex-direction:column; gap:14px; }
+  .insp-hd{ font-size:13px; font-weight:700; color:#d0d8f0; display:flex; align-items:center; gap:8px; }
+  .insp-hd .badge{ font-size:9px; color:#a06cff; border:1px solid #a06cff66; border-radius:4px; padding:1px 6px; }
+  .field{ display:flex; flex-direction:column; gap:6px; }
+  .field label{ font-size:11px; color:#9aa0a6; }
+  .select, .num{ background:#10122a; border:1px solid #2a2a4a; border-radius:7px; padding:7px 10px; color:#d0d8f0; font-size:12px; }
+  .select{ display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+  .slider{ height:6px; border-radius:3px; background:#232340; position:relative; }
+  .slider .fill{ position:absolute; left:0; top:0; bottom:0; width:30%; border-radius:3px; background:linear-gradient(90deg,#4a9eff,#a06cff); }
+  .slider .knob{ position:absolute; left:30%; top:50%; transform:translate(-50%,-50%); width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:0 0 6px #4a9eff88; }
+  .row{ display:flex; gap:8px; align-items:center; }
+  .chip{ font-size:11px; color:#c4cad6; border:1px solid #2a2a4a; border-radius:6px; padding:5px 9px; cursor:pointer; }
+  .chip.on{ border-color:#4a9eff; color:#a0c8ff; background:rgba(74,158,255,.1); }
+  .lock{ font-size:11px; color:#9aa0a6; display:flex; align-items:center; gap:6px; cursor:pointer; }
+
+  /* render bar */
+  .renderbar{ flex-shrink:0; border-top:1px solid #1e1e3a; padding:10px 16px; display:flex; align-items:center; gap:12px; }
+  .progress{ flex:1; height:8px; border-radius:4px; background:#1a1a30; overflow:hidden; }
+  .progress .pf{ height:100%; width:62%; background:linear-gradient(90deg,#4a9eff,#a06cff); }
+  .renderbar .st{ font-size:11px; color:#9aa0a6; white-space:nowrap; }
+
+  .note{ max-width:1280px; margin:14px auto 0; color:#7a8aaa; font-size:12px; line-height:1.7; }
+  .note b{ color:#c0c8e0; }
+  .note .k{ color:#a0c8ff; }
+</style>
+</head>
+<body>
+<div class="label-bar">糯米AI · 视频后期 › 成片合成 · 高保真 Mockup（v1 形态；AI推荐标记为 v2）</div>
+
+<div class="window">
+  <!-- container tabs -->
+  <div class="tabs">
+    <div class="tab active"><span class="dot"></span>成片</div>
+    <div class="tab">配音</div>
+    <div class="tab">配乐</div>
+  </div>
+
+  <div class="md">
+    <!-- master: compose tasks -->
+    <div class="master">
+      <h4>成片任务</h4>
+      <div class="task active">
+        <div class="t-name">第一集 · 成片</div>
+        <div class="t-meta">6 段 · 保留 5 · 02:14</div>
+      </div>
+      <div class="task">
+        <div class="t-name">预告片</div>
+        <div class="t-meta">4 段 · 00:38</div>
+      </div>
+      <div class="btn-newtask">＋ 新建成片任务</div>
+    </div>
+
+    <!-- editor -->
+    <div class="editor">
+      <div class="toolbar">
+        <div class="title">第一集 · 成片</div>
+        <div class="spacer"></div>
+        <div class="btn">⟳ 列出生成目录</div>
+        <div class="btn">＋ 添加片段</div>
+        <div class="btn-primary">✦ 一键智能转场</div>
+      </div>
+
+      <!-- filmstrip with connectors -->
+      <div class="strip-wrap">
+        <div class="strip-hd">
+          <span class="h">片段走马灯</span>
+          <span class="cnt">· 拖拽排序 · 点缩略图预览 · 点圆点编辑转场</span>
+        </div>
+        <div class="strip">
+          <div class="clip">
+            <div class="thumb"><div class="keep">✓</div><div class="grip">⠿</div><div class="shots">3 镜</div></div>
+            <div class="meta"><div class="c-name">片段 01</div><div class="c-dur">0:08.4</div></div>
+          </div>
+
+          <div class="conn"><div class="node">⤬</div><div class="lbl">叠化 0.5s</div></div>
+
+          <div class="clip c2 sel">
+            <div class="thumb"><div class="keep">✓</div><div class="grip">⠿</div><div class="shots">2 镜</div></div>
+            <div class="meta"><div class="c-name">片段 02</div><div class="c-dur">0:11.0 ✂</div></div>
+          </div>
+
+          <div class="conn sel"><div class="node">▷</div><div class="lbl">推进 0.6s</div><div class="ai">AI 推荐</div></div>
+
+          <div class="clip c3">
+            <div class="thumb"><div class="keep">✓</div><div class="grip">⠿</div><div class="shots">1 镜</div></div>
+            <div class="meta"><div class="c-name">片段 03</div><div class="c-dur">0:06.2</div></div>
+          </div>
+
+          <div class="conn cut"><div class="node">▭</div><div class="lbl">硬切</div></div>
+
+          <div class="clip c4 dropped">
+            <div class="thumb"><div class="keep">✓</div><div class="grip">⠿</div></div>
+            <div class="meta"><div class="c-name">片段 04</div><div class="c-dur">0:09.1</div></div>
+          </div>
+
+          <div class="conn"><div class="node">◐</div><div class="lbl">圆开 0.7s</div></div>
+
+          <div class="clip">
+            <div class="thumb"><div class="keep">✓</div><div class="grip">⠿</div><div class="shots">2 镜</div></div>
+            <div class="meta"><div class="c-name">片段 05</div><div class="c-dur">0:07.8</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- lower: preview + inspector -->
+      <div class="lower">
+        <div class="preview">
+          <div class="player">
+            <span class="pv-tag">预览：片段 02（也可切「整片预览」）</span>
+            <div class="play">▶</div>
+          </div>
+          <div class="trim">
+            <div class="tl-row"><span>0:00</span><span>入点 0:01.6 — 出点 0:09.1（保留 7.5s）</span><span>0:11.0</span></div>
+            <div class="scrub">
+              <div class="keepzone"></div>
+              <div class="handle l"></div>
+              <div class="handle r"></div>
+            </div>
+            <div class="hint">拖动蓝色手柄裁掉片段头尾瑕疵帧（仅存入/出点，渲染时 ffmpeg -ss/-to 实裁）</div>
+          </div>
+        </div>
+
+        <!-- inspector: shows selected connector (transition) -->
+        <div class="inspector">
+          <div class="insp-hd">转场：02 → 03 <span class="badge">AI 推荐</span></div>
+          <div class="field">
+            <label>转场效果</label>
+            <div class="select"><span>推进 (smoothleft)</span><span>▾</span></div>
+          </div>
+          <div class="field">
+            <label>时长 0.6s（0.3–2.0s）</label>
+            <div class="slider"><div class="fill"></div><div class="knob"></div></div>
+          </div>
+          <div class="field">
+            <label>来源</label>
+            <div class="row">
+              <span class="chip on">AI 自动</span>
+              <span class="chip">手动覆盖</span>
+            </div>
+          </div>
+          <div class="lock">☐ 锁定此切口（重跑智能转场不覆盖）</div>
+          <div class="row" style="margin-top:auto;">
+            <span class="chip">↺ 重置为 AI</span>
+            <span class="chip">应用到全部</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- render bar -->
+      <div class="renderbar">
+        <span class="st">渲染中 3/5 切口</span>
+        <div class="progress"><div class="pf"></div></div>
+        <span class="st">归一化 1080p/30fps · 保留原音(acrossfade)</span>
+        <div class="btn">送去配乐 ›</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <b>交互要点：</b>
+  ① 左侧 <span class="k">成片任务</span>列表（master-detail，复用 TaskWorkspacePage）；
+  ② <span class="k">片段走马灯</span>：缩略图卡可拖拽排序、左上角勾选保留/剔除（剔除变灰）、点卡片在下方预览；
+  ③ 卡片之间的<span class="k">圆点 = 转场切口</span>，点击在右侧 inspector 编辑（效果/时长/AI来源/锁定）；硬切显示为方块；
+  ④ <span class="k">trim 条</span>：选中片段时下方出现缩略图刷条 + 双手柄设入/出点；
+  ⑤ <span class="k">一键智能转场</span>（v2）跑 CV 给每个切口填 AI 推荐，已锁定的不动；v1 用默认/手动；
+  ⑥ 底部<span class="k">渲染进度</span> + 完成后 <span class="k">送去配乐</span>。
+</div>
+</body>
+</html>
