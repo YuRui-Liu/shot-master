@@ -15,6 +15,18 @@ from PySide6.QtWidgets import (
 )
 
 
+def resolve_imggen_out_dir(cfg) -> Path:
+    """出图落盘目录：出图专属目录 > 主面板「输出目录」(last_output_dir) > 当前目录。
+
+    末尾统一加 imggen 子目录。空的出图目录回退到主面板输出目录，
+    而非 cwd——否则图会落到程序工作目录，与项目分离。
+    """
+    base = ((getattr(cfg, "imggen_output_dir", "") or "").strip()
+            or (getattr(cfg, "last_output_dir", "") or "").strip()
+            or ".")
+    return Path(base) / "imggen"
+
+
 class _AtRefHighlighter(QSyntaxHighlighter):
     """把 @标签 标蓝——仅当标签是当前已添加的参考图标签时才高亮。"""
 
@@ -216,7 +228,7 @@ class ImgGenPanel(QWidget):
         size = resolve_size(self.quality.currentText(), self.ratio.currentText())
         n = self.count.value()
         refs = [Path(r["path"]) for r in self._refs]
-        out_dir = Path(cfg.imggen_output_dir or ".") / "imggen"
+        out_dir = resolve_imggen_out_dir(cfg)
         ts = time.strftime("%Y%m%d_%H%M%S")
 
         def task():
