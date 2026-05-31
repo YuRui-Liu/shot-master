@@ -46,6 +46,7 @@ STORYBOARD_TABS = [
 
 # 视频后期容器页 tab：(底层 panel key, tab 中文标题)。
 VIDEOPOST_TABS = [
+    ("compose", "成片"),
     ("dubbing", "配音"),
     ("soundtrack", "配乐"),
 ]
@@ -62,6 +63,7 @@ FUNCS = [
     ("裁边", "trim"),
     ("出图", "imggen"),
     ("生视频", "video_gen"),
+    ("成片", "compose"),
     ("配音", "dubbing"),
     ("配乐", "soundtrack"),
 ]
@@ -71,12 +73,12 @@ PHASES = [
     ("⓪ 剧本创作", ["screenwriter"]),
     ("① 素材准备", ["split", "combine", "trim"]),
     ("② 分镜创作", ["imggen"]),
-    ("③ 视频出片", ["video_gen", "dubbing", "soundtrack"]),
+    ("③ 视频出片", ["video_gen", "compose", "dubbing", "soundtrack"]),
 ]
 
 # 批处理类（主区：网格+参数+执行）vs 任务管理类（主区：任务列表，双击开窗）
 BATCH_KEYS = {"split", "combine", "trim"}
-TASK_KEYS = {"imggen", "video_gen", "soundtrack", "dubbing", "screenwriter"}
+TASK_KEYS = {"imggen", "video_gen", "soundtrack", "dubbing", "screenwriter", "compose"}
 
 _ICON_DIR = Path(__file__).resolve().parent.parent / "assets" / "icons"
 
@@ -91,6 +93,7 @@ ICONS = {
     "video_gen": "video.svg",
     "soundtrack": "music.svg",
     "dubbing": "mic.svg",
+    "compose": "video.svg",
 }
 
 # 扁平导航专属 key → SVG 文件名（overview/asset_library/storyboard/video_post）。

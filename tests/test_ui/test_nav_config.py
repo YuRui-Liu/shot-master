@@ -5,9 +5,9 @@ def test_funcs_has_eight_functions():
     # 不硬编码顺序（用户可重排）；只校验数量与键集合，顺序一致性由
     # test_phases_cover_all_func_keys_in_order 保证（FUNCS↔PHASES 同序）。
     keys = [key for _label, key in FUNCS]
-    assert len(keys) == 8
+    assert len(keys) == 9
     assert set(keys) == {"screenwriter", "split", "combine", "trim", "imggen",
-                         "video_gen", "soundtrack", "dubbing"}
+                         "video_gen", "soundtrack", "dubbing", "compose"}
 
 
 def test_phases_cover_all_func_keys_in_order():
@@ -58,3 +58,13 @@ def test_screenwriter_in_phases_drama_prep():
     from drama_shot_master.ui.nav_config import NAV_ITEMS
     labels = {key: label for label, key in NAV_ITEMS}
     assert labels.get("screenwriter") == "剧本创作"
+
+
+def test_compose_tab_in_videopost_first():
+    from drama_shot_master.ui import nav_config as nc
+    keys = [k for k, _ in nc.VIDEOPOST_TABS]
+    assert keys[0] == "compose"
+    assert "compose" in [k for _l, k in nc.FUNCS]
+    assert "compose" in nc.TASK_KEYS
+    # compose 归入 production 门禁（与 video_gen 同阶段）
+    assert "compose" in nc.PHASE_GATES and nc.PHASE_GATES["compose"] == "production"
