@@ -10,6 +10,16 @@ import numpy as np
 from PIL import Image
 from .specs import Margins
 
+# 网格分隔线（白带）的最小厚度（像素）。比这更薄的白带视为抗锯齿/JPEG
+# 噪声——不是真实的行/列分隔线，否则会把 1px 白条误当分隔线，导致
+# 网格误判（2x2→2x3）和切出退化 cell（下游 resize 抛 ValueError）。
+_MIN_GRID_BAND = 3
+
+
+def _grid_bands(bands: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """仅保留厚度 >= _MIN_GRID_BAND 的白带，滤掉亚像素噪声条。"""
+    return [b for b in bands if b[1] - b[0] >= _MIN_GRID_BAND]
+
 
 def detect_white_bands(arr: np.ndarray, axis: int,
                        white_threshold: int = 240,
@@ -68,12 +78,10 @@ def find_cell_boxes(
     rgb_img = img.convert("RGB") if img.mode != "RGB" else img
     arr = np.array(rgb_img)
 
-    v_bands = sorted(detect_white_bands(arr, axis=1,
-                                         white_threshold=white_threshold,
-                                         min_ratio=min_ratio))
-    h_bands = sorted(detect_white_bands(arr, axis=0,
-                                         white_threshold=white_threshold,
-                                         min_ratio=min_ratio))
+    v_bands = _grid_bands(sorted(detect_white_bands(
+        arr, axis=1, white_threshold=white_threshold, min_ratio=min_ratio)))
+    h_bands = _grid_bands(sorted(detect_white_bands(
+        arr, axis=0, white_threshold=white_threshold, min_ratio=min_ratio)))
 
     # 合成「虚拟边缘带」：若内容紧贴图像边界（首/末像素非白），
     # 视为存在 0 宽度的边带，使得「内部 n-1 条 + 2 条虚拟边」凑齐 n+1。
@@ -141,8 +149,8 @@ def infer_grid(
                                          white_threshold=white_threshold,
                                          min_ratio=min_white_ratio))
 
-    inner_h = [b for b in h_bands if b[0] > 0 and b[1] < H]
-    inner_v = [b for b in v_bands if b[0] > 0 and b[1] < W]
+    inner_h = _grid_bands([b for b in h_bands if b[0] > 0 and b[1] < H])
+    inner_v = _grid_bands([b for b in v_bands if b[0] > 0 and b[1] < W])
     rows = max(1, len(inner_h) + 1)
     cols = max(1, len(inner_v) + 1)
     return rows, cols

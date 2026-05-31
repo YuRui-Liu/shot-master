@@ -52,9 +52,10 @@ def split_image(src: Image.Image, spec: GridSpec) -> list[Image.Image]:
         uniform_border=uniform_border,
     )
 
-    # cell 尺寸合法性
+    # cell 尺寸合法性：<2px 的 cell 一定是噪声白带导致的退化结果，
+    # 直接报清晰错误，避免下游 trim/resize 抛 "height and width must be > 0"
     for (l, t, r, b) in cell_boxes:
-        if r - l < 1 or b - t < 1:
+        if r - l < 2 or b - t < 2:
             raise CellTooSmallError(
                 f"cell box invalid: ({l},{t},{r},{b})"
             )
