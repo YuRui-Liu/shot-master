@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>剧本创作·立意页 重设计 — 确认</title>
+<style>
+  :root{
+    --bg:#1e1f22; --navy:#13162a; --panel:#202234; --panel2:#262943; --field:#16182a;
+    --border:#2c2f48; --border-lo:#23253a;
+    --blue:#4a9eff; --blue-dim:#2f5e96; --periw:#8b7fd9; --mauve:#a78bfa;
+    --fg:#e8eaed; --fg2:#c4c8d4; --muted:#9aa0a6; --faint:#5a6076; --done:#4ec98f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:#0a0b12;color:var(--fg);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;font-size:13px;}
+  .page{max-width:1180px;margin:0 auto;padding:20px 22px 56px;}
+  h1{font-size:18px;margin:0 0 3px;} .sub{color:var(--muted);font-size:12.5px;line-height:1.65;margin:0 0 16px;}
+  .sub code{background:#1c1f2e;border:1px solid #2a2e44;border-radius:4px;padding:1px 6px;font-size:11.5px;} .sub b{color:var(--fg2);}
+
+  .win{border:1px solid #000;border-radius:11px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6);background:var(--bg);}
+  /* wizard stepper */
+  .stepper{display:flex;align-items:center;gap:6px;padding:12px 18px;border-bottom:1px solid var(--border-lo);background:#171a26;}
+  .step{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);padding:5px 12px;border-radius:18px;}
+  .step .n{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;border:1px solid var(--border);}
+  .step.active{background:linear-gradient(90deg,rgba(74,158,255,.2),rgba(74,158,255,.05));color:#fff;font-weight:600;}
+  .step.active .n{background:var(--blue);color:#06122a;border-color:var(--blue);}
+  .step .sep{color:var(--faint);}
+  .chev{color:var(--faint);font-size:12px;}
+
+  .split{display:grid;grid-template-columns:1.05fr 1fr;gap:0;}
+  @media(max-width:900px){.split{grid-template-columns:1fr;}}
+  .form{padding:18px 20px;border-right:1px solid var(--border-lo);max-height:620px;overflow:auto;}
+  .out{padding:18px 20px;background:#0e1018;}
+
+  .sect{margin-bottom:18px;}
+  .sect .st{font-size:11px;color:var(--periw);font-weight:600;letter-spacing:.5px;margin-bottom:9px;text-transform:uppercase;display:flex;align-items:center;gap:7px;}
+  .sect .st .ln{flex:1;height:1px;background:#22253a;}
+  .field{margin-bottom:11px;}
+  .field .lab{font-size:11.5px;color:var(--fg2);margin-bottom:5px;display:flex;align-items:center;gap:6px;}
+  .field .lab .req{color:#e0a85a;}
+  .inp{width:100%;background:var(--field);border:1px solid var(--border);border-radius:7px;padding:8px 11px;font-size:12px;color:var(--fg);}
+  .inp.ph{color:var(--faint);}
+
+  /* structured picker row */
+  .picker{display:flex;align-items:center;gap:9px;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:8px 10px;}
+  .picker .chip{font-size:12px;color:#fff;font-weight:600;background:#243a5a;border:1px solid #2c4a6e;border-radius:7px;padding:3px 10px;white-space:nowrap;}
+  .picker .chip.sub{background:#1e2e22;border-color:#2c5a44;color:#9bd6a4;}
+  .picker .chip.style{background:#2e2746;border-color:#4a3d6e;color:#cdbcf5;}
+  .picker .meta{font-size:10.5px;color:var(--muted);flex:1;min-width:0;}
+  .picker .btn{font-size:11px;color:var(--blue);border:1px solid var(--blue-dim);border-radius:6px;padding:4px 11px;background:rgba(74,158,255,.06);white-space:nowrap;}
+  /* advanced free-text (collapsed) */
+  .adv{margin-top:7px;}
+  .adv .tog{font-size:10.5px;color:var(--faint);cursor:pointer;display:flex;align-items:center;gap:5px;}
+  .adv .body{margin-top:6px;}
+  .adv .inp{font-size:11px;padding:6px 9px;}
+
+  /* aspect ratio segmented */
+  .ar{display:flex;gap:8px;}
+  .arb{flex:1;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;}
+  .arb.on{border-color:var(--blue);background:rgba(74,158,255,.1);box-shadow:0 0 0 1px var(--blue);}
+  .arb .shape{border:1.5px solid var(--muted);border-radius:2px;}
+  .arb.on .shape{border-color:var(--blue);}
+  .arb .t{font-size:11px;color:var(--fg2);} .arb.on .t{color:#fff;font-weight:600;} .arb .d{font-size:9px;color:var(--faint);}
+
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;}
+  .num{display:flex;align-items:center;background:var(--field);border:1px solid var(--border);border-radius:7px;padding:6px 9px;}
+  .num input{flex:1;background:none;border:none;color:var(--fg);font-size:13px;width:100%;font-variant-numeric:tabular-nums;}
+  .num .u{font-size:10px;color:var(--faint);}
+
+  /* injection preview */
+  .inject{background:#10131f;border:1px solid #21243a;border-radius:9px;padding:11px 13px;}
+  .inject .it{font-size:10.5px;color:var(--periw);font-weight:600;margin-bottom:7px;}
+  .inject .g{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted);line-height:1.5;}
+  .inject .g b{color:var(--fg2);}
+  .inject .g .k{color:#9cc7ff;}
+
+  .cta{display:flex;gap:9px;margin-top:6px;}
+  .cta .gen{flex:1;background:var(--blue);color:#06122a;font-weight:700;border-radius:8px;padding:10px;text-align:center;font-size:13px;}
+  .cta .sec{border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 14px;font-size:12px;}
+
+  /* output side */
+  .out .ot{font-size:12px;color:var(--fg2);font-weight:600;margin-bottom:11px;}
+  .cand{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:11px 13px;margin-bottom:9px;}
+  .cand.sel{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue);}
+  .cand .ct{font-size:12.5px;font-weight:600;color:var(--fg);margin-bottom:4px;}
+  .cand .cd{font-size:11px;color:var(--muted);line-height:1.55;}
+  .cand .tags{margin-top:7px;display:flex;gap:5px;flex-wrap:wrap;}
+  .cand .tg{font-size:9px;color:#9bd6a4;border:1px solid #2c5a44;border-radius:8px;padding:1px 7px;}
+
+  .notes{margin-top:20px;border-top:1px solid var(--border);padding-top:14px;font-size:12px;color:var(--muted);line-height:1.75;} .notes b{color:var(--fg);}
+  .ask{margin-top:11px;font-size:12.5px;color:var(--fg2);line-height:1.85;} .ask b{color:#fff;} .ask .q{color:#bda7fa;font-weight:600;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>剧本创作 · 立意页 重设计 — 确认</h1>
+  <p class="sub">立意页改造：<b>结构化题材/风格选择为主 + 自由文本折叠为高级（兼容）</b>，新增 <b>画幅选择</b>（不固定 9:16），注入预览显示喂给生成的题材/风格规则。蓝紫主题、表单分组、渐进披露。</p>
+
+  <div class="win">
+    <!-- wizard stepper -->
+    <div class="stepper">
+      <div class="step active"><span class="n">1</span>立意</div><span class="chev">›</span>
+      <div class="step"><span class="n">2</span>剧本</div><span class="chev">›</span>
+      <div class="step"><span class="n">3</span>分镜</div><span class="chev">›</span>
+      <div class="step"><span class="n">4</span>出图 prompt</div>
+    </div>
+
+    <div class="split">
+      <!-- 左：配置表单 -->
+      <div class="form">
+        <!-- 创意 -->
+        <div class="sect">
+          <div class="st">创意<span class="ln"></span></div>
+          <div class="field"><div class="lab">一句话主旨 <span class="req">*</span></div>
+            <input class="inp" value="替嫁后她惊艳全场，渣男悔不当初"></div>
+        </div>
+
+        <!-- 题材 -->
+        <div class="sect">
+          <div class="st">题材<span class="ln"></span></div>
+          <div class="field">
+            <div class="picker">
+              <span class="chip">短剧</span><span class="chip sub">+逆袭爽</span>
+              <span class="meta">爽点：打脸40·逆袭30 / 节奏：每分钟4爆点</span>
+              <span class="btn">选题材模板</span>
+            </div>
+            <div class="adv"><span class="tog">▸ 高级：自由题材标签（可选，与模板叠加）</span></div>
+          </div>
+        </div>
+
+        <!-- 风格圣经 -->
+        <div class="sect">
+          <div class="st">风格圣经<span class="ln"></span></div>
+          <div class="field">
+            <div class="picker">
+              <span class="chip style">真人 · 电影感暖调</span>
+              <span class="meta">real/cinematic-warm-v1 · 浅景深胶片颗粒</span>
+              <span class="btn">选风格圣经</span>
+            </div>
+            <div class="adv"><span class="tog">▸ 高级：自由视觉风格描述（可选）</span></div>
+          </div>
+        </div>
+
+        <!-- 画幅 & 规格 -->
+        <div class="sect">
+          <div class="st">画幅 &amp; 规格<span class="ln"></span></div>
+          <div class="field"><div class="lab">画幅（输出比例）</div>
+            <div class="ar">
+              <div class="arb on"><span class="shape" style="width:15px;height:26px"></span><span class="t">9:16</span><span class="d">竖屏·抖音</span></div>
+              <div class="arb"><span class="shape" style="width:30px;height:17px"></span><span class="t">16:9</span><span class="d">横屏·影视</span></div>
+              <div class="arb"><span class="shape" style="width:22px;height:22px"></span><span class="t">1:1</span><span class="d">方·社媒</span></div>
+              <div class="arb"><span class="shape" style="width:18px;height:23px"></span><span class="t">4:5</span><span class="d">竖·小红书</span></div>
+            </div>
+          </div>
+          <div class="row3" style="margin-top:11px">
+            <div><div class="lab" style="font-size:11px;color:var(--muted);margin-bottom:4px">集数</div><div class="num"><input value="12"><span class="u">集</span></div></div>
+            <div><div class="lab" style="font-size:11px;color:var(--muted);margin-bottom:4px">单集时长</div><div class="num"><input value="60"><span class="u">秒</span></div></div>
+            <div><div class="lab" style="font-size:11px;color:var(--muted);margin-bottom:4px">候选数</div><div class="num"><input value="3"><span class="u">个</span></div></div>
+          </div>
+        </div>
+
+        <!-- 注入预览 -->
+        <div class="sect">
+          <div class="inject">
+            <div class="it">▸ 本次生成将注入（题材模板 + 风格圣经驱动）</div>
+            <div class="g">
+              <span><b>题材规则</b>：<span class="k">爽点矩阵</span> 打脸40/逆袭30 · <span class="k">节奏</span> 前3s强冲突 · <span class="k">守则</span> 压抑→释放·反转钩≤7</span>
+              <span><b>风格</b>：暖调浅景深胶片颗粒 · 镜头语言 △景别 · 禁字幕护栏</span>
+              <span><b>规格</b>：9:16 · 12集 · 单集60s</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="cta"><div class="gen">✦ 生成 3 个立意候选</div><div class="sec">存草稿</div></div>
+      </div>
+
+      <!-- 右：候选输出 -->
+      <div class="out">
+        <div class="ot">立意候选（3）</div>
+        <div class="cand sel"><div class="ct">候选 1 · 替嫁逆袭</div>
+          <div class="cd">庶女替嫡姐出嫁，洞房夜揭穿阴谋，凭医术/商才在侯府步步翻盘，渣男悔。</div>
+          <div class="tags"><span class="tg">打脸</span><span class="tg">逆袭</span><span class="tg">甜虐</span></div></div>
+        <div class="cand"><div class="ct">候选 2 · 真千金归来</div>
+          <div class="cd">寄养真千金回归，假千金百般构陷，反被打脸，男主追妻火葬场。</div>
+          <div class="tags"><span class="tg">身份反转</span><span class="tg">追妻</span></div></div>
+        <div class="cand"><div class="ct">候选 3 · 重生复仇</div>
+          <div class="cd">含冤而死的少奶奶重生回嫁前，步步为营复仇雪恨。</div>
+          <div class="tags"><span class="tg">重生</span><span class="tg">复仇</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <b>关键设计</b>：① 题材/风格 = <b>结构化 chip + 选模板按钮</b>（主），自由文本<b>折叠进"高级"</b>（兼容老用户，渐进披露）；② <b>画幅 4 选项</b>（9:16竖/16:9横/1:1方/4:5，可扩展自定义）——可视化比例形状 + 用途副标；③ 集数/时长/候选数 tabular 数字；④ <b>注入预览</b>让用户看到"题材模板+风格圣经会喂什么给生成"，把 ② 核心可视化；⑤ 右侧候选区不变（沿用现有 ideate 输出）。
+  </div>
+  <div class="ask">
+    <b>请确认/定：</b><br>
+    <span class="q">Q1 画幅选项</span>：9:16 / 16:9 / 1:1 / 4:5 够吗？要不要加 <b>自定义比例</b> 输入？默认选哪个（你说短剧不一定竖屏——默认让用户选 还是记住上次）？<br>
+    <span class="q">Q2 布局</span>：左配置 + 右候选 的两栏 OK 吗（沿用现有 ideate 的 splitter）？<br>
+    <span class="q">Q3 自由文本</span>：折叠进"高级"OK，还是想一直可见？<br>
+    <span class="q">Q4 画幅写哪</span>：画幅写进 <code>project.json.params.aspect_ratio</code>（项目级，驱动出图/视频），对吧？<br>
+    定了我写 立意页改造 spec/plan，等你说 ideate_page.py 那边稳定就实现。
+  </div>
+</div>
+</body>
+</html>

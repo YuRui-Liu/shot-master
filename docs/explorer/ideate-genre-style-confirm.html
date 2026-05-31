@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>② 立意页 题材/风格 结构化改造 — 设计确认</title>
+<style>
+  :root{
+    --bg:#1e1f22; --navy:#13162a; --panel:#202234; --panel2:#262943;
+    --border:#2c2f48; --blue:#4a9eff; --blue-dim:#2f5e96; --periw:#8b7fd9; --mauve:#a78bfa;
+    --fg:#e8eaed; --fg2:#c4c8d4; --muted:#9aa0a6; --faint:#5a6076; --done:#4ec98f; --warn:#e0a85a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:#0a0b12;color:var(--fg);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;font-size:13px;}
+  .page{max-width:1240px;margin:0 auto;padding:22px 22px 56px;}
+  h1{font-size:18px;margin:0 0 4px;} .sub{color:var(--muted);font-size:12.5px;line-height:1.7;margin:0 0 18px;}
+  .sub code{background:#1c1f2e;border:1px solid #2a2e44;border-radius:4px;padding:1px 6px;font-size:11.5px;} .sub b{color:var(--fg2);}
+  .cols{display:grid;grid-template-columns:1fr 1.25fr;gap:24px;}
+  @media(max-width:980px){.cols{grid-template-columns:1fr;}}
+  .opt{background:#141620;border:1px solid #232638;border-radius:12px;overflow:hidden;}
+  .opt .hd{display:flex;align-items:center;gap:9px;padding:11px 15px;border-bottom:1px solid #232638;background:#171a26;}
+  .badge{font-size:11px;font-weight:700;border-radius:6px;padding:2px 9px;}
+  .badge.old{background:#3a2e2e;color:#e0b0a0;} .badge.new{background:var(--blue);color:#06122a;}
+  .opt h2{font-size:13.5px;margin:0;font-weight:650;} .opt .tag{margin-left:auto;font-size:10.5px;color:var(--faint);}
+  .body{padding:16px;}
+
+  /* form rows */
+  .frow{display:flex;align-items:center;gap:12px;margin-bottom:13px;}
+  .frow .lab{width:62px;flex:0 0 62px;font-size:12px;color:var(--fg2);text-align:right;}
+  .inp{flex:1;background:#16161e;border:1px solid #2c2f48;border-radius:7px;padding:8px 10px;font-size:12px;color:var(--fg);}
+  .inp.ph{color:var(--faint);}
+
+  /* structured pickers (new) */
+  .picker{flex:1;display:flex;align-items:center;gap:10px;background:#16182a;border:1px solid #2c2f48;border-radius:8px;padding:9px 11px;}
+  .picker .chip{font-size:12px;color:#fff;font-weight:600;background:#243a5a;border:1px solid #2c4a6e;border-radius:7px;padding:3px 10px;}
+  .picker .chip.style{background:#2e2746;border-color:#4a3d6e;color:#cdbcf5;}
+  .picker .sub{font-size:10.5px;color:var(--muted);flex:1;}
+  .picker .btn{font-size:11px;color:var(--blue);border:1px solid var(--blue-dim);border-radius:6px;padding:4px 11px;background:rgba(74,158,255,.06);white-space:nowrap;}
+
+  /* injection preview */
+  .inject{margin-top:6px;background:#10131f;border:1px solid #21243a;border-radius:9px;padding:11px 13px;}
+  .inject .it{font-size:10.5px;color:var(--periw);font-weight:600;margin-bottom:6px;letter-spacing:.5px;}
+  .inject .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:11px;color:var(--muted);line-height:1.5;}
+  .inject .grid b{color:var(--fg2);}
+  .inject .stages{margin-top:9px;font-size:10.5px;color:var(--faint);border-top:1px solid #21243a;padding-top:7px;}
+  .inject .stages b{color:#9cc7ff;}
+
+  .other-fields{margin-top:6px;opacity:.85;}
+  .note{font-size:11px;color:var(--faint);margin-top:10px;line-height:1.6;}
+  .arrow{text-align:center;color:var(--blue);font-size:22px;margin:6px 0;}
+
+  .where{margin-top:26px;border-top:1px solid var(--border);padding-top:16px;}
+  .where h3{font-size:14px;margin:0 0 12px;}
+  .wgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  @media(max-width:980px){.wgrid{grid-template-columns:1fr;}}
+  .wc{background:#1a1a1a;border:1px solid #2c2f48;border-radius:9px;padding:13px;}
+  .wc .t{font-size:12px;font-weight:600;color:var(--fg);margin-bottom:6px;} .wc .d{font-size:11.5px;color:var(--muted);line-height:1.7;}
+  .wc .rec{color:var(--done);font-weight:600;}
+  .ask{margin-top:22px;font-size:13px;color:var(--fg2);line-height:1.85;} .ask b{color:#fff;} .ask .q{color:#bda7fa;font-weight:600;}
+  .warn{color:var(--warn);}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>② 立意页 题材/风格 结构化改造 — 设计确认</h1>
+  <p class="sub">② 的 GUI 核心改造：把 <code>ideate_page</code> 的<b>自由文本</b>题材/视觉风格 → <b>结构化题材模板 + 风格圣经选择器</b>（驱动全部 5 阶段生成）。左=现状，右=改造方案。</p>
+
+  <div class="cols">
+    <!-- 现状 -->
+    <div class="opt">
+      <div class="hd"><span class="badge old">现状</span><h2>立意页（自由文本，= 固定/随意提示词）</h2></div>
+      <div class="body">
+        <div class="frow"><span class="lab">主旨</span><span class="inp">替嫁后她惊艳全场</span></div>
+        <div class="frow"><span class="lab">题材</span><span class="inp ph">题材标签，逗号分隔：古风, 玄幻, 言情…</span></div>
+        <div class="frow"><span class="lab">视觉风格</span><span class="inp ph">视觉风格，如：水墨</span></div>
+        <div class="frow"><span class="lab">额外约束</span><span class="inp ph">（可选）</span></div>
+        <p class="note">问题：题材/风格是<b>裸文本</b>，生成时只是塞进 prompt——没有爽点矩阵/节奏曲线/镜头语言/ref 一致性。后续 剧本/分镜/视频 各阶段也拿不到结构化约束。这就是"固定提示词"。</p>
+      </div>
+    </div>
+
+    <!-- 改造 -->
+    <div class="opt">
+      <div class="hd"><span class="badge new">改造</span><h2>立意页（结构化选择 → 驱动生成）</h2><span class="tag">② 核心</span></div>
+      <div class="body">
+        <div class="frow"><span class="lab">主旨</span><span class="inp">替嫁后她惊艳全场</span></div>
+        <div class="frow"><span class="lab">题材</span>
+          <span class="picker"><span class="chip">短剧</span><span class="chip" style="background:#1e2e22;border-color:#2c5a44;color:#9bd6a4">+逆袭爽</span><span class="sub">主+副 ≤3</span><span class="btn">选题材模板</span></span></div>
+        <div class="frow"><span class="lab">风格圣经</span>
+          <span class="picker"><span class="chip style">真人·电影感暖调</span><span class="sub">real/cinematic-warm-v1</span><span class="btn">选风格圣经</span></span></div>
+        <!-- 注入预览 -->
+        <div class="inject">
+          <div class="it">▸ 将注入各生成阶段（来自题材模板 + 风格圣经）</div>
+          <div class="grid">
+            <span><b>爽点矩阵</b>：打脸40/逆袭30/甜宠20/悬念10</span>
+            <span><b>节奏</b>：前3s强冲突·每分钟4爆点</span>
+            <span><b>守则/不要做</b>：压抑→释放·反转钩≤7</span>
+            <span><b>镜头语言</b>：暖调浅景深·胶片颗粒</span>
+            <span><b>风格 suffix</b>：cinematic warm tungsten…</span>
+            <span><b>禁字幕/护栏</b>：no subtitles, ≤1400字</span>
+          </div>
+          <div class="stages">注入 → <b>立意</b> · <b>剧本</b> · <b>分镜</b>(globalStyle) · <b>出图</b>(角色ref 含指纹/render 不含) · <b>视频导演台</b>(全局+各分镜+时间 LTX)</div>
+        </div>
+        <div class="frow other-fields" style="margin-top:13px"><span class="lab">额外约束</span><span class="inp ph">（可选，高级手填仍保留）</span></div>
+        <p class="note">题材/风格选择**写进 <code>project.json</code>**（params.genre + style_bible.ref），所以<b>全项目持久</b>、所有阶段共享，不用每次重填。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 选择器放哪 -->
+  <div class="where">
+    <h3>选择器在哪触发（3 处，可多选）</h3>
+    <div class="wgrid">
+      <div class="wc"><div class="t">① 立意页内（推荐主入口）</div><div class="d"><span class="rec">替换自由文本</span>为「选题材模板/选风格圣经」按钮 + 注入预览。最贴近生成上下文。<br><span class="warn">⚠ 改 ideate_page.py（会话前 M 文件，需协调）</span></div></div>
+      <div class="wc"><div class="t">② 新建项目时</div><div class="d">建项目→弹题材/风格选择（一次性设定），写 project.json。改 app_shell 的 _init_new_project（我的 2b 代码）。</div></div>
+      <div class="wc"><div class="t">③ 概览页编辑</div><div class="d">STYLE BIBLE 卡已有编辑入口（接 styleBibleEditRequested）；题材加个 chip 可改。随时调整。改 overview/app_shell。</div></div>
+    </div>
+  </div>
+
+  <div class="ask">
+    <b>请你确认/选择：</b><br>
+    <span class="q">Q1 改造范围</span>：右侧"立意页结构化"方案 OK 吗？自由文本是<b>完全替换</b>，还是<b>保留为高级手填 + 加结构化按钮</b>（推荐保留，兼容老用户）？<br>
+    <span class="q">Q2 选择器入口</span>：①立意页 / ②新建项目 / ③概览 —— 主入口放哪？（推荐 ①立意页为主 + ③概览可改；②新建项目可选）<br>
+    <span class="q">Q3 ideate_page.py 是会话前 M 文件</span>：那是谁在改？要不要我先<b>不碰它</b>，改从②新建项目+③概览入手（避开冲突），立意页改造等那边稳定？<br>
+    <span class="q">Q4 风格适配</span>：向导页要不要顺带统一成项目级蓝紫风格，还是先只做功能不动现有样式？<br>
+    定了我再实现 GUI 部分。后端注入(T1)+客户端(T3)+splash(T2) 是非 GUI 的，可照常推进。
+  </div>
+</div>
+</body>
+</html>
