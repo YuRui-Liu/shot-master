@@ -251,6 +251,113 @@ def test_activate_task_switches_page_and_selects():
     assert w.stack.currentWidget() is w.pages["video_gen"]
 
 
+def test_load_project_into_ui_drives_overview_and_gates(tmp_path):
+    """Wave2b：_load_project_into_ui 接 compass —— 概览落页 + 侧栏门禁 + 资源库 set_project。
+
+    造 tmp 项目（project.json：screenwriter=completed/assets=in_progress/
+    storyboard=pending/production=pending）→ 调 _load_project_into_ui →
+    断言落概览页、storyboard/production 锁、screenwriter/assets 可达、不崩。
+    """
+    import json
+    _app()
+    w = AppShell()
+    pdir = tmp_path / "P-031_demo"
+    pdir.mkdir(parents=True)
+    (pdir / "project.json").write_text(
+        json.dumps({
+            "project_id": "P-031",
+            "project_name": "门禁演示",
+            "pipeline": {
+                "screenwriter": {"state": "completed", "next_action": "进入素材"},
+                "assets": {"state": "in_progress", "next_action": "准备角色参考"},
+                "storyboard": {"state": "pending", "next_action": ""},
+                "production": {"state": "pending", "next_action": ""},
+            },
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    w._load_project_into_ui(pdir)
+
+    # 落在概览页
+    assert w.stack.currentWidget() is w.pages["overview"]
+    # 项目 scope 已回填，批处理 current_dir 未被污染（红线：物理分离）
+    assert w.state.current_project_dir == pdir
+    assert w.state.current_dir is None or w.state.current_dir != pdir
+    # 侧栏门禁：screenwriter/assets 可达，storyboard/production 锁
+    assert w.sidebar._buttons["screenwriter"].isEnabled()
+    assert w.sidebar._buttons["asset_library"].isEnabled()
+    assert not w.sidebar._buttons["storyboard"].isEnabled()
+    assert not w.sidebar._buttons["video_gen"].isEnabled()
+    assert not w.sidebar._buttons["video_post"].isEnabled()
+    # 资源库已 set_project（_project_dir 落到该项目目录）
+    assert w.pages["asset_library"]._project_dir == pdir
+    # 下一步提示已挂（assets 阶段有文案）
+    assert w.sidebar._next_action_labels["assets"].text() == "准备角色参考"
+
+
+def test_pending_frontier_stage_is_accessible(tmp_path):
+    """Wave2b 门禁修正（回归「资源库无法点击」bug）：前序完成则下一个 pending
+    阶段（frontier）可达，不死锁。screenwriter=completed / assets=pending →
+    资源库(assets) 应可点，storyboard/production 仍锁。
+    """
+    import json
+    _app()
+    w = AppShell()
+    pdir = tmp_path / "P-040_frontier"
+    pdir.mkdir(parents=True)
+    (pdir / "project.json").write_text(
+        json.dumps({
+            "project_id": "P-040",
+            "project_name": "frontier",
+            "pipeline": {
+                "screenwriter": {"state": "completed", "next_action": ""},
+                "assets": {"state": "pending", "next_action": ""},
+                "storyboard": {"state": "pending", "next_action": ""},
+                "production": {"state": "pending", "next_action": ""},
+            },
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    w._load_project_into_ui(pdir)
+    assert w.sidebar._buttons["screenwriter"].isEnabled()
+    assert w.sidebar._buttons["asset_library"].isEnabled()      # frontier，可达
+    assert not w.sidebar._buttons["storyboard"].isEnabled()     # 前序未完成，锁
+    assert not w.sidebar._buttons["video_gen"].isEnabled()
+    assert not w.sidebar._buttons["video_post"].isEnabled()
+
+
+def test_overview_stage_click_ignores_locked_page(tmp_path):
+    """锁定阶段点击不跳到不可达页（忽略），可达阶段正常跳。"""
+    import json
+    _app()
+    w = AppShell()
+    pdir = tmp_path / "P-032_lock"
+    pdir.mkdir(parents=True)
+    (pdir / "project.json").write_text(
+        json.dumps({
+            "project_id": "P-032",
+            "project_name": "锁定演示",
+            "pipeline": {
+                "screenwriter": {"state": "completed", "next_action": ""},
+                "assets": {"state": "in_progress", "next_action": ""},
+                "storyboard": {"state": "pending", "next_action": ""},
+                "production": {"state": "pending", "next_action": ""},
+            },
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    w._load_project_into_ui(pdir)
+    # 起点：概览页
+    assert w.stack.currentWidget() is w.pages["overview"]
+    # 点锁定的 storyboard → 不跳（仍停概览）
+    w._on_overview_stage("storyboard")
+    assert w.stack.currentWidget() is w.pages["overview"]
+    # 点可达的 assets → 跳资源库
+    w._on_overview_stage("assets")
+    assert w.stack.currentWidget() is w.pages["asset_library"]
+
+
 def test_command_bar_toggle_task_center():
     _app()
     w = AppShell()

@@ -235,13 +235,135 @@ class AppShell(QMainWindow):
             self.welcome_page.refresh()   # 目录已消失，刷新列表
             return
         self._enter_main_ui()
-        self._open_dir_path(p)
+        # 打开项目走 罗盘项目 scope（load_project + 概览 + 门禁），
+        # 不再用批处理 _open_dir_path 污染 current_dir（红线：物理分离）。
+        self._load_project_into_ui(p)
 
     def _on_welcome_new_project(self) -> None:
         from PySide6.QtCore import QTimer
         self._enter_main_ui()
         # 让 slide-in 先动起来，再弹模态目录对话框（避免动画与模态事件循环抢首帧）
-        QTimer.singleShot(60, self._open_dir)
+        QTimer.singleShot(60, self._new_project_pick_dir)
+
+    def _new_project_pick_dir(self) -> None:
+        """新建项目：选目录 → 无 project.json 则 allocate_id + 初始 manifest +
+        register（registry 在项目父目录 projects_root）→ 载入 UI。
+
+        已有 project.json → 直接载入。任何异常降级不崩（最差仅不登记/不建 manifest）。
+        """
+        from PySide6.QtWidgets import QFileDialog
+        start = str(Path.home())
+        d = QFileDialog.getExistingDirectory(self, "新建 / 选择项目目录", start)
+        if not d:
+            return
+        project_dir = Path(d)
+        try:
+            from drama_shot_master.core.compass.paths import (
+                manifest_path, registry_index_path,
+            )
+            if not manifest_path(project_dir).is_file():
+                self._init_new_project(project_dir)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "新建项目初始化失败，降级直接载入", exc_info=True)
+        self._load_project_into_ui(project_dir)
+
+    def _init_new_project(self, project_dir: Path) -> None:
+        """为无 project.json 的目录分配 ID、写初始 manifest 并登记进注册表。
+
+        registry 路径取项目父目录（projects_root）；name 取目录名（去 ID 前缀兜底）。
+        """
+        from drama_shot_master.core.compass.manifest import (
+            ProjectManifest, save_manifest,
+        )
+        from drama_shot_master.core.compass.registry import ProjectRegistry
+        from drama_shot_master.core.compass.paths import registry_index_path
+
+        projects_root = project_dir.parent
+        registry = ProjectRegistry(registry_index_path(projects_root))
+        project_id = registry.allocate_id()
+        # 项目名：目录名去掉 P-NNN_ 前缀（无前缀则用整名）。
+        name = project_dir.name
+        if "_" in name and name.split("_", 1)[0].startswith("P-"):
+            name = name.split("_", 1)[1]
+        manifest = ProjectManifest(project_id=project_id, project_name=name)
+        save_manifest(manifest, project_dir)
+        registry.register({
+            "project_id": project_id,
+            "project_name": name,
+            "dir": project_dir.name + "/",
+            "status": manifest.status,
+            "episode_count": 0,
+        })
+        registry.save()
+
+    # ------------------------------------------------------------------ #
+    # 罗盘项目 scope 接线（Wave2b）：概览仪表盘 + 侧栏门禁
+    # ------------------------------------------------------------------ #
+
+    def _load_project_into_ui(self, project_dir: Path) -> None:
+        """把一个项目目录接上 UI：概览 manifest / 资源库 / 门禁 / 下一步 / 落概览页。
+
+        - state.load_project 回填 pipeline_state/next_action（项目 scope，
+          与批处理 current_dir 物理分离）。
+        - 概览页 set_manifest 需完整 manifest 对象——load_project 不返回 manifest，
+          故此处另用 compass load_manifest/migrate 拿完整对象。
+        全程异常降级不崩。
+        """
+        project_dir = Path(project_dir)
+        self.state.load_project(project_dir)
+        manifest = self._load_manifest_for(project_dir)
+        overview = self.pages.get("overview")
+        if overview is not None and hasattr(overview, "set_manifest"):
+            overview.set_manifest(manifest)
+        al = self.pages.get("asset_library")
+        if al is not None and hasattr(al, "set_project"):
+            al.set_project(project_dir)
+        self._sync_nav_gates()
+        self._display_next_actions()
+        # 打开项目落在概览页。
+        overview = self.pages.get("overview")
+        if overview is not None:
+            self.switchTo(overview)
+
+    def _load_manifest_for(self, project_dir: Path):
+        """拿完整 ProjectManifest：有 project.json → load_manifest，无 → migrate。
+
+        load_project 只存 pipeline_state/next_action 不存 manifest 对象，
+        概览 set_manifest 需完整对象，故单独取。异常 → None（概览 getattr 兜底）。
+        """
+        try:
+            from drama_shot_master.core.compass.manifest import load_manifest
+            from drama_shot_master.core.compass.migrate import migrate_project_dir
+            from drama_shot_master.core.compass.paths import manifest_path
+            if manifest_path(project_dir).is_file():
+                return load_manifest(project_dir)
+            return migrate_project_dir(project_dir)
+        except Exception:
+            return None
+
+    def _sync_nav_gates(self) -> None:
+        """按 pipeline_state 设侧栏阶段门禁（前序完成即解锁下一阶段 frontier）。
+
+        可访问：已完成 / 进行中 的阶段，以及紧随「最后一个已完成阶段」之后的
+        **下一个待做**阶段（否则 pending 阶段永远点不进去 → 死锁，用户无法开始）。
+        再往后的阶段仍锁定。screenwriter 为入口恒可达。遍历 STAGE_NAMES，未知阶段静默。
+        """
+        from drama_shot_master.core.compass.manifest import STAGE_NAMES
+        prev_completed = True  # 入口前视为已完成 → screenwriter 恒可达
+        for stage in STAGE_NAMES:
+            st = self.state.pipeline_state.get(stage)
+            accessible = prev_completed or st in ("in_progress", "completed")
+            self.sidebar.set_phase_accessible(stage, accessible)
+            prev_completed = (st == "completed")
+
+    def _display_next_actions(self) -> None:
+        """按 next_action 逐阶段在侧栏挂「下一步」小字提示（空则隐藏）。"""
+        from drama_shot_master.core.compass.manifest import STAGE_NAMES
+        for stage in STAGE_NAMES:
+            self.sidebar.set_next_action(
+                stage, self.state.next_action.get(stage, ""))
 
     def _enter_main_ui(self) -> None:
         """切到主界面：内容区淡入 + 侧边栏从 0 滑入（300ms）。
@@ -318,8 +440,13 @@ class AppShell(QMainWindow):
         }
         nav_key = mapping.get(stage_or_key, stage_or_key)
         page = self.pages.get(nav_key)
-        if page is not None:
-            self.switchTo(page)
+        if page is None:
+            return
+        # 门禁：若该 nav 项被锁（侧栏按钮 disabled），不跳到不可达页（忽略点击）。
+        btn = self.sidebar._buttons.get(nav_key)
+        if btn is not None and not btn.isEnabled():
+            return
+        self.switchTo(page)
 
     def _log_noop(self, what: str):
         """Wave2b 前的占位：信号到达仅记日志，不接后端。"""
