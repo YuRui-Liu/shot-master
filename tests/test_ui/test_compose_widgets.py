@@ -110,3 +110,23 @@ def test_trim_bar_no_emit_on_no_change():
     assert len(got) == 0
     bar.set_in(3.0)   # different value — should emit
     assert len(got) == 1
+
+
+def test_compose_panel_has_analyze_and_render(tmp_path):
+    _app()
+    from drama_shot_master.config import load_config
+    from drama_shot_master.ui.panels.compose_panel import ComposePanel
+    p = ComposePanel(load_config(), payload={"clips": [
+        {"clip_id": "a", "path": "/0.mp4", "duration": 8.0},
+        {"clip_id": "b", "path": "/1.mp4", "duration": 8.0},
+    ]})
+    assert hasattr(p, "analyzeRequested")
+    called = {}
+    def fake_analyze(comp, progress_cb=None, **kw):
+        comp.kept_clips()[0].auto_transition = "dissolve"
+        comp.kept_clips()[0].cv_scores = {"score": 0.8}
+        if progress_cb: progress_cb(1, 1)
+        called["ok"] = True
+    p._run_analyze(analyzer=fake_analyze)
+    assert called.get("ok")
+    assert p.model().kept_clips()[0].auto_transition == "dissolve"

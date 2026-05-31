@@ -506,3 +506,6 @@ QPushButton#AccentButton:disabled {{ background: #2a3550; color: #8b93a7; }}
 #ComposeTitle {{ font-size:15px; font-weight:700; color:{fg}; }}
 #ComposePrimary {{ color:#fff; border:none; border-radius:18px; padding:8px 18px; font-weight:700;
     background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 {accent}, stop:1 #a06cff); }}
+
+#ComposeRenderBtn {{ color:#a0c8ff; border:1px solid #4a9eff66; border-radius:20px; padding:8px 16px; font-weight:600; background:rgba(74,158,255,0.08); }}
+#ComposeRenderBtn:hover {{ background:rgba(74,158,255,0.16); }}
