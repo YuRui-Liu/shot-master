@@ -50,3 +50,14 @@ def probe_duration(video_path: str) -> float:
         return float(data.get("format", {}).get("duration") or 0.0)
     except Exception:
         return 0.0
+
+
+def has_audio_stream(video_path: str) -> bool:
+    """ffprobe 检测视频是否含音轨；探测失败时保守返回 True（避免误删音频）。"""
+    cmd = [ffprobe_path(), "-v", "error", "-select_streams", "a",
+           "-show_entries", "stream=index", "-of", "csv=p=0", str(video_path)]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, check=False)
+        return bool((proc.stdout or b"").strip())
+    except Exception:
+        return True

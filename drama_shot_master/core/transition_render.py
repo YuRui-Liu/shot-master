@@ -53,9 +53,20 @@ def _norm_chain(idx: int, w: int, h: int, fps: int, pix: str) -> tuple[str, str]
 
 
 def build_ffmpeg_args(comp: CompositionModel, out_path: str,
-                      ffmpeg: str, probe: Callable[[str], float]) -> list[str]:
-    """构建 ffmpeg 参数列表。probe(path)->秒 用于实测时长（注入便于单测）。"""
+                      ffmpeg: str, probe: Callable[[str], float],
+                      has_audio: Callable[[str], bool] | None = None) -> list[str]:
+    """构建 ffmpeg 参数列表。probe(path)->秒 用于实测时长（注入便于单测）。
+    has_audio(path)->bool 判断片段是否有音轨（None 时默认全有）。
+    """
+    # Bug 4: guard against empty kept list
     kept = comp.kept_clips()
+    if len(kept) == 0:
+        raise ValueError("没有保留的片段")
+
+    # Default: treat all clips as having audio
+    if has_audio is None:
+        has_audio = lambda p: True
+
     inputs: list[str] = []
     for c in kept:
         inputs += ["-i", c.path]
@@ -78,7 +89,16 @@ def build_ffmpeg_args(comp: CompositionModel, out_path: str,
             vexpr = vexpr.replace(f"[{i}:v]", f"[{i}:v]trim=start={ss}:end={to},setpts=PTS-STARTPTS,")
             aexpr = aexpr.replace(f"[{i}:a]", f"[{i}:a]atrim=start={ss}:end={to},asetpts=PTS-STARTPTS,")
         parts.append(vexpr)
-        parts.append(aexpr)
+
+        # Bug 1: audio-stream guard — synthesize silence for clips without audio
+        if has_audio(c.path):
+            parts.append(aexpr)
+        else:
+            dur_i = durs[i]
+            silence = (f"anullsrc=channel_layout=stereo:sample_rate=48000,"
+                       f"atrim=duration={dur_i},asetpts=PTS-STARTPTS[a{i}]")
+            parts.append(silence)
+
         vlabels.append(f"[v{i}]")
         alabels.append(f"[a{i}]")
 
@@ -90,22 +110,36 @@ def build_ffmpeg_args(comp: CompositionModel, out_path: str,
         filter_complex = ";".join(parts)
         vmap, amap = "[v0]", "[a0]"
     elif all(t == "none" for t in trans):
+        # Fast path: single concat for all-none transitions
         concat_in = "".join(vlabels[i] + alabels[i] for i in range(n))
         parts.append(f"{concat_in}concat=n={n}:v=1:a=1[vout][aout]")
         filter_complex = ";".join(parts)
         vmap, amap = "[vout]", "[aout]"
     else:
-        offs = compute_offsets(durs, tdurs)
+        # Bug 2: fold-left accumulator — handles mixed none+xfade independently per boundary
         vcur, acur = vlabels[0], alabels[0]
+        acc = durs[0]  # running video duration from clip 0
         for i in range(1, n):
-            t = trans[i - 1] if trans[i - 1] != "none" else "fade"
+            t = trans[i - 1]
             d = tdurs[i - 1]
-            off = offs[i - 1]
-            vout = f"[vx{i}]" if i < n - 1 else "[vout]"
-            aout = f"[ax{i}]" if i < n - 1 else "[aout]"
-            parts.append(f"{vcur}{vlabels[i]}xfade=transition={t}:duration={d}:offset={off}{vout}")
-            parts.append(f"{acur}{alabels[i]}acrossfade=d={d}{aout}")
+            is_last = (i == n - 1)
+            vout = "[vout]" if is_last else f"[vx{i}]"
+            aout = "[aout]" if is_last else f"[ax{i}]"
+
+            if t == "none":
+                # Hard cut via concat (no overlap)
+                parts.append(f"{vcur}{vlabels[i]}concat=n=2:v=1:a=0{vout}")
+                parts.append(f"{acur}{alabels[i]}concat=n=2:v=0:a=1{aout}")
+                acc += durs[i]
+            else:
+                # xfade / acrossfade with fold-left offset
+                off = max(0.0, round(acc - d, 3))
+                parts.append(f"{vcur}{vlabels[i]}xfade=transition={t}:duration={d}:offset={off}{vout}")
+                parts.append(f"{acur}{alabels[i]}acrossfade=d={d}{aout}")
+                acc += durs[i] - d
+
             vcur, acur = vout, aout
+
         filter_complex = ";".join(parts)
         vmap, amap = "[vout]", "[aout]"
 
@@ -120,8 +154,9 @@ def build_ffmpeg_args(comp: CompositionModel, out_path: str,
 
 def render(comp: CompositionModel, out_path: str) -> str:
     """执行渲染（真调 ffmpeg）。成功返回 out_path，失败抛 RuntimeError。"""
-    from drama_shot_master.core.ffmpeg_locate import ffmpeg_path, probe_duration
-    args = build_ffmpeg_args(comp, out_path, ffmpeg=ffmpeg_path(), probe=probe_duration)
+    from drama_shot_master.core.ffmpeg_locate import ffmpeg_path, probe_duration, has_audio_stream
+    args = build_ffmpeg_args(comp, out_path, ffmpeg=ffmpeg_path(), probe=probe_duration,
+                             has_audio=has_audio_stream)
     proc = subprocess.run(args, capture_output=True, check=False)
     if proc.returncode != 0:
         tail = (proc.stderr or b"").decode("utf-8", "ignore")[-800:]
