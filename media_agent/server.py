@@ -25,6 +25,9 @@ def create_app(cfg: MediaAgentConfig | None = None) -> FastAPI:
     from .routes.imggen import router as imggen_router
     app.include_router(imggen_router)
 
+    from .routes.soundtrack import router as soundtrack_router
+    app.include_router(soundtrack_router)
+
     return app
 
 
