@@ -53,7 +53,46 @@
     display: flex; align-items: center; gap: 16px; margin-bottom: 18px; max-width: 1180px;
   }
   .work-head h1 { margin: 0; font-size: 22px; }
-  .shot-select { margin-left: auto; min-width: 230px; }
+  .shot-select { min-width: 230px; }
+
+  /* 并行任务下拉切换器（替代左侧"新建任务"任务栏） */
+  .task-switch { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .task-switch .lbl { color: var(--muted); font-size: 12.5px; }
+  .task-switch .wrap { position: relative; }
+  .task-switch .trigger {
+    background: var(--panel2); color: var(--fg); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 8px 13px; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 9px; min-width: 150px;
+  }
+  .task-switch .trigger:hover { filter: none; border-color: var(--mauve); }
+  .task-switch .trigger .caret { margin-left: auto; color: var(--mauve); font-size: 11px; transition: transform .15s; }
+  .task-switch .wrap.open .trigger .caret { transform: rotate(180deg); }
+  .task-switch .trigger .pcount {
+    font-size: 10.5px; font-weight: 600; color: var(--mauve);
+    background: rgba(138,127,217,.18); border: 1px solid #4a3d6e;
+    padding: 1px 7px; border-radius: 9px;
+  }
+  .task-switch .menu {
+    position: absolute; top: calc(100% + 6px); right: 0; min-width: 220px; z-index: 40;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 6px; display: none; box-shadow: 0 10px 28px rgba(0,0,0,.45);
+  }
+  .task-switch .wrap.open .menu { display: block; }
+  .task-switch .opt {
+    display: flex; align-items: center; gap: 10px; padding: 9px 11px;
+    border-radius: var(--radius-sm); color: var(--fg2); font-size: 13px; cursor: pointer;
+  }
+  .task-switch .opt:hover { background: rgba(255,255,255,.04); color: var(--fg); }
+  .task-switch .opt.active { color: var(--mauve); background: rgba(138,127,217,.12); font-weight: 600; }
+  .task-switch .opt .tick { width: 14px; color: var(--mauve); font-size: 12px; }
+  .task-switch .opt .sub { margin-left: auto; color: var(--faint); font-size: 11px; }
+  .task-switch .sep-line { height: 1px; background: var(--border-lo); margin: 6px 4px; }
+  .task-switch .opt.add { color: var(--blue); font-weight: 600; }
+  .task-switch .opt.add:hover { background: rgba(74,158,255,.10); color: var(--blue); }
+  .task-switch .opt.add.disabled { color: var(--faint); cursor: default; }
+  .task-switch .opt.add.disabled:hover { background: transparent; }
+  .task-switch .hint { color: var(--faint); font-size: 11px; padding: 2px 11px 4px; display: none; }
+  .task-switch .opt.add.disabled + .hint { display: block; }
 
   /* 工作模式切换 */
   .modebar {
@@ -149,12 +188,24 @@
 <div class="app">
   <main class="work">
     <div class="work-head">
-      <h1>④ 视频生成 · 视频碎片（CLIPS）</h1>
+      <h1>④ 视频生成 · 视频碎片（CLIPS）<span id="taskTitle" style="color:var(--mauve);font-weight:600;"> · 任务1</span></h1>
       <select class="shot-select">
         <option>1-1 城郊废品回收站</option>
         <option>1-2 审讯室对峙</option>
         <option>2-1 雨夜天台</option>
       </select>
+      <!-- 并行任务切换器（去掉左侧"新建任务"任务栏，改用下拉，一般 ≤5 个） -->
+      <div class="task-switch">
+        <span class="lbl">并行任务</span>
+        <div class="wrap" id="taskWrap">
+          <button class="trigger" id="taskTrigger">
+            <span id="taskCurrent">任务1</span>
+            <span class="pcount" id="taskCount">1/5</span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="menu" id="taskMenu"><!-- 由 JS 渲染 --></div>
+        </div>
+      </div>
     </div>
 
     <!-- 工作模式切换 -->
@@ -304,10 +355,92 @@ function wireModes() {
   m2.addEventListener("click", () => { m2.classList.add("on"); m1.classList.remove("on"); });
 }
 
+/* ===== 并行任务下拉切换器（纯前端占位，最多 5 个并行任务） =====
+   切换即切当前任务上下文：更新标题/计数/当前名（不触后端，不影响模式与 SHOT 列表）。 */
+const MAX_TASKS = 5;
+const taskState = {
+  tasks: [{ id: 1, name: "任务1" }],   // 初始一个并行任务
+  current: 1,
+  nextId: 2,
+};
+
+function renderTaskMenu() {
+  const menu = document.getElementById("taskMenu");
+  const atMax = taskState.tasks.length >= MAX_TASKS;
+  const opts = taskState.tasks.map((t) => {
+    const on = t.id === taskState.current;
+    return `<div class="opt${on ? " active" : ""}" data-task="${t.id}">
+      <span class="tick">${on ? "✓" : ""}</span>
+      <span>${t.name}</span>
+      <span class="sub">${on ? "当前" : "切换"}</span>
+    </div>`;
+  }).join("");
+  menu.innerHTML = `${opts}
+    <div class="sep-line"></div>
+    <div class="opt add${atMax ? " disabled" : ""}" id="taskAdd">
+      <span class="tick">＋</span><span>新建并行任务</span>
+    </div>
+    <div class="hint">已达上限：最多 ${MAX_TASKS} 个并行任务</div>`;
+
+  // 切换任务
+  menu.querySelectorAll(".opt[data-task]").forEach((el) => {
+    el.addEventListener("click", () => {
+      switchTask(parseInt(el.getAttribute("data-task"), 10));
+      closeTaskMenu();
+    });
+  });
+  // 新建并行任务
+  const addBtn = document.getElementById("taskAdd");
+  if (!atMax) {
+    addBtn.addEventListener("click", () => { addTask(); });
+  }
+}
+
+function refreshTaskHeader() {
+  const cur = taskState.tasks.find((t) => t.id === taskState.current);
+  document.getElementById("taskCurrent").textContent = cur ? cur.name : "";
+  document.getElementById("taskTitle").textContent = cur ? ` · ${cur.name}` : "";
+  document.getElementById("taskCount").textContent = `${taskState.tasks.length}/${MAX_TASKS}`;
+}
+
+function switchTask(id) {
+  if (!taskState.tasks.some((t) => t.id === id)) return;
+  taskState.current = id;
+  refreshTaskHeader();
+  renderTaskMenu();
+  /* 占位：此处可重载该任务上下文（SHOT 列表/提示词草稿等）。本 mockup 仅切标题。 */
+}
+
+function addTask() {
+  if (taskState.tasks.length >= MAX_TASKS) return;
+  const id = taskState.nextId++;
+  taskState.tasks.push({ id, name: `任务${id}` });
+  taskState.current = id;        // 新建即切到新任务
+  refreshTaskHeader();
+  renderTaskMenu();
+}
+
+function closeTaskMenu() { document.getElementById("taskWrap").classList.remove("open"); }
+
+function wireTaskSwitch() {
+  const wrap = document.getElementById("taskWrap");
+  document.getElementById("taskTrigger").addEventListener("click", (e) => {
+    e.stopPropagation();
+    wrap.classList.toggle("open");
+  });
+  // 点击空白处关闭
+  document.addEventListener("click", (e) => {
+    if (!wrap.contains(e.target)) closeTaskMenu();
+  });
+  renderTaskMenu();
+  refreshTaskHeader();
+}
+
 renderShots();
 wireExamples();
 wireActions();
 wireModes();
+wireTaskSwitch();
 document.getElementById("alignCount").textContent =
   `已按分镜顺序自动对齐 ${SHOTS.length} 个镜头`;
 </script>
