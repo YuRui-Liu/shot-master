@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "default_style_id": "real/cinematic-warm-v1",
+  "styles": [
+    {
+      "style_id": "real/cinematic-warm-v1",
+      "category": "real",
+      "name_cn": "电影感暖调",
+      "source": "template",
+      "photography": {
+        "camera": "Panavision Sphero 65",
+        "film_stock": "Vision3 500T 5219",
+        "focal_length": "35mm",
+        "aperture": "f/2.0"
+      },
+      "prompt_suffix": "cinematic, warm tungsten grade, shallow depth of field, film grain",
+      "ref_fingerprint": "neutral studio flat lighting, even key, no dramatic shadow",
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+    },
+    {
+      "style_id": "real/cinematic-cool-v1",
+      "category": "real",
+      "name_cn": "电影感冷调",
+      "source": "template",
+      "photography": {
+        "camera": "ARRI Alexa 35",
+        "film_stock": "Kodak Vision3 250D 5207",
+        "focal_length": "50mm",
+        "aperture": "f/2.8"
+      },
+      "prompt_suffix": "cinematic, teal-and-orange cool grade, crisp contrast, anamorphic flare",
+      "ref_fingerprint": "neutral studio flat lighting, even key, no dramatic shadow",
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+    },
+    {
+      "style_id": "real/doc-natural-v1",
+      "category": "real",
+      "name_cn": "纪实自然光",
+      "source": "template",
+      "photography": {
+        "camera": "Sony FX6",
+        "film_stock": "digital S-Log3",
+        "focal_length": "24mm",
+        "aperture": "f/4.0"
+      },
+      "prompt_suffix": "naturalistic, available daylight, handheld realism, true-to-life color",
+      "ref_fingerprint": "neutral studio flat lighting, even key, no dramatic shadow",
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+    },
+    {
+      "style_id": "2D/anime-cel-v1",
+      "category": "2D",
+      "name_cn": "日系赛璐璐",
+      "source": "template",
+      "2D": {
+        "shading": "cel-shaded",
+        "line_weight": "clean thin outline",
+        "palette": "vivid pastel",
+        "render": "anime flat color"
+      },
+      "prompt_suffix": "anime cel-shaded, clean line art, vivid pastel palette, soft gradient sky",
+      "ref_fingerprint": "neutral flat lighting, even key, plain color blocking",
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+    },
+    {
+      "style_id": "2D/guofeng-ink-v1",
+      "category": "2D",
+      "name_cn": "国风水墨",
+      "source": "template",
+      "2D": {
+        "shading": "ink wash",
+        "line_weight": "calligraphic brush stroke",
+        "palette": "muted earth tones",
+        "render": "chinese painting"
+      },
+      "prompt_suffix": "chinese ink wash painting, calligraphic brush lines, rice-paper texture, muted earth tones",
+      "ref_fingerprint": "neutral flat lighting, even key, plain color blocking",
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+    },
+    {
+      "style_id": "3D/pixar-stylized-v1",
+      "category": "3D",
+      "name_cn": "皮克斯卡通渲染",
+      "source": "template",
+      "3D": {
+        "render_engine": "RenderMan",
+        "shading": "PBR stylized",
+        "lighting_rig": "three-point soft key",
+        "surface": "subsurface scattering skin"
+      },
+      "prompt_suffix": "Pixar-style stylized 3D render, soft global illumination, rounded forms, subsurface skin",
+      "ref_fingerprint": "neutral three-point soft key, even fill, no rim drama",
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+    },
+    {
+      "style_id": "3D/photoreal-octane-v1",
+      "category": "3D",
+      "name_cn": "写实CG渲染",
+      "source": "template",
+      "3D": {
+        "render_engine": "Octane",
+        "shading": "PBR physically-based",
+        "lighting_rig": "HDRI image-based lighting",
+        "surface": "high-detail microsurface"
+      },
+      "prompt_suffix": "photorealistic 3D render, physically-based materials, HDRI lighting, ray-traced reflections",
+      "ref_fingerprint": "neutral HDRI even lighting, no dramatic shadow",
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+    }
+  ]
+}

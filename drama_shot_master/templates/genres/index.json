@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "description": "题材模板登记表：6 个内置题材，共用骨架（研究 §3）。stack_max 为题材叠加上限。",
+  "stack_max": 3,
+  "genres": [
+    {
+      "genre_id": "short-drama",
+      "display_name": "短剧",
+      "dir": "short-drama/",
+      "template": "short-drama/template.yaml"
+    },
+    {
+      "genre_id": "single-episode",
+      "display_name": "单集短篇",
+      "dir": "single-episode/",
+      "template": "single-episode/template.yaml"
+    },
+    {
+      "genre_id": "commercial",
+      "display_name": "商业广告",
+      "dir": "commercial/",
+      "template": "commercial/template.yaml"
+    },
+    {
+      "genre_id": "vlog",
+      "display_name": "vlog",
+      "dir": "vlog/",
+      "template": "vlog/template.yaml"
+    },
+    {
+      "genre_id": "mv",
+      "display_name": "MV",
+      "dir": "mv/",
+      "template": "mv/template.yaml"
+    },
+    {
+      "genre_id": "oral-skit",
+      "display_name": "口播剧",
+      "dir": "oral-skit/",
+      "template": "oral-skit/template.yaml"
+    }
+  ]
+}

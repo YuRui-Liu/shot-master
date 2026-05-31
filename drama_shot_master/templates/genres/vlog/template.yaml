@@ -1,0 +1,52 @@
+# 题材模板 · vlog（共用骨架，研究 §3）
+# 第一人称生活记录，旁白驱动，B-roll 穿插，地点时间轴叙事。
+genre_id: vlog
+display_name: vlog
+
+hard_constraints: []
+
+identity:
+  one_liner: 第一人称、旁白驱动的生活记录，靠真实质感与陪伴感留人
+  audience: 偏好生活方式、旅行、日常陪伴内容的泛年轻观众
+  conflict_source:
+    - 期待与现实落差
+    - 行程意外
+    - 心境变化
+    - 探索未知
+    - 日常小确幸
+
+rhythm:
+  open_3s: 用一个有画面感的瞬间或一句钩子旁白带入"今天的故事"
+  open_30s: 交代时间地点与本期主题，建立陪伴式的第一人称视角
+  beat_density: 跟随地点时间轴自然推进，旁白与 B-roll 交替营造呼吸感
+
+satisfaction_weights:
+  真实感: 35
+  陪伴感: 30
+  美感: 20
+  共鸣: 15
+
+writing_rules:
+  - 全程第一人称旁白驱动，旁白是叙事主线、画面是佐证
+  - 沿地点时间轴组织内容，让观众有清晰的"跟着走"的路径感
+  - 准备充足 B-roll 清单（空镜/细节/环境）穿插主线，避免画面单调
+  - 配乐情绪随段落心境切换，强化氛围而不抢旁白
+  - 节奏可松弛，留白与呼吸感是 vlog 的质感来源
+  - 结尾回扣开篇主题或心境，给一个温和的收束
+
+donts:
+  - 不要追求强冲突与高密度爽点，那会破坏 vlog 的真实质感
+  - 不要旁白与画面割裂，旁白须与当下 B-roll 呼应
+  - 不要全程满铺音乐和说话，要留呼吸与环境音
+  - 不要打乱地点时间轴造成观看路径混乱
+  - 不要为炫技堆砌转场而牺牲真实感
+
+params_default:
+  split_unit: shot
+  duration_per_unit_sec: 8
+  rhythm_driver: narration
+  grids_per_unit: 4
+
+inner_slots:
+  decompose_strategy: narrative
+  polish_style: slow

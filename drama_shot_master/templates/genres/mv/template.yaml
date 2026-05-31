@@ -1,0 +1,52 @@
+# 题材模板 · MV（共用骨架，研究 §3）
+# 音乐驱动，按歌长切段（segment），歌词卡点，支持双风格转场。
+genre_id: mv
+display_name: MV
+
+hard_constraints: []
+
+identity:
+  one_liner: 音乐节拍驱动的影像，按歌曲结构切段、以视听通感打动观众
+  audience: 歌曲受众与音乐影像爱好者
+  conflict_source:
+    - 歌词情绪起伏
+    - 主歌副歌张力
+    - 情感记忆
+    - 意象冲突
+    - 氛围转变
+
+rhythm:
+  open_3s: 用一个强意象画面与前奏同步入场，瞬间建立基调
+  open_30s: 跟随主歌铺陈情绪与视觉母题，为副歌爆发蓄势
+  beat_density: 画面切换严格卡音乐节拍，副歌段落密度提升、情绪释放
+
+satisfaction_weights:
+  视听通感: 40
+  情绪渲染: 30
+  画面美学: 20
+  记忆点: 10
+
+writing_rules:
+  - 按歌曲结构切段（前奏/主歌/副歌/桥段/尾奏），每段为一个 segment
+  - 画面切换对齐音乐节拍（music-beat），卡点是 MV 的灵魂
+  - 歌词关键句在对应 grid 上视觉化呈现（lyrics_at_grid）
+  - 副歌为情绪与画面密度的高点，主歌相对克制蓄势
+  - 支持双风格：段落间可用 transition 切换两套视觉风格强化对比
+  - 围绕一个核心视觉母题/意象贯穿全片，形成记忆点
+
+donts:
+  - 不要脱离音乐节拍随意切镜，破坏视听通感
+  - 不要主歌副歌画面密度一致、缺乏张弛
+  - 不要堆砌华丽画面却无统一视觉母题
+  - 不要让歌词视觉化与画面内容相互打架
+  - 不要双风格切换无转场逻辑、显得突兀
+
+params_default:
+  split_unit: segment
+  duration_per_unit_sec: 20
+  rhythm_driver: music-beat
+  grids_per_unit: 6
+
+inner_slots:
+  decompose_strategy: mixed
+  polish_style: high-energy

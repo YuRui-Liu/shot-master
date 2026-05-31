@@ -1,0 +1,56 @@
+# 题材模板 · 商业广告（共用骨架，研究 §3）
+# 卖点驱动、品牌色板、CTA 收口；以镜头为分片单位。
+genre_id: commercial
+display_name: 商业广告
+
+# §0 硬约束：广告须真实合规，禁绝对化/虚假承诺
+hard_constraints:
+  - ⚠️ 禁用"最/第一/国家级"等绝对化用语及未经证实的功效承诺
+  - ⚠️ 产品卖点须真实可兑现，不得夸大或误导
+
+identity:
+  one_liner: 卖点驱动、为转化服务的短广告，结尾以 CTA 收口
+  audience: 目标产品的精准消费人群（随投放品类而定）
+  conflict_source:
+    - 用户痛点
+    - 旧方案缺陷
+    - 使用场景焦虑
+    - 价格顾虑
+    - 决策犹豫
+
+rhythm:
+  open_3s: 直击核心痛点或抛出强视觉钩子，3 秒内说清"与你有关"
+  open_30s: 完成"痛点-方案-卖点"递进，给出产品如何解决问题
+  beat_density: 每个卖点一个镜头节拍，卖点序列递进直至 CTA 收口
+
+# 转化导向权重
+satisfaction_weights:
+  卖点清晰: 40
+  痛点共鸣: 25
+  信任感: 20
+  行动召唤: 15
+
+writing_rules:
+  - 围绕卖点序列编排：每个卖点对应一组产品镜头，递进不堆砌
+  - 产品镜头占比不低于全片三分之一，确保产品出镜充分
+  - 全程贯穿品牌色板，画面调性与品牌视觉系统一致
+  - 结尾必须有明确 CTA（行动召唤）：购买/下载/搜索/扫码
+  - 痛点-方案-卖点-CTA 形成完整转化漏斗
+  - 卖点用可感知的场景与对比呈现，而非空洞形容词
+
+donts:
+  - 不要堆砌卖点不分主次，每镜聚焦一个卖点
+  - 不要忽略品牌色板导致画面与品牌脱节
+  - 不要缺失 CTA，广告必须有明确转化指向
+  - 不要用绝对化用语或不可兑现的功效承诺
+  - 不要让产品镜头占比过低、沦为氛围片
+
+params_default:
+  split_unit: shot
+  duration_per_unit_sec: 30
+  rhythm_driver: sell-point
+  grids_per_unit: 4
+
+inner_slots:
+  decompose_strategy: action
+  polish_style: high-energy

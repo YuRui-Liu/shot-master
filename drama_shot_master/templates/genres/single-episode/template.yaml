@@ -1,0 +1,51 @@
+# 题材模板 · 单集短篇（共用骨架，研究 §3）
+# 三幕浓缩、单反转、无付费卡点的独立短片。
+genre_id: single-episode
+display_name: 单集短篇
+
+hard_constraints: []
+
+identity:
+  one_liner: 三幕浓缩、单次反转收束的独立短片，一口气讲完一个完整故事
+  audience: 泛人群，偏剧情向与情感共鸣观众
+  conflict_source:
+    - 误会
+    - 选择
+    - 失去
+    - 真相揭露
+    - 关系裂痕
+
+rhythm:
+  open_3s: 抛出一个具体悬念或反常状态，引发"为什么会这样"的好奇
+  open_30s: 完成建置——交代主角、处境与核心欲望，埋下反转伏笔
+  beat_density: 每分钟 2 个情绪节拍，整体单波形：建置-对抗-反转-收束
+
+satisfaction_weights:
+  反转: 40
+  共鸣: 30
+  释然: 20
+  余味: 10
+
+writing_rules:
+  - 严格三幕浓缩：建置 / 对抗 / 反转收束，比例约 1:2:1
+  - 全片只设一个核心反转，反转落点即情绪高点
+  - 反转所需信息须在前两幕埋足伏笔，结尾才能"意料之外、情理之中"
+  - 结尾给完整收束与余味，不留续作钩子（区别于短剧）
+  - 主线单一，砍掉一切与核心反转无关的支线
+
+donts:
+  - 不要设付费卡点，本题材是完整独立短片
+  - 不要安排多重反转，单反转才能聚焦
+  - 不要在结尾留悬而未决的钩子诱导续看
+  - 不要铺设与主反转无关的支线稀释主线
+  - 不要让反转缺乏前置伏笔而显得生硬
+
+params_default:
+  split_unit: episode
+  duration_per_unit_sec: 120
+  rhythm_driver: plot
+  grids_per_unit: 9
+
+inner_slots:
+  decompose_strategy: narrative
+  polish_style: neutral

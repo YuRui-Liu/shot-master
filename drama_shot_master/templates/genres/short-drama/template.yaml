@@ -1,0 +1,60 @@
+# 题材模板 · 短剧（共用骨架，研究 §3）
+# 钩子密集、爽点驱动的竖屏连续剧；女频为主，付费卡点切集。
+genre_id: short-drama
+display_name: 短剧
+
+# §0 硬约束（仅高风险题材填，⚠️ 放最前）：短剧无强制硬约束
+hard_constraints: []
+
+# §1 特征
+identity:
+  one_liner: 钩子密集、爽点驱动的竖屏连续剧，靠强情绪反转留人
+  audience: 女频 25-40 岁，下沉市场为主
+  conflict_source:
+    - 钱
+    - 房
+    - 孩子
+    - 面子
+    - 身份反转
+
+# §2 节奏（秒级锚点 + 爆点密度）
+rhythm:
+  open_3s: 强冲突或悬念前置，黄金 3 秒内抛钩子抓住划走的手指
+  open_30s: 立住人设并交付第一个钩子，让观众产生"接下来会怎样"的追看欲
+  beat_density: 每分钟 4 个爽点/钩点，张弛波形推进而非一味堆高潮
+
+# 爽点权重（题材叠加时副题材只覆盖此项）
+satisfaction_weights:
+  打脸: 40
+  逆袭: 30
+  甜宠: 20
+  悬念: 10
+
+# §4 守则
+writing_rules:
+  - 爽点必先压抑：压抑越深、铺垫越足，释放时越爽
+  - 每集结尾留付费卡点钩子，断在情绪最高或悬念最浓处
+  - 反转钩全剧控制在 5-7 次，过密则钝化、过疏则平淡
+  - 隐藏反派/真相至少提前 3 处铺垫，避免突兀反转
+  - 关键转折标 🔥、付费卡点标 💰，做配额校验
+  - 人设先于剧情：开篇 30 秒立住主角的身份落差与执念
+
+# §5 不要做
+donts:
+  - 不要开篇平铺直叙交代背景，钩子必须前置
+  - 不要靠堆叠高潮制造刺激，要用张弛波形
+  - 不要让反转毫无铺垫地凭空发生
+  - 不要在付费卡点前提前泄掉情绪张力
+  - 不要让主角全程顺风顺水、缺乏压抑段
+
+# 参数默认值（split_unit=episode，集 ID E1…）
+params_default:
+  split_unit: episode
+  duration_per_unit_sec: 60
+  rhythm_driver: plot
+  grids_per_unit: 9
+
+# 内层正交 slot（Yvonne：拆解策略 × 润色风格，可独立替换）
+inner_slots:
+  decompose_strategy: narrative
+  polish_style: high-energy
