@@ -44,10 +44,14 @@ def _agent_command(port: int) -> list[str]:
     开发态：`python -m screenwriter_agent --port N`
     冻结态：`app.exe --run-agent screenwriter --port N`（同一 exe 兼作 agent 宿主，
     见 main._maybe_run_agent）。
+
+    注意：冻结态用 sys.argv[0] 而非 sys.executable——Nuitka 4.x standalone 中
+    sys.executable 可能指向 dist 目录下不存在的 python.exe 伴生路径，
+    sys.argv[0] 才是 OS 实际启动的 exe。
     """
     if _is_frozen():
-        return [sys.executable, "--run-agent", "screenwriter",
-                "--port", str(port)]
+        exe = os.path.abspath(sys.argv[0])
+        return [exe, "--run-agent", "screenwriter", "--port", str(port)]
     return [sys.executable, "-m", "screenwriter_agent", "--port", str(port)]
 
 

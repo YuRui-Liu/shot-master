@@ -1,34 +1,95 @@
 @echo off
-REM Drama-Shot-Master 客户端 Nuitka 打包（原生编译，不泄露源码）
-REM 前置: pip install nuitka ；建议装 MSVC 或 clang
+REM Drama-Shot-Master Client - Nuitka standalone build (no source leakage)
+REM Requires: pip install nuitka  (MSVC or clang recommended)
 REM
-REM 打包内容：
-REM   - drama_shot_master   GUI 主程序
-REM   - screenwriter_agent  编剧 Agent（FastAPI；打包后由同一 exe 用
-REM                          `--run-agent screenwriter` 在子进程内启动）
-REM   - sound_track_agent   配乐/音效（重依赖 demucs/librosa 为函数内 lazy import，
-REM                          默认不打进包；如需离线分离/卡点，自行加 --include-package=librosa 等）
-REM   - uvicorn             agent 的 ASGI server（动态导入，显式包含）
-REM   - 提示词模板 + 资源（见下方 --include-data-dir）
-REM 不打包（避免泄露 / 体积）：
-REM   - license_admin       授权管理（含私钥逻辑）→ --nofollow-import-to
-REM   - tests               测试代码          → --nofollow-import-to
-REM   - 个人配置 .env / settings.json（含 api_key、项目路径）：均为仓库根散文件，
-REM     不在任何包内，Nuitka 不会收录；切勿用 --include-data-file 把它们加进来。
+REM Included packages:
+REM   - drama_shot_master   GUI main app
+REM   - screenwriter_agent  Screenwriter Agent (FastAPI; launched as subprocess
+REM                          via `--run-agent screenwriter` flag)
+REM   - sound_track_agent   Soundtrack/SFX (demucs/librosa are lazy-imported;
+REM                          not bundled by default - add --include-package=librosa if needed)
+REM   - uvicorn             ASGI server for agents (dynamic import, explicit include)
+REM   - prompt templates + assets (see --include-data-dir below)
+REM
+REM Excluded (avoid leakage / size):
+REM   - license_admin       license management (private key logic) -> --nofollow-import-to
+REM   - tests               test code                              -> --nofollow-import-to
+REM   - .env / settings.json (api_key, project paths): loose files at repo root,
+REM     not inside any package, Nuitka won't include them automatically.
+REM     Do NOT add them via --include-data-file.
+REM
+REM Heavy transitive deps blocked (not needed at runtime):
+REM   torch/numba/mcp/google.genai/IPython/demucs/librosa/matplotlib/pandas etc.
+
+REM --- Python 版本 & 路径检查 ---
+python --version 2>NUL || (echo [ERROR] python not found in PATH && exit /b 1)
+python -c "import sys; v=sys.version_info; assert (v.major,v.minor)>=(3,10), str(v)" 2>NUL
+if errorlevel 1 (
+    for /f "delims=" %%v in ('python -c "import sys; print(sys.version)"') do echo [ERROR] 需要 Python ^>=3.10，当前版本: %%v
+    for /f "delims=" %%p in ('python -c "import sys; print(sys.executable)"') do echo [ERROR] 当前 python: %%p
+    echo 请激活正确的环境（如 drama_work）再重试
+    exit /b 1
+)
+for /f "delims=" %%p in ('python -c "import sys; print(sys.executable)"') do echo [OK] Python: %%p
+
 python -m nuitka ^
   --standalone ^
-  --enable-plugin=pyside6 ^
+  --enable-plugins=pyside6 ^
   --include-package=drama_shot_master ^
   --include-package=screenwriter_agent ^
   --include-package=sound_track_agent ^
   --include-package=uvicorn ^
   --nofollow-import-to=license_admin ^
   --nofollow-import-to=tests ^
+  --nofollow-import-to=torch ^
+  --nofollow-import-to=torchvision ^
+  --nofollow-import-to=torchaudio ^
+  --nofollow-import-to=numba ^
+  --nofollow-import-to=llvmlite ^
+  --nofollow-import-to=demucs ^
+  --nofollow-import-to=librosa ^
+  --nofollow-import-to=IPython ^
+  --nofollow-import-to=ipykernel ^
+  --nofollow-import-to=ipywidgets ^
+  --nofollow-import-to=notebook ^
+  --nofollow-import-to=jupyter ^
+  --nofollow-import-to=jupyter_client ^
+  --nofollow-import-to=jupyter_core ^
+  --nofollow-import-to=mcp ^
+  --nofollow-import-to=google.genai ^
+  --nofollow-import-to=google.ai ^
+  --nofollow-import-to=anthropic ^
+  --nofollow-import-to=langchain ^
+  --nofollow-import-to=langchain_core ^
+  --nofollow-import-to=langchain_openai ^
+  --nofollow-import-to=transformers ^
+  --nofollow-import-to=huggingface_hub ^
+  --nofollow-import-to=diffusers ^
+  --nofollow-import-to=accelerate ^
+  --nofollow-import-to=matplotlib ^
+  --nofollow-import-to=pandas ^
+  --nofollow-import-to=scipy ^
+  --nofollow-import-to=sklearn ^
+  --nofollow-import-to=skimage ^
+  --nofollow-import-to=cv2 ^
+  --nofollow-import-to=tensorflow ^
+  --nofollow-import-to=keras ^
+  --nofollow-import-to=jax ^
+  --nofollow-import-to=flax ^
+  --nofollow-import-to=xgboost ^
+  --nofollow-import-to=lightgbm ^
+  --nofollow-import-to=pytest ^
+  --nofollow-import-to=_pytest ^
+  --nofollow-import-to=sphinx ^
+  --nofollow-import-to=docutils ^
+  --module-parameter=numba-disable-jit=yes ^
+  --include-data-dir=templates=templates ^
   --include-data-dir=drama_shot_master/templates=drama_shot_master/templates ^
   --include-data-dir=drama_shot_master/assets=drama_shot_master/assets ^
+  --include-data-dir=drama_shot_master/ui/styles=drama_shot_master/ui/styles ^
   --include-data-dir=screenwriter_agent/templates=screenwriter_agent/templates ^
   --windows-icon-from-ico=drama_shot_master/assets/app_icon.ico ^
   --windows-console-mode=disable ^
   --output-dir=build/dist ^
   drama_shot_master/main.py
-echo 完成。产物在 build/dist/main.dist/
+echo Done. Output: build/dist/main.dist/
