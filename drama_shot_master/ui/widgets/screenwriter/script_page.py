@@ -2,10 +2,12 @@
 
 布局：参数栏（集数 spin + 时长 + 语言风格 + 流式状态 + [生成大纲/生成剧本] + [中止]）
      上游 banner
-     大纲表 QTableWidget（集 / 标题 / 概要 / 操作 列）
-     [一键全集] + 进度 label
-     当前集 md 编辑器 QPlainTextEdit
+     QSplitter(水平)：
+       左·大纲 = 集列表 QTableWidget（集/标题/概要/操作）+ 大纲流式只读预览 + [一键全集]
+       右·剧集 = [折叠钮] + 集标题 + 当前集 md 编辑器 QPlainTextEdit
      操作栏：[保存][打开][推进到分镜 →]
+
+大纲流式文本进左栏只读预览（_outline_streaming 开关），不再灌进剧集编辑器。
 """
 from __future__ import annotations
 
@@ -17,6 +19,7 @@ from PySide6.QtGui import QDesktopServices, QTextCursor
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QPlainTextEdit, QSpinBox,
     QComboBox, QMessageBox, QTableWidget, QTableWidgetItem, QHeaderView,
+    QSplitter, QWidget,
 )
 
 from drama_shot_master.ui.widgets.screenwriter.base_stage_page import _BaseStagePage
@@ -37,6 +40,9 @@ class ScriptPage(_BaseStagePage):
         self._current_episode: str = ""               # 当前选中行 id
         self._episode_md: dict[str, str] = {}         # 各集 md 内容缓存
         self._original_md: dict[str, str] = {}        # 用于 dirty 检测
+        self._outline_streaming: bool = False         # True=大纲流式中（delta 进预览）
+        self._outline_collapsed: bool = False          # 左栏是否折叠
+        self._saved_sizes: list[int] = [320, 680]      # 折叠前的分栏宽度
         self._build_ui()
         self.set_project(None)
 
@@ -47,7 +53,24 @@ class ScriptPage(_BaseStagePage):
         root.addLayout(self._build_param_bar())
         self._upstream_banner = _UpstreamBanner()
         root.addWidget(self._upstream_banner)
-        # 大纲表
+        self._splitter = QSplitter(Qt.Horizontal)
+        self._splitter.addWidget(self._build_outline_pane())   # 左·大纲
+        self._splitter.addWidget(self._build_episode_pane())   # 右·剧集
+        self._splitter.setCollapsible(0, True)
+        self._splitter.setCollapsible(1, False)
+        self._splitter.setStretchFactor(0, 0)
+        self._splitter.setStretchFactor(1, 1)
+        self._splitter.setSizes(self._saved_sizes)
+        root.addWidget(self._splitter, 1)
+        root.addLayout(self._build_action_bar())
+
+    def _build_outline_pane(self) -> QWidget:
+        """左栏：大纲集列表 + 大纲流式只读预览 + 一键全集。"""
+        pane = QWidget()
+        v = QVBoxLayout(pane)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(4)
+        v.addWidget(QLabel("大纲 · 集列表"))
         self._outline_table = QTableWidget(0, 4)
         self._outline_table.setHorizontalHeaderLabels(["集", "标题", "概要", "操作"])
         h = self._outline_table.horizontalHeader()
@@ -60,9 +83,14 @@ class ScriptPage(_BaseStagePage):
         self._outline_table.setColumnWidth(3, 92)
         self._outline_table.setSelectionBehavior(QTableWidget.SelectRows)
         self._outline_table.setSelectionMode(QTableWidget.SingleSelection)
-        self._outline_table.setMaximumHeight(200)
         self._outline_table.itemSelectionChanged.connect(self._on_outline_row_selected)
-        root.addWidget(self._outline_table)
+        v.addWidget(self._outline_table, 1)
+        # 大纲流式只读预览（默认隐藏；流式时替换列表显示）
+        self._outline_preview = QPlainTextEdit()
+        self._outline_preview.setReadOnly(True)
+        self._outline_preview.setPlaceholderText("大纲生成中…")
+        self._outline_preview.hide()
+        v.addWidget(self._outline_preview, 1)
         # 一键全集 + 进度
         batch_bar = QHBoxLayout()
         self._batch_btn = QPushButton("一键全集 ▶")
@@ -71,13 +99,44 @@ class ScriptPage(_BaseStagePage):
         self._batch_progress = QLabel("")
         batch_bar.addWidget(self._batch_progress)
         batch_bar.addStretch(1)
-        root.addLayout(batch_bar)
-        # 当前集 editor
+        v.addLayout(batch_bar)
+        return pane
+
+    def _build_episode_pane(self) -> QWidget:
+        """右栏：折叠钮 + 集标题 + 剧集正文编辑器。"""
+        pane = QWidget()
+        v = QVBoxLayout(pane)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(4)
+        head = QHBoxLayout()
+        self._collapse_btn = QPushButton("◀ 大纲")
+        self._collapse_btn.setMaximumWidth(80)
+        self._collapse_btn.clicked.connect(self._toggle_outline_pane)
+        head.addWidget(self._collapse_btn)
+        self._episode_title_lbl = QLabel("剧集 · 正文")
+        head.addWidget(self._episode_title_lbl)
+        head.addStretch(1)
+        v.addLayout(head)
         self._episode_editor = QPlainTextEdit()
-        self._episode_editor.setPlaceholderText("选中上方某行后显示该集 md（或在此直接编写）")
+        self._episode_editor.setPlaceholderText("选中左侧某集后显示该集 md（或在此直接编写）")
         self._episode_editor.textChanged.connect(self._on_editor_changed)
-        root.addWidget(self._episode_editor, 1)
-        root.addLayout(self._build_action_bar())
+        v.addWidget(self._episode_editor, 1)
+        return pane
+
+    def _toggle_outline_pane(self) -> None:
+        """折叠/展开左栏（按显式状态驱动，不依赖 splitter 像素尺寸）。"""
+        if not self._outline_collapsed:
+            cur = self._splitter.sizes()
+            if cur and cur[0] > 0:
+                self._saved_sizes = cur
+            self._splitter.setSizes([0, sum(cur) or sum(self._saved_sizes)])
+            self._collapse_btn.setText("▶ 大纲")
+            self._outline_collapsed = True
+        else:
+            left = self._saved_sizes[0] if self._saved_sizes[0] > 0 else 320
+            self._splitter.setSizes([left, self._saved_sizes[1] or 680])
+            self._collapse_btn.setText("◀ 大纲")
+            self._outline_collapsed = False
 
     def _build_param_bar(self) -> QHBoxLayout:
         bar = QHBoxLayout()
@@ -169,6 +228,23 @@ class ScriptPage(_BaseStagePage):
         else:
             self._exit_streaming_view()
 
+    def revalidate_upstream(self) -> None:
+        """切回本 stage 时重新校验上游创意并刷新 banner/生成按钮。
+
+        修：set_project 仅在打开项目那一刻判定上游；会话内才在「创意」
+        阶段生成 创意.json 时，host 切到「剧本」会调用本方法重新校验，
+        否则沿用打开时的 stale 结果，误报"上游缺失"。
+        """
+        if self._project_dir is None:
+            return
+        if not idea_exists_in(self._project_dir):
+            self._upstream_banner.show_missing(
+                stage_name="创意", expected_file="创意.json")
+            self._gen_btn.setEnabled(False)
+        else:
+            self._upstream_banner.hide_banner()
+            self._gen_btn.setEnabled(True)
+
     def _load_index(self):
         """读 剧本.json + 渲染大纲表 + 选第一行。"""
         if self._project_dir is None:
@@ -247,6 +323,7 @@ class ScriptPage(_BaseStagePage):
         self._episode_editor.blockSignals(True)
         self._episode_editor.setPlainText(text)
         self._episode_editor.blockSignals(False)
+        self._episode_title_lbl.setText(f"剧集 · {ep_id} 正文")
         self._save_btn.setEnabled(False)
         self._open_btn.setEnabled(True)
         self._refresh_advance_btn()
@@ -346,7 +423,9 @@ class ScriptPage(_BaseStagePage):
             return
         n = self._episode_count_spin.value()
         if n == 1:
-            # 快路径：直接生成 E1
+            # 快路径：直接生成 E1。先设当前集，使流式增量直接进编辑器
+            # （否则 set_project 后 _current_episode 为空，单集流式不可见）。
+            self._current_episode = "E1"
             self._start_episode_stream("E1")
         else:
             # 先生成大纲，再逐集
@@ -361,6 +440,12 @@ class ScriptPage(_BaseStagePage):
                 "language_style": self._lang_combo.currentText(),
             },
         }
+        self._outline_streaming = True
+        if self._outline_collapsed:                # 折叠态生成大纲 → 自动展开
+            self._toggle_outline_pane()
+        self._outline_table.hide()
+        self._outline_preview.clear()
+        self._outline_preview.show()
         self._stream_label.setText("● 生成大纲…")
         self._gen_btn.hide(); self._stop_btn.show()
         key = (self._project_dir, "__outline__")
@@ -426,6 +511,10 @@ class ScriptPage(_BaseStagePage):
                 self._workers[key] = None
         if hasattr(self, "_batch_queue"):
             self._batch_queue.clear()
+        if self._outline_streaming:
+            self._outline_streaming = False
+            self._outline_preview.hide()
+            self._outline_table.show()
         self._exit_streaming_view()
 
     # —— 流式 UI ——
@@ -450,7 +539,13 @@ class ScriptPage(_BaseStagePage):
 
         if event_name == "delta":
             text = data.get("text", "")
-            if text and proj == self._project_dir and ep_id == self._current_episode:
+            if not (text and proj == self._project_dir):
+                pass
+            elif self._outline_streaming:
+                # 大纲流式 → 进左栏只读预览，绝不进剧集编辑器
+                self._outline_preview.moveCursor(QTextCursor.End)
+                self._outline_preview.insertPlainText(text)
+            elif ep_id == self._current_episode:
                 self._episode_editor.blockSignals(True)
                 self._episode_editor.moveCursor(QTextCursor.End)
                 self._episode_editor.insertPlainText(text)
@@ -462,6 +557,9 @@ class ScriptPage(_BaseStagePage):
                 # 重读大纲表（outline 落了新 剧本.json）
                 saved = data.get("saved", "")
                 if saved and saved.endswith("剧本.json"):
+                    self._outline_streaming = False
+                    self._outline_preview.hide()
+                    self._outline_table.show()
                     self._load_index()
                 elif ep_id:
                     # episode md 落盘了，刷缓存
@@ -474,6 +572,12 @@ class ScriptPage(_BaseStagePage):
                             self._episode_editor.blockSignals(True)
                             self._episode_editor.setPlainText(txt)
                             self._episode_editor.blockSignals(False)
+                    # 单集快路径：set_project 时无 剧本.json → 大纲表为空；
+                    # episode 端点已 bootstrap 剧本.json 并落盘 md，此处主动
+                    # 渲染大纲并选中本集——否则要切任务面板才刷新（多集走
+                    # outline done(saved=剧本.json)→_load_index，单集缺这步）。
+                    if self._outline_table.rowCount() == 0:
+                        self._load_index()
                 # 批量：继续下一集
                 if getattr(self, "_batch_queue", []):
                     self._batch_done_count += 1
@@ -484,6 +588,10 @@ class ScriptPage(_BaseStagePage):
             self.projectStateChanged.emit()
         elif event_name == "error":
             if proj == self._project_dir:
+                if self._outline_streaming:
+                    self._outline_streaming = False
+                    self._outline_preview.hide()
+                    self._outline_table.show()
                 QMessageBox.warning(self, "生成失败",
                                      data.get("hint") or data.get("message", ""))
                 self._exit_streaming_view()
