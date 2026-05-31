@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · ⑥ 视频后期 · 配乐混音 DAW</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ============================================================
+     配乐 / 混音 DAW —— 静态 mockup（P4）
+     内容页硬规则：无自带标题栏/侧栏（壳 web/app.html 提供）；
+     复用 tokens.css 蓝紫设计系统变量与组件；品牌「糯米 AI」。
+     布局取自确认稿 docs/explorer/track-mixer-layout.html 方案 A
+     （左侧轨道头列：名称 + M/S + 音量条，与右侧波形轨垂直对齐）。
+     ============================================================ */
+  body { overflow: hidden; }
+  .daw { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ---------- 顶部：标题 + 任务选择 ---------- */
+  .head {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 20px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--border-lo);
+  }
+  .head h1 {
+    margin: 0; font-size: 19px; letter-spacing: .4px;
+    background: linear-gradient(135deg, var(--blue), var(--mauve));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .head .spacer { flex: 1; }
+  .head .task-select { min-width: 240px; }
+  .head .style-pill {
+    font-size: 11.5px; color: var(--mauve);
+    background: rgba(138,127,217,.16); border: 1px solid #4a3d6e;
+    padding: 4px 11px; border-radius: 12px;
+  }
+
+  /* ---------- 走带控制条（transport） ---------- */
+  .transport {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 20px; background: var(--navy);
+    border-bottom: 1px solid var(--border-lo);
+  }
+  .tbtn {
+    width: 36px; height: 34px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    background: var(--panel2); color: var(--fg2);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
+  .tbtn:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
+  .tbtn.play {
+    background: linear-gradient(135deg, var(--blue), var(--periw));
+    color: #06122a; border: none; font-weight: 700;
+  }
+  .tbtn.rec { color: var(--err); }
+  .tbtn.rec:hover { border-color: var(--err); }
+  .timecode {
+    font-variant-numeric: tabular-nums; font-size: 17px; font-weight: 600;
+    color: var(--fg); letter-spacing: 1px;
+    background: var(--field); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 5px 12px; margin-left: 4px;
+  }
+  .timecode .total { color: var(--faint); font-size: 13px; font-weight: 400; }
+  .transport .meta { color: var(--muted); font-size: 12px; }
+  .transport .meta b { color: var(--fg2); font-weight: 600; }
+  .transport .spacer { flex: 1; }
+  .master {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--muted); font-size: 12px;
+  }
+  .master .vrange { width: 120px; }
+
+  /* ---------- DAW 主体：左轨道头列 + 右时间线 ---------- */
+  .stage { flex: 1; display: flex; min-height: 0; }
+
+  /* 左：轨道头列（方案 A） */
+  .heads {
+    width: 232px; flex-shrink: 0; background: var(--panel);
+    border-right: 1px solid var(--border); overflow-y: auto;
+  }
+  .heads-top {
+    height: 30px; display: flex; align-items: center; padding: 0 12px;
+    font-size: 11px; letter-spacing: .5px; text-transform: uppercase;
+    color: var(--periw); font-weight: 600;
+    border-bottom: 1px solid var(--border-lo);
+  }
+  .thead {
+    height: 84px; padding: 9px 12px; display: flex; flex-direction: column; gap: 7px;
+    border-bottom: 1px solid var(--border-lo);
+  }
+  .thead .row1 { display: flex; align-items: center; gap: 8px; }
+  .thead .swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .thead .tname { font-size: 13px; font-weight: 600; color: var(--fg); }
+  .thead .tkind { font-size: 11px; color: var(--faint); margin-left: auto; }
+  .thead .row2 { display: flex; align-items: center; gap: 6px; }
+  .ms {
+    width: 24px; height: 24px; border-radius: 5px; cursor: pointer;
+    font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    background: var(--field); border: 1px solid var(--border); color: var(--text2, var(--fg2));
+    color: var(--fg2); user-select: none;
+  }
+  .ms.m.on { background: var(--err); color: #fff; border-color: var(--err); }
+  .ms.s.on { background: var(--warn); color: #1e1f22; border-color: var(--warn); }
+  .vol {
+    flex: 1; height: 6px; border-radius: 3px; position: relative; cursor: pointer;
+    background: var(--field); border: 1px solid var(--border); min-width: 40px;
+  }
+  .vol .fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: linear-gradient(90deg, var(--blue-dim), var(--blue));
+    border-radius: 3px;
+  }
+  .vol .knob {
+    position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; transform: translate(-50%, -50%); box-shadow: 0 1px 3px rgba(0,0,0,.5);
+  }
+  .thead .pct { font-size: 11px; color: var(--muted); width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+  /* 对白：只读占位（混在视频原声里，无独立 M/S/音量） */
+  .thead.readonly { opacity: .62; }
+  .thead.readonly .ro-tag {
+    font-size: 11px; color: var(--faint);
+    border: 1px dashed var(--border); border-radius: 5px; padding: 3px 8px;
+  }
+
+  /* 右：时间线区（标尺 + 波形轨 + 播放头） */
+  .timeline { flex: 1; position: relative; overflow: auto; background: var(--bg); }
+  .tl-inner { position: relative; min-width: 1400px; }
+  .ruler {
+    height: 30px; position: sticky; top: 0; z-index: 5;
+    background: var(--navy); border-bottom: 1px solid var(--border-lo);
+  }
+  .ruler canvas { display: block; width: 100%; height: 30px; }
+  .trk {
+    height: 84px; border-bottom: 1px solid var(--border-lo); position: relative;
+  }
+  .trk canvas { display: block; width: 100%; height: 84px; }
+  /* 片段块叠在波形画布上（标注 clip 名 / 区间） */
+  .clip {
+    position: absolute; top: 12px; bottom: 12px; border-radius: 5px;
+    display: flex; align-items: center; padding: 0 9px; overflow: hidden;
+    font-size: 11.5px; color: #fff; border: 1px solid rgba(255,255,255,.18);
+    box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: grab;
+  }
+  .clip .lab { font-weight: 600; white-space: nowrap; }
+  .clip .sub { margin-left: 8px; opacity: .7; font-size: 10.5px; }
+
+  /* 播放头：贯穿标尺 + 所有轨 */
+  .playhead {
+    position: absolute; top: 0; bottom: 0; width: 2px; z-index: 8;
+    background: var(--blue); pointer-events: none;
+    box-shadow: 0 0 8px var(--blue);
+  }
+  .playhead::before {
+    content: ''; position: absolute; top: 0; left: -5px;
+    border-left: 6px solid transparent; border-right: 6px solid transparent;
+    border-top: 8px solid var(--blue);
+  }
+
+  /* ---------- 卡点（accent）标记带 ---------- */
+  .accents { position: absolute; top: 30px; left: 0; right: 0; height: 0; z-index: 6; }
+  .accent {
+    position: absolute; top: 0; width: 0; height: 100%;
+    border-left: 1px dashed var(--mauve); opacity: .5;
+  }
+  .accent.big { border-left-color: var(--done); opacity: .85; }
+  .accent .dot {
+    position: absolute; top: -2px; left: -4px; width: 8px; height: 8px;
+    border-radius: 50%; background: var(--mauve);
+  }
+  .accent.big .dot { background: var(--done); box-shadow: 0 0 6px var(--done); }
+
+  /* ---------- 底部状态/标注条 ---------- */
+  .foot {
+    padding: 9px 20px; border-top: 1px solid var(--border-lo);
+    background: var(--navy); display: flex; align-items: center; gap: 16px;
+    color: var(--muted); font-size: 12px; flex-wrap: wrap;
+  }
+  .foot .legend { display: inline-flex; align-items: center; gap: 6px; }
+  .foot .legend .sw { width: 11px; height: 11px; border-radius: 3px; }
+  .foot .note { color: var(--faint); }
+  .foot .spacer { flex: 1; }
+  .foot .api {
+    font-family: Consolas, monospace; font-size: 11px; color: var(--blue);
+    background: rgba(74,158,255,.1); border: 1px solid var(--blue-dim);
+    padding: 2px 8px; border-radius: 10px;
+  }
+</style>
+</head>
+<body>
+<!-- 壳内容页：标题栏/侧栏由 web/app.html（糯米 AI）统一提供，本页不自带 -->
+<div class="daw">
+
+  <!-- 顶部 -->
+  <div class="head">
+    <h1>⑥ 视频后期 · 配乐混音 DAW</h1>
+    <span class="style-pill" id="stylePill">整体风格：冷色调 · 悬疑紧张</span>
+    <span class="spacer"></span>
+    <select class="task-select" id="taskSelect">
+      <option>第 1 集 · 废品场对峙（成片 mp4）</option>
+      <option>第 2 集 · 雨夜天台</option>
+      <option>第 3 集 · 审讯室反转</option>
+    </select>
+    <button class="ghost" id="btnScore">✦ 自动配乐</button>
+  </div>
+
+  <!-- 走带控制 -->
+  <div class="transport">
+    <button class="tbtn" id="btnStart" title="回到开头">⏮</button>
+    <button class="tbtn play" id="btnPlay" title="播放/暂停">►</button>
+    <button class="tbtn" id="btnStop" title="停止">■</button>
+    <button class="tbtn rec" title="（占位）">●</button>
+    <span class="timecode"><span id="tcCur">00:00.0</span> <span class="total">/ 00:24.0</span></span>
+    <span class="meta">爆点对齐 <b>真·卡点</b> · BPM <b>98</b> · 候选 <b>2/段</b></span>
+    <span class="spacer"></span>
+    <div class="master">
+      <span>主输出</span>
+      <input class="vrange" type="range" min="0" max="150" value="100" id="masterVol">
+      <span id="masterPct" style="width:34px;">100%</span>
+    </div>
+  </div>
+
+  <!-- DAW 主体 -->
+  <div class="stage">
+    <!-- 左：轨道头列 -->
+    <div class="heads" id="heads">
+      <div class="heads-top">轨道</div>
+      <!-- 轨道头由 JS 渲染 -->
+    </div>
+
+    <!-- 右：时间线 -->
+    <div class="timeline" id="timeline">
+      <div class="tl-inner" id="tlInner">
+        <div class="ruler"><canvas id="rulerCanvas"></canvas></div>
+        <!-- 卡点标记带 -->
+        <div class="accents" id="accents"></div>
+        <!-- 波形轨由 JS 渲染 -->
+        <div id="lanes"></div>
+        <!-- 播放头 -->
+        <div class="playhead" id="playhead" style="left:0;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部标注 -->
+  <div class="foot">
+    <span class="legend"><span class="sw" style="background:#8a5aa8;"></span>原声/对白</span>
+    <span class="legend"><span class="sw" style="background:var(--done);"></span>BGM</span>
+    <span class="legend"><span class="sw" style="background:var(--warn);"></span>SFX</span>
+    <span class="legend"><span class="sw" style="background:var(--done);border-radius:50%;"></span>大爆点</span>
+    <span class="legend"><span class="sw" style="background:var(--mauve);border-radius:50%;"></span>普通卡点</span>
+    <span class="spacer"></span>
+    <span class="note">静态 mockup · 真实波形/播放头接 media_agent</span>
+    <span class="api">POST /soundtrack · ws 播放头</span>
+  </div>
+</div>
+
+<script>
+/* 可配 API base（真机联调由主控做） */
+const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450';
+/* media_agent 端点：/imaging /imggen /transition /soundtrack（本页用 /soundtrack） */
+
+const TOTAL = 24.0;          // 成片总时长（秒）—— stub
+const PX_PER_SEC = 58;       // 时间线缩放
+const TL_WIDTH = TOTAL * PX_PER_SEC;
+
+/* 轨道定义（取自确认稿：原声/BGM/SFX 三轨 + 对白只读占位）
+   color 用于波形与 clip 块；readonly 轨无 M/S/音量。 */
+const TRACKS = [
+  { id: 'orig', name: '视频原声', kind: 'AUDIO', color: '#3a5a8a', vol: 100, mute: false, solo: false,
+    clips: [{ s: 0, e: 24, lab: '原声轨', sub: '成片内置' }] },
+  { id: 'bgm',  name: 'BGM',     kind: 'MUSIC', color: '#4ec98f', vol: 80,  mute: false, solo: true,
+    clips: [
+      { s: 0,  e: 9,  lab: 'BGM·Intro',  sub: '段1 · 悬疑' },
+      { s: 9,  e: 17, lab: 'BGM·Theme',  sub: '段2 · 紧张' },
+      { s: 17, e: 24, lab: 'BGM·Outro',  sub: '段3 · 收束' }
+    ] },
+  { id: 'sfx',  name: 'SFX',     kind: 'FX',    color: '#c2884c', vol: 100, mute: true,  solo: false,
+    clips: [
+      { s: 6.2, e: 7.0,  lab: '金属撞击', sub: '' },
+      { s: 15.5, e: 16.1, lab: '玻璃碎', sub: '' }
+    ] },
+  { id: 'dlg',  name: '对白',    kind: '只读',  color: '#8a5aa8', readonly: true,
+    clips: [
+      { s: 2.0, e: 5.5,  lab: '「你以为我会认？」', sub: '' },
+      { s: 11.0, e: 14.0, lab: '「……你想多了」', sub: '' }
+    ] }
+];
+
+/* 卡点（accent points）—— 光流爆点检测产物；big = 参与真·卡点对齐 */
+const ACCENTS = [
+  { t: 3.1, big: false }, { t: 6.5, big: true }, { t: 9.0, big: true },
+  { t: 12.4, big: false }, { t: 15.7, big: true }, { t: 20.2, big: false }
+];
+
+/* ---------- 渲染：轨道头列（方案 A） ---------- */
+function renderHeads() {
+  const root = document.getElementById('heads');
+  TRACKS.forEach((t, i) => {
+    const el = document.createElement('div');
+    el.className = 'thead' + (t.readonly ? ' readonly' : '');
+    if (t.readonly) {
+      el.innerHTML = `
+        <div class="row1">
+          <span class="swatch" style="background:${t.color}"></span>
+          <span class="tname">${t.name}</span>
+          <span class="tkind">${t.kind}</span>
+        </div>
+        <div class="row2"><span class="ro-tag">只读 · 混在原声内，无独立 M/S/音量</span></div>`;
+    } else {
+      el.innerHTML = `
+        <div class="row1">
+          <span class="swatch" style="background:${t.color}"></span>
+          <span class="tname">${t.name}</span>
+          <span class="tkind">${t.kind}</span>
+        </div>
+        <div class="row2">
+          <span class="ms m ${t.mute ? 'on' : ''}" data-trk="${i}" data-k="m">M</span>
+          <span class="ms s ${t.solo ? 'on' : ''}" data-trk="${i}" data-k="s">S</span>
+          <span class="vol" data-trk="${i}">
+            <span class="fill" style="width:${t.vol / 1.5}%"></span>
+            <span class="knob" style="left:${t.vol / 1.5}%"></span>
+          </span>
+          <span class="pct" id="pct-${i}">${t.vol}%</span>
+        </div>`;
+    }
+    root.appendChild(el);
+  });
+}
+
+/* ---------- 波形占位（Canvas 伪随机包络，标注真实波形接 /soundtrack） ---------- */
+function drawWaveform(canvas, color, seed, silent) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  if (silent) return;
+  const mid = h / 2;
+  ctx.strokeStyle = color; ctx.globalAlpha = 0.7; ctx.lineWidth = 1;
+  let s = seed;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  ctx.beginPath();
+  for (let x = 0; x < w; x += 2) {
+    const env = 0.3 + 0.7 * Math.abs(Math.sin(x / 40 + seed));
+    const amp = env * (mid - 6) * (0.4 + 0.6 * rnd());
+    ctx.moveTo(x, mid - amp);
+    ctx.lineTo(x, mid + amp);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- 渲染：波形轨 + clip 块 ---------- */
+function renderLanes() {
+  const lanes = document.getElementById('lanes');
+  document.getElementById('tlInner').style.width = TL_WIDTH + 'px';
+  TRACKS.forEach((t, i) => {
+    const trk = document.createElement('div');
+    trk.className = 'trk';
+    const cv = document.createElement('canvas');
+    cv.id = 'wave-' + i;
+    trk.appendChild(cv);
+    // clip 块
+    t.clips.forEach(c => {
+      const clip = document.createElement('div');
+      clip.className = 'clip';
+      clip.style.left = (c.s * PX_PER_SEC) + 'px';
+      clip.style.width = ((c.e - c.s) * PX_PER_SEC - 2) + 'px';
+      clip.style.background = t.color;
+      clip.innerHTML = `<span class="lab">${c.lab}</span>${c.sub ? `<span class="sub">${c.sub}</span>` : ''}`;
+      trk.appendChild(clip);
+    });
+    lanes.appendChild(trk);
+  });
+}
+
+/* ---------- 渲染：时间标尺 ---------- */
+function drawRuler() {
+  const cv = document.getElementById('rulerCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  const w = TL_WIDTH, h = 30;
+  cv.style.width = w + 'px';
+  cv.width = w * dpr; cv.height = h * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = '10px Consolas, monospace';
+  ctx.textBaseline = 'bottom';
+  for (let sec = 0; sec <= TOTAL; sec++) {
+    const x = sec * PX_PER_SEC;
+    const major = sec % 2 === 0;
+    ctx.strokeStyle = major ? '#3a4060' : '#262943';
+    ctx.beginPath(); ctx.moveTo(x, major ? 12 : 20); ctx.lineTo(x, 30); ctx.stroke();
+    if (major) {
+      ctx.fillStyle = '#9aa0a6';
+      const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+      const ss = String(sec % 60).padStart(2, '0');
+      ctx.fillText(`${mm}:${ss}`, x + 3, 12);
+    }
+  }
+}
+
+/* ---------- 渲染：卡点标记带（贯穿所有轨高度） ---------- */
+function renderAccents() {
+  const root = document.getElementById('accents');
+  const fullH = TRACKS.length * 84;
+  root.style.height = fullH + 'px';
+  ACCENTS.forEach(a => {
+    const el = document.createElement('div');
+    el.className = 'accent' + (a.big ? ' big' : '');
+    el.style.left = (a.t * PX_PER_SEC) + 'px';
+    el.innerHTML = '<span class="dot"></span>';
+    el.title = `卡点 ${a.t.toFixed(1)}s${a.big ? ' · 大爆点（真·卡点对齐）' : ''}`;
+    root.appendChild(el);
+  });
+}
+
+/* ---------- 走带 / 播放头（本地动画 stub，真机接 ws） ---------- */
+let playing = false, cur = 0, raf = null, last = 0;
+const playhead = document.getElementById('playhead');
+const tcCur = document.getElementById('tcCur');
+function fmt(t) {
+  const m = Math.floor(t / 60), s = (t % 60);
+  return String(m).padStart(2, '0') + ':' + s.toFixed(1).padStart(4, '0');
+}
+function updateHead() {
+  playhead.style.left = (cur * PX_PER_SEC) + 'px';
+  tcCur.textContent = fmt(cur);
+}
+function tick(ts) {
+  if (!playing) return;
+  if (!last) last = ts;
+  cur += (ts - last) / 1000; last = ts;
+  if (cur >= TOTAL) { cur = TOTAL; playing = false; document.getElementById('btnPlay').textContent = '►'; }
+  updateHead();
+  if (playing) raf = requestAnimationFrame(tick);
+}
+function setPlay(on) {
+  playing = on; last = 0;
+  document.getElementById('btnPlay').textContent = on ? '❚❚' : '►';
+  if (on) raf = requestAnimationFrame(tick); else cancelAnimationFrame(raf);
+}
+
+/* ---------- 交互绑定（stub：仅占位，真机由主控接 /soundtrack） ---------- */
+function wire() {
+  document.getElementById('btnPlay').addEventListener('click', () => setPlay(!playing));
+  document.getElementById('btnStop').addEventListener('click', () => { setPlay(false); cur = 0; updateHead(); });
+  document.getElementById('btnStart').addEventListener('click', () => { cur = 0; updateHead(); });
+
+  // 时间线点击定位播放头
+  const inner = document.getElementById('tlInner');
+  inner.addEventListener('click', (e) => {
+    if (e.target.closest('.thead')) return;
+    const rect = inner.getBoundingClientRect();
+    const x = e.clientX - rect.left + document.getElementById('timeline').scrollLeft;
+    cur = Math.max(0, Math.min(TOTAL, x / PX_PER_SEC));
+    updateHead();
+  });
+
+  // M / S 切换（独奏逻辑：有 S 时只听亮 S 的轨）
+  document.querySelectorAll('.ms').forEach(b => {
+    b.addEventListener('click', () => { b.classList.toggle('on'); });
+  });
+
+  // 轨道音量条点击设值
+  document.querySelectorAll('.vol').forEach(v => {
+    v.addEventListener('click', (e) => {
+      const rect = v.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      v.querySelector('.fill').style.width = (ratio * 100) + '%';
+      v.querySelector('.knob').style.left = (ratio * 100) + '%';
+      const i = v.getAttribute('data-trk');
+      document.getElementById('pct-' + i).textContent = Math.round(ratio * 150) + '%';
+    });
+  });
+
+  // 主输出音量
+  const mv = document.getElementById('masterVol'), mp = document.getElementById('masterPct');
+  mv.addEventListener('input', () => { mp.textContent = mv.value + '%'; });
+
+  // 自动配乐（stub）：真机 POST /soundtrack（SSE 进度）
+  document.getElementById('btnScore').addEventListener('click', (e) => {
+    e.target.textContent = '配乐中…';
+    setTimeout(() => (e.target.textContent = '✦ 自动配乐'), 1400);
+    // 真机：fetch(`${MEDIA_API}/soundtrack`, { method:'POST', body: ... }) 读 SSE 进度
+  });
+}
+
+/* ---------- 启动 ---------- */
+function init() {
+  renderHeads();
+  renderLanes();
+  drawRuler();
+  renderAccents();
+  // 波形需在 lane 布局后量取宽度
+  TRACKS.forEach((t, i) => {
+    const cv = document.getElementById('wave-' + i);
+    cv.style.width = TL_WIDTH + 'px';
+    drawWaveform(cv, '#ffffff', i * 7 + 3, t.readonly);
+  });
+  updateHead();
+  wire();
+}
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

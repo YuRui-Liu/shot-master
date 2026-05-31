@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · 概览 · OVERVIEW</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ===== 壳内容页：无自带标题栏/侧栏（由 web/app.html 提供），内容铺满 ===== */
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 22px 24px 60px; }
+
+  /* ===== 顶部栏 ===== */
+  .topbar { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+  .topbar h1 {
+    margin: 0; font-size: 22px; letter-spacing: .5px;
+    background: linear-gradient(135deg, var(--blue), var(--mauve));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .topbar .en { font-size: 12px; color: var(--faint); letter-spacing: 2px; }
+  .topbar .spacer { flex: 1; }
+  .topbar .pill {
+    font-size: 12px; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 14px; padding: 4px 13px;
+  }
+
+  /* ===== 项目信息卡 + 风格圣经 ===== */
+  .project {
+    display: flex; gap: 16px; align-items: center;
+    background: linear-gradient(135deg, var(--panel), #1b1d2e);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px; margin-bottom: 14px;
+  }
+  .project .cover {
+    width: 64px; height: 64px; flex: 0 0 64px; border-radius: 10px;
+    background: radial-gradient(circle at 35% 30%, var(--mauve), var(--blue-dim));
+    box-shadow: 0 0 16px rgba(139,127,217,.4);
+  }
+  .project .info { flex: 1; min-width: 0; }
+  .project .info .name { font-size: 16px; font-weight: 700; }
+  .project .info .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .project .info .meta b { color: var(--fg2); }
+
+  /* 风格圣经条 */
+  .bible {
+    display: flex; gap: 13px; align-items: center;
+    background: linear-gradient(135deg, var(--panel), #1b1d2e);
+    border: 1px solid var(--border); border-left: 3px solid var(--periw);
+    border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px;
+  }
+  .bible .orb {
+    width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--mauve), var(--blue-dim));
+    box-shadow: 0 0 14px rgba(139,127,217,.5);
+  }
+  .bible .bc { flex: 1; min-width: 0; }
+  .bible .bt { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .bible .bt .t { font-size: 13px; font-weight: 650; }
+  .bible .desc { font-size: 12px; color: var(--muted); }
+  .bible .desc b { color: var(--fg2); }
+
+  /* ===== 下一步行动条 ===== */
+  .nab {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+    background: rgba(74,158,255,.07); border: 1px solid #243a5a;
+    border-radius: var(--radius); padding: 11px 15px;
+  }
+  .nab .ai { width: 18px; height: 18px; color: var(--blue); flex: 0 0 18px; }
+  .nab .tx { font-size: 13px; color: #bcd4f5; flex: 1; } .nab .tx b { color: #fff; }
+
+  /* ===== 流水线阶段（7阶段：创意→剧本→分镜→出图→视频→配音配乐→成片）===== */
+  .flow { display: flex; gap: 8px; align-items: stretch; margin-bottom: 26px; flex-wrap: nowrap; }
+  .pc {
+    flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 13px 13px 14px; position: relative;
+    display: flex; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,.25);
+    cursor: pointer; transition: border-color .14s, transform .05s;
+  }
+  .pc:hover { border-color: var(--mauve); }
+  .pc:active { transform: translateY(1px); }
+  .pc.cur { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue), 0 6px 16px rgba(74,158,255,.18); }
+  .pc.locked { opacity: .5; cursor: not-allowed; }
+  .pc.locked:hover { border-color: var(--border); }
+  .pc .hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .pc .nm { font-size: 12.5px; color: var(--fg2); font-weight: 600; }
+  .sb { font-size: 9px; border-radius: 8px; padding: 1px 7px; }
+  .sb.done { color: var(--done); border: 1px solid #2c5a44; }
+  .sb.cur  { color: var(--blue); border: 1px solid #2c4a6e; }
+  .sb.lock { color: var(--faint); border: 1px solid var(--border); }
+  .pc .big {
+    font-size: 26px; font-weight: 750; line-height: 1;
+    font-variant-numeric: tabular-nums; letter-spacing: -1px;
+  }
+  .pc .big .den { font-size: 13px; color: var(--faint); font-weight: 600; }
+  .pc .meta { font-size: 10px; color: var(--muted); margin: 5px 0 9px; line-height: 1.4; }
+  .pc .bar { height: 4px; background: #16182a; border-radius: 2px; overflow: hidden; margin-top: auto; }
+  .pc .bar i { display: block; height: 100%; border-radius: 2px; }
+  .pc.done .bar i { background: var(--done); }
+  .pc.cur  .bar i { background: linear-gradient(90deg, var(--blue), var(--periw)); }
+  .pc.locked .bar i { background: #4a4f63; }
+  .arrow { display: flex; align-items: center; color: var(--faint); font-size: 14px; flex: 0 0 8px; }
+
+  /* ===== 下半区：最近产物 + 快捷入口 ===== */
+  .cols { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
+
+  .section-title { font-size: 13px; font-weight: 650; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  .section-title .more { margin-left: auto; font-size: 11px; color: var(--blue); cursor: pointer; }
+
+  /* 最近产物网格 */
+  .recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
+  .asset {
+    background: var(--panel2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    overflow: hidden; cursor: pointer; transition: border-color .14s;
+  }
+  .asset:hover { border-color: var(--mauve); }
+  .asset .ph {
+    aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center;
+    color: var(--faint); font-size: 11px; text-align: center; padding: 0 8px;
+    background: linear-gradient(160deg, #20243a, #14172a);
+  }
+  .asset .cap { padding: 7px 9px; }
+  .asset .cap .nm { font-size: 11.5px; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .asset .cap .sub { font-size: 10px; color: var(--faint); margin-top: 2px; }
+  .asset .cap .kind {
+    display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 7px; margin-top: 4px;
+    color: var(--mauve); background: rgba(138,127,217,.16); border: 1px solid #4a3d6e;
+  }
+
+  /* 快捷入口 */
+  .quick { display: flex; flex-direction: column; gap: 10px; }
+  .qbtn {
+    display: flex; align-items: center; gap: 12px; text-align: left;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 14px; color: var(--fg2); font: inherit; cursor: pointer; transition: border-color .14s;
+  }
+  .qbtn:hover { border-color: var(--mauve); filter: none; }
+  .qbtn .qic {
+    width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; color: #06122a;
+    background: linear-gradient(135deg, var(--blue), var(--periw));
+  }
+  .qbtn .qic svg { width: 18px; height: 18px; }
+  .qbtn .qt { font-size: 13px; font-weight: 600; color: var(--fg); }
+  .qbtn .qd { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .qbtn .arr { margin-left: auto; color: var(--faint); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 顶部栏 -->
+  <div class="topbar">
+    <h1>概览</h1><span class="en">OVERVIEW</span>
+    <span class="spacer"></span>
+    <span class="pill" id="pjPill">短剧 · 12 集 · 9:16</span>
+  </div>
+
+  <!-- 项目信息卡 -->
+  <div class="project">
+    <div class="cover"></div>
+    <div class="info">
+      <div class="name" id="pjName">替嫁新娘的逆袭</div>
+      <div class="meta" id="pjMeta">编号 <b>P-006</b> · 真人短剧 · <b>12</b> 集 · 画幅 <b>9:16</b> · 更新于 2026-05-31</div>
+    </div>
+  </div>
+
+  <!-- 风格圣经 -->
+  <div class="bible">
+    <div class="orb"></div>
+    <div class="bc">
+      <div class="bt"><span class="t">全片风格圣经 · STYLE BIBLE</span><span class="badge">已设定 · 真人</span></div>
+      <div class="desc" id="bibleDesc"><b>电影感暖调（real/cinematic-warm-v1）</b>：Panavision 65 + Vision3 500T 暖色调，浅景深、胶片颗粒。</div>
+    </div>
+    <button class="ghost" id="editBible">编辑</button>
+  </div>
+
+  <!-- 下一步行动条 -->
+  <div class="nab">
+    <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/></svg></span>
+    <span class="tx" id="nextTx">下一步 · <b>出图</b>：还有 <b>108</b> 个分镜待出图，完成后解锁「视频生成」</span>
+    <button id="nextGo">去补全 →</button>
+  </div>
+
+  <!-- 流水线阶段进度（7 阶段） -->
+  <div class="flow" id="flow"></div>
+
+  <!-- 下半区 -->
+  <div class="cols">
+    <!-- 最近产物 -->
+    <div>
+      <div class="section-title">最近产物<span class="more" id="moreRecent">查看资源库 →</span></div>
+      <div class="recent" id="recent"></div>
+    </div>
+    <!-- 快捷入口 -->
+    <div>
+      <div class="section-title">快捷入口</div>
+      <div class="quick" id="quick"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ===== 可配 API base（真机联调由主控接入；本页仅占位渲染）=====
+   const SW_API = new URLSearchParams(location.search).get('sw') || 'http://127.0.0.1:18430'; // screenwriter_agent
+   const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450'; // media_agent
+   概览数据当前为静态占位。后续可由项目状态接口/各 agent 汇总拉取，例如：
+     fetch(`${SW_API}/project/overview`)  // 若后端提供概览聚合
+       .then(r => r.json()).then(renderAll);
+   注意：screenwriter_agent / media_agent 现有路由均为 SSE 生成型，概览的"统计/状态"建议由项目层聚合接口提供。 */
+
+/* ---- 流水线 7 阶段（创意→剧本→分镜→出图→视频→配音配乐→成片）---- */
+const STAGES = [
+  { key: "ideate",     nm: "创意立意", st: "done", done: 1,  total: 1,   meta: "题材/风格已定" },
+  { key: "script",     nm: "剧本",     st: "done", done: 12, total: 12,  meta: "12 集 · 108 场" },
+  { key: "storyboard", nm: "分镜",     st: "done", done: 108,total: 108, meta: "分镜脚本已生成" },
+  { key: "imggen",     nm: "出图",     st: "cur",  done: 0,  total: 108, meta: "0/108 已出图" },
+  { key: "video",      nm: "视频生成", st: "lock", done: 0,  total: 108, meta: "图生视频 · 按镜" },
+  { key: "audio",      nm: "配音配乐", st: "lock", done: 0,  total: 12,  meta: "配音 0/12 · 配乐 0/1" },
+  { key: "final",      nm: "成片",     st: "lock", done: 0,  total: 12,  meta: "合成导出" },
+];
+const SB = { done: "✓", cur: "●", lock: "🔒" };
+
+function renderFlow() {
+  const root = document.getElementById("flow");
+  root.innerHTML = "";
+  STAGES.forEach((s, i) => {
+    const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+    const cls = s.st === "done" ? "done" : s.st === "cur" ? "cur" : "locked";
+    const card = document.createElement("div");
+    card.className = "pc " + cls;
+    card.dataset.stage = s.key;
+    card.innerHTML = `
+      <div class="hd"><span class="nm">${s.nm}</span><span class="sb ${s.st}">${SB[s.st]}</span></div>
+      <div class="big">${s.done}<span class="den">/${s.total}</span></div>
+      <div class="meta">${s.meta}</div>
+      <div class="bar"><i style="width:${pct}%"></i></div>`;
+    card.addEventListener("click", () => {
+      if (s.st === "lock") return;
+      /* 真机：由壳路由到对应导航页，如 window.parent.postMessage({nav:s.key},'*') */
+      console.log("[overview] goto stage:", s.key);
+    });
+    root.appendChild(card);
+    if (i < STAGES.length - 1) {
+      const a = document.createElement("div");
+      a.className = "arrow"; a.textContent = "›";
+      root.appendChild(a);
+    }
+  });
+}
+
+/* ---- 最近产物（静态占位）---- */
+const RECENT = [
+  { nm: "角色 · 林晚（参考图）", sub: "资源库 · 角色", kind: "立绘" },
+  { nm: "场景 · 雨夜废品场",     sub: "资源库 · 场景", kind: "场景图" },
+  { nm: "1-3 审讯室对峙",        sub: "分镜 · 第1集",  kind: "分镜图" },
+  { nm: "道具 · 旧地图",         sub: "资源库 · 道具", kind: "道具图" },
+  { nm: "1-1 城郊废品站",        sub: "分镜 · 第1集",  kind: "分镜图" },
+  { nm: "片头主题（草稿）",       sub: "配乐 · 项目级",  kind: "音频" },
+];
+function renderRecent() {
+  const root = document.getElementById("recent");
+  root.innerHTML = "";
+  RECENT.forEach(r => {
+    const el = document.createElement("div");
+    el.className = "asset";
+    el.innerHTML = `
+      <div class="ph">${r.nm}</div>
+      <div class="cap">
+        <div class="nm" title="${r.nm}">${r.nm}</div>
+        <div class="sub">${r.sub}</div>
+        <span class="kind">${r.kind}</span>
+      </div>`;
+    el.addEventListener("click", () => console.log("[overview] open asset:", r.nm));
+    root.appendChild(el);
+  });
+}
+
+/* ---- 快捷入口 ---- */
+const QUICK = [
+  { nm: "继续出图", desc: "前往分镜板，补全分镜参考图", stage: "imggen",
+    ic: '<path d="M3 3h18v18H3z"/><path d="M3 15l5-5 4 4 3-3 6 6"/><circle cx="8.5" cy="8.5" r="1.5"/>' },
+  { nm: "剧本创作", desc: "立意 / 大纲 / 分集 / 分镜脚本", stage: "script",
+    ic: '<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/>' },
+  { nm: "资源库", desc: "角色 / 场景 / 道具 参考图", stage: "assets",
+    ic: '<path d="M4 7l8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7"/>' },
+  { nm: "全局设置", desc: "模型平台 / 出图 / 翻译 / 配乐", stage: "settings",
+    ic: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.3 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L2.1 11a7 7 0 0 0 0 2"/>' },
+];
+function renderQuick() {
+  const root = document.getElementById("quick");
+  root.innerHTML = "";
+  QUICK.forEach(q => {
+    const b = document.createElement("button");
+    b.className = "qbtn";
+    b.innerHTML = `
+      <span class="qic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${q.ic}</svg></span>
+      <span><span class="qt">${q.nm}</span><div class="qd">${q.desc}</div></span>
+      <span class="arr">›</span>`;
+    b.addEventListener("click", () => {
+      /* 真机：通知壳切换导航 window.parent.postMessage({nav:q.stage},'*') */
+      console.log("[overview] quick nav:", q.stage);
+    });
+    root.appendChild(b);
+  });
+}
+
+/* 按钮占位 */
+document.getElementById("editBible").addEventListener("click", () => console.log("[overview] edit style bible"));
+document.getElementById("nextGo").addEventListener("click", () => console.log("[overview] goto next step"));
+document.getElementById("moreRecent").addEventListener("click", () => console.log("[overview] open asset library"));
+
+renderFlow();
+renderRecent();
+renderQuick();
+</script>
+</body>
+</html>

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设置页 模式稿 — 蓝紫风格 UnifiedSettingsDialog</title>
+<style>
+  :root{
+    --bg:#1e1f22; --navy:#13162a; --panel:#202234; --panel2:#262943; --field:#16182a;
+    --border:#2c2f48; --border-lo:#23253a;
+    --blue:#4a9eff; --blue-dim:#2f5e96; --mauve:#a78bfa; --periw:#8b7fd9;
+    --fg:#e8eaed; --fg2:#c4c8d4; --muted:#9aa0a6; --faint:#5a6076; --done:#4ec98f; --warn:#e0a85a; --danger:#e06a6a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:#0a0b12;color:var(--fg);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;font-size:13px;}
+  .page{max-width:1180px;margin:0 auto;padding:20px 22px 56px;}
+  h1{font-size:18px;margin:0 0 3px;}
+  .sub{color:var(--muted);font-size:12.5px;line-height:1.65;margin:0 0 16px;}
+  .sub code{background:#1c1f2e;border:1px solid #2a2e44;border-radius:4px;padding:1px 6px;font-size:11.5px;color:#cdbcf5;}
+  .sub b{color:var(--fg2);}
+
+  .win{border:1px solid #000;border-radius:11px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6);background:var(--bg);display:flex;height:640px;}
+
+  /* 左：分类导航 */
+  .nav{width:208px;flex:0 0 208px;background:var(--navy);border-right:1px solid var(--border-lo);display:flex;flex-direction:column;}
+  .nhead{padding:13px 15px 9px;border-bottom:1px solid var(--border-lo);}
+  .nhead .t{font-size:13px;font-weight:700;}
+  .nhead .d{font-size:10.5px;color:var(--muted);margin-top:2px;}
+  .nlist{flex:1;overflow:auto;padding:8px 7px;}
+  .cat{font-size:10px;color:var(--faint);font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:10px 9px 4px;}
+  .ni{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;margin-bottom:2px;border:1px solid transparent;cursor:pointer;color:var(--fg2);font-size:12.5px;}
+  .ni:hover{background:#1b1e36;}
+  .ni.sel{background:linear-gradient(90deg,rgba(167,139,250,.18),rgba(74,158,255,.05));border-color:#3a3266;color:#fff;font-weight:600;}
+  .ni .ico{width:15px;text-align:center;opacity:.9;}
+  .ni .badge{margin-left:auto;font-size:8.5px;color:var(--done);border:1px solid #2c5a44;border-radius:7px;padding:0 5px;}
+  .ni .badge.warn{color:var(--warn);border-color:#5a4a2c;}
+
+  /* 右：表单区 */
+  .body{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .bhead{display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid var(--border-lo);}
+  .bhead .t{font-size:14px;font-weight:700;}
+  .bhead .cat-pill{font-size:9.5px;color:#cdbcf5;border:1px solid #4a3d6e;border-radius:9px;padding:1px 9px;}
+  .bhead .sp{flex:1;}
+  .bhead .search{font-size:11px;color:var(--faint);border:1px solid var(--border);border-radius:14px;padding:4px 12px;background:var(--field);min-width:150px;}
+  .bbody{flex:1;overflow:auto;padding:18px 22px;}
+
+  .intro{font-size:11.5px;color:var(--muted);line-height:1.6;margin:0 0 16px;background:var(--field);border:1px solid var(--border);border-left:3px solid var(--periw);border-radius:8px;padding:9px 12px;}
+  .intro b{color:var(--fg2);} .intro code{background:#1c1f2e;border:1px solid #2a2e44;border-radius:4px;padding:1px 5px;color:#9cc7ff;font-size:11px;}
+
+  /* 卡片分区 */
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:14px 16px;margin-bottom:14px;}
+  .card .clab{font-size:11px;color:var(--periw);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin:0 0 11px;}
+
+  /* 表单行 */
+  .frow{display:flex;align-items:center;gap:12px;margin-bottom:11px;}
+  .frow:last-child{margin-bottom:0;}
+  .frow .fl{width:118px;flex:0 0 118px;text-align:right;font-size:12px;color:var(--fg2);}
+  .frow .fc{flex:1;display:flex;gap:8px;align-items:center;}
+  .inp{flex:1;background:var(--field);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--fg);font-size:12px;min-width:0;}
+  .inp.pw{letter-spacing:2px;font-family:monospace;}
+  .inp::placeholder{color:var(--faint);}
+  .sel{background:var(--field);border:1px solid var(--border);border-radius:6px;padding:7px 28px 7px 10px;color:var(--fg);font-size:12px;
+       appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+       background-position:calc(100% - 14px) 14px,calc(100% - 9px) 14px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;}
+  .btn{background:var(--field);border:1px solid var(--border);color:var(--fg2);border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap;}
+  .btn:hover{border-color:var(--blue-dim);}
+  .btn.test{color:var(--blue);border-color:#2c4a6e;}
+  .hint{font-size:10.5px;color:var(--muted);margin-top:3px;padding-left:130px;}
+  .hint.ok{color:var(--done);} .hint a{color:#9cc7ff;}
+  .num{width:80px;flex:0 0 80px;text-align:center;}
+
+  /* toggle 开关 */
+  .tg{width:38px;height:21px;border-radius:11px;background:#2a2d44;border:1px solid var(--border);position:relative;flex:0 0 38px;cursor:pointer;}
+  .tg .knob{position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--faint);transition:.15s;}
+  .tg.on{background:linear-gradient(135deg,var(--blue),var(--periw));border-color:transparent;}
+  .tg.on .knob{left:19px;background:#fff;}
+
+  /* 项目管理列表 */
+  .projlist{display:flex;flex-direction:column;gap:7px;}
+  .proj{display:flex;align-items:center;gap:11px;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:9px 12px;}
+  .proj .thumb{width:40px;height:26px;border-radius:5px;background:linear-gradient(135deg,#243a5a,#3a2746);flex:0 0 40px;}
+  .proj .info{flex:1;min-width:0;}
+  .proj .nm{font-size:12.5px;font-weight:600;color:var(--fg);display:flex;align-items:center;gap:7px;}
+  .proj .pid{font-size:9px;color:var(--faint);border:1px solid var(--border);border-radius:6px;padding:0 5px;font-variant-numeric:tabular-nums;}
+  .proj .pth{font-size:10.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .proj .meta{font-size:10px;color:var(--faint);margin-top:2px;}
+  .proj .acts{display:flex;gap:6px;flex-shrink:0;}
+  .iconbtn{font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;}
+  .iconbtn:hover{border-color:var(--blue-dim);color:var(--fg2);}
+  .iconbtn.del{color:var(--danger);} .iconbtn.del:hover{border-color:#6a3434;background:rgba(224,106,106,.08);}
+  .projbar{display:flex;align-items:center;gap:10px;margin-top:12px;}
+  .projbar .cnt{font-size:10.5px;color:var(--muted);}
+  .projbar .cnt b{color:var(--fg2);}
+  .projbar .sp{flex:1;}
+  .danger-note{font-size:10px;color:var(--warn);margin-top:9px;line-height:1.5;}
+
+  /* 单选/radio 行 */
+  .radios{display:flex;gap:10px;flex-wrap:wrap;}
+  .rad{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fg2);border:1px solid var(--border);border-radius:6px;padding:6px 12px;cursor:pointer;}
+  .rad.sel{border-color:var(--mauve);background:rgba(167,139,250,.1);color:#fff;}
+  .rad .dot{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--faint);}
+  .rad.sel .dot{border-color:var(--mauve);background:radial-gradient(var(--mauve) 40%,transparent 45%);}
+
+  /* 底栏 */
+  .footer{display:flex;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid var(--border-lo);background:var(--bg);}
+  .footer .dirty{font-size:11px;color:var(--warn);}
+  .footer .sp{flex:1;}
+  .footer .b{border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:9px 16px;font-size:12.5px;cursor:pointer;}
+  .footer .save{background:linear-gradient(135deg,var(--blue),var(--periw));color:#06122a;font-weight:700;border:none;border-radius:8px;padding:9px 22px;font-size:12.5px;cursor:pointer;}
+
+  /* 说明卡 */
+  .notes{margin-top:24px;border-top:1px solid var(--border);padding-top:16px;}
+  .notes h3{font-size:13px;margin:0 0 10px;}
+  .ng{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+  @media(max-width:900px){.ng{grid-template-columns:1fr;}}
+  .nc{background:#1a1a1a;border:1px solid var(--border);border-radius:9px;padding:12px 13px;}
+  .nc .t{font-size:12px;font-weight:600;color:var(--fg);margin-bottom:5px;}
+  .nc .d{font-size:11.5px;color:var(--muted);line-height:1.6;}
+  .nc .d b{color:var(--fg2);} .nc .d code{background:#1c1f2e;border:1px solid #2a2e44;border-radius:4px;padding:0 5px;color:#9cc7ff;font-size:10.5px;}
+  .ask{margin-top:14px;font-size:12.5px;color:var(--fg2);line-height:1.9;}
+  .ask b{color:#fff;} .ask .q{color:#bda7fa;font-weight:600;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>设置页 模式稿 — 蓝紫风格 <code style="font-size:13px">UnifiedSettingsDialog</code></h1>
+  <p class="sub">左<b>分类导航</b>（平台核心 / 生成功能 / 辅助 / 外观 / <b style="color:#bda7fa">项目管理(新)</b>）+ 右<b>表单卡片</b>。导航项 1:1 对应现有 <code>settings_sections/*.py</code> 的 <code>title</code>/<code>category</code>。底栏统一 [验证并保存]（各 section 的 <code>validate→save_to</code>）。本稿 showcase = 新增<b>「项目管理」</b>分区。</p>
+
+  <div class="win">
+    <div class="nav">
+      <div class="nhead"><div class="t">⚙ 设置</div><div class="d">分类导航 · 改一处全局生效</div></div>
+      <div class="nlist">
+        <div class="cat">平台核心</div>
+        <div class="ni"><span class="ico">🧠</span>LLM 平台<span class="badge">✓ 已配</span></div>
+        <div class="ni"><span class="ico">🎬</span>RunningHub<span class="badge">✓ 已配</span></div>
+        <div class="ni"><span class="ico">🌐</span>翻译<span class="badge warn">未启用</span></div>
+
+        <div class="cat">生成功能</div>
+        <div class="ni"><span class="ico">🖼</span>出图</div>
+        <div class="ni"><span class="ico">🎙</span>配音</div>
+        <div class="ni"><span class="ico">🎵</span>配乐</div>
+        <div class="ni"><span class="ico">✍</span>编剧</div>
+
+        <div class="cat">辅助</div>
+        <div class="ni"><span class="ico">✨</span>提示词优化</div>
+
+        <div class="cat">外观</div>
+        <div class="ni"><span class="ico">🎨</span>主题</div>
+
+        <div class="cat">项目管理 · 新</div>
+        <div class="ni sel"><span class="ico">📁</span>项目管理</div>
+        <div class="ni"><span class="ico">🔒</span>流程锁 &amp; 调试</div>
+      </div>
+    </div>
+
+    <div class="body">
+      <div class="bhead">
+        <span class="t">项目管理</span><span class="cat-pill">项目管理</span>
+        <span class="sp"></span>
+        <span class="search">🔍 搜索设置项…</span>
+      </div>
+      <div class="bbody">
+        <p class="intro">读 <b>recent_projects.json</b>（最多 8 条，最近在前）。删项目两档：<b>仅移除显示</b>（<code>RecentProjectsManager.remove</code>，留文件夹）/ <b>删文件夹</b>（连项目目录一并删，不可恢复）。避免列表无限堆叠。</p>
+
+        <div class="card">
+          <div class="clab">最近项目（8 条上限 · 按最后打开降序）</div>
+          <div class="projlist">
+            <div class="proj">
+              <div class="thumb"></div>
+              <div class="info">
+                <div class="nm">侯门主母 <span class="pid">P-007</span></div>
+                <div class="pth">E:/Drama/projects/P-007_侯门主母</div>
+                <div class="meta">12 分镜 · 最后打开 今天 14:02</div>
+              </div>
+              <div class="acts">
+                <span class="iconbtn">打开</span>
+                <span class="iconbtn">移除显示</span>
+                <span class="iconbtn del">删文件夹</span>
+              </div>
+            </div>
+            <div class="proj">
+              <div class="thumb"></div>
+              <div class="info">
+                <div class="nm">重生之逆袭 <span class="pid">P-006</span></div>
+                <div class="pth">E:/Drama/projects/P-006_重生之逆袭</div>
+                <div class="meta">9 分镜 · 最后打开 昨天 21:30</div>
+              </div>
+              <div class="acts">
+                <span class="iconbtn">打开</span>
+                <span class="iconbtn">移除显示</span>
+                <span class="iconbtn del">删文件夹</span>
+              </div>
+            </div>
+            <div class="proj">
+              <div class="thumb"></div>
+              <div class="info">
+                <div class="nm">总裁的小娇妻 <span class="pid">P-004</span></div>
+                <div class="pth">E:/Drama/projects/P-004_总裁的小娇妻</div>
+                <div class="meta">15 分镜 · 最后打开 3 天前</div>
+              </div>
+              <div class="acts">
+                <span class="iconbtn">打开</span>
+                <span class="iconbtn">移除显示</span>
+                <span class="iconbtn del">删文件夹</span>
+              </div>
+            </div>
+          </div>
+          <div class="projbar">
+            <span class="cnt">共 <b>3</b> / 8 个项目</span>
+            <span class="sp"></span>
+            <span class="iconbtn">📂 浏览磁盘添加…</span>
+            <span class="iconbtn del">清空列表（仅移除显示）</span>
+          </div>
+          <div class="danger-note">⚠ 「删文件夹」会调用 <code style="color:#e0a85a">shutil.rmtree</code> 物理删除整个项目目录（分镜/图/视频/配乐全没），删前弹二次确认。「移除显示」只动 recent_projects.json，文件夹保留。</div>
+        </div>
+
+        <div class="card">
+          <div class="clab">项目根目录</div>
+          <div class="frow">
+            <span class="fl">projects_root</span>
+            <span class="fc">
+              <input class="inp" value="E:/Drama/projects" readonly>
+              <span class="btn">浏览…</span>
+            </span>
+          </div>
+          <div class="hint">新建项目落在此根目录下，目录名形如 <code style="background:#1c1f2e;border:1px solid #2a2e44;border-radius:4px;padding:0 4px;color:#9cc7ff">{P-NNN}_{slug}</code>，并同步登记进 <b style="color:#c4c8d4">index.json</b> 全局注册表。</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span class="dirty">● 有未保存改动</span>
+        <span class="sp"></span>
+        <span class="b">取消</span>
+        <span class="save">验证并保存</span>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="font-size:14px;margin:26px 0 8px;">📄 「流程锁 &amp; 调试」分区内容（点左侧第二个新项时的右栏）</h3>
+  <div class="win" style="height:auto;">
+    <div class="nav" style="flex:0 0 208px;">
+      <div class="nhead"><div class="t">⚙ 设置</div><div class="d">分类导航</div></div>
+      <div class="nlist" style="padding:8px 7px;">
+        <div class="cat">项目管理 · 新</div>
+        <div class="ni"><span class="ico">📁</span>项目管理</div>
+        <div class="ni sel"><span class="ico">🔒</span>流程锁 &amp; 调试</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="bhead"><span class="t">流程锁 &amp; 调试</span><span class="cat-pill">项目管理</span></div>
+      <div class="bbody">
+        <p class="intro">对应 <code>cfg.pipeline_lock_enabled</code>（默认 <b>关</b>）。<b>关</b>=侧栏全部面板可达，方便跳着调试；<b>开</b>=按 pipeline 阶段门禁，未完成的下游面板置灰（frontier 解锁）。</p>
+        <div class="card">
+          <div class="clab">流程门禁</div>
+          <div class="frow">
+            <span class="fl">流程锁</span>
+            <span class="fc">
+              <span class="tg"><span class="knob"></span></span>
+              <span style="font-size:12px;color:var(--fg2);">关 — 全部面板可达（调试用，默认）</span>
+            </span>
+          </div>
+          <div class="hint">开启后：剧本未生成 → 出图/生视频/配音/配乐侧栏项置灰，须按 立意→剧本→分镜→提示词→出图→生视频→后期 顺序逐步解锁。</div>
+        </div>
+        <div class="card">
+          <div class="clab">分镜默认宫格（与编剧共用 prompts_default_grid）</div>
+          <div class="frow">
+            <span class="fl">默认宫格</span>
+            <span class="fc">
+              <div class="radios">
+                <span class="rad"><span class="dot"></span>单帧</span>
+                <span class="rad sel"><span class="dot"></span>四宫格</span>
+                <span class="rad"><span class="dot"></span>九宫格</span>
+              </div>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="font-size:14px;margin:26px 0 8px;">📄 既有 section 的表单质感示意（如「LLM 平台」）</h3>
+  <div class="win" style="height:auto;">
+    <div class="nav" style="flex:0 0 208px;">
+      <div class="nhead"><div class="t">⚙ 设置</div></div>
+      <div class="nlist" style="padding:8px 7px;">
+        <div class="cat">平台核心</div>
+        <div class="ni sel"><span class="ico">🧠</span>LLM 平台</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="bhead"><span class="t">LLM 平台</span><span class="cat-pill">平台核心</span></div>
+      <div class="bbody">
+        <p class="intro">各平台 base_url + key 在此统一配；其它功能（编剧/提示词优化）按平台名引用，避免到处重填 key。</p>
+        <div class="card">
+          <div class="clab">DeepSeek</div>
+          <div class="frow"><span class="fl">Base URL</span><span class="fc"><input class="inp" value="https://api.deepseek.com" readonly></span></div>
+          <div class="frow"><span class="fl">API Key</span><span class="fc"><input class="inp pw" value="••••••••••••••••" readonly><span class="btn test">测试连接</span></span></div>
+          <div class="hint ok">✓ 鉴权通过（HTTP 200）</div>
+        </div>
+        <div class="card">
+          <div class="clab">豆包·火山引擎</div>
+          <div class="frow"><span class="fl">Base URL</span><span class="fc"><input class="inp" placeholder="https://ark.cn-beijing.volces.com/api/v3" readonly></span></div>
+          <div class="frow"><span class="fl">API Key</span><span class="fc"><input class="inp pw" placeholder="未填" readonly><span class="btn test">测试连接</span></span></div>
+        </div>
+      </div>
+      <div class="footer"><span class="sp"></span><span class="b">取消</span><span class="save">验证并保存</span></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>设计取舍（与现有代码对齐，不臆造）</h3>
+    <div class="ng">
+      <div class="nc"><div class="t">导航 = section.category 自动分组</div><div class="d">左栏的「平台核心 / 生成功能 / 辅助 / 外观」直接来自各 section 的 <code>category</code> 类属性；列表项文字 = <code>title</code>。新增两项放新分组「项目管理」。</div></div>
+      <div class="nc"><div class="t">① 项目管理（新）</div><div class="d">读 <b>recent_projects.json</b>（MAX=8）。每条三按钮：<b>打开</b>/<b>移除显示</b>(<code>remove()</code>，留文件夹)/<b>删文件夹</b>(rmtree+二次确认)。底部「清空列表」仅移除显示。解决无限堆叠。</div></div>
+      <div class="nc"><div class="t">② 流程锁（新）</div><div class="d">toggle 直绑 <code>cfg.pipeline_lock_enabled</code>，默认关=全可达便于调试。说明文字写清开启后的阶段门禁顺序。</div></div>
+      <div class="nc"><div class="t">质感沿用确认稿</div><div class="d">卡片 <code>--panel #202234</code>、分区标题 <code>--periw</code> 大写小字、主按钮蓝→紫渐变、测试连接成功 <code>--done</code> 绿、删除危险用暖红 <code>--danger</code>。8px 圆角、13px 正文，与 task-workspace 稿一致。</div></div>
+    </div>
+    <div class="ask">
+      <b>请确认设置页稿：</b><br>
+      <span class="q">Q1</span> 左分类导航(按 category 分组) + 右卡片表单 + 底栏[验证并保存] 这个经典布局 OK？<br>
+      <span class="q">Q2</span> 项目管理的「打开 / 移除显示 / 删文件夹（二次确认）」三档 + 底部「清空(仅移除)」够吗？<br>
+      <span class="q">Q3</span> 流程锁做成 toggle(默认关) + 阶段门禁说明，放新「项目管理」分组，对吗？
+    </div>
+  </div>
+</div>
+</body>
+</html>

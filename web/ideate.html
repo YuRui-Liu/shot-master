@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · ① 剧本创作 · 立意</title>
+<!-- 壳内容页：不自带标题栏/侧栏（由 web/app.html 提供）；复用蓝紫设计系统 -->
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 22px 60px; }
+
+  /* ===== 顶部栏 ===== */
+  .topbar { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+  .topbar h1 {
+    margin: 0; font-size: 20px; letter-spacing: .5px;
+    background: linear-gradient(135deg, var(--blue), var(--mauve));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .topbar .spacer { flex: 1; }
+  .health { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12.5px; }
+
+  /* ===== 向导步骤条 ===== */
+  .stepper { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .step { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); padding: 5px 12px; border-radius: 18px; }
+  .step .n { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; border: 1px solid var(--border); }
+  .step.active { background: linear-gradient(90deg, rgba(74,158,255,.2), rgba(74,158,255,.05)); color: var(--fg); font-weight: 600; }
+  .step.active .n { background: var(--blue); color: #06122a; border-color: var(--blue); }
+  .chev { color: var(--faint); font-size: 12px; }
+
+  /* ===== 两栏：左配置 + 右候选 ===== */
+  .split { display: grid; grid-template-columns: 1.05fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+
+  .form { display: flex; flex-direction: column; gap: 14px; }
+
+  .sect .st {
+    font-size: 11px; color: var(--periw); font-weight: 600; letter-spacing: .5px;
+    margin-bottom: 10px; text-transform: uppercase; display: flex; align-items: center; gap: 8px;
+  }
+  .sect .st .ln { flex: 1; height: 1px; background: var(--border-lo); }
+
+  .field { margin-bottom: 11px; }
+  .field:last-child { margin-bottom: 0; }
+  .lab { font-size: 11.5px; color: var(--fg2); margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+  .lab .req { color: var(--warn); }
+  .field input[type="text"] { width: 100%; }
+
+  /* 结构化选择行（chip + 选模板按钮） */
+  .picker {
+    display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+    background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px;
+  }
+  .picker .chip.sub { background: rgba(78,201,143,.14); border-color: #2c5a44; color: #9bd6a4; }
+  .picker .chip.style { background: rgba(138,127,217,.18); border-color: #4a3d6e; color: #cdbcf5; }
+  .picker .meta { font-size: 10.5px; color: var(--muted); flex: 1; min-width: 80px; }
+  .picker .pick-btn {
+    font-size: 11.5px; color: var(--blue); border: 1px solid var(--blue-dim); border-radius: 6px;
+    padding: 5px 12px; background: rgba(74,158,255,.06); cursor: pointer; white-space: nowrap;
+  }
+  .picker .pick-btn:hover { background: rgba(74,158,255,.14); filter: none; }
+
+  /* 高级折叠（自由文本，兼容） */
+  .adv { margin-top: 8px; }
+  .adv .tog { font-size: 11px; color: var(--faint); cursor: pointer; display: flex; align-items: center; gap: 5px; user-select: none; }
+  .adv .tog:hover { color: var(--muted); }
+  .adv .body { margin-top: 8px; display: none; flex-direction: column; gap: 8px; }
+  .adv.open .body { display: flex; }
+  .adv.open .tog .caret { transform: rotate(90deg); }
+  .adv .tog .caret { transition: transform .15s; display: inline-block; }
+
+  /* 画幅选择 */
+  .ar { display: flex; gap: 8px; }
+  .arb {
+    flex: 1; background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 9px 6px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; transition: all .14s;
+  }
+  .arb:hover { border-color: var(--mauve); }
+  .arb.on { border-color: var(--blue); background: rgba(74,158,255,.1); box-shadow: 0 0 0 1px var(--blue); }
+  .arb .shape { border: 1.5px solid var(--muted); border-radius: 2px; }
+  .arb.on .shape { border-color: var(--blue); }
+  .arb .t { font-size: 11.5px; color: var(--fg2); }
+  .arb.on .t { color: var(--fg); font-weight: 600; }
+  .arb .d { font-size: 9.5px; color: var(--faint); }
+
+  /* 规格三栏 */
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 9px; }
+  .num-lab { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .num { display: flex; align-items: center; background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 9px; }
+  .num input { flex: 1; background: none; border: none; color: var(--fg); font-size: 14px; width: 100%; font-variant-numeric: tabular-nums; outline: none; padding: 4px 0; }
+  .num .u { font-size: 10px; color: var(--faint); }
+
+  /* 注入预览 */
+  .inject { background: var(--navy); border: 1px solid var(--border-lo); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .inject .it { font-size: 10.5px; color: var(--periw); font-weight: 600; margin-bottom: 8px; }
+  .inject .g { display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: var(--muted); line-height: 1.55; }
+  .inject .g b { color: var(--fg2); }
+  .inject .g .k { color: #9cc7ff; }
+
+  /* 生成 CTA */
+  .cta { display: flex; gap: 10px; margin-top: 4px; }
+  .cta .gen { flex: 1; text-align: center; }
+  .cta .sec { background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); }
+  .cta .sec:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
+
+  /* 右：候选输出 */
+  .out .out-head { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
+  .out .ot { font-size: 12.5px; color: var(--fg2); font-weight: 600; }
+  .stream-pill {
+    margin-left: auto; font-size: 11px; color: var(--blue);
+    background: rgba(74,158,255,.12); border: 1px solid var(--blue-dim);
+    border-radius: 10px; padding: 2px 10px; display: none;
+  }
+  .stream-pill.on { display: inline-block; }
+
+  .cands { display: flex; flex-direction: column; gap: 9px; }
+  .cand { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; cursor: pointer; transition: all .14s; }
+  .cand:hover { border-color: var(--mauve); }
+  .cand.sel { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+  .cand .ct { font-size: 13px; font-weight: 600; color: var(--fg); margin-bottom: 5px; }
+  .cand .cd { font-size: 11.5px; color: var(--muted); line-height: 1.55; white-space: pre-wrap; }
+  .cand .tags { margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
+  .cand .tg { font-size: 9.5px; color: #9bd6a4; border: 1px solid #2c5a44; border-radius: 8px; padding: 1px 8px; }
+
+  .empty { color: var(--faint); font-size: 12.5px; text-align: center; padding: 32px 12px; border: 1px dashed var(--border); border-radius: var(--radius-sm); }
+  .raw-stream { margin-top: 10px; font-size: 11px; color: var(--fg2); display: none; }
+  .raw-stream.on { display: block; }
+
+  .advance { margin-top: 12px; width: 100%; }
+  .advance:disabled { filter: grayscale(.6) brightness(.7); }
+</style>
+</head>
+<body>
+<!-- 壳内容页：标题栏/侧栏由 web/app.html（糯米 AI）统一提供 -->
+<div class="wrap">
+  <div class="topbar">
+    <h1>① 剧本创作 · 立意</h1>
+    <div class="spacer"></div>
+    <div class="health"><span class="dot" id="hdot"></span><span id="hmsg">未连接</span></div>
+  </div>
+
+  <!-- 向导步骤条 -->
+  <div class="stepper">
+    <div class="step active"><span class="n">1</span>立意</div><span class="chev">›</span>
+    <div class="step"><span class="n">2</span>剧本</div><span class="chev">›</span>
+    <div class="step"><span class="n">3</span>分镜</div><span class="chev">›</span>
+    <div class="step"><span class="n">4</span>出图 prompt</div>
+  </div>
+
+  <div class="split">
+    <!-- ===== 左：配置表单 ===== -->
+    <div class="form">
+      <!-- 创意 -->
+      <div class="card sect">
+        <div class="st">创意<span class="ln"></span></div>
+        <div class="field">
+          <div class="lab">一句话主旨 <span class="req">*</span></div>
+          <input type="text" id="coreIdea" placeholder="如：替嫁后她惊艳全场，渣男悔不当初">
+        </div>
+      </div>
+
+      <!-- 题材 -->
+      <div class="card sect">
+        <div class="st">题材<span class="ln"></span></div>
+        <div class="field">
+          <div class="picker">
+            <span class="chip" id="genreChip">未选题材</span>
+            <span class="chip sub" id="genreSubChip" style="display:none"></span>
+            <span class="meta" id="genreMeta">点右侧选题材模板（爽点矩阵 / 节奏 / 守则）</span>
+            <span class="pick-btn" id="pickGenreBtn">选题材模板</span>
+          </div>
+          <div class="adv" id="genreAdv">
+            <span class="tog" data-adv="genreAdv"><span class="caret">▸</span> 高级：自由题材标签（可选，与模板叠加）</span>
+            <div class="body">
+              <input type="text" id="genreTags" placeholder="题材标签，逗号分隔：古风, 玄幻, 言情, 寓言…">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 风格圣经 -->
+      <div class="card sect">
+        <div class="st">风格圣经<span class="ln"></span></div>
+        <div class="field">
+          <div class="picker">
+            <span class="chip style" id="styleChip">未选风格</span>
+            <span class="meta" id="styleMeta">点右侧选风格圣经（真人/2D/3D · 镜头语言 · 护栏）</span>
+            <span class="pick-btn" id="pickStyleBtn">选风格圣经</span>
+          </div>
+          <div class="adv" id="styleAdv">
+            <span class="tog" data-adv="styleAdv"><span class="caret">▸</span> 高级：自由视觉风格描述（可选）</span>
+            <div class="body">
+              <input type="text" id="visualStyle" placeholder="视觉风格，如：水墨 / 暖调浅景深胶片颗粒">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 画幅 & 规格 -->
+      <div class="card sect">
+        <div class="st">画幅 &amp; 规格<span class="ln"></span></div>
+        <div class="field">
+          <div class="lab">画幅（输出比例）</div>
+          <div class="ar" id="arRow">
+            <div class="arb" data-ar="9:16"><span class="shape" style="width:15px;height:26px"></span><span class="t">9:16</span><span class="d">竖屏·抖音</span></div>
+            <div class="arb on" data-ar="16:9"><span class="shape" style="width:30px;height:17px"></span><span class="t">16:9</span><span class="d">横屏·影视</span></div>
+            <div class="arb" data-ar="1:1"><span class="shape" style="width:22px;height:22px"></span><span class="t">1:1</span><span class="d">方·社媒</span></div>
+            <div class="arb" data-ar="4:5"><span class="shape" style="width:18px;height:23px"></span><span class="t">4:5</span><span class="d">竖·小红书</span></div>
+          </div>
+        </div>
+        <div class="row3" style="margin-top:11px">
+          <div><div class="num-lab">集数</div><div class="num"><input type="number" id="episodes" value="12" min="1" max="999"><span class="u">集</span></div></div>
+          <div><div class="num-lab">单集时长</div><div class="num"><input type="number" id="duration" value="60" min="15" max="600"><span class="u">秒</span></div></div>
+          <div><div class="num-lab">候选数</div><div class="num"><input type="number" id="candCount" value="3" min="1" max="9"><span class="u">个</span></div></div>
+        </div>
+      </div>
+
+      <!-- 注入预览 -->
+      <div class="inject">
+        <div class="it">▸ 本次生成将注入（题材模板 + 风格圣经驱动）</div>
+        <div class="g" id="injectBody">
+          <span><b>题材规则</b>：<span class="k">（未选题材）</span> 选模板后显示爽点矩阵 / 节奏 / 守则</span>
+          <span><b>风格</b>：<span class="k">（未选风格）</span> 选风格圣经后显示镜头语言 / 护栏</span>
+          <span><b>规格</b>：<span id="injSpec">16:9 · 12集 · 单集60s · 候选3</span></span>
+        </div>
+      </div>
+
+      <div class="cta">
+        <button class="gen" id="genBtn">✦ 生成 <span id="genN">3</span> 个立意候选</button>
+        <button class="sec" id="stopBtn" style="display:none">▣ 中止</button>
+      </div>
+    </div>
+
+    <!-- ===== 右：候选输出 ===== -->
+    <div class="card out">
+      <div class="out-head">
+        <span class="ot">立意候选（<span id="candCountLbl">0</span>）</span>
+        <span class="stream-pill" id="streamPill">● 流式生成中…</span>
+      </div>
+      <div class="cands" id="cands">
+        <div class="empty">填好左侧 context，点「生成候选」，AI 流式产出立意候选；点选一张后可推进到剧本阶段。</div>
+      </div>
+      <pre class="result raw-stream" id="rawStream"></pre>
+      <button class="advance" id="advanceBtn" disabled>选定候选 · 推进到剧本 →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== 后端：screenwriter_agent（默认 18430），/ideate/chat 为 SSE ===== */
+const SW_API = new URLSearchParams(location.search).get("sw") || "http://127.0.0.1:18430";
+/* 项目目录：壳通过 ?project= 注入；真机联调由主控传入 */
+const PROJECT_DIR = new URLSearchParams(location.search).get("project") || "";
+
+const $ = (id) => document.getElementById(id);
+
+/* —— 结构化选择本地状态（模板 chip + 自由文本叠加） —— */
+const state = {
+  aspect: "16:9",
+  genre: { id: "", name: "", sub: [], meta: "" },
+  style: { ref: "", name: "", meta: "" },
+  candidates: [],
+  selectedId: "",
+  abort: null,
+};
+
+/* 画幅记住上次（localStorage；壳无项目时也可用） */
+const LS_AR = "nuomi.ideate.lastAspect";
+(function initAspect() {
+  const saved = localStorage.getItem(LS_AR);
+  if (saved) setAspect(saved);
+})();
+
+function setAspect(ar) {
+  state.aspect = ar;
+  document.querySelectorAll("#arRow .arb").forEach((b) =>
+    b.classList.toggle("on", b.getAttribute("data-ar") === ar));
+  localStorage.setItem(LS_AR, ar);
+  refreshInjection();
+}
+document.querySelectorAll("#arRow .arb").forEach((b) =>
+  b.addEventListener("click", () => setAspect(b.getAttribute("data-ar"))));
+
+/* 高级折叠 */
+document.querySelectorAll(".adv .tog").forEach((t) =>
+  t.addEventListener("click", () => $(t.getAttribute("data-adv")).classList.toggle("open")));
+
+/* —— 题材/风格模板选择 ——
+   stub 预设（真机会改为 fetch 模板库 / 弹选择器；此处保证结构+触发+占位渲染） */
+const GENRE_PRESETS = [
+  { id: "short_revenge", name: "短剧", sub: ["逆袭爽"], meta: "爽点：打脸40·逆袭30 / 节奏：每分钟4爆点" },
+  { id: "short_sweet", name: "短剧", sub: ["甜宠"], meta: "爽点：心动30·宠溺40 / 节奏：每集1高甜钩" },
+  { id: "ancient", name: "古风", sub: ["权谋"], meta: "爽点：算计·反转 / 节奏：步步为营" },
+];
+const STYLE_PRESETS = [
+  { ref: "real/cinematic-warm-v1", name: "真人 · 电影感暖调", meta: "real/cinematic-warm-v1 · 浅景深胶片颗粒" },
+  { ref: "real/cinematic-cool-v1", name: "真人 · 冷峻夜景", meta: "real/cinematic-cool-v1 · 高对比霓虹" },
+  { ref: "2d/anime-soft-v1", name: "2D · 日系柔光", meta: "2d/anime-soft-v1 · 干净线条柔光" },
+];
+let _gp = 0, _sp = 0;
+$("pickGenreBtn").addEventListener("click", () => {
+  const g = GENRE_PRESETS[_gp++ % GENRE_PRESETS.length];
+  state.genre = { ...g };
+  $("genreChip").textContent = g.name;
+  const sub = $("genreSubChip");
+  if (g.sub.length) { sub.textContent = "+" + g.sub.join("·"); sub.style.display = ""; }
+  else sub.style.display = "none";
+  $("genreMeta").textContent = g.meta;
+  refreshInjection();
+});
+$("pickStyleBtn").addEventListener("click", () => {
+  const s = STYLE_PRESETS[_sp++ % STYLE_PRESETS.length];
+  state.style = { ...s };
+  $("styleChip").textContent = s.name;
+  $("styleMeta").textContent = s.meta;
+  refreshInjection();
+});
+
+/* —— 注入预览 + 规格 —— */
+function refreshInjection() {
+  const ep = $("episodes").value || "-";
+  const dur = $("duration").value || "-";
+  const cc = $("candCount").value || "-";
+  $("injSpec").textContent = `${state.aspect} · ${ep}集 · 单集${dur}s · 候选${cc}`;
+  $("genN").textContent = cc;
+  const rows = [];
+  rows.push(state.genre.id
+    ? `<span><b>题材规则</b>：<span class="k">${esc(state.genre.name)}${state.genre.sub.length ? " +" + esc(state.genre.sub.join("·")) : ""}</span> ${esc(state.genre.meta)}</span>`
+    : `<span><b>题材规则</b>：<span class="k">（未选题材）</span> 选模板后显示爽点矩阵 / 节奏 / 守则</span>`);
+  rows.push(state.style.ref
+    ? `<span><b>风格</b>：<span class="k">${esc(state.style.name)}</span> ${esc(state.style.meta)}</span>`
+    : `<span><b>风格</b>：<span class="k">（未选风格）</span> 选风格圣经后显示镜头语言 / 护栏</span>`);
+  rows.push(`<span><b>规格</b>：<span id="injSpec2">${state.aspect} · ${ep}集 · 单集${dur}s · 候选${cc}</span></span>`);
+  $("injectBody").innerHTML = rows.join("");
+}
+["episodes", "duration", "candCount"].forEach((id) =>
+  $(id).addEventListener("input", refreshInjection));
+function esc(s) { return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+refreshInjection();
+
+/* —— 收集 context（对齐 ideate_page._collect_context 的字段） —— */
+function collectContext() {
+  return {
+    core_idea: $("coreIdea").value.trim(),
+    genre: { genre: state.genre.id, sub: state.genre.sub },
+    genre_tags: $("genreTags").value.split(",").map((t) => t.trim()).filter(Boolean),
+    style_bible: { ref: state.style.ref },
+    format: "短剧",
+    tone_tags: [],
+    visual_style: $("visualStyle").value.trim(),
+    aspect_ratio: state.aspect,
+    episode_count: parseInt($("episodes").value, 10) || 1,
+    duration_sec: parseInt($("duration").value, 10) || 60,
+    candidate_count: parseInt($("candCount").value, 10) || 3,
+    extra_constraints: "",
+  };
+}
+
+/* —— 候选渲染（流式过程占位 + done 后解析） —— */
+function renderCandidates() {
+  const root = $("cands");
+  $("candCountLbl").textContent = state.candidates.length;
+  if (!state.candidates.length) {
+    root.innerHTML = `<div class="empty">填好左侧 context，点「生成候选」，AI 流式产出立意候选；点选一张后可推进到剧本阶段。</div>`;
+    return;
+  }
+  root.innerHTML = "";
+  state.candidates.forEach((c, i) => {
+    const id = c.id || ("c" + (i + 1));
+    const el = document.createElement("div");
+    el.className = "cand" + (id === state.selectedId ? " sel" : "");
+    const tags = (c.tags || []).map((t) => `<span class="tg">${esc(t)}</span>`).join("");
+    el.innerHTML = `
+      <div class="ct">${esc(c.title || ("候选 " + (i + 1)))}</div>
+      <div class="cd">${esc(c.desc || c.summary || "")}</div>
+      ${tags ? `<div class="tags">${tags}</div>` : ""}`;
+    el.addEventListener("click", () => {
+      state.selectedId = id;
+      renderCandidates();
+      $("advanceBtn").disabled = false;
+    });
+    root.appendChild(el);
+  });
+}
+
+/* —— SSE：fetch + ReadableStream 读 text/event-stream（delta/done/error） —— */
+async function generate() {
+  const ctx = collectContext();
+  if (!ctx.core_idea) { alert("请先填写「一句话主旨」"); return; }
+
+  state.candidates = []; state.selectedId = "";
+  renderCandidates();
+  $("advanceBtn").disabled = true;
+  setStreaming(true);
+  const raw = $("rawStream"); raw.classList.add("on"); raw.textContent = "● 正在连接 LLM…\n";
+
+  const body = {
+    project_dir: PROJECT_DIR,
+    context: ctx,
+    messages: [{ role: "user", content: "生成候选（按上面 context）" }],
+    auto_save_idea_json: true,
+  };
+
+  const ctrl = new AbortController();
+  state.abort = ctrl;
+  let acc = "";
+  try {
+    const resp = await fetch(SW_API + "/ideate/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    if (!resp.ok || !resp.body) throw new Error("HTTP " + resp.status);
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    raw.textContent = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
+        const evt = parseSSE(chunk);
+        if (!evt) continue;
+        if (evt.event === "delta") {
+          acc += (evt.data.text || "");
+          raw.textContent = acc;
+          $("streamPill").textContent = `● 流式生成中… 已收 ${acc.length} 字`;
+        } else if (evt.event === "done") {
+          finishStream(evt.data, acc);
+        } else if (evt.event === "error") {
+          throw new Error(evt.data.hint || evt.data.message || "生成失败");
+        }
+      }
+    }
+    if (state.candidates.length === 0) finishStream({}, acc);
+  } catch (e) {
+    if (e.name !== "AbortError") {
+      raw.textContent += "\n⚠ " + e.message +
+        "\n（提示：检查 设置→编剧 是否为「立意」阶段选了平台+模型；改后需重启 agent）";
+    }
+  } finally {
+    setStreaming(false);
+    state.abort = null;
+  }
+}
+
+/* 解析单条 SSE 帧 → { event, data } */
+function parseSSE(chunk) {
+  let event = "message"; const dataLines = [];
+  chunk.split("\n").forEach((line) => {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+  });
+  if (!dataLines.length) return null;
+  let data = {};
+  try { data = JSON.parse(dataLines.join("\n")); } catch { data = { text: dataLines.join("\n") }; }
+  return { event, data };
+}
+
+/* done：优先用事件里的 candidates，否则尝试从累计文本解析 JSON 候选 */
+function finishStream(data, acc) {
+  let cands = data.candidates;
+  if (!Array.isArray(cands) || !cands.length) cands = tryParseCandidates(acc);
+  state.candidates = cands || [];
+  renderCandidates();
+}
+
+function tryParseCandidates(text) {
+  if (!text) return [];
+  try {
+    const m = text.match(/\[[\s\S]*\]/);
+    if (m) { const arr = JSON.parse(m[0]); if (Array.isArray(arr)) return arr; }
+    const obj = JSON.parse(text);
+    if (Array.isArray(obj.candidates)) return obj.candidates;
+  } catch {}
+  return [];
+}
+
+function setStreaming(on) {
+  $("streamPill").classList.toggle("on", on);
+  $("genBtn").style.display = on ? "none" : "";
+  $("stopBtn").style.display = on ? "" : "none";
+}
+
+$("genBtn").addEventListener("click", generate);
+$("stopBtn").addEventListener("click", () => { if (state.abort) state.abort.abort(); });
+
+/* 选定推进：真机调 POST /ideate/select 再切到剧本页（由壳路由） */
+$("advanceBtn").addEventListener("click", async () => {
+  if (!state.selectedId) return;
+  try {
+    await fetch(SW_API + "/ideate/select", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_dir: PROJECT_DIR, selected_id: state.selectedId }),
+    });
+  } catch {}
+  /* 通知壳推进到「剧本」阶段（壳监听此事件做路由） */
+  window.parent && window.parent.postMessage(
+    { type: "ideate.advance", stage: "script", selected_id: state.selectedId }, "*");
+});
+
+/* —— 健康检查 —— */
+(async function health() {
+  try {
+    const r = await fetch(SW_API + "/health");
+    if (r.ok) { $("hdot").className = "dot ok"; $("hmsg").textContent = "编剧后端已连接"; return; }
+  } catch {}
+  $("hdot").className = "dot"; $("hmsg").textContent = "后端未连接（演示）";
+})();
+</script>
+</body>
+</html>

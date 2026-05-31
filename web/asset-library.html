@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · 资源库 · ASSET LIBRARY</title>
+<!-- 壳内容页：不自带标题栏/侧栏（由 web/app.html 糯米 AI 壳统一提供）；复用蓝紫设计系统 -->
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* 内容铺满壳工作区 */
+  body { overflow: hidden; }
+  .work { height: 100vh; overflow-y: auto; padding: 24px 28px 40px; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  /* 标题 + 完备性闸门 */
+  .head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .head h1 { margin: 0; font-size: 22px; }
+  .head .en { font-size: 11px; color: var(--faint); letter-spacing: 2px; margin-left: 6px; }
+  .head .sp { flex: 1; }
+  .gate {
+    font-size: 12px; color: var(--warn); border: 1px solid #5a4a28;
+    background: rgba(224,168,90,.08); border-radius: 14px; padding: 4px 12px;
+  }
+  .gate b { color: #f0c789; }
+  .gate.ok { color: var(--done); border-color: #2f6b4f; background: rgba(78,201,143,.1); }
+  .gate.ok b { color: var(--done); }
+
+  /* tabs：角色/场景/道具 + 题材模板/风格圣经 */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border-lo); margin-bottom: 14px; flex-wrap: wrap; }
+  .tab {
+    font-size: 13px; color: var(--muted); padding: 9px 16px; cursor: pointer;
+    border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0;
+  }
+  .tab .c { font-size: 11px; color: var(--faint); margin-left: 5px; }
+  .tab.active { color: #fff; font-weight: 600; background: var(--panel); border-color: var(--border); }
+  .tab.active .c { color: var(--blue); }
+  .tab .grp-sep { display: none; }
+
+  /* toolbar */
+  .toolbar { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; flex-wrap: wrap; }
+  .toolbar .src { font-size: 12px; color: var(--muted); }
+  .toolbar .sp { flex: 1; }
+  .tb-btn {
+    font: inherit; font-size: 12.5px; border-radius: 7px; padding: 7px 14px;
+    border: 1px solid var(--border); color: var(--fg2); background: transparent;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-weight: 500;
+  }
+  .tb-btn:hover { border-color: var(--mauve); color: var(--fg); }
+  .tb-btn.pri {
+    background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a;
+    border: none; font-weight: 600;
+  }
+  .tb-btn .i { width: 15px; height: 15px; }
+
+  /* grid */
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+    gap: 14px; align-content: start;
+  }
+  .grid.wide { grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); }
+
+  /* ref 卡（角色/场景/道具） */
+  .rcard {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 11px;
+    overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 4px 10px rgba(0,0,0,.25);
+  }
+  .rcard .thumb {
+    height: 132px; position: relative; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1a1d33, #24284a);
+  }
+  .rcard .thumb .ph { color: #3a3f5e; font-size: 32px; }
+  .rcard .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .st {
+    position: absolute; top: 8px; right: 8px; font-size: 9.5px; border-radius: 9px;
+    padding: 2px 8px; backdrop-filter: blur(4px);
+  }
+  .st.ready { color: var(--done); border: 1px solid #2c5a44; background: rgba(78,201,143,.15); }
+  .st.gen { color: var(--warn); border: 1px solid #5a4a28; background: rgba(224,168,90,.15); }
+  .st.empty { color: var(--faint); border: 1px solid var(--border); background: rgba(0,0,0,.3); }
+  .rcard .rbody { padding: 10px 11px; display: flex; flex-direction: column; gap: 6px; }
+  .rcard .nm { font-size: 13px; font-weight: 600; color: var(--fg); }
+  .rcard .ref { font-size: 10px; color: var(--faint); font-family: "Consolas", monospace; }
+  .rcard .ref.miss { color: var(--err); }
+  .rcard .acts { display: flex; gap: 6px; margin-top: 3px; }
+  .rcard .a {
+    flex: 1; font: inherit; font-size: 11px; text-align: center; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 6px; padding: 5px 0; color: var(--muted);
+    background: transparent;
+  }
+  .rcard .a:hover { border-color: var(--mauve); color: var(--fg); }
+  .rcard .a.blue { color: var(--blue); border-color: var(--blue-dim); }
+  /* 新增卡 */
+  .rcard.add {
+    border-style: dashed; align-items: center; justify-content: center;
+    color: var(--faint); min-height: 210px; cursor: pointer; gap: 8px;
+  }
+  .rcard.add:hover { border-color: var(--mauve); color: var(--fg2); }
+  .rcard.add .pl { font-size: 30px; font-weight: 300; }
+  .rcard.add .t { font-size: 12px; }
+
+  /* 题材模板 / 风格圣经 资产卡 */
+  .acard {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 11px;
+    padding: 14px 15px; display: flex; flex-direction: column; gap: 9px;
+    box-shadow: 0 4px 10px rgba(0,0,0,.22);
+  }
+  .acard .top { display: flex; align-items: center; gap: 10px; }
+  .acard .swatch { width: 38px; height: 38px; border-radius: 8px; flex-shrink: 0; border: 1px solid var(--border-lo); }
+  .acard .nm { font-size: 14px; font-weight: 600; color: var(--fg); }
+  .acard .sub { font-size: 11px; color: var(--muted); font-family: "Consolas", monospace; }
+  .acard .desc { font-size: 12px; color: var(--fg2); line-height: 1.55; min-height: 34px; }
+  .acard .foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+  .acard .load {
+    font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; border: none;
+    border-radius: 7px; padding: 7px 14px; color: #06122a;
+    background: linear-gradient(135deg, var(--blue), var(--periw));
+  }
+  .acard .load.loaded { background: rgba(78,201,143,.16); color: var(--done); border: 1px solid #2f6b4f; }
+  .acard .meta-pill {
+    font-size: 10.5px; color: var(--mauve); background: rgba(138,127,217,.18);
+    border: 1px solid #4a3d6e; border-radius: 9px; padding: 2px 9px;
+  }
+  .acard .sp { flex: 1; }
+
+  .empty-hint { color: var(--faint); font-size: 13px; padding: 30px 0; text-align: center; }
+</style>
+</head>
+<body>
+<main class="work">
+  <div class="wrap">
+    <div class="head">
+      <h1>资源库<span class="en">ASSET LIBRARY</span></h1>
+      <span class="sp"></span>
+      <span class="gate" id="gate">完备性：<b>—</b></span>
+    </div>
+
+    <!-- tabs：前三个=ref 库（characters/scenes/props），后两个=可加载资产（genres/styles） -->
+    <div class="tabs" id="tabs"></div>
+
+    <div class="toolbar" id="toolbar"></div>
+
+    <!-- 内容网格（按当前 tab 渲染） -->
+    <div class="grid" id="grid"></div>
+  </div>
+</main>
+
+<script>
+/* ===== 可配 API base（真机联调由主控接）=====
+   ref 库 → media_agent；genres/styles → 加载接口（media_agent 或专用） */
+const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450';
+const SW_API = new URLSearchParams(location.search).get('sw') || 'http://127.0.0.1:18430';
+
+/* ===== 占位数据（结构对齐后端 schema；真机由 fetch 替换）===== */
+
+// 角色/场景/道具：对齐 compass ref_index.json → refs[]{name,path,source,status}
+const REF_DATA = {
+  characters: {
+    label: "角色", icon: "👤", refKey: "ref",
+    entries: [
+      { name: "周翠英（女主）", file: "@周翠英_ref.png", source: "ai-generated", status: "ready" },
+      { name: "沈墨（男主）",   file: "@沈墨_ref.png",   source: "ai-generated", status: "ready" },
+      { name: "陆夫人（反派）", file: "@陆夫人_ref.png", source: "ai-generated", status: "generating" },
+      { name: "管家老张",       file: "@管家老张_ref.png", source: "",          status: "empty" },
+      { name: "小丫鬟",         file: "@小丫鬟_ref.png", source: "custom",      status: "ready" },
+    ],
+  },
+  scenes: {
+    label: "场景", icon: "🏞", refKey: "ref",
+    entries: [
+      { name: "城郊废品回收站", file: "@城郊废品站_ref.png", source: "template", status: "ready" },
+      { name: "审讯室",         file: "@审讯室_ref.png",   source: "ai-generated", status: "ready" },
+      { name: "雨夜天台",       file: "@雨夜天台_ref.png", source: "ai-generated", status: "empty" },
+    ],
+  },
+  props: {
+    label: "道具", icon: "🗝",
+    entries: [
+      { name: "青铜钥匙", file: "@青铜钥匙_ref.png", source: "ai-generated", status: "ready" },
+      { name: "泛黄信纸", file: "@泛黄信纸_ref.png", source: "ai-generated", status: "generating" },
+      { name: "旧怀表",   file: "@旧怀表_ref.png",   source: "",            status: "empty" },
+    ],
+  },
+};
+
+// 题材模板：对齐 templates/genres/index.json → genres[]{genre_id,display_name}
+const GENRES = [
+  { genre_id: "short-drama",    display_name: "短剧",     desc: "竖屏强冲突反转，钩子前置、节奏快。", swatch: "linear-gradient(135deg,#4a9eff,#8b7fd9)" },
+  { genre_id: "single-episode", display_name: "单集短篇", desc: "完整起承转合的单集叙事结构。",       swatch: "linear-gradient(135deg,#8b7fd9,#a78bfa)" },
+  { genre_id: "commercial",     display_name: "商业广告", desc: "产品卖点驱动，强 CTA 收口。",         swatch: "linear-gradient(135deg,#4ec98f,#4a9eff)" },
+  { genre_id: "vlog",           display_name: "Vlog",     desc: "第一人称日常记录，口语化旁白。",       swatch: "linear-gradient(135deg,#e0a85a,#8b7fd9)" },
+  { genre_id: "mv",             display_name: "MV",       desc: "画面锚定音轨节拍，性能镜+运镜。",     swatch: "linear-gradient(135deg,#a78bfa,#4a9eff)" },
+  { genre_id: "oral-skit",      display_name: "口播剧",   desc: "正脸口播+情景，信息密度优先。",       swatch: "linear-gradient(135deg,#4a9eff,#4ec98f)" },
+];
+
+// 风格圣经：对齐 templates/styles/visual_styles.json → styles[]{style_id,name_cn,category,prompt_suffix}
+const STYLES = [
+  { style_id: "real/cinematic-warm-v1", name_cn: "电影感暖调", category: "real",  suffix: "warm tungsten grade, shallow DOF, film grain", swatch: "linear-gradient(135deg,#e0a85a,#a76a3a)" },
+  { style_id: "real/cinematic-cool-v1", name_cn: "电影感冷调", category: "real",  suffix: "teal-and-orange grade, anamorphic flare",     swatch: "linear-gradient(135deg,#4a9eff,#2f5e96)" },
+  { style_id: "real/doc-natural-v1",    name_cn: "纪实自然光", category: "real",  suffix: "natural light, handheld realism",             swatch: "linear-gradient(135deg,#c4c8d4,#9aa0a6)" },
+  { style_id: "anime/cel-clean-v1",     name_cn: "赛璐璐动画", category: "anime", suffix: "clean cel shading, flat color blocks",        swatch: "linear-gradient(135deg,#a78bfa,#8b7fd9)" },
+];
+
+const DEFAULT_STYLE_ID = "real/cinematic-warm-v1";
+
+/* ===== tab 定义 ===== */
+const TABS = [
+  { id: "characters", kind: "ref",   label: "角色" },
+  { id: "scenes",     kind: "ref",   label: "场景" },
+  { id: "props",      kind: "ref",   label: "道具" },
+  { id: "genres",     kind: "asset", label: "题材模板" },
+  { id: "styles",     kind: "asset", label: "风格圣经" },
+];
+let activeTab = "characters";
+let loadedGenre = "short-drama";
+let loadedStyle = DEFAULT_STYLE_ID;
+
+const ST_TEXT = { ready: "✓ 就绪", generating: "⟳ 生成中", empty: "○ 缺图" };
+const ST_CLASS = { ready: "ready", generating: "gen", empty: "empty" };
+
+/* ===== 完备性闸门（OnlyShot 失败模式4：进「分镜板·出图」前缺图阻断）=====
+   汇总 ref 三类的 ready / 总数 */
+function computeCompleteness() {
+  let ready = 0, total = 0;
+  ["characters", "scenes", "props"].forEach((k) => {
+    REF_DATA[k].entries.forEach((e) => { total++; if (e.status === "ready") ready++; });
+  });
+  return { ready, total, missing: total - ready };
+}
+function renderGate() {
+  const { ready, total, missing } = computeCompleteness();
+  const gate = document.getElementById("gate");
+  if (missing === 0) {
+    gate.className = "gate ok";
+    gate.innerHTML = `完备性：<b>${ready}/${total}</b> 就绪 · 可进分镜板出图`;
+  } else {
+    gate.className = "gate";
+    gate.innerHTML = `完备性：<b>${ready}/${total}</b> 就绪 · ${missing} 项缺图（出图前需补全）`;
+  }
+}
+
+/* ===== tabs ===== */
+function renderTabs() {
+  const root = document.getElementById("tabs");
+  root.innerHTML = TABS.map((t) => {
+    let count = "";
+    if (t.kind === "ref") count = REF_DATA[t.id].entries.length;
+    else if (t.id === "genres") count = GENRES.length;
+    else if (t.id === "styles") count = STYLES.length;
+    const sep = t.id === "genres" ? ' style="margin-left:14px"' : "";
+    return `<div class="tab ${t.id === activeTab ? "active" : ""}" data-tab="${t.id}"${sep}>${t.label}<span class="c">${count}</span></div>`;
+  }).join("");
+  root.querySelectorAll(".tab").forEach((el) => {
+    el.addEventListener("click", () => { activeTab = el.getAttribute("data-tab"); renderAll(); });
+  });
+}
+
+/* ===== toolbar（随 tab 变化）===== */
+function renderToolbar() {
+  const root = document.getElementById("toolbar");
+  const tab = TABS.find((t) => t.id === activeTab);
+  if (tab.kind === "ref") {
+    const lbl = REF_DATA[activeTab].label;
+    root.innerHTML = `
+      <span class="src">来源：从剧本/风格圣经自动提取 + 手动导入</span>
+      <span class="sp"></span>
+      <button class="tb-btn" data-act="import">⬆ 导入图</button>
+      <button class="tb-btn" data-act="batch">⟳ 批量生成缺图</button>
+      <button class="tb-btn pri" data-act="extract">＋ 从剧本提取${lbl}</button>`;
+  } else if (activeTab === "genres") {
+    root.innerHTML = `
+      <span class="src">题材模板（templates/genres）— 加载到立意/剧本生成，最多叠加 3 个</span>
+      <span class="sp"></span>
+      <button class="tb-btn" data-act="genre-import">＋ 自定义题材</button>`;
+  } else {
+    root.innerHTML = `
+      <span class="src">风格圣经（templates/styles）— 加载后锁 ref_fingerprint 保跨镜头一致性</span>
+      <span class="sp"></span>
+      <button class="tb-btn" data-act="style-import">＋ 自定义风格</button>`;
+  }
+  root.querySelectorAll("button[data-act]").forEach((b) => b.addEventListener("click", () => onToolbar(b.getAttribute("data-act"))));
+}
+
+/* ===== grid ===== */
+function renderGrid() {
+  const grid = document.getElementById("grid");
+  const tab = TABS.find((t) => t.id === activeTab);
+  grid.className = tab.kind === "asset" ? "grid wide" : "grid";
+  if (tab.kind === "ref") grid.innerHTML = renderRefCards(activeTab);
+  else if (activeTab === "genres") grid.innerHTML = renderGenreCards();
+  else grid.innerHTML = renderStyleCards();
+  wireGrid();
+}
+
+function renderRefCards(key) {
+  const def = REF_DATA[key];
+  const cards = def.entries.map((e) => {
+    const sc = ST_CLASS[e.status];
+    const phs = { ready: def.icon, generating: "⟳", empty: "+" };
+    const acts = e.status === "ready"
+      ? `<button class="a blue" data-act="view" data-name="${e.name}">查看</button><button class="a" data-act="regen" data-name="${e.name}">↻ 重生</button>`
+      : e.status === "generating"
+        ? `<button class="a" data-act="cancel" data-name="${e.name}">取消</button>`
+        : `<button class="a blue" data-act="gen" data-name="${e.name}">✦ 生成</button><button class="a" data-act="import" data-name="${e.name}">导入</button>`;
+    const refLine = e.status === "empty"
+      ? `<div class="ref miss">未生成 · 出图前需补</div>`
+      : `<div class="ref">${e.file}</div>`;
+    return `
+      <div class="rcard">
+        <div class="thumb"><div class="ph">${phs[e.status]}</div><span class="st ${sc}">${ST_TEXT[e.status]}</span></div>
+        <div class="rbody">
+          <div class="nm">${e.name}</div>
+          ${refLine}
+          <div class="acts">${acts}</div>
+        </div>
+      </div>`;
+  });
+  cards.push(`<div class="rcard add" data-act="add"><div class="pl">+</div><div class="t">手动新增${def.label}</div></div>`);
+  return cards.join("");
+}
+
+function renderGenreCards() {
+  return GENRES.map((g) => {
+    const on = g.genre_id === loadedGenre;
+    return `
+      <div class="acard">
+        <div class="top">
+          <div class="swatch" style="background:${g.swatch}"></div>
+          <div><div class="nm">${g.display_name}</div><div class="sub">${g.genre_id}</div></div>
+        </div>
+        <div class="desc">${g.desc}</div>
+        <div class="foot">
+          <span class="meta-pill">题材模板</span><span class="sp"></span>
+          <button class="load ${on ? "loaded" : ""}" data-act="load-genre" data-id="${g.genre_id}">${on ? "✓ 已加载" : "加载"}</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function renderStyleCards() {
+  return STYLES.map((s) => {
+    const on = s.style_id === loadedStyle;
+    const def = s.style_id === DEFAULT_STYLE_ID ? `<span class="meta-pill">默认</span>` : "";
+    return `
+      <div class="acard">
+        <div class="top">
+          <div class="swatch" style="background:${s.swatch}"></div>
+          <div><div class="nm">${s.name_cn}</div><div class="sub">${s.style_id}</div></div>
+        </div>
+        <div class="desc">${s.suffix}</div>
+        <div class="foot">
+          <span class="meta-pill">${s.category}</span>${def}<span class="sp"></span>
+          <button class="load ${on ? "loaded" : ""}" data-act="load-style" data-id="${s.style_id}">${on ? "✓ 已加载" : "加载"}</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+/* ===== 交互 stub（占位，不接后端；真机由主控联调）===== */
+function onToolbar(act) {
+  // 真机：
+  //  extract → POST SW_API /storyboard 或实体抽取 → 回填 ref_index（SSE）
+  //  batch   → POST MEDIA_API /imggen 批量出缺图 ref（套当前 STYLE BIBLE 的 ref_fingerprint）
+  //  import  → 本地选图 → PUT MEDIA_API ref_index 条目 status=ready
+  toast(`stub · 操作「${act}」（真机接 ${act === "batch" ? "MEDIA_API /imggen 批量出 ref" : "ref_index / 实体抽取"}）`);
+}
+
+function wireGrid() {
+  document.querySelectorAll("#grid [data-act]").forEach((el) => {
+    el.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const act = el.getAttribute("data-act");
+      const name = el.getAttribute("data-name");
+      const id = el.getAttribute("data-id");
+      if (act === "load-genre") { loadedGenre = id; renderGrid(); toast(`已加载题材：${id}（真机：写入立意/剧本生成上下文）`); return; }
+      if (act === "load-style") { loadedStyle = id; renderGrid(); toast(`已加载风格圣经：${id}（真机：锁 ref_fingerprint 保一致性）`); return; }
+      // ref 卡动作：view/regen/gen/import/cancel/add → 占位
+      // 真机：gen/regen → POST MEDIA_API /imggen（单条 ref）；view → 打开 ref 大图
+      toast(`stub · ${act}${name ? " · " + name : ""}`);
+    });
+  });
+}
+
+/* ===== 轻量 toast ===== */
+let toastTimer = null;
+function toast(msg) {
+  let el = document.getElementById("__toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "__toast";
+    el.style.cssText = "position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:50;" +
+      "background:var(--panel2);border:1px solid var(--mauve);color:var(--fg);" +
+      "padding:9px 16px;border-radius:9px;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.5);max-width:80vw;";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = "1";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.opacity = "0"; }, 2200);
+}
+
+/* ===== 真机联调入口（占位，主控接）=====
+async function loadRefIndex(kind) {
+  // GET MEDIA_API /asset/ref_index?kind=characters|scenes|props
+  // const r = await fetch(`${MEDIA_API}/asset/ref_index?kind=${kind}`);
+  // REF_DATA[kind].entries = (await r.json()).refs.map(...); renderAll();
+}
+async function loadGenres() { /* GET templates/genres/index.json 或 SW_API /genres */ }
+async function loadStyles() { /* GET templates/styles/visual_styles.json 或 SW_API /styles */ }
+*/
+
+function renderAll() { renderTabs(); renderToolbar(); renderGrid(); renderGate(); }
+renderAll();
+</script>
+</body>
+</html>
