@@ -19,6 +19,9 @@ def create_app(cfg: MediaAgentConfig | None = None) -> FastAPI:
     from .routes.imaging import router as imaging_router
     app.include_router(imaging_router)
 
+    from .routes.transition import router as transition_router
+    app.include_router(transition_router)
+
     return app
 
 
