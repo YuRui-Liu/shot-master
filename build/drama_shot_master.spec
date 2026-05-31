@@ -30,6 +30,14 @@ hiddenimports = [
 # uvicorn 大量动态导入（loop / protocol / lifespan 自动选择）→ 收全子模块
 hiddenimports += collect_submodules("uvicorn")
 
+# 随包 ffmpeg/ffprobe（assets/bin/）。
+# 有文件才加入；源码签出时缺失也不报错，spec 仍可正常解析。
+_ffmpeg_bin = []
+for _exe in ("ffmpeg.exe", "ffprobe.exe"):
+    _p = os.path.join(ROOT, "drama_shot_master", "assets", "bin", _exe)
+    if os.path.exists(_p):
+        _ffmpeg_bin.append((_p, os.path.join("assets", "bin")))
+
 # 提示词模板 + 资源（(源路径, 包内目标路径)）
 datas = [
     (os.path.join(ROOT, "drama_shot_master", "templates"), "drama_shot_master/templates"),
@@ -57,7 +65,7 @@ excludes = [
 a = Analysis(
     [os.path.join(ROOT, "drama_shot_master", "main.py")],
     pathex=[ROOT],
-    binaries=[],
+    binaries=_ffmpeg_bin,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],

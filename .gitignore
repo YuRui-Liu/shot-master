@@ -20,3 +20,7 @@ license_admin/issued.csv
 
 # 图片生成默认输出目录(生成产物，勿提交)
 /imggen/
+
+# 随包 ffmpeg 二进制（体积大，开发者本地手动放入，勿提交）
+drama_shot_master/assets/bin/ffmpeg.exe
+drama_shot_master/assets/bin/ffprobe.exe
