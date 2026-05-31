@@ -1,7 +1,6 @@
 """Load images from a directory (non-recursive, supported formats only)."""
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 from PIL import Image, UnidentifiedImageError
 
 
@@ -10,11 +9,10 @@ SUPPORTED_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 
 @dataclass
 class ImageInfo:
-    """Metadata for a loaded image (thumbnail generated lazily by UI)."""
+    """Metadata for a loaded image. 纯数据，零 Qt（UI 缩略图改由前端/后端出图提供）。"""
     path: Path
     width: int
     height: int
-    pixmap_thumbnail: Any = None  # QPixmap, lazy, set by UI layer
 
 
 def load_directory(directory: Path) -> list[ImageInfo]:
