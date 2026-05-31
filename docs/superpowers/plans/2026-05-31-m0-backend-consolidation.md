@@ -11,12 +11,14 @@
 ## 范围与增量
 
 - [x] **删 `imaging/loader.py` 的 `pixmap_thumbnail` QPixmap 字段** → imaging 彻底零 Qt（无人引用，安全）。
-- [x] **增量 1（本次）**：`media_agent` 脚手架（config/__init__/core.sse/server/health）+ imaging 同步端点（split/trim/combine）+ 一个 SSE 批量端点（batch_split 走 TaskRunner）+ 无 Qt TestClient 测试。
-- [ ] **增量 2**：imaging 自动检测端点（detect_borders/infer_grid）+ aspect 裁剪；批量 trim/combine 的 SSE。
-- [ ] **增量 3**：转场（`core/transition_analyzer` 分析 + `transition_render` 渲染）端点（分析快→JSON；渲染慢→SSE 进度）。
-- [ ] **增量 4**：出图（`providers/image_gen`）端点 + 批量出图 SSE（复用 TaskRunner）。
-- [ ] **增量 5**：配乐（`sound_track_agent` pipeline 包一层 FastAPI：mixdown/SFX/转场配乐）。
+- [x] **增量 1**（a0025b9）：`media_agent` 脚手架 + imaging split/trim/combine + batch_split SSE + 无 Qt 测试。
+- [x] **增量 2**（74be46a）：imaging 自动检测 infer_grid/detect_borders/cell_boxes + aspect 居中裁剪。
+- [x] **增量 3**（8e6f601）：转场 analyze(CV) / ffmpeg_args(干跑) / render。
+- [x] **增量 4**（9161301）：出图 generate / batch_generate SSE，provider 工厂可注入测试。
+- [ ] **增量 5**：配乐（`sound_track_agent` — 25+ 模块大流水线，有 facade.py/cli.py）。**需先吃透 facade.py/pipeline.py 再包 FastAPI**：BGM 生成(ACE-Step)/SFX/mixdown/卡点对齐/overlay/session。依赖网络+会话态，是 M0 最大一块，单独聚焦做。
 - [ ] **收尾**：OpenAPI 导出为前端契约；`media_agent` 纳入 lifecycle spawn（与 screenwriter_agent 同形，未来由 Web 壳接管）。
+
+**当前 media_agent 已挂载路由**：health / imaging(split/trim/combine/infer_grid/detect_borders/cell_boxes/crop_aspect/batch_split) / transition(analyze/ffmpeg_args/render) / imggen(generate/batch_generate)。全部 16 测试绿、零 Qt 验证过。
 
 ## 端点契约（增量 1）
 
