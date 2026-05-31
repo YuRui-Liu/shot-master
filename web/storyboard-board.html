@@ -44,11 +44,12 @@
   .panel-body { padding: 4px 16px 16px; border-top: 1px solid var(--border-lo); }
   .panel.collapsed .panel-body { display: none; }
 
-  /* 实体分组 */
-  .ent-group { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; flex-wrap: wrap; }
-  .ent-group + .ent-group { border-top: 1px dashed var(--border-lo); }
-  .ent-label { color: var(--muted); font-size: 12px; min-width: 56px; padding-top: 5px; }
-  .ent-chips { display: flex; flex-wrap: wrap; gap: 7px; flex: 1; }
+  /* 实体分组：相近类型同排，3 个横向 band 节省纵向空间 */
+  .ent-band { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 8px 0; }
+  .ent-band + .ent-band { border-top: 1px dashed var(--border-lo); }
+  .ent-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ent-label { color: var(--muted); font-size: 12px; }
+  .ent-chips { display: flex; flex-wrap: wrap; gap: 7px; }
 
   .chip {
     display: inline-flex; align-items: center; gap: 5px;
@@ -156,6 +157,11 @@
     display: flex; align-items: flex-start; justify-content: center;
     position: relative; overflow: hidden;
   }
+  .preview.wide { aspect-ratio: 16 / 9; }   /* 16:9 横屏切换 */
+  .side-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+  .ar-toggle { display: inline-flex; background: var(--field); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .ar-btn { font: inherit; font-size: 11px; color: var(--muted); background: transparent; border: none; padding: 3px 9px; cursor: pointer; }
+  .ar-btn.active { background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; font-weight: 600; }
   .preview .badge-hd {
     position: absolute; top: 8px; left: 8px;
     padding: 2px 9px; border-radius: 9px; font-size: 11px; font-weight: 600;
@@ -191,67 +197,76 @@
       <span class="toggle" id="bdToggle">收起 ▲</span>
     </div>
     <div class="panel-body">
-      <div class="ent-group">
-        <div class="ent-label">角色</div>
-        <div class="ent-chips">
-          <span class="chip role"><span class="av"></span>秦烈 <span class="link">🔗</span></span>
-          <span class="chip role"><span class="av"></span>刀疤 <span class="link">🔗</span></span>
-          <span class="chip">混混甲乙丙丁等7人</span>
+      <!-- band1：角色 + 群演 -->
+      <div class="ent-band">
+        <div class="ent-group">
+          <div class="ent-label">角色</div>
+          <div class="ent-chips">
+            <span class="chip role"><span class="av"></span>秦烈 <span class="link">🔗</span></span>
+            <span class="chip role"><span class="av"></span>刀疤 <span class="link">🔗</span></span>
+            <span class="chip">混混甲乙丙丁等7人</span>
+          </div>
+        </div>
+        <div class="ent-group">
+          <div class="ent-label">群演</div>
+          <div class="ent-chips">
+            <span class="chip">背景混混（2人）</span>
+          </div>
         </div>
       </div>
-      <div class="ent-group">
-        <div class="ent-label">群演</div>
-        <div class="ent-chips">
-          <span class="chip">背景混混（2人）</span>
+      <!-- band2：服装 + 发型 + 道具 + 布景陈设 + 特殊设备 -->
+      <div class="ent-band">
+        <div class="ent-group">
+          <div class="ent-label">服装</div>
+          <div class="ent-chips">
+            <span class="chip">秦烈工装</span>
+            <span class="chip">刀疤皮夹克</span>
+          </div>
+        </div>
+        <div class="ent-group">
+          <div class="ent-label">发型</div>
+          <div class="ent-chips">
+            <span class="chip">刀疤右脸疤痕</span>
+          </div>
+        </div>
+        <div class="ent-group">
+          <div class="ent-label">道具</div>
+          <div class="ent-chips">
+            <span class="chip">拆迁协议 <span class="link">🔗</span></span>
+            <span class="chip">油桶</span>
+            <span class="chip">钢管 <span class="link">🔗</span></span>
+            <span class="chip">手电筒</span>
+            <span class="chip">废铁捆</span>
+          </div>
+        </div>
+        <div class="ent-group">
+          <div class="ent-label">布景陈设</div>
+          <div class="ent-chips">
+            <span class="chip">城郊废品回收站</span>
+            <span class="chip">积水地面</span>
+          </div>
+        </div>
+        <div class="ent-group">
+          <div class="ent-label">特殊设备</div>
+          <div class="ent-chips">
+            <span class="chip">探照灯</span>
+          </div>
         </div>
       </div>
-      <div class="ent-group">
-        <div class="ent-label">道具</div>
-        <div class="ent-chips">
-          <span class="chip">拆迁协议 <span class="link">🔗</span></span>
-          <span class="chip">油桶</span>
-          <span class="chip">钢管 <span class="link">🔗</span></span>
-          <span class="chip">手电筒</span>
-          <span class="chip">废铁捆</span>
+      <!-- band3：现场特效 + 声音 -->
+      <div class="ent-band">
+        <div class="ent-group">
+          <div class="ent-label">现场特效</div>
+          <div class="ent-chips">
+            <span class="chip">暴雨声</span>
+            <span class="chip">关节咔咔响</span>
+          </div>
         </div>
-      </div>
-      <div class="ent-group">
-        <div class="ent-label">布景陈设</div>
-        <div class="ent-chips">
-          <span class="chip">城郊废品回收站</span>
-          <span class="chip">积水地面</span>
-        </div>
-      </div>
-      <div class="ent-group">
-        <div class="ent-label">服装</div>
-        <div class="ent-chips">
-          <span class="chip">秦烈工装</span>
-          <span class="chip">刀疤皮夹克</span>
-        </div>
-      </div>
-      <div class="ent-group">
-        <div class="ent-label">发型</div>
-        <div class="ent-chips">
-          <span class="chip">刀疤右脸疤痕</span>
-        </div>
-      </div>
-      <div class="ent-group">
-        <div class="ent-label">现场特效</div>
-        <div class="ent-chips">
-          <span class="chip">暴雨声</span>
-          <span class="chip">关节咔咔响</span>
-        </div>
-      </div>
-      <div class="ent-group">
-        <div class="ent-label">声音</div>
-        <div class="ent-chips">
-          <span class="chip">探照灯光柱嗡鸣</span>
-        </div>
-      </div>
-      <div class="ent-group">
-        <div class="ent-label">特殊设备</div>
-        <div class="ent-chips">
-          <span class="chip">探照灯</span>
+        <div class="ent-group">
+          <div class="ent-label">声音</div>
+          <div class="ent-chips">
+            <span class="chip">探照灯光柱嗡鸣</span>
+          </div>
         </div>
       </div>
     </div>
@@ -384,12 +399,18 @@
 
       <!-- 右栏：分镜图预览 -->
       <div class="shot-side">
-        <div class="side-label">分镜图（1）</div>
-        <div class="preview">
-          <span class="badge-hd">HD</span>
-          <div class="ph">9 : 16 竖屏<br>分镜图预览<br><span class="faint">（占位）</span></div>
+        <div class="side-head">
+          <span class="side-label">分镜图（1）</span>
+          <span class="ar-toggle" id="arToggle">
+            <button class="ar-btn active" data-ar="vertical">9:16</button>
+            <button class="ar-btn" data-ar="wide">16:9</button>
+          </span>
         </div>
-        <div class="side-meta">
+        <div class="preview" id="preview">
+          <span class="badge-hd">HD</span>
+          <div class="ph" id="previewPh">9 : 16 竖屏<br>分镜图预览<br><span class="faint">（占位）</span></div>
+        </div>
+        <div class="side-meta" id="sideMeta">
           画幅 9:16 · 短剧竖屏<br>
           单图 HD · 视频基底帧
         </div>
@@ -418,6 +439,19 @@
   $("genPromptBtn").addEventListener("click", stub("生成提示词"));
   $("saveBtn").addEventListener("click", stub("保存"));
   $("genImgBtn").addEventListener("click", stub("生成分镜图（单图 HD）"));
+
+  // 画幅 9:16 / 16:9 切换
+  const arToggle = $("arToggle");
+  if (arToggle) arToggle.addEventListener("click", (e) => {
+    const b = e.target.closest(".ar-btn"); if (!b) return;
+    arToggle.querySelectorAll(".ar-btn").forEach(x => x.classList.toggle("active", x === b));
+    const wide = b.dataset.ar === "wide";
+    $("preview").classList.toggle("wide", wide);
+    $("previewPh").innerHTML = (wide ? "16 : 9 横屏" : "9 : 16 竖屏") +
+      '<br>分镜图预览<br><span class="faint">（占位）</span>';
+    $("sideMeta").innerHTML = (wide ? "画幅 16:9 · 横屏" : "画幅 9:16 · 短剧竖屏") +
+      "<br>单图 HD · 视频基底帧";
+  });
 </script>
 </body>
 </html>

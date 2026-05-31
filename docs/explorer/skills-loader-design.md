@@ -7,25 +7,42 @@
 
 把项目从「只做短剧」扩展为**多类型创作平台**：用户在技能库页选择一个创作类型（短剧 / MV / 广告·TVC / 纪录·人文 / 动画 / 口播·解说 / 直播·转播 / 互动·POV / 工具·素材），系统加载该类型对应的**流水线预设**——题材模板、风格圣经倾向、分镜 prompt schema、生视频约束、配音/配乐对齐协议——并把这些以 system-prompt 片段「动态注入」到各阶段 Agent。
 
-机制等价于 Skill 的动态加载：技能 .md 本身是知识库 + 元数据，加载时按其声明的「模块 + 阶段」从 `resources/skills/` 只读知识库挑选片段注入。
+机制等价于 Skill 的动态加载：技能 .md 本身是知识库 + 元数据，加载时按其声明的「模块 + 阶段」从 `drama_shot_master/templates/skills/` 只读知识库挑选片段注入。
+
+## 1.1 资产模型对齐本项目（重要）
+
+技能(skills) **作为本项目第三类可加载资产**，与既有 **题材模板 genres** / **风格圣经 styles** 并列，三者统一约定：
+
+| 资产 | 存储 | 加载接口 | 现有/新增 |
+|---|---|---|---|
+| 题材模板 | `drama_shot_master/templates/genres/` | `core/genre_templates.py`：`list_genres()` / `load_genre(id)` / `validate_template()` | 现有 |
+| 风格圣经 | `drama_shot_master/templates/styles/` | `core/style_bible.py`：`load_styles()` / `get_style(id)` / `inject_style_prompt()` | 现有 |
+| **创作技能** | `drama_shot_master/templates/skills/` | **`core/skill_templates.py`（新增，镜像 genre_templates 写法）**：`list_skills()` / `load_skill(id)` / `validate_skill()` | 新增 |
+
+→ skills 的目录位置、加载函数命名、扫描+校验+容错回退、注入机制(`inject_style_prompt` 的同构方式)全部沿用本项目既有约定，不另起 `resources/` 体系。
 
 ## 2. 目录与扫描
 
+与 `genres/` `styles/` 同处 `templates/` 根下，由 `core/skill_templates.py` 扫描（镜像 `genre_templates._genre_dir()` 的定位方式）：
+
 ```
-resources/skills/                # 只读知识库（纯 Markdown / JSON，零外部依赖）
-├── creations/                   # 一个创作类型一个 .md（≈33 个，对应 tests/pic/skills.jpg 列表）
-│   ├── 01-微缩世界创意短片.md
-│   ├── 09-AI短剧一站式生成.md
-│   └── ...
-├── modules/                     # 可选模块资源（4 仓库调研产物，按阶段分组）
-│   ├── shot_prompt/             # 分镜 prompt：8段SOP / 05八字段 / 一致性协议 / 风格注入 …
-│   ├── video/                   # 生视频：负向清单 / 时长公式 / 4模式选择器 / ref门控 …
-│   ├── mv/                      # MV：9宫格schema / music_sync / 资产圣经 …
-│   └── audio/                   # 配音/配乐：台词结构化 / ♪ambient / 节奏曲线 …
-└── index.json                   # 扫描缓存（可选，加速冷启动）
+drama_shot_master/templates/
+├── genres/                      # 题材模板（现有）
+├── styles/                      # 风格圣经（现有）
+└── skills/                      # 创作技能（新增，本设计）
+    ├── creations/               # 一个创作类型一个 .md（≈33 个，对应 tests/pic/skills.jpg 列表）
+    │   ├── 01-微缩世界创意短片.md
+    │   ├── 09-AI短剧一站式生成.md
+    │   └── ...
+    ├── modules/                 # 可选模块资源（4 仓库调研产物，按阶段分组）
+    │   ├── shot_prompt/         # 分镜 prompt：8段SOP / 05八字段 / 一致性协议 / 风格注入 …
+    │   ├── video/               # 生视频：负向清单 / 时长公式 / 4模式选择器 / ref门控 …
+    │   ├── mv/                  # MV：9宫格schema / music_sync / 资产圣经 …
+    │   └── audio/               # 配音/配乐：台词结构化 / ♪ambient / 节奏曲线 …
+    └── index.json               # 扫描缓存（可选，加速冷启动）
 ```
 
-后端启动时（或首次访问技能库时）扫描 `creations/*.md`，解析出 manifest 列表；扫描 `modules/**/*.md` 建立「模块 ID → 片段路径 + 阶段 + 优先级」表。结果可缓存到 `index.json`，文件 mtime 变化时失效重建。
+`list_skills()` 扫描 `skills/creations/*.md` 解析 manifest 列表（与 `list_genres()` 同构）；`load_skill(id)` 读单个（与 `load_genre(id)` 同构）；模块表扫描 `skills/modules/**/*.md` 建「模块 ID → 片段路径 + 阶段 + 优先级」。结果可缓存到 `index.json`，文件 mtime 变化时失效重建。
 
 ## 3. Skill .md 解析
 
@@ -86,7 +103,9 @@ class SkillManifest:
 
 容错：front-matter 缺失时回退——`name` 取文件名（去序号前缀/扩展名），`cat`/`medium` 缺省「通用」，`modules` 缺省空列表。解析失败的文件登记到告警列表，不阻断其他技能加载。
 
-## 4. 后端 API（与 split-tool.html 同源 REST，零 Qt）
+## 4. 后端 API（media_agent 路由，零 Qt）
+
+路由 `media_agent/routes/skills.py` 挂载于现有 media_agent（与 imaging/transition/imggen/soundtrack 并列），**handler 仅调用 `core/skill_templates.py` 的 `list_skills()`/`load_skill(id)`**（与 imaging 路由调用 `imaging.*`、转场路由调用 `core.transition_*` 同构）——后端逻辑在 core，路由只做 HTTP 封装。经 `/ui` 同源访问，无 CORS 顾虑。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|

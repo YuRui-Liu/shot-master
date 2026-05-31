@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米 AI · 分镜影视创作台</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  .app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* 顶栏 */
+  .titlebar { display: flex; align-items: center; height: 44px; padding: 0 12px;
+    background: var(--navy); border-bottom: 1px solid var(--border-lo); -webkit-app-region: drag; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; }
+  .brand .logo { width: 22px; height: 22px; border-radius: 6px;
+    background: linear-gradient(135deg, var(--blue), var(--periw)); }
+  .brand .nm { color: var(--periw); letter-spacing: .5px; }
+  .crumb { color: var(--muted); font-size: 12.5px; margin-left: 16px; }
+  .crumb b { color: var(--fg2); }
+  .tb-sp { flex: 1; }
+  .tb-act { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border: 1px solid var(--border); border-radius: 12px; }
+  .winctl { display: flex; gap: 4px; margin-left: 14px; }
+  .winctl span { width: 26px; height: 22px; display: grid; place-items: center; color: var(--muted);
+    border-radius: 5px; cursor: default; }
+  .winctl span:hover { background: var(--panel2); color: var(--fg); }
+
+  /* 主体 = 左导航 + 内容 */
+  .main { flex: 1; display: flex; min-height: 0; }
+  .nav { width: 176px; flex: 0 0 176px; background: var(--navy); border-right: 1px solid var(--border-lo);
+    display: flex; flex-direction: column; padding: 10px 8px; }
+  .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px;
+    color: var(--muted); text-decoration: none; font-size: 13.5px; cursor: pointer; margin-bottom: 2px; }
+  .nav a .ic { width: 16px; text-align: center; opacity: .8; }
+  .nav a:hover { color: var(--fg2); background: var(--panel); }
+  .nav a.active { color: var(--done); background: linear-gradient(90deg, rgba(78,201,143,.12), transparent);
+    box-shadow: inset 2px 0 0 var(--done); }
+  .nav .sp { flex: 1; }
+  .nav .sep { height: 1px; background: var(--border-lo); margin: 8px 6px; }
+
+  .view-wrap { flex: 1; min-width: 0; position: relative; background: var(--bg); }
+  #view { width: 100%; height: 100%; border: 0; display: block; }
+  .placeholder { position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+    color: var(--muted); gap: 8px; background: var(--bg); }
+  .placeholder[hidden] { display: none; }   /* hidden 属性需显式覆盖 display:grid */
+  .placeholder .big { font-size: 18px; color: var(--fg2); }
+  .placeholder .badge { margin: 0 auto; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <div class="brand"><span class="logo"></span><span class="nm">糯米 AI</span></div>
+    <div class="crumb">项目 / <b id="proj">测试剧本_废铁场之夜</b></div>
+    <div class="tb-sp"></div>
+    <div class="tb-act"><span class="dot ok"></span>任务中心</div>
+    <div class="winctl"><span>➖</span><span>□</span><span>✕</span></div>
+  </div>
+
+  <div class="main">
+    <nav class="nav" id="nav">
+      <!-- NAV_ITEMS (nav_config.py 本项目规范) -->
+      <a data-key="overview"      data-page=""                   ><span class="ic">▦</span>概览</a>
+      <a data-key="screenwriter"  data-page=""                   ><span class="ic">✎</span>剧本创作</a>
+      <a data-key="asset_library" data-page=""                   ><span class="ic">◈</span>资源库</a>
+      <a data-key="storyboard"    data-page="storyboard-board.html"><span class="ic">▤</span>分镜板</a>
+      <a data-key="video_gen"     data-page="video-mode2.html"   ><span class="ic">▶</span>视频生成</a>
+      <a data-key="video_post"    data-page=""                   ><span class="ic">✂</span>视频后期</a>
+      <div class="sp"></div>
+      <div class="sep"></div>
+      <a data-key="skills"        data-page="skills.html"        ><span class="ic">✦</span>技能库</a>
+      <a data-key="settings"      data-page=""                   ><span class="ic">⚙</span>全局设置</a>
+    </nav>
+
+    <div class="view-wrap">
+      <iframe id="view" title="content"></iframe>
+      <div class="placeholder" id="ph" hidden>
+        <div class="big" id="ph-name"></div>
+        <div class="badge">该页迁移中 · 后端已就绪</div>
+        <div class="faint">绞杀者模式：迁移期此页暂用 PySide6 原生版本</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // hash 路由：#/<navKey> → 加载对应内容页(iframe)；无页则显占位。
+  const NAV = document.getElementById('nav');
+  const VIEW = document.getElementById('view');
+  const PH = document.getElementById('ph');
+  const PHN = document.getElementById('ph-name');
+  const links = [...NAV.querySelectorAll('a')];
+  const LABEL = Object.fromEntries(links.map(a => [a.dataset.key, a.textContent.trim()]));
+
+  function go(key) {
+    const a = links.find(x => x.dataset.key === key) || links[0];
+    links.forEach(x => x.classList.toggle('active', x === a));
+    const page = a.dataset.page;
+    if (page) {
+      PH.hidden = true; VIEW.hidden = false;
+      // 透传 api 给内容页(同源时其 fetch 走 location.origin)
+      VIEW.src = page;
+    } else {
+      VIEW.hidden = true; VIEW.removeAttribute('src');
+      PHN.textContent = a.textContent.trim();
+      PH.hidden = false;
+    }
+    if (location.hash !== '#/' + key) history.replaceState(null, '', '#/' + key);
+    document.title = '糯米 AI · ' + (LABEL[key] || '');
+  }
+
+  links.forEach(a => a.addEventListener('click', () => go(a.dataset.key)));
+  window.addEventListener('hashchange', () => go((location.hash.replace('#/', '') || 'storyboard')));
+  // 默认进"分镜板"(已迁页中最完整)
+  go((location.hash.replace('#/', '') || 'storyboard'));
+</script>
+</body>
+</html>

@@ -48,7 +48,7 @@
   .nav-item.bottom { color: var(--muted); }
 
   /* 工作区 */
-  .work { flex: 1; overflow-y: auto; padding: 60px 28px 40px; }
+  .work { flex: 1; overflow-y: auto; padding: 24px 28px 40px; }
   .work-head {
     display: flex; align-items: center; gap: 16px; margin-bottom: 18px; max-width: 1180px;
   }
@@ -145,33 +145,11 @@
 </style>
 </head>
 <body>
-<!-- 标题栏 -->
-<div class="titlebar">
-  <div class="brand"><div class="logo"></div> 土豆AI短剧</div>
-  <div class="crumb">项目 / <b>测试剧本_废铁场之夜</b></div>
-  <div class="right">
-    <div class="task"><span class="dot ok"></span>任务中心</div>
-    <div class="winctl"><span>—</span><span>▢</span><span>✕</span></div>
-  </div>
-</div>
-
+<!-- 作为壳内容页：自带标题栏/侧栏已移除，由 web/app.html 壳(糯米 AI)统一提供 -->
 <div class="app">
-  <!-- 左侧导航 -->
-  <nav class="side">
-    <div class="nav-item"><span class="ic">▦</span> 概览</div>
-    <div class="nav-item"><span class="ic">✎</span> 剧本</div>
-    <div class="nav-item"><span class="ic">◈</span> 资源库</div>
-    <div class="nav-item"><span class="ic">▤</span> 分镜板</div>
-    <div class="nav-item active"><span class="ic">▶</span> 视频碎片</div>
-    <div class="nav-item"><span class="ic">▢</span> 资源中心</div>
-    <div class="nav-spacer"></div>
-    <div class="nav-item bottom"><span class="ic">⚙</span> 全局设置</div>
-  </nav>
-
-  <!-- 工作区 -->
   <main class="work">
     <div class="work-head">
-      <h1>④ 视频碎片 · CLIPS</h1>
+      <h1>④ 视频生成 · 视频碎片（CLIPS）</h1>
       <select class="shot-select">
         <option>1-1 城郊废品回收站</option>
         <option>1-2 审讯室对峙</option>
