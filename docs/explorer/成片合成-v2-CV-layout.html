@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>成片合成 v2 · 全套 CV 智能转场 Mockup</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body{ background:#07080e; color:#e8eaed; padding:20px;
+    font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; font-size:13px; }
+  .label-bar{ color:#5a6a8a; font-size:11px; letter-spacing:2px; text-transform:uppercase; text-align:center; margin-bottom:10px; }
+  .window{ width:100%; max-width:1280px; margin:0 auto; aspect-ratio:1360/860; min-height:760px;
+    background:linear-gradient(160deg,#161a31 0%,#13162c 50%,#181230 100%);
+    border:1px solid #2a2a4a; border-radius:10px; overflow:hidden; display:flex; flex-direction:column; position:relative; }
+  .tabs{ display:flex; gap:4px; padding:10px 14px 0; border-bottom:1px solid #1e1e3a; flex-shrink:0; }
+  .tab{ padding:8px 18px; font-size:13px; color:#7a8aaa; border-radius:7px 7px 0 0; }
+  .tab.active{ color:#e8eaed; background:rgba(74,158,255,0.10); border:1px solid #1e1e3a; border-bottom:none; font-weight:600; }
+  .tab .dot{ display:inline-block; width:6px; height:6px; border-radius:50%; background:#4a9eff; margin-right:6px; }
+  .editor{ flex:1; display:flex; flex-direction:column; min-width:0; }
+
+  /* toolbar — v2 splits 分析 / 生成 */
+  .toolbar{ display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid #1e1e3a; flex-shrink:0; }
+  .toolbar .title{ font-size:15px; font-weight:700; }
+  .toolbar .spacer{ flex:1; }
+  .btn{ padding:7px 13px; border-radius:8px; font-size:12px; border:1px solid #2a2a4a; background:rgba(19,19,42,0.6); color:#c4cad6; white-space:nowrap; }
+  .btn-analyze{ border:none; color:#fff; font-weight:700; padding:8px 18px; border-radius:20px;
+    background:linear-gradient(90deg,#4a9eff,#a06cff); box-shadow:0 0 18px #4a9eff44; }   /* primary CTA (v2) */
+  .btn-render{ border:1px solid #4a9eff66; color:#a0c8ff; font-weight:600; padding:8px 16px; border-radius:20px; background:rgba(74,158,255,0.08); }
+  .v2{ outline:1px dashed #a06cff88; outline-offset:3px; } /* marks v2-new bits */
+  .v2tag{ position:absolute; transform:translateY(-130%); font-size:9px; color:#c9a6ff; background:#2a1850; border:1px solid #a06cff66; border-radius:4px; padding:1px 6px; }
+
+  /* filmstrip */
+  .strip-wrap{ padding:14px 16px 6px; flex-shrink:0; }
+  .strip-hd{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .strip-hd .h{ font-size:12px; color:#9aa0a6; }
+  .strip-hd .ana{ font-size:11px; color:#c9a6ff; margin-left:auto; }
+  .strip{ display:flex; align-items:center; gap:0; }
+  .clip{ width:118px; flex-shrink:0; border-radius:9px; border:1px solid #252540; background:#12122a; overflow:hidden; position:relative; }
+  .clip .thumb{ height:142px; background:linear-gradient(135deg,#1a3060,#2a1850); position:relative; }
+  .clip.c2 .thumb{ background:linear-gradient(135deg,#281020,#1a1030); }
+  .clip.c3 .thumb{ background:linear-gradient(135deg,#102820,#1a2028); }
+  .clip .meta{ padding:5px 7px; background:rgba(13,13,30,.85); }
+  .clip .c-name{ font-size:11px; font-weight:600; color:#d0d8f0; }
+  .clip .c-dur{ font-size:9px; color:#5a6a8a; margin-top:1px; }
+  .clip .keep{ position:absolute; top:6px; left:6px; width:20px; height:20px; border-radius:5px; background:rgba(8,8,18,0.6); border:1px solid #4a9eff; display:flex; align-items:center; justify-content:center; color:#4a9eff; font-size:12px; }
+
+  /* connector with AI badge + score (v2) */
+  .conn{ width:74px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; align-self:center; position:relative; }
+  .conn .node{ width:30px; height:30px; border-radius:50%; border:2px solid #4a9eff; background:#10122a; display:flex; align-items:center; justify-content:center; color:#a0c8ff; font-size:13px; }
+  .conn .lbl{ font-size:9px; color:#c0c8e0; white-space:nowrap; }
+  .conn .ai{ font-size:8px; color:#c9a6ff; border:1px solid #a06cff66; border-radius:3px; padding:0 4px; background:#2a1850; }
+  .conn .score{ font-size:8px; color:#7a8aaa; }
+  .conn.locked .node{ border-color:#f5a623; color:#f5a623; }
+  .conn.locked .lock{ position:absolute; top:-2px; right:14px; font-size:9px; color:#f5a623; }
+  .conn.analyzing .node{ border-color:#a06cff; color:#c9a6ff; animation:pulse 1s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:.4} 50%{opacity:1} }
+  .conn.manual .node{ border-color:#7a8aaa; color:#c4cad6; }
+
+  /* lower: preview + inspector */
+  .lower{ flex:1; display:flex; min-height:0; border-top:1px solid #1e1e3a; }
+  .preview{ flex:1; display:flex; flex-direction:column; padding:12px 16px; min-width:0; }
+  .player{ flex:1; background:#000; border:1px solid #1e1e3a; border-radius:8px; display:flex; align-items:center; justify-content:center; min-height:120px; }
+  .player .play{ width:46px; height:46px; border-radius:50%; background:rgba(74,158,255,.18); border:1px solid #4a9eff; display:flex; align-items:center; justify-content:center; color:#a0c8ff; }
+  .trim{ margin-top:10px; }
+  .trim .tl{ font-size:10px; color:#5a6a8a; margin-bottom:4px; }
+  .scrub{ height:34px; border-radius:6px; background:repeating-linear-gradient(90deg,#1a2848 0 22px,#22305a 22px 44px); border:1px solid #252540; position:relative; }
+  .scrub .kz{ position:absolute; top:0; bottom:0; left:14%; right:18%; background:rgba(74,158,255,.12); border-left:2px solid #4a9eff; border-right:2px solid #4a9eff; }
+
+  /* inspector with CV score breakdown (v2) */
+  .inspector{ width:262px; flex-shrink:0; border-left:1px solid #1e1e3a; padding:14px; display:flex; flex-direction:column; gap:12px; }
+  .insp-hd{ font-size:13px; font-weight:700; color:#d0d8f0; display:flex; align-items:center; gap:8px; }
+  .insp-hd .badge{ font-size:9px; color:#c9a6ff; border:1px solid #a06cff66; border-radius:4px; padding:1px 6px; background:#2a1850; }
+  .field label{ font-size:11px; color:#9aa0a6; display:block; margin-bottom:6px; }
+  .select,.num{ background:#10122a; border:1px solid #2a2a4a; border-radius:7px; padding:7px 10px; color:#d0d8f0; font-size:12px; }
+  .select{ display:flex; justify-content:space-between; }
+  /* score breakdown card (v2-new) */
+  .scorecard{ background:#10122a; border:1px solid #2a2a4a; border-radius:8px; padding:10px; }
+  .scorecard .row{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .scorecard .k{ font-size:10px; color:#9aa0a6; width:44px; }
+  .scorecard .bar{ flex:1; height:6px; border-radius:3px; background:#232340; position:relative; }
+  .scorecard .bar i{ position:absolute; left:0; top:0; bottom:0; border-radius:3px; background:linear-gradient(90deg,#4a9eff,#a06cff); }
+  .scorecard .v{ font-size:10px; color:#c0c8e0; width:30px; text-align:right; }
+  .scorecard .total{ font-size:11px; color:#c9a6ff; margin-top:4px; }
+  .chip{ font-size:11px; color:#c4cad6; border:1px solid #2a2a4a; border-radius:6px; padding:5px 9px; }
+  .chip.on{ border-color:#4a9eff; color:#a0c8ff; background:rgba(74,158,255,.1); }
+  .lock{ font-size:11px; color:#9aa0a6; }
+
+  .renderbar{ flex-shrink:0; border-top:1px solid #1e1e3a; padding:10px 16px; display:flex; align-items:center; gap:12px; }
+  .progress{ flex:1; height:8px; border-radius:4px; background:#1a1a30; overflow:hidden; }
+  .progress .pf{ height:100%; width:60%; background:linear-gradient(90deg,#4a9eff,#a06cff); }
+  .renderbar .st{ font-size:11px; color:#9aa0a6; white-space:nowrap; }
+
+  .note{ max-width:1280px; margin:14px auto 0; color:#7a8aaa; font-size:12px; line-height:1.7; }
+  .note b{ color:#c0c8e0; } .note .k{ color:#a0c8ff; } .note .p{ color:#c9a6ff; }
+</style>
+</head>
+<body>
+<div class="label-bar">成片合成 v2 · 全套 CV 智能转场 · 紫色虚框 = v2 新增</div>
+
+<div class="window">
+  <div class="tabs"><div class="tab active"><span class="dot"></span>成片</div><div class="tab">配音</div><div class="tab">配乐</div></div>
+  <div class="editor">
+
+    <!-- toolbar: v2 拆分 分析 / 生成 -->
+    <div class="toolbar">
+      <div class="title">第一集 · 成片</div>
+      <div class="spacer"></div>
+      <div class="btn">⟳ 列出生成目录</div>
+      <div class="btn">＋ 添加片段</div>
+      <div style="position:relative;"><span class="v2tag">v2 = CV 分析</span><div class="btn-analyze v2">✦ 一键智能转场</div></div>
+      <div style="position:relative;"><span class="v2tag">原渲染拆出</span><div class="btn-render v2">⬇ 生成成片</div></div>
+    </div>
+
+    <!-- filmstrip: connectors 带 AI 徽章 + 评分 -->
+    <div class="strip-wrap">
+      <div class="strip-hd"><span class="h">片段走马灯 · 点圆点编辑转场</span>
+        <span class="ana v2">✦ CV 分析完成 · 4 切口已推荐（锁定项不覆盖）</span></div>
+      <div class="strip">
+        <div class="clip"><div class="thumb"><div class="keep">✓</div></div><div class="meta"><div class="c-name">片段 01</div><div class="c-dur">0:08.4</div></div></div>
+
+        <div class="conn"><span class="v2tag">AI 推荐</span><div class="node">⤬</div><div class="ai">AI</div><div class="lbl">叠化 0.5s</div><div class="score">匹配 0.82</div></div>
+
+        <div class="clip c2"><div class="thumb"><div class="keep">✓</div></div><div class="meta"><div class="c-name">片段 02</div><div class="c-dur">0:11.0 ✂</div></div></div>
+
+        <div class="conn analyzing"><span class="v2tag">分析中</span><div class="node">◌</div><div class="lbl">分析中…</div><div class="score">2/4</div></div>
+
+        <div class="clip c3"><div class="thumb"><div class="keep">✓</div></div><div class="meta"><div class="c-name">片段 03</div><div class="c-dur">0:06.2</div></div></div>
+
+        <div class="conn manual"><div class="node">▷</div><div class="ai" style="color:#c4cad6;border-color:#3a3a5a;background:#1a1a2e;">手动</div><div class="lbl">推进 0.6s</div><div class="score">已覆盖</div></div>
+
+        <div class="clip"><div class="thumb"><div class="keep">✓</div></div><div class="meta"><div class="c-name">片段 04</div><div class="c-dur">0:07.8</div></div></div>
+
+        <div class="conn locked"><span class="lock">🔒</span><div class="node">◐</div><div class="ai" style="color:#f5a623;border-color:#f5a62366;background:#2a2010;">锁定</div><div class="lbl">圆开 0.7s</div><div class="score">不覆盖</div></div>
+
+        <div class="clip" style="border-style:dashed;opacity:.6;"><div class="thumb" style="background:none;display:flex;align-items:center;justify-content:center;color:#454569;font-size:26px;">＋</div><div class="meta"><div class="c-name" style="color:#5a6a8a;">新建项目</div></div></div>
+      </div>
+    </div>
+
+    <div class="lower">
+      <div class="preview">
+        <div class="player"><div class="play">▶</div></div>
+        <div class="trim"><div class="tl">入点 0:01.6 — 出点 0:09.1（保留 7.5s）</div>
+          <div class="scrub"><div class="kz"></div></div></div>
+      </div>
+
+      <!-- inspector: 切口 01→02，AI 来源 + CV 评分拆解 (v2) -->
+      <div class="inspector">
+        <div class="insp-hd">转场：01 → 02 <span class="badge">AI 推荐</span></div>
+        <div class="field"><label>转场效果</label><div class="select"><span>叠化 (dissolve)</span><span>▾</span></div></div>
+        <div class="field"><label>时长 0.5s（0.3–2.0s）</label><div class="num">0.5</div></div>
+
+        <div style="position:relative;"><span class="v2tag">v2 = CV 评分拆解</span>
+        <div class="scorecard v2">
+          <div class="row"><span class="k">画面色</span><div class="bar"><i style="width:78%"></i></div><span class="v">0.78</span></div>
+          <div class="row"><span class="k">结构</span><div class="bar"><i style="width:88%"></i></div><span class="v">0.88</span></div>
+          <div class="row"><span class="k">运动</span><div class="bar"><i style="width:50%"></i></div><span class="v">0.50</span></div>
+          <div class="total">综合匹配 0.82 → 高匹配 → 万能类（叠化）</div>
+        </div></div>
+
+        <div class="field"><label>来源</label>
+          <span class="chip on">AI 自动</span> <span class="chip">手动覆盖</span></div>
+        <div class="lock">☐ 锁定此切口（重跑「一键智能转场」不覆盖）</div>
+        <div><span class="chip">↺ 重置为 AI</span> <span class="chip">应用到全部</span></div>
+      </div>
+    </div>
+
+    <div class="renderbar">
+      <span class="st v2">✦ CV 分析中 2/4 切口</span>
+      <div class="progress"><div class="pf"></div></div>
+      <span class="st">分析完成后点「⬇ 生成成片」渲染 · 保留原音</span>
+      <div class="btn">送去配乐 ›</div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <b>v2 相对 v1 的改动（紫色虚框处）：</b><br>
+  ① <span class="k">「✦ 一键智能转场」改为 CV 分析触发</span>：跑 PySceneDetect+SIFT+光流，给每个<b>未锁定</b>切口填 AI 推荐效果+时长（不直接出片）。<br>
+  ② <span class="k">新增「⬇ 生成成片」</span>：把原 v1「一键智能转场=直接渲染」拆出，分析→审阅→再渲染（一个主 CTA 原则）。<br>
+  ③ <span class="k">切口圆点状态化</span>：<span class="p">AI 推荐</span>（紫）/ 分析中（脉冲）/ 手动覆盖（灰）/ <span style="color:#f5a623">锁定</span>（橙🔒），并显示「匹配 0.82」。<br>
+  ④ <span class="k">inspector 加 CV 评分拆解</span>：画面色/结构/运动三条 + 综合分 + 命中的效果类别（高→万能 / 中+运动→方向 / 低→创意）。<br>
+  ⑤ <span class="k">底部进度</span>：分析「N/总」逐切口；分析跑在后台线程，可中断、UI 不卡。<br>
+  其余（看片剔除/排序/trim/送去配乐/预览）与 v1 一致，不变。
+</div>
+</body>
+</html>
