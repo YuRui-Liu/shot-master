@@ -67,6 +67,8 @@ class AppShell(QMainWindow):
         self.video_store = VideoTaskStore.from_list(self.cfg.video_tasks)
         self.dub_store = DubTaskStore.from_list(self.cfg.dub_tasks)
         self.imggen_store = ImgGenTaskStore.from_list(self.cfg.imggen_tasks)
+        from drama_shot_master.core.compose_task_store import ComposeTaskStore
+        self.compose_store = ComposeTaskStore.from_list(getattr(self.cfg, "compose_tasks", []))
 
         builders = {
             "screenwriter": self._make_screenwriter_page,    # 编剧 Agent
@@ -75,6 +77,7 @@ class AppShell(QMainWindow):
             "trim":    lambda: BatchToolPage(TrimPanel(self.state, self.cfg), self.state, self.cfg),
             "imggen":  self._make_imggen_page,
             "video_gen": self._make_video_page,
+            "compose": self._make_compose_page,
             "soundtrack": self._make_soundtrack_page,
             "dubbing": self._make_dub_page,
         }
@@ -891,6 +894,65 @@ class AppShell(QMainWindow):
         return ScreenwriterPanel(self.cfg)
 
     # ------------------------------------------------------------------ #
+    # 成片合成 tab helpers
+    # ------------------------------------------------------------------ #
+
+    def _make_compose_page(self):
+        from drama_shot_master.ui.pages.task_workspace_page import TaskWorkspacePage
+        from drama_shot_master.ui.panels.compose_task_manager_panel import ComposeTaskManagerPanel
+        from drama_shot_master.ui.panels.compose_panel import ComposePanel
+
+        manager = ComposeTaskManagerPanel(self.compose_store, self._persist_compose)
+
+        def editor_factory(task):
+            return ComposePanel(self.cfg, payload=task.composition)
+
+        def wire_editor(editor, task):
+            editor.sendToSoundtrack.connect(self._on_compose_send_soundtrack)
+            editor.statusMessage.connect(self._set_status)
+
+        page = TaskWorkspacePage(
+            manager=manager,
+            editor_factory=editor_factory,
+            wire_editor=wire_editor,
+            payload_of=lambda ed: ed.to_payload(),
+            on_persist=self._on_compose_dirty,
+            title_for=lambda task: f"成片 · {task.name}",
+        )
+        manager.taskRenamed.connect(self._on_compose_renamed)
+        manager.taskDeleted.connect(page.discard_editor)
+        return page
+
+    def _persist_compose(self):
+        try:
+            self.cfg.update_settings(compose_tasks=self.compose_store.to_list())
+        except Exception:
+            pass
+
+    def _on_compose_dirty(self, task_id: str, payload: dict):
+        self.compose_store.update(task_id, composition=payload)
+        self._persist_compose()
+
+    def _on_compose_renamed(self, task_id: str, name: str):
+        page = self._func_pages.get("compose")
+        if page is not None and hasattr(page, "update_task_name"):
+            page.update_task_name(task_id, name)
+
+    def _on_compose_send_soundtrack(self, mp4_path: str):
+        try:
+            from pathlib import Path
+            tasks = list(getattr(self.cfg, "soundtrack_tasks", []))
+            tasks.append({"id": "", "name": Path(mp4_path).stem, "mp4": mp4_path, "status": "空闲"})
+            self.cfg.soundtrack_tasks = tasks
+            self.cfg.update_settings(soundtrack_tasks=tasks)
+            self._set_status(f"已送去配乐：{mp4_path}")
+            sp = self._soundtrack_panel()
+            if sp is not None and hasattr(sp, "refresh"):
+                sp.refresh()
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------ #
     # 图片生成 tab helpers（移植自 MainWindow）
     # ------------------------------------------------------------------ #
 
@@ -983,6 +1045,11 @@ class AppShell(QMainWindow):
         if sp is not None and hasattr(sp, "flush_all"):
             sp.flush_all()
         self._persist_soundtrack()
+        # 让成片合成页落盘所有缓存编辑器（含已浮出窗），再整体持久化
+        cp = self._func_pages.get("compose")
+        if cp is not None and hasattr(cp, "flush_all"):
+            cp.flush_all()
+        self._persist_compose()
         # 持久化当前活跃 panel
         try:
             self.cfg.update_settings(
