@@ -97,8 +97,8 @@ def main() -> int:
     body = {
         "project_dir": str(proj),
         "context": {
-            "core_idea": "守株待兔",
-            "genre_tags": ["古风", "寓言"],
+            "core_idea": "输入你的想法……",
+            "genre_tags": ["古风", "玄幻","寓言","言情"],
             "format": "短剧",
             "tone_tags": [],
             "visual_style": "水墨",

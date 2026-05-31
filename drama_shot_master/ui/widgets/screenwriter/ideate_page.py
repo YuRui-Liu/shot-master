@@ -12,7 +12,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QPlainTextEdit,
     QScrollArea, QSplitter, QLineEdit, QSpinBox, QFormLayout, QMessageBox,
-    QFrame,
+    QFrame, QToolButton,
 )
 
 from drama_shot_master.ui.widgets.screenwriter.base_stage_page import _BaseStagePage
@@ -20,6 +20,14 @@ from drama_shot_master.ui.widgets.screenwriter._ideate_candidate_card import _Ca
 from drama_shot_master.ui.widgets.screenwriter._ideate_message_bubble import _MessageBubble
 from drama_shot_master.ui.widgets.screenwriter._paths import idea_file_in
 from drama_shot_master.ui.widgets.screenwriter.stream_worker import StreamWorker
+from drama_shot_master.ui.widgets.aspect_ratio_selector import (
+    AspectRatioSelector, DEFAULT_RATIO,
+)
+from drama_shot_master.ui.dialogs.genre_picker_dialog import GenrePickerDialog
+from drama_shot_master.ui.dialogs.style_bible_dialog import StyleBibleDialog
+from drama_shot_master.core.compass.manifest import load_manifest, save_manifest
+from drama_shot_master.core import genre_templates as _genres
+from drama_shot_master.core import gen_context as _gc
 
 
 class IdeatePage(_BaseStagePage):
@@ -138,25 +146,240 @@ class IdeatePage(_BaseStagePage):
         f.setFrameShape(QFrame.StyledPanel)
         form = QFormLayout(f)
         form.setContentsMargins(6, 6, 6, 6)
+
+        # —— 创意 ——
         self._ctx_core_idea = QLineEdit()
-        self._ctx_core_idea.setPlaceholderText("一句话主旨，如：守株待兔")
-        self._ctx_genre = QLineEdit()
-        self._ctx_genre.setPlaceholderText("题材标签，逗号分隔：古风, 寓言")
+        self._ctx_core_idea.setPlaceholderText("一句话主旨，如：高山流水")
+        form.addRow("主旨", self._ctx_core_idea)
+
+        # —— 题材（结构化 chip + 选模板按钮）——
+        genre_row = QHBoxLayout()
+        self._genre_chip = QLabel("未选题材")
+        self._genre_chip.setStyleSheet(
+            "color:#cdbcff; background:#241c3a; border:1px solid #4b2fb0;"
+            " border-radius:10px; padding:3px 10px;")
+        self._pick_genre_btn = QPushButton("选题材模板")
+        self._pick_genre_btn.clicked.connect(self._on_pick_genre_clicked)
+        genre_row.addWidget(self._genre_chip, 1)
+        genre_row.addWidget(self._pick_genre_btn)
+        form.addRow("题材", genre_row)
+
+        # —— 风格圣经（chip + 选模板按钮）——
+        style_row = QHBoxLayout()
+        self._style_chip = QLabel("未选风格")
+        self._style_chip.setStyleSheet(
+            "color:#bcd6ff; background:#1f2030; border:1px solid #7c5cff;"
+            " border-radius:10px; padding:3px 10px;")
+        self._pick_style_btn = QPushButton("选风格圣经")
+        self._pick_style_btn.clicked.connect(self._on_pick_style_clicked)
+        style_row.addWidget(self._style_chip, 1)
+        style_row.addWidget(self._pick_style_btn)
+        form.addRow("风格圣经", style_row)
+
+        # —— 画幅 ——
+        self._aspect_selector = AspectRatioSelector()
+        self._aspect_selector.changed.connect(self._on_aspect_changed)
+        form.addRow("画幅", self._aspect_selector)
+
+        # —— 规格：集数 / 时长 / 候选数 ——
+        spec_row = QHBoxLayout()
+        self._ctx_episodes = QSpinBox(); self._ctx_episodes.setRange(1, 999)
+        self._ctx_episodes.setValue(1)
         self._ctx_duration = QSpinBox(); self._ctx_duration.setRange(15, 600)
         self._ctx_duration.setValue(60)
+        self._ctx_cand_count = QSpinBox(); self._ctx_cand_count.setRange(1, 9)
+        self._ctx_cand_count.setValue(3)
+        spec_row.addWidget(QLabel("集数")); spec_row.addWidget(self._ctx_episodes)
+        spec_row.addWidget(QLabel("时长(s)")); spec_row.addWidget(self._ctx_duration)
+        spec_row.addWidget(QLabel("候选数")); spec_row.addWidget(self._ctx_cand_count)
+        spec_row.addStretch(1)
+        form.addRow("规格", spec_row)
+
+        # —— 高级折叠（自由文本，兼容；默认收起）——
+        self._adv_toggle = QToolButton()
+        self._adv_toggle.setText("高级（自由文本，可选）")
+        self._adv_toggle.setCheckable(True)
+        self._adv_toggle.setChecked(False)
+        self._adv_toggle.setStyleSheet("QToolButton { border:none; color:#9aa0a6; }")
+        self._adv_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._adv_toggle.setArrowType(Qt.RightArrow)
+        self._adv_toggle.toggled.connect(self._on_adv_toggled)
+        form.addRow("", self._adv_toggle)
+
+        self._adv_body = QWidget()
+        adv_form = QFormLayout(self._adv_body)
+        adv_form.setContentsMargins(0, 0, 0, 0)
+        self._ctx_genre = QLineEdit()
+        self._ctx_genre.setPlaceholderText("题材标签，逗号分隔：古风, 玄幻， 言情, 寓言等")
         self._ctx_visual = QLineEdit()
         self._ctx_visual.setPlaceholderText("视觉风格，如：水墨")
         self._ctx_extra = QLineEdit()
         self._ctx_extra.setPlaceholderText("额外约束（可空）")
-        form.addRow("主旨", self._ctx_core_idea)
-        form.addRow("题材", self._ctx_genre)
-        form.addRow("时长(s)", self._ctx_duration)
-        form.addRow("视觉风格", self._ctx_visual)
-        form.addRow("额外约束", self._ctx_extra)
-        self._gen_first_btn = QPushButton("生成 3 个候选")
+        adv_form.addRow("题材标签", self._ctx_genre)
+        adv_form.addRow("视觉风格", self._ctx_visual)
+        adv_form.addRow("额外约束", self._ctx_extra)
+        self._adv_body.setVisible(False)
+        form.addRow("", self._adv_body)
+
+        # —— 注入预览 ——
+        self._injection_preview = QPlainTextEdit()
+        self._injection_preview.setReadOnly(True)
+        self._injection_preview.setMaximumHeight(120)
+        self._injection_preview.setPlaceholderText("（本次生成将注入的题材/风格/规格摘要）")
+        self._injection_preview.setStyleSheet(
+            "QPlainTextEdit { background:#161821; color:#9fb4d8;"
+            " border:1px solid #2a3142; border-radius:4px; font-size:11px; }")
+        form.addRow("本次注入", self._injection_preview)
+
+        self._gen_first_btn = QPushButton("生成候选")
         self._gen_first_btn.clicked.connect(self._on_first_gen_clicked)
         form.addRow("", self._gen_first_btn)
         return f
+
+    # —— 结构化（题材/风格/画幅/注入预览）——
+
+    def _refresh_structured(self):
+        """从 project.json 刷新题材/风格 chip、画幅初值、注入预览。
+        无项目时仅置占位，不抛。"""
+        if self._project_dir is None:
+            self._genre_chip.setText("未选题材")
+            self._style_chip.setText("未选风格")
+            self._aspect_selector.set_value(DEFAULT_RATIO)
+            self._injection_preview.setPlainText("")
+            return
+        m = load_manifest(self._project_dir)
+        # 题材 chip
+        self._genre_chip.setText(self._genre_display(m.params.get("genre")))
+        # 风格 chip
+        ref = (m.style_bible or {}).get("ref") if isinstance(m.style_bible, dict) else None
+        self._style_chip.setText(str(ref) if ref else "未选风格")
+        # 画幅初值：params.aspect_ratio 或 cfg.last_aspect_ratio 或默认
+        aspect = (m.params or {}).get("aspect_ratio") \
+            or self._cfg_get("last_aspect_ratio") or DEFAULT_RATIO
+        self._aspect_selector.set_value(aspect)
+        self._refresh_injection_preview(m)
+
+    @staticmethod
+    def _genre_id_of(raw) -> str:
+        """params.genre 可为 {"genre":id,"sub":[]} 或裸字符串 → 取主题材 id。"""
+        if isinstance(raw, dict):
+            return str(raw.get("genre") or "")
+        if isinstance(raw, str):
+            return raw
+        return ""
+
+    def _genre_display(self, raw) -> str:
+        gid = self._genre_id_of(raw)
+        if not gid:
+            return "未选题材"
+        try:
+            return _genres.load_genre(gid).get("display_name", gid)
+        except Exception:
+            return gid
+
+    def _refresh_injection_preview(self, manifest=None):
+        """读 manifest genre/style → gen_context 摘要 + 规格（画幅/集数/时长）。"""
+        if self._project_dir is None:
+            self._injection_preview.setPlainText("")
+            return
+        m = manifest if manifest is not None else load_manifest(self._project_dir)
+        parts: list[str] = []
+        # 题材摘要
+        gid = self._genre_id_of((m.params or {}).get("genre"))
+        if gid:
+            try:
+                gtxt = _gc.build_genre_context(_genres.load_genre(gid))
+            except Exception:
+                gtxt = ""
+            if gtxt:
+                parts.append("【题材注入】\n" + gtxt)
+        # 风格摘要
+        from drama_shot_master.core import style_bible as _styles
+        ref = (m.style_bible or {}).get("ref") if isinstance(m.style_bible, dict) else None
+        if ref:
+            try:
+                sd = _styles.get_style(str(ref))
+                stxt = _gc.build_style_context(sd, stage="render") if sd else ""
+            except Exception:
+                stxt = ""
+            if stxt:
+                parts.append("【风格注入】" + stxt)
+        # 规格行
+        aspect = (m.params or {}).get("aspect_ratio") or self._aspect_selector.value()
+        ep = (m.params or {}).get("episode_count")
+        dur = (m.params or {}).get("duration_per_unit_sec")
+        spec_bits = [f"画幅 {aspect}"]
+        if ep:
+            spec_bits.append(f"集数 {ep}")
+        if dur:
+            spec_bits.append(f"时长 {dur}s")
+        parts.append("【规格】" + " · ".join(spec_bits))
+        self._injection_preview.setPlainText("\n\n".join(parts))
+
+    def _on_pick_genre_clicked(self):
+        if self._project_dir is None:
+            return
+        dlg = GenrePickerDialog(self)
+        if dlg.exec() and dlg.result_value():
+            res = dlg.result_value()
+            m = load_manifest(self._project_dir)
+            # 存 dict 形态 {"genre":id,"sub":[...]}（与 client.assemble_gen_context 读法一致）
+            m.params["genre"] = {
+                "genre": res.get("genre") or "",
+                "sub": list(res.get("sub") or []),
+            }
+            save_manifest(m, self._project_dir)
+            self._refresh_structured()
+            self.projectStateChanged.emit()
+
+    def _on_pick_style_clicked(self):
+        if self._project_dir is None:
+            return
+        dlg = StyleBibleDialog(parent=self)
+        if dlg.exec() and dlg.result_value():
+            res = dlg.result_value()
+            m = load_manifest(self._project_dir)
+            m.style_bible["ref"] = res.get("ref") or ""
+            m.style_bible["category"] = res.get("category") or ""
+            save_manifest(m, self._project_dir)
+            self._refresh_structured()
+            self.projectStateChanged.emit()
+
+    def _on_aspect_changed(self, ratio: str):
+        if self._project_dir is not None:
+            m = load_manifest(self._project_dir)
+            m.params["aspect_ratio"] = ratio
+            save_manifest(m, self._project_dir)
+            self._refresh_injection_preview()
+        # 记住上次（cfg 可写则写，否则静默跳过）
+        self._cfg_set("last_aspect_ratio", ratio)
+
+    def _on_adv_toggled(self, on: bool):
+        self._adv_toggle.setArrowType(Qt.DownArrow if on else Qt.RightArrow)
+        self._adv_body.setVisible(on)
+
+    # —— cfg 记忆（best-effort；client/无 cfg 时静默降级）——
+
+    def _cfg(self):
+        return getattr(self._client, "cfg", None) or getattr(self._client, "config", None)
+
+    def _cfg_get(self, key: str):
+        cfg = self._cfg()
+        if cfg is None:
+            return None
+        return getattr(cfg, key, None)
+
+    def _cfg_set(self, key: str, value):
+        cfg = self._cfg()
+        if cfg is None:
+            return
+        try:
+            setattr(cfg, key, value)
+            save = getattr(cfg, "save", None)
+            if callable(save):
+                save()
+        except Exception:
+            pass
 
     # —— 流式 UI 状态 ——
 
@@ -195,6 +418,7 @@ class IdeatePage(_BaseStagePage):
         self._render_candidates()
         self._render_messages()
         if path is None:
+            self._refresh_structured()
             self._context_form.hide()
             self._send_btn.setEnabled(False)
             self._gen_first_btn.setEnabled(False)
@@ -202,6 +426,8 @@ class IdeatePage(_BaseStagePage):
             return
         self._send_btn.setEnabled(True)
         self._gen_first_btn.setEnabled(True)
+        # 题材/风格 chip、画幅初值、注入预览 ← project.json
+        self._refresh_structured()
         idea_path = idea_file_in(path)
         if idea_path is not None:
             try:
@@ -274,7 +500,7 @@ class IdeatePage(_BaseStagePage):
             "format": "短剧",
             "tone_tags": [],
             "visual_style": self._ctx_visual.text().strip(),
-            "candidate_count": 3,
+            "candidate_count": int(self._ctx_cand_count.value()),
             "duration_sec": int(self._ctx_duration.value()),
             "extra_constraints": self._ctx_extra.text().strip(),
         }
