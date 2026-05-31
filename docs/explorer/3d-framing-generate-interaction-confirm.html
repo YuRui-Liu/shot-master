@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3d 框选生成交互 — 流程可视化确认</title>
+<style>
+  :root{
+    --bg:#1e1e1e; --lane:#252525; --ov:#202024; --panel:#181818;
+    --video:#3a7bd5; --bgm:#5a9e6f; --sfx:#e8a838; --dialogue:#9b59b6;
+    --txt:#cdd6f4; --txt-dim:#a6adc8; --txt-faint:#6c7086;
+    --accent:#5599ff; --ok:#9bd6a4; --warn:#e0a0a0; --gen:#c9a227;
+    --label-w:54px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:#121212;color:var(--txt);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;}
+  .page{max-width:1320px;margin:0 auto;padding:28px 28px 64px;}
+  h1{font-size:20px;font-weight:700;margin:0 0 4px;letter-spacing:.5px;}
+  .sub{color:var(--txt-dim);font-size:13px;line-height:1.7;margin:0 0 24px;}
+  .sub code{background:#2a2a2a;border:1px solid #353535;border-radius:4px;
+    padding:1px 6px;font-size:12px;color:#e8e8e8;}
+  h2.sec{font-size:15px;margin:30px 0 14px;font-weight:650;
+    display:flex;align-items:center;gap:9px;}
+  h2.sec .n{font-size:12px;font-weight:700;background:var(--accent);color:#06122a;
+    border-radius:50%;width:22px;height:22px;display:inline-flex;
+    align-items:center;justify-content:center;}
+
+  .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  @media(max-width:1100px){.flow{grid-template-columns:1fr 1fr;}}
+  .card{background:var(--panel);border:1px solid #2c2c2c;border-radius:11px;
+    overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.4);display:flex;flex-direction:column;}
+  .card .ttl{padding:10px 13px;border-bottom:1px solid #2c2c2c;background:#1c1c1c;
+    font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:7px;}
+  .card .ttl .step{font-size:10px;color:var(--txt-faint);font-weight:700;}
+  .card .body{padding:13px;flex:1;}
+  .card .cap{font-size:11px;color:var(--txt-dim);line-height:1.65;margin-top:11px;}
+
+  /* mini DAW */
+  .daw{background:var(--bg);border:1px solid #000;border-radius:5px;overflow:hidden;}
+  .row{display:flex;align-items:stretch;border-bottom:1px solid #161616;position:relative;}
+  .row:last-child{border-bottom:none;}
+  .lab{width:var(--label-w);flex:0 0 var(--label-w);background:#1a1a1a;
+    border-right:1px solid #000;font-size:9px;color:var(--txt-dim);
+    display:flex;align-items:center;padding-left:6px;}
+  .lab.ov{color:var(--txt-faint);font-size:8.5px;}
+  .can{position:relative;flex:1;min-height:22px;background:var(--lane);}
+  .can.ov{background:var(--ov);}
+  .grp{display:flex;align-items:center;gap:5px;background:#202024;
+    border-bottom:1px solid #161616;border-top:1px solid #000;padding:2px 6px;}
+  .grp .car{font-size:8px;color:var(--txt-dim);} .grp .gt{font-size:9px;color:var(--txt-dim);font-weight:600;}
+  .blk{position:absolute;top:3px;bottom:3px;border-radius:3px;font-size:9px;
+    color:#fff;display:flex;align-items:center;padding:0 5px;white-space:nowrap;overflow:hidden;}
+  .blk.video{background:var(--video);left:0;right:0;}
+  .blk.bgm{background:var(--bgm);} .blk.sfx{background:var(--sfx);color:#3a2a00;}
+  .blk.dlg{background:var(--dialogue);}
+  .blk.ovbgm{background:repeating-linear-gradient(45deg,#5a9e6f 0 5px,#6cb182 5px 10px);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);}
+  .blk.ovsfx{background:repeating-linear-gradient(45deg,#e8a838 0 5px,#f2bd5c 5px 10px);color:#3a2a00;}
+  /* 生成中占位 */
+  .blk.gen{background:repeating-linear-gradient(45deg,#3a3a2a 0 6px,#48402a 6px 12px);
+    color:var(--gen);box-shadow:inset 0 0 0 1px var(--gen);animation:pulse 1.3s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+  .blk.fail{background:repeating-linear-gradient(45deg,#3a2424 0 6px,#492a2a 6px 12px);
+    color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn);}
+  .ph{position:absolute;top:0;bottom:0;width:1px;background:#ff4444;z-index:4;}
+  /* rubber band 框选 */
+  .rb{position:absolute;top:0;bottom:0;background:rgba(85,153,255,.16);
+    border:1px solid var(--accent);z-index:3;}
+  .rb .rbt{position:absolute;top:-15px;left:50%;transform:translateX(-50%);
+    font-size:8.5px;color:var(--accent);white-space:nowrap;background:#101822;
+    padding:0 4px;border-radius:3px;}
+
+  /* dialog mock */
+  .dlgbox{background:#232330;border:1px solid #3a3a4d;border-radius:9px;
+    box-shadow:0 10px 30px rgba(0,0,0,.6);overflow:hidden;}
+  .dlgbox .dh{padding:9px 12px;background:#2a2a3a;font-size:12px;font-weight:600;
+    border-bottom:1px solid #3a3a4d;}
+  .dlgbox .db{padding:12px;}
+  .seg-toggle{display:flex;gap:0;margin-bottom:11px;border:1px solid #3d3d55;
+    border-radius:7px;overflow:hidden;}
+  .seg-toggle div{flex:1;text-align:center;font-size:11px;padding:6px 0;color:var(--txt-dim);cursor:pointer;}
+  .seg-toggle div.on{background:#5a9e6f;color:#fff;font-weight:600;}
+  .fld-lab{font-size:10px;color:var(--txt-faint);margin:0 0 4px;}
+  .ta{background:#16161e;border:1px solid #3d3d55;border-radius:6px;padding:7px 8px;
+    font-size:11px;color:var(--txt);min-height:46px;line-height:1.5;}
+  .ta .ph2{color:var(--txt-faint);}
+  .meta-row{display:flex;justify-content:space-between;font-size:10px;color:var(--txt-dim);
+    margin:9px 0 12px;}
+  .meta-row b{color:var(--txt);}
+  .btns{display:flex;gap:8px;justify-content:flex-end;}
+  .btn{font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid #3d3d55;
+    background:transparent;color:var(--txt-dim);}
+  .btn.pri{background:var(--accent);color:#06122a;border-color:var(--accent);font-weight:600;}
+  .llm-badge{display:inline-block;font-size:9px;color:#89b4fa;border:1px solid #2c4a6e;
+    border-radius:10px;padding:0 6px;margin-left:6px;}
+
+  /* forks */
+  .forks{margin-top:14px;display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
+  @media(max-width:900px){.forks{grid-template-columns:1fr;}}
+  .fork{background:#1a1a1a;border:1px solid #2c2c2c;border-radius:9px;padding:14px;}
+  .fork .q{font-size:12.5px;color:var(--txt);font-weight:600;margin-bottom:9px;}
+  .fork ul{margin:0;padding-left:17px;font-size:12px;color:var(--txt-dim);line-height:1.75;}
+  .fork .rec{color:var(--ok);font-weight:600;}
+  .fork .note{margin-top:7px;font-size:10.5px;color:var(--txt-faint);}
+  .pill{font-size:10px;padding:1px 7px;border-radius:9px;border:1px solid #3d3d55;color:var(--txt-faint);}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>3d 框选生成交互 — 流程可视化确认</h1>
+  <p class="sub">
+    #3 最后一块：在时间轴<b>框选区间</b> + prompt → <b>生成</b> BGM/SFX 片段 → 落进 <code>OverlaySession</code>（3c 渲染、3b 播放）。
+    下面是我建议的<b>推荐流程</b>（4 步），再往下是几个需要你拍板的<b>设计分叉</b>。生成走 RunningHub <b>异步 10–120s</b>，所以「生成中/失败」态是重点。
+  </p>
+
+  <!-- 推荐流程 -->
+  <h2 class="sec"><span class="n">流</span>推荐流程（Shift+框选 → 对话框 → 生成中 → 完成）</h2>
+  <div class="flow">
+
+    <!-- step1 框选 -->
+    <div class="card">
+      <div class="ttl"><span class="step">STEP 1</span>时间轴框选</div>
+      <div class="body">
+        <div class="daw">
+          <div class="row"><div class="lab">原声</div><div class="can"><div class="blk video">原声</div></div></div>
+          <div class="row"><div class="lab">BGM</div><div class="can"><div class="blk bgm" style="left:4%;width:42%">主题曲</div></div></div>
+          <div class="row"><div class="lab">SFX</div><div class="can"><div class="blk sfx" style="left:22%;width:16%">脚步</div></div></div>
+          <div class="row"><div class="lab">对白</div><div class="can"><div class="blk dlg" style="left:10%;width:30%">A：你来了</div></div></div>
+          <div class="grp"><span class="car">▼</span><span class="gt">动态叠加区(0)</span></div>
+          <div class="row"><div class="lab ov">（空）</div><div class="can ov" style="min-height:26px">
+            <div class="rb" style="left:46%;width:30%"><span class="rbt">10.0s – 18.0s</span></div>
+          </div></div>
+          <div class="ph" style="left:46%"></div>
+        </div>
+        <div class="cap"><b>Shift+拖拽</b>在时间轴拉出蓝色选区（复用现有 rubber band）。
+        释放 → <code>_on_rubber_band</code> 用 <code>_x_to_t</code> 算出 <code>[t_start,t_end]</code>。</div>
+      </div>
+    </div>
+
+    <!-- step2 对话框 -->
+    <div class="card">
+      <div class="ttl"><span class="step">STEP 2</span>生成对话框</div>
+      <div class="body">
+        <div class="dlgbox">
+          <div class="dh">生成叠加片段</div>
+          <div class="db">
+            <div class="seg-toggle"><div class="on">BGM</div><div>SFX</div></div>
+            <div class="fld-lab">提示词 <span class="llm-badge">可 LLM 预填</span></div>
+            <div class="ta">紧张悬疑的弦乐垫底，心跳般的低频脉冲<span class="ph2"> ▍</span></div>
+            <div class="meta-row"><span>区间 <b>10.0–18.0s</b></span><span>时长 <b>8.0s</b>（=框选）</span></div>
+            <div class="btns"><span class="btn">取消</span><span class="btn pri">生成</span></div>
+          </div>
+        </div>
+        <div class="cap">切 BGM/SFX（决定后端管线）+ 输入/编辑 prompt。时长默认 = 框选长度。</div>
+      </div>
+    </div>
+
+    <!-- step3 生成中 -->
+    <div class="card">
+      <div class="ttl"><span class="step">STEP 3</span>生成中（异步不阻塞）</div>
+      <div class="body">
+        <div class="daw">
+          <div class="row"><div class="lab">BGM</div><div class="can"><div class="blk bgm" style="left:4%;width:42%">主题曲</div></div></div>
+          <div class="row"><div class="lab">SFX</div><div class="can"><div class="blk sfx" style="left:22%;width:16%">脚步</div></div></div>
+          <div class="grp"><span class="car">▼</span><span class="gt">动态叠加区(1)</span></div>
+          <div class="row"><div class="lab ov">bgm·0</div><div class="can ov" style="min-height:26px">
+            <div class="blk gen" style="left:46%;width:30%">⟳ 生成中…</div>
+          </div></div>
+          <div class="ph" style="left:46%"></div>
+        </div>
+        <div class="cap">立刻在对应 lane 落一个<b>「生成中」占位块</b>（脉冲斜纹），后台线程轮询 RunningHub，
+        <b>UI 不卡</b>。需给 <code>OverlaySegment</code> 加 <code>status</code> 字段。</div>
+      </div>
+    </div>
+
+    <!-- step4 完成 -->
+    <div class="card">
+      <div class="ttl"><span class="step">STEP 4</span>完成 / 失败</div>
+      <div class="body">
+        <div class="daw">
+          <div class="row"><div class="lab">BGM</div><div class="can"><div class="blk bgm" style="left:4%;width:42%">主题曲</div></div></div>
+          <div class="grp"><span class="car">▼</span><span class="gt">动态叠加区(2)</span></div>
+          <div class="row"><div class="lab ov">bgm·0</div><div class="can ov" style="min-height:26px">
+            <div class="blk ovbgm" style="left:46%;width:30%">悬疑垫乐</div></div></div>
+          <div class="row"><div class="lab ov">bgm·1</div><div class="can ov" style="min-height:26px">
+            <div class="blk fail" style="left:46%;width:30%">✕ 失败 ↻</div></div></div>
+          <div class="ph" style="left:46%"></div>
+        </div>
+        <div class="cap"><b>成功</b>：占位变实块（填 <code>audio_path</code> → <code>save_overlay</code> →
+        <code>mix_engine.set_segments</code> → 刷新，正在播则立即叠加出声）。<br><b>失败</b>：红块「↻」可重试。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设计分叉 -->
+  <h2 class="sec"><span class="n">叉</span>需要你拍板的设计分叉</h2>
+  <div class="forks">
+    <div class="fork">
+      <div class="q">① prompt 来源</div>
+      <ul>
+        <li><span class="rec">用户输入 + LLM 预填（推荐）</span>：按框选区间的字幕/画面让 LLM 推荐一句，预填进输入框，可改</li>
+        <li>纯用户输入：输入框默认空，最简，不接 LLM</li>
+      </ul>
+      <div class="note">LLM 预填更智能但要接一次推理调用；纯输入实现快。</div>
+    </div>
+    <div class="fork">
+      <div class="q">② 异步生成的反馈方式</div>
+      <ul>
+        <li><span class="rec">lane 内「生成中」占位块（推荐）</span>：最符合 DAW 直觉，能多条并行生成</li>
+        <li>modal 进度条：阻塞，一次只能等一个</li>
+        <li>角落 toast：不占轨，但定位感弱</li>
+      </ul>
+      <div class="note">推荐需给 OverlaySegment 加 status(pending/generating/generated/failed)。</div>
+    </div>
+    <div class="fork">
+      <div class="q">③ 时长</div>
+      <ul>
+        <li><span class="rec">自动 = 框选长度（推荐）</span>：t_end−t_start，所见即所得</li>
+        <li>对话框可微调：多一个时长输入，灵活但啰嗦</li>
+      </ul>
+      <div class="note">BGM 走 compose_acestep_inputs(duration)；SFX 限 1–15s（管线约束）。</div>
+    </div>
+    <div class="fork">
+      <div class="q">④ OverlaySegment.status 字段（小改 3a）</div>
+      <ul>
+        <li><span class="rec">加 status（推荐）</span>：支持生成中/失败态、重试、占位渲染</li>
+        <li>不加：audio_path 空即「未生成」，无法区分「生成中」与「失败」</li>
+      </ul>
+      <div class="note">加字段需同步 OverlaySegment.to_dict/from_dict + 一条迁移兼容（旧数据默认 generated）。</div>
+    </div>
+  </div>
+
+  <p class="sub" style="margin-top:26px">
+    看完告诉我：<b>① prompt 来源</b> / <b>② 反馈方式</b> / <b>③ 时长</b> / <b>④ 要不要加 status</b> —— 或直接说「用推荐默认」。
+    其余已锁：框选=时间轴 Shift 拖拽、生成走 RunningHub 异步后台线程、落库=OverlaySession.add+save_overlay+引擎刷新。
+    （注：3d 实现要等 3c 工作流落地后再开。）
+  </p>
+</div>
+</body>
+</html>
