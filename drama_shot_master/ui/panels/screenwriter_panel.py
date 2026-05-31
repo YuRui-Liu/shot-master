@@ -24,7 +24,7 @@ from drama_shot_master.ui.widgets.screenwriter.video_prompt_page import VideoPro
 from drama_shot_master.ui.widgets.screenwriter.audio_prompt_page import AudioPromptPage
 
 
-_STAGE_NAMES = ["创意", "剧本", "分镜", "分镜图提示词", "视频提示词", "配音配乐"]
+_STAGE_NAMES = ["创意", "剧本", "分镜", "分镜图提示词", "视频提示词", "配音配乐提示词"]
 
 
 class ScreenwriterPanel(QWidget):

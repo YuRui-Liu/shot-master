@@ -104,7 +104,7 @@ class _IconRail(QWidget):
         layout.setContentsMargins(0, 4, 0, 4)
         layout.setSpacing(0)
 
-        self._expand_btn = QPushButton("》")
+        self._expand_btn = QPushButton("▶")
         self._expand_btn.setFixedSize(40, 28)
         self._expand_btn.setToolTip("展开任务栏")
         self._expand_btn.setObjectName("iconRailExpandBtn")
@@ -198,7 +198,7 @@ class CollapsibleTaskBar(QWidget):
         ts_layout.setContentsMargins(0, 2, 4, 2)
         ts_layout.setSpacing(0)
         ts_layout.addStretch(1)
-        self._collapse_btn = QPushButton("《")
+        self._collapse_btn = QPushButton("◀")
         self._collapse_btn.setFixedSize(28, 22)
         self._collapse_btn.setObjectName("taskBarCollapseBtn")
         self._collapse_btn.setToolTip("折叠任务栏")

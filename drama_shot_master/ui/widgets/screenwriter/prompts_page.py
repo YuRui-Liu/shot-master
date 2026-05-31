@@ -128,9 +128,6 @@ class PromptsPage(_BaseStagePage):
         self._save_btn.clicked.connect(self._on_save_clicked)
         bar.addWidget(self._save_btn)
         bar.addStretch(1)
-        self._complete_btn = QPushButton("完成 ✓")
-        self._complete_btn.clicked.connect(self._on_complete_clicked)
-        bar.addWidget(self._complete_btn)
         self._advance_btn = QPushButton("推进到视频提示词 →")
         self._advance_btn.clicked.connect(self._on_advance_to_video)
         bar.addWidget(self._advance_btn)
@@ -155,7 +152,7 @@ class PromptsPage(_BaseStagePage):
             self._editor.blockSignals(True); self._editor.clear()
             self._editor.blockSignals(False)
             self._original_text = ""
-            for b in (self._gen_btn, self._save_btn, self._complete_btn):
+            for b in (self._gen_btn, self._save_btn):
                 b.setEnabled(False)
             return
         # 自检上游：按当前集读分镜
@@ -167,7 +164,6 @@ class PromptsPage(_BaseStagePage):
                 stage_name="分镜", expected_file="分镜.json")
             self._sb = None
             self._gen_btn.setEnabled(False)
-            self._complete_btn.setEnabled(False)
             self._tree.clear()
             self._tree.tree_items = {}
             self._prompts_dir = None
@@ -185,7 +181,6 @@ class PromptsPage(_BaseStagePage):
                  for s in (self._sb.get("shots") or [])])
         self._rebuild_tree()
         self._gen_btn.setEnabled(self._sb is not None)
-        self._complete_btn.setEnabled(True)
         self._editor.blockSignals(True); self._editor.clear()
         self._editor.blockSignals(False)
         self._current_file = None
@@ -224,7 +219,6 @@ class PromptsPage(_BaseStagePage):
                  for s in (self._sb.get("shots") or [])])
         self._rebuild_tree()
         self._gen_btn.setEnabled(self._sb is not None)
-        self._complete_btn.setEnabled(True)
         self._current_file = None
         self._editor.blockSignals(True); self._editor.clear()
         self._editor.blockSignals(False)
@@ -312,11 +306,6 @@ class PromptsPage(_BaseStagePage):
     def _on_open_prompts_dir(self):
         if self._prompts_dir and self._prompts_dir.is_dir():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._prompts_dir)))
-
-    def _on_complete_clicked(self):
-        # 不切阶段；只发完成信号
-        self.statusMessage.emit("项目已完成 ✓")
-        self.projectStateChanged.emit()
 
     def _on_advance_to_video(self) -> None:
         self.stageAdvanceRequested.emit(4)   # Stage 5 = index 4

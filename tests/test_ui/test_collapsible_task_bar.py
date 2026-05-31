@@ -259,7 +259,7 @@ def test_collapse_btn_resets_padding():
 
 
 def test_expand_btn_resets_padding():
-    """展开按钮「》」同样须含 padding:0（同一根因）。"""
+    """展开按钮「▶」同样须含 padding:0（同一根因）。"""
     _app()
     bar, _ = _make_bar()
     qss = bar._icon_rail._expand_btn.styleSheet().replace(" ", "")
