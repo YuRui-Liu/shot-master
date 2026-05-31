@@ -85,7 +85,7 @@ def test_runninghub_section_validate_requires_director_workflow_id():
 
 def test_translation_section_class_metadata():
     assert TranslationSection.title == "翻译"
-    assert TranslationSection.category == "平台核心"
+    assert TranslationSection.category == "其他"      # 翻译非平台核心
 
 
 def test_translation_section_load_save_roundtrip():

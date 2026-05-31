@@ -12,6 +12,7 @@ from drama_shot_master.ui.widgets.settings_sections import (
     RunningHubSection, LLMPlatformsSection,
     TranslationSection, RefineSection,
     ImgGenSection, DubSection, SoundtrackSection, ScreenwriterSection,
+    PipelineSection, ProjectManagementSection,
 )
 
 
@@ -36,6 +37,8 @@ class UnifiedSettingsDialog(QDialog):
             DubSection(self._cfg),
             SoundtrackSection(self._cfg),
             ScreenwriterSection(self._cfg),
+            ProjectManagementSection(self._cfg),
+            PipelineSection(self._cfg),
         ]
 
     def _build_ui(self):
@@ -46,7 +49,7 @@ class UnifiedSettingsDialog(QDialog):
         # 关闭横向滚动条——树宽不够时让 splitter 拉，不要出滑块
         self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         cats: dict[str, QTreeWidgetItem] = {}
-        ORDER = ["平台核心", "生成功能", "辅助", "外观"]
+        ORDER = ["平台核心", "生成功能", "辅助", "应用", "其他", "外观"]
         for cat in ORDER:
             top = QTreeWidgetItem([cat])
             self.tree.addTopLevelItem(top)

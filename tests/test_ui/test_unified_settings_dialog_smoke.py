@@ -45,10 +45,10 @@ def test_dialog_has_tree_and_stack(dlg):
     assert isinstance(dlg.stack, QStackedWidget)
 
 
-def test_dialog_has_8_sections(dlg):
-    # 8 sections: RunningHub / LLMPlatforms / Translation / Refine / ImgGen / Dub / Soundtrack / Screenwriter
-    # Theme section 已退役（只支持深色）
-    assert dlg.stack.count() == 8
+def test_dialog_has_10_sections(dlg):
+    # 10 sections: RunningHub / LLMPlatforms / Translation / Refine / ImgGen / Dub /
+    # Soundtrack / Screenwriter / ProjectManagement / Pipeline（Theme 已退役）
+    assert dlg.stack.count() == 10
 
 
 def test_dialog_tree_categories(dlg):

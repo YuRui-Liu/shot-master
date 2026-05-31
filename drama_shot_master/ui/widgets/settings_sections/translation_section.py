@@ -25,7 +25,7 @@ _REGIONS = [
 
 class TranslationSection(QWidget):
     title = "翻译"
-    category = "平台核心"
+    category = "其他"          # 翻译非平台核心，归「其他」
 
     def __init__(self, cfg, parent=None):
         super().__init__(parent)

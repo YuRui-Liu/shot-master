@@ -10,10 +10,13 @@ from .dub_section import DubSection
 from .soundtrack_section import SoundtrackSection
 from .screenwriter_section import ScreenwriterSection
 from .theme_section import ThemeSection
+from .pipeline_section import PipelineSection
+from .project_management_section import ProjectManagementSection
 
 __all__ = [
     "RunningHubSection", "LLMPlatformsSection",
     "TranslationSection", "RefineSection",
     "ImgGenSection", "DubSection", "SoundtrackSection",
     "ScreenwriterSection", "ThemeSection",
+    "PipelineSection", "ProjectManagementSection",
 ]
