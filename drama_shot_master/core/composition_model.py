@@ -43,7 +43,7 @@ class ReelClip:
         return max(_DUR_MIN, min(_DUR_MAX, float(d)))
 
     def trimmed_duration(self) -> float:
-        start = self.in_point or 0.0
+        start = self.in_point if self.in_point is not None else 0.0
         end = self.out_point if self.out_point is not None else self.duration
         return max(0.0, end - start)
 
@@ -65,7 +65,7 @@ class ReelClip:
             keep=bool(d.get("keep", True)),
             in_point=d.get("in_point"),
             out_point=d.get("out_point"),
-            duration=float(d.get("duration") or 0.0),
+            duration=float(d["duration"]) if d.get("duration") is not None else 0.0,
             auto_transition=d.get("auto_transition"),
             auto_duration=d.get("auto_duration"),
             user_transition=d.get("user_transition"),
