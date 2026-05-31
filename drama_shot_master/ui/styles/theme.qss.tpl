@@ -407,6 +407,12 @@ QPushButton#AccentButton:pressed {{ background: #1f55c8; }}
    欢迎首页
    ═══════════════════════════════════════════════════ */
 
+/* 容器透明：让 WelcomePage.paintEvent 的渐变+光晕透出
+   （否则全局 QWidget{{background-color:bg}} 会用 #1e1f22 灰底盖住渐变） */
+#WelcomeHero, #WelcomeCardsArea, #WelcomePagination {{
+    background: transparent;
+}}
+
 #WelcomeNavBar {{
     background: {welcome_nav_bg};
     border-bottom: 1px solid {welcome_nav_border};

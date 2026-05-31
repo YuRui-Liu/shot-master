@@ -92,7 +92,8 @@ def test_welcome_page_refresh_shows_empty_state(tmp_path):
     mgr = RecentProjectsManager(tmp_path / "r.json")
     page = WelcomePage(mgr)
     page.refresh()
-    assert page._cards_layout.count() >= 1
+    assert len(page._cards) >= 1            # 至少有新建卡
+    assert page._hint is not None           # 空状态有引导提示
 
 
 def test_welcome_page_refresh_shows_projects(tmp_path):
@@ -103,7 +104,7 @@ def test_welcome_page_refresh_shows_projects(tmp_path):
     mgr.push(str(tmp_path), "TestProj")
     page = WelcomePage(mgr)
     page.refresh()
-    assert page._cards_layout.count() >= 2
+    assert len(page._cards) >= 2            # 项目卡 + 新建卡
 
 
 def test_welcome_page_project_selected_signal(tmp_path):
@@ -119,8 +120,7 @@ def test_welcome_page_project_selected_signal(tmp_path):
     got = []
     page.project_selected.connect(got.append)
 
-    for i in range(page._cards_layout.count()):
-        w = page._cards_layout.itemAt(i).widget()
+    for w in page._cards:
         if isinstance(w, ProjectCard) and not w._is_add:
             w.clicked.emit(str(tmp_path))
             break
@@ -132,7 +132,6 @@ def test_welcome_page_cards_have_staggered_heights(tmp_path):
     _app()
     from drama_shot_master.core.recent_projects import RecentProjectsManager
     from drama_shot_master.ui.pages.welcome_page import WelcomePage
-    from drama_shot_master.ui.widgets.project_card import ProjectCard
     mgr = RecentProjectsManager(tmp_path / "r.json")
     for i in range(4):
         d = tmp_path / f"p{i}"
@@ -141,12 +140,8 @@ def test_welcome_page_cards_have_staggered_heights(tmp_path):
     page = WelcomePage(mgr)
     page.resize(1360, 800)
     page.refresh()
-    page._apply_card_heights()
-    heights = {}
-    for i in range(page._cards_layout.count()):
-        w = page._cards_layout.itemAt(i).widget()
-        if isinstance(w, ProjectCard):
-            heights[w._depth] = w.height()
+    page._relayout_cards()
+    heights = {c._depth: c.height() for c in page._cards}
     # 景深阶梯：center 最高 > near > far，且都被设成了固定高度（非 0）
     assert heights["center"] > heights["near"] > heights["far"] > 0
 
@@ -155,7 +150,6 @@ def test_welcome_page_cards_are_portrait_and_centered(tmp_path):
     _app()
     from drama_shot_master.core.recent_projects import RecentProjectsManager
     from drama_shot_master.ui.pages.welcome_page import WelcomePage
-    from drama_shot_master.ui.widgets.project_card import ProjectCard
     mgr = RecentProjectsManager(tmp_path / "r.json")
     d = tmp_path / "p0"
     d.mkdir()
@@ -167,6 +161,10 @@ def test_welcome_page_cards_are_portrait_and_centered(tmp_path):
     center = next(c for c in page._cards if c._depth == "center")
     # 竖向缩略图：宽 < 高（不再是撑满宽度的横向大块）
     assert center.width() < center.height()
+    # 焦点卡水平居中：中点 ≈ 卡片区中线（容差 2px）
+    area_mid = page._cards_area.width() / 2
+    center_mid = center.x() + center.width() / 2
+    assert abs(center_mid - area_mid) <= 2
     # 卡片组不铺满整宽 → 背景/光晕从两侧透出
     total = sum(c.width() for c in page._cards)
     assert total < page._cards_area.width() - 48

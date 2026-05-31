@@ -24,8 +24,11 @@ _DEPTH_FLEX = {"far": 0.65, "near": 0.85, "center": 1.4, "add": 0.5}
 _CENTER_ASPECT = 0.64
 # 卡片间距（与 _cards_layout spacing 保持一致）
 _CARD_GAP = 14
-# 中心卡最大高度上限：防止在 HiDPI/大屏上卡片膨胀，进而把窗口最小宽度撑爆
-_MAX_CENTER_H = 600
+# 中心卡最大高度上限：防止在 HiDPI/大屏上卡片过大（手动定位下不影响窗口最小宽，
+# 仅用于视觉比例控制，避免卡片过分巨大）
+_MAX_CENTER_H = 640
+# 卡片区左右安全边距
+_CARDS_MARGIN = 24
 
 
 class WelcomePage(QWidget):
@@ -135,11 +138,12 @@ class WelcomePage(QWidget):
         return hero
 
     def _make_cards_area(self) -> QWidget:
+        # 卡片用手动 setGeometry 定位（聚焦卡居中），不用布局：
+        # 这样焦点卡可精确锚定到画布水平中线，且卡片不会把窗口最小宽度撑大。
         w = QWidget()
         w.setObjectName("WelcomeCardsArea")
-        self._cards_layout = QHBoxLayout(w)
-        self._cards_layout.setContentsMargins(24, 8, 24, 8)
-        self._cards_layout.setSpacing(_CARD_GAP)
+        self._cards = []
+        self._hint = None
         return w
 
     def _make_pagination(self) -> QWidget:
@@ -159,28 +163,27 @@ class WelcomePage(QWidget):
         self._rebuild_pagination(projects)
 
     def _rebuild_cards(self, projects: list[dict]) -> None:
-        self._clear_layout(self._cards_layout)
+        # 删除旧的自由子控件（卡片 + 空状态提示）
+        for c in self._cards:
+            c.setParent(None)
+            c.deleteLater()
         self._cards = []
+        if self._hint is not None:
+            self._hint.setParent(None)
+            self._hint.deleteLater()
+            self._hint = None
 
         if not projects:
-            # 空状态：居中竖排 —— 引导文案 + 新建虚线卡
-            wrap = QWidget()
-            wlay = QVBoxLayout(wrap)
-            wlay.setContentsMargins(0, 0, 0, 0)
-            wlay.setSpacing(14)
-            wlay.setAlignment(Qt.AlignCenter)
-            hint = QLabel("创建你的第一个项目")
-            hint.setObjectName("WelcomeEmptyHint")
-            hint.setAlignment(Qt.AlignCenter)
-            wlay.addWidget(hint, 0, Qt.AlignCenter)
-            add_card = ProjectCard(None, depth="add", is_add_button=True)
+            # 空状态：引导文案 + 新建虚线卡，均居中（提示在加号卡正上方）
+            self._hint = QLabel("创建你的第一个项目", self._cards_area)
+            self._hint.setObjectName("WelcomeEmptyHint")
+            self._hint.setAlignment(Qt.AlignCenter)
+            self._hint.show()
+            add_card = ProjectCard(None, depth="add", is_add_button=True,
+                                   parent=self._cards_area)
             add_card.clicked.connect(lambda _: self.new_project_requested.emit())
-            wlay.addWidget(add_card, 0, Qt.AlignCenter)
+            add_card.show()
             self._cards.append(add_card)
-
-            self._cards_layout.addStretch(1)
-            self._cards_layout.addWidget(wrap, 0, Qt.AlignVCenter)
-            self._cards_layout.addStretch(1)
             self._relayout_cards()
             return
 
@@ -194,28 +197,19 @@ class WelcomePage(QWidget):
         else:
             depths = ["far", "near", "center", "near"]
 
-        # 居中走马灯：两端弹簧把卡片组推到画布中线，卡片用固定竖向尺寸
-        self._cards_layout.addStretch(1)
         for i, (proj, depth) in enumerate(zip(show, depths)):
-            card = ProjectCard(proj, depth=depth, color_index=i)
+            card = ProjectCard(proj, depth=depth, color_index=i,
+                               parent=self._cards_area)
             card.clicked.connect(self._on_card_clicked)
-            self._cards_layout.addWidget(card, 0, Qt.AlignVCenter)
+            card.show()
             self._cards.append(card)
 
-        add_card = ProjectCard(None, depth="add", is_add_button=True)
+        add_card = ProjectCard(None, depth="add", is_add_button=True,
+                               parent=self._cards_area)
         add_card.clicked.connect(lambda _: self.new_project_requested.emit())
-        self._cards_layout.addWidget(add_card, 0, Qt.AlignVCenter)
+        add_card.show()
         self._cards.append(add_card)
-        self._cards_layout.addStretch(1)
         self._relayout_cards()
-
-    @staticmethod
-    def _clear_layout(layout) -> None:
-        while layout.count():
-            item = layout.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
 
     def _rebuild_pagination(self, projects: list[dict]) -> None:
         while self._page_layout.count():
@@ -239,38 +233,58 @@ class WelcomePage(QWidget):
             self.new_project_requested.emit()
 
     def _relayout_cards(self) -> None:
-        """按竖向缩略图比例计算每张卡的固定宽高，形成居中景深走马灯。
+        """手动定位卡片：焦点卡(center)锚定到画布水平中线，形成居中景深走马灯。
 
-        - 高度 = 可用高 × depth 高度比例（center 最高）
+        - 高度 = 中心卡高 × depth 高度比例；中心卡高 = min(可用高, 上限)
         - 宽度 = (center 宽 / center flex) × depth flex；center 宽由 _CENTER_ASPECT 决定
-        - 若总宽超出可用宽，整体等比缩小，保证不撑破/不溢出
+        - 焦点卡中点对齐画布中线（而非整组居中）→ 单/多项目下项目卡都视觉居中
+        - 各卡垂直居中；空状态提示居中显示在加号卡正上方
         """
-        cards = [c for c in getattr(self, "_cards", []) if c is not None]
+        cards = [c for c in self._cards if c is not None]
         if not cards:
             return
-        avail_h = self._cards_area.height()
-        avail_w = self._cards_area.width() - 48   # 减去左右内边距
-        if avail_h <= 0 or avail_w <= 0:
+        aw = self._cards_area.width()
+        ah = self._cards_area.height()
+        if aw <= 0 or ah <= 0:
             return
 
-        # 限制中心卡高度上限：大屏/HiDPI 下卡片不再膨胀，避免固定宽度把窗口
-        # 最小宽度撑爆（曾导致 QWindowsWindow::setGeometry 失败、窗口无法缩小）
-        center_h = min(avail_h, _MAX_CENTER_H)
+        avail_w = aw - 2 * _CARDS_MARGIN
+        center_h = min(ah - 16, _MAX_CENTER_H)
         center_w = center_h * _CENTER_ASPECT
         unit_w = center_w / _DEPTH_FLEX["center"]
-        sizes = []
-        for c in cards:
-            h = center_h * c.height_ratio()   # 高度相对（已上限的）中心卡，保持竖向比例
-            w = unit_w * _DEPTH_FLEX.get(c._depth, 0.85)
-            sizes.append([w, h])
+        sizes = [[unit_w * _DEPTH_FLEX.get(c._depth, 0.85), center_h * c.height_ratio()]
+                 for c in cards]
 
         total_w = sum(s[0] for s in sizes) + _CARD_GAP * (len(sizes) - 1)
-        if total_w > avail_w:
+        if total_w > avail_w and total_w > 0:
             scale = avail_w / total_w
             sizes = [[w * scale, h * scale] for w, h in sizes]
+            total_w = avail_w
 
+        # 锚点：把 center 卡中点对齐画布中线；无 center 则整组居中
+        depths = [c._depth for c in cards]
+        if "center" in depths:
+            ci = depths.index("center")
+            left_w = sum(sizes[k][0] for k in range(ci)) + _CARD_GAP * ci
+            group_left = aw / 2 - (left_w + sizes[ci][0] / 2)
+            # 安全夹取：整组不超出左右边距
+            group_left = max(_CARDS_MARGIN,
+                             min(group_left, aw - _CARDS_MARGIN - total_w))
+        else:
+            group_left = (aw - total_w) / 2
+
+        x = group_left
         for c, (w, h) in zip(cards, sizes):
-            c.setFixedSize(max(1, int(w)), max(1, int(h)))
+            y = (ah - h) / 2
+            c.setGeometry(int(round(x)), int(round(y)), int(round(w)), int(round(h)))
+            x += w + _CARD_GAP
+
+        # 空状态提示：居中显示在加号卡正上方
+        if self._hint is not None and cards:
+            add = cards[0]
+            hh = self._hint.sizeHint().height()
+            hw = min(self._hint.sizeHint().width() + 8, aw)
+            self._hint.setGeometry((aw - hw) // 2, max(0, add.y() - hh - 16), hw, hh)
 
     # 兼容旧调用名（测试/历史代码）
     def _apply_card_heights(self) -> None:
@@ -285,10 +299,12 @@ class WelcomePage(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
 
+        # 背景比标题栏(#0d1020 ≈ rgb13,16,32)略浅、且为蓝紫调而非中性灰；
+        # 不再下探到近黑 #08090f（那会比标题栏更深、形成高对比灰带）。
         bg = QLinearGradient(0, 0, w, h)
-        bg.setColorAt(0.0, QColor("#0d1020"))
-        bg.setColorAt(0.45, QColor("#08090f"))
-        bg.setColorAt(1.0, QColor("#100820"))
+        bg.setColorAt(0.0, QColor("#161a31"))   # (22,26,49) 略浅
+        bg.setColorAt(0.5, QColor("#13162c"))   # (19,22,44) 仍略浅于标题栏
+        bg.setColorAt(1.0, QColor("#181230"))   # (24,18,48) 微紫
         p.fillRect(self.rect(), QBrush(bg))
 
         top_glow = QRadialGradient(w / 2, 0, w * 0.45)
