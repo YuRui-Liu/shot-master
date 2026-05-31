@@ -22,12 +22,15 @@ class OverlaySegment:
     audio_path: str = ""
     volume: float = 1.0
     enabled: bool = True
+    # 生成状态：pending|generating|generated|failed
+    status: str = "generated"
 
     def to_dict(self) -> dict:
         return {"id": self.id, "kind": self.kind, "lane": self.lane,
                 "t_start": self.t_start, "t_end": self.t_end,
                 "prompt": self.prompt, "audio_path": self.audio_path,
-                "volume": self.volume, "enabled": self.enabled}
+                "volume": self.volume, "enabled": self.enabled,
+                "status": self.status}
 
     @classmethod
     def from_dict(cls, d: dict) -> "OverlaySegment":
@@ -36,7 +39,8 @@ class OverlaySegment:
             t_start=float(d["t_start"]), t_end=float(d["t_end"]),
             prompt=d.get("prompt", ""), audio_path=d.get("audio_path", ""),
             volume=float(d.get("volume", 1.0)),
-            enabled=bool(d.get("enabled", True)))
+            enabled=bool(d.get("enabled", True)),
+            status=d.get("status", "generated"))   # 旧数据无 status → 迁移
 
 
 def _overlaps(a0: float, a1: float, b0: float, b1: float) -> bool:
@@ -58,11 +62,11 @@ class OverlaySession:
         return max_lane + 1
 
     def add(self, kind: str, t_start: float, t_end: float, prompt: str,
-            *, seg_id: str) -> OverlaySegment:
+            *, seg_id: str, status: str = "generated") -> OverlaySegment:
         lane = self._assign_lane(kind, t_start, t_end)
         seg = OverlaySegment(id=seg_id, kind=kind, lane=lane,
                              t_start=float(t_start), t_end=float(t_end),
-                             prompt=prompt)
+                             prompt=prompt, status=status)
         self.segments.append(seg)
         return seg
 

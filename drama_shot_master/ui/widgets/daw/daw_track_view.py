@@ -47,6 +47,27 @@ _OV_SEG_COLORS = {
 }
 _OV_LANE_BG = QColor("#202024")
 
+# 状态态色：generating=灰、failed=红（generated 走 kind 原色，故此处不收录）
+_OV_STATUS_GENERATING = QColor("#777777")
+_OV_STATUS_FAILED = QColor("#c0392b")
+
+
+def _overlay_block_style(status: str):
+    """按片段 status 给出叠加块的（覆盖色 / None, 文案前缀）。
+
+    纯函数便于单测：
+    - "generating" → 灰斜纹占位 + "⟳"（脉冲生成中）；
+    - "failed"     → 红斜纹 + "✕"（失败可重试）；
+    - 其它（含 "generated"/未知）→ 兜底走 generated：覆盖色 None（沿用 kind 原色）+ 空前缀。
+
+    覆盖色为 None 表示用调用方按 row.kind 取的原色；非 None 则强制该状态色。
+    """
+    if status == "generating":
+        return _OV_STATUS_GENERATING, "⟳ "
+    if status == "failed":
+        return _OV_STATUS_FAILED, "✕ "
+    return None, ""
+
 # 供 TrackHeaderColumn 等外部对齐使用的公开常量别名
 TRACK_ORDER = _TRACK_ORDER
 TRACK_H = _TRACK_H
@@ -362,14 +383,23 @@ class DawTrackView(QWidget):
             painter.drawText(4, row.y, _LABEL_W - 8, _OV_LANE_H,
                              Qt.AlignVCenter | Qt.AlignLeft,
                              f"{row.kind}·{row.lane}")
-            # 片段块（斜纹区分 bgm/sfx；选中描边）
-            color = _OV_SEG_COLORS.get(row.kind, QColor("#5577aa"))
+            # 片段块（斜纹区分 bgm/sfx；按 status 叠加态色 + 前缀；选中描边）
+            kind_color = _OV_SEG_COLORS.get(row.kind, QColor("#5577aa"))
             for seg in row.segments:
                 x0 = int(self._t_to_x(seg.t_start))
                 x1 = int(self._t_to_x(seg.t_end))
                 cw = max(x1 - x0, 2)
                 rect = QRect(x0, row.y + 2, cw, _OV_LANE_H - 4)
+                status = getattr(seg, "status", "generated")
+                override, prefix = _overlay_block_style(status)
+                color = override if override is not None else kind_color
                 painter.fillRect(rect, QBrush(color, Qt.BDiagPattern))
+                # 状态前缀文案（generating/failed 才有）
+                if prefix:
+                    painter.setPen(QColor("#ffffff"))
+                    painter.drawText(x0 + 4, row.y + 2, max(cw - 8, 0),
+                                     _OV_LANE_H - 4,
+                                     Qt.AlignVCenter | Qt.AlignLeft, prefix)
                 if seg.id == self._overlay_sel_id:
                     painter.setPen(QPen(QColor("#ffffff"), 2))
                     painter.drawRect(rect)

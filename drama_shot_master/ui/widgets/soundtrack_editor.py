@@ -16,6 +16,11 @@ from PySide6.QtWidgets import (
 
 from drama_shot_master.ui.worker import FunctionWorker
 from drama_shot_master.core.dialogue_segment_deriver import derive_dialogue_segments
+# 模块级导入，便于框选生成接线在测试里整体打桩（monkeypatch se_mod.*）
+from drama_shot_master.ui.dialogs.generate_overlay_dialog import GenerateOverlayDialog
+from drama_shot_master.ui.widgets.daw.overlay_gen_worker import OverlayGenWorker
+from sound_track_agent.overlay_session import save_overlay
+from sound_track_agent.overlay_prompt import suggest_overlay_prompt
 
 _STAGES = ["tag_emotion", "compose_prompt", "generate", "align", "mix"]
 _STAGE_LABELS = {"tag_emotion": "切段+情绪", "compose_prompt": "prompt",
@@ -59,6 +64,8 @@ class SoundtrackEditor(QWidget):
         self._overlay_session = load_overlay(self._work_dir())
         self._overlay_collapsed = False
         self._overlay_sel_id = None
+        # 框选生成的异步 worker 引用，防 GC（QThreadPool 跑完前不可回收）
+        self._overlay_workers: list = []
         self._mix_engine = MixStreamEngine()
         self._mix_engine.set_segments(self._overlay_session.segments)
         self._mix_output = MixStreamOutput(self._mix_engine)
@@ -552,8 +559,100 @@ class SoundtrackEditor(QWidget):
         else:
             self._selection.set([ref])
 
+    # ── 框选生成（子项目 #3d）─────────────────────────────────────────
+
+    def _gen_overlay_id(self, kind: str) -> str:
+        """生成 overlay 片段 id：ov_{kind}_{毫秒戳}{hex4}，与项目 task_id 风格一致。"""
+        import time
+        import secrets
+        return f"ov_{kind}_{int(time.time() * 1000)}{secrets.token_hex(2)}"
+
     def _on_rubber_band(self, rect, mod):
-        pass  # future: collect cues inside rect
+        """时间轴 Shift 框选释放 → 弹生成对话框 → 占位落库 + 起异步生成 worker。
+
+        rect 已 normalized（left≤right）；左右像素经 _x_to_t 换算成 [t_start,t_end]。
+        对话框取消/返回 None → 直接 return，不 add、不起 worker。
+        """
+        if self._track_view is None:
+            return
+        t_start = self._track_view._x_to_t(rect.left())
+        t_end = self._track_view._x_to_t(rect.right())
+        if t_end <= t_start:
+            return
+        from functools import partial
+        suggest_fn = partial(suggest_overlay_prompt,
+                             work_dir=self._work_dir(), cfg=self.cfg)
+        dlg = GenerateOverlayDialog(t_start, t_end, suggest_fn=suggest_fn,
+                                    parent=self)
+        from PySide6.QtWidgets import QDialog
+        if dlg.exec() != QDialog.Accepted:
+            return
+        value = dlg.result_value()
+        if not value:
+            return
+        kind, prompt = value
+        seg_id = self._gen_overlay_id(kind)
+        self._overlay_session.add(kind, t_start, t_end, prompt,
+                                  seg_id=seg_id, status="generating")
+        self._save_overlay()
+        self._refresh_overlay_view()   # 占位脉冲块立即出现
+        self._start_overlay_worker(seg_id, kind, prompt, t_end - t_start)
+
+    def _save_overlay(self):
+        """落盘 overlay.json，吞异常（不挡 UI）。"""
+        try:
+            save_overlay(self._work_dir(), self._overlay_session)
+        except Exception:
+            pass
+
+    def _start_overlay_worker(self, seg_id: str, kind: str, prompt: str,
+                              duration: float):
+        """起一个异步生成 worker，连 finished/failed，存引用防 GC 后丢线程池。"""
+        from PySide6.QtCore import QThreadPool
+        worker = OverlayGenWorker(seg_id, kind, prompt, duration,
+                                  self._work_dir(), self.cfg)
+        worker.finished.connect(self._on_overlay_gen_finished)
+        worker.failed.connect(self._on_overlay_gen_failed)
+        self._overlay_workers.append(worker)
+        try:
+            QThreadPool.globalInstance().start(worker)
+        except Exception:
+            # 替身 worker（测试）非 QRunnable 时直接忽略，信号仍可手动触发
+            pass
+
+    def _on_overlay_gen_finished(self, seg_id: str, path: str):
+        """生成成功槽（主线程）：填 audio_path/status → 落盘 → 刷新混音 + 重绘。"""
+        seg = self._overlay_session.get(seg_id)
+        if seg is None:
+            return   # 片段已被删 → 丢弃结果
+        seg.audio_path = path
+        seg.status = "generated"
+        self._save_overlay()
+        self._mix_engine.set_segments(self._overlay_session.segments)
+        self._refresh_overlay_view()
+
+    def _on_overlay_gen_failed(self, seg_id: str, err: str):
+        """生成失败槽：置 status=failed → 落盘 + 刷新（红块可重试）。"""
+        import logging
+        logging.getLogger(__name__).warning("overlay 生成失败 %s: %s", seg_id, err)
+        seg = self._overlay_session.get(seg_id)
+        if seg is None:
+            return
+        seg.status = "failed"
+        self._save_overlay()
+        self._refresh_overlay_view()
+
+    def _retry_overlay_segment(self, seg_id: str):
+        """失败片段重试：复用 prompt/区间重起 worker，status→generating。"""
+        seg = self._overlay_session.get(seg_id)
+        if seg is None:
+            return
+        seg.status = "generating"
+        seg.audio_path = ""
+        self._save_overlay()
+        self._refresh_overlay_view()
+        self._start_overlay_worker(seg_id, seg.kind, seg.prompt,
+                                   seg.t_end - seg.t_start)
 
     def _on_context_menu(self, ref, pos):
         pass  # future: context menu

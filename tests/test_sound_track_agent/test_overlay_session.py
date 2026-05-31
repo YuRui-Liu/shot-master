@@ -13,6 +13,39 @@ def test_segment_roundtrip():
 def test_segment_defaults():
     s = OverlaySegment(id="x", kind="sfx", lane=0, t_start=0.0, t_end=2.0, prompt="门")
     assert s.audio_path == "" and s.volume == 1.0 and s.enabled is True
+    assert s.status == "generated"
+
+
+def test_add_status_passthrough():
+    sess = OverlaySession()
+    seg = sess.add("bgm", 0.0, 5.0, "a", seg_id="s1", status="generating")
+    assert seg.status == "generating"
+
+
+def test_add_default_status_generated():
+    sess = OverlaySession()
+    seg = sess.add("bgm", 0.0, 5.0, "a", seg_id="s1")
+    assert seg.status == "generated"
+
+
+def test_to_dict_includes_status():
+    s = OverlaySegment(id="x", kind="bgm", lane=0, t_start=0.0, t_end=2.0,
+                       prompt="a", status="failed")
+    assert s.to_dict()["status"] == "failed"
+
+
+def test_from_dict_missing_status_migrates_to_generated():
+    d = {"id": "x", "kind": "bgm", "lane": 0, "t_start": 0.0, "t_end": 2.0,
+         "prompt": "a"}   # 旧数据无 status
+    s = OverlaySegment.from_dict(d)
+    assert s.status == "generated"
+
+
+def test_status_roundtrip():
+    s = OverlaySegment(id="x1", kind="bgm", lane=0, t_start=1.0, t_end=5.0,
+                       prompt="史诗", status="pending")
+    s2 = OverlaySegment.from_dict(s.to_dict())
+    assert s2.status == "pending" and s2 == s
 
 
 def test_add_first_segment_lane0():

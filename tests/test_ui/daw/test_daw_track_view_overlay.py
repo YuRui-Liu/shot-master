@@ -7,7 +7,9 @@ from PySide6.QtCore import Qt, QPoint
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
-from drama_shot_master.ui.widgets.daw.daw_track_view import DawTrackView, _FIXED_H
+from drama_shot_master.ui.widgets.daw.daw_track_view import (
+    DawTrackView, _FIXED_H, _overlay_block_style,
+)
 from drama_shot_master.ui.widgets.daw.selection import Selection
 from drama_shot_master.ui.widgets.daw.overlay_layout import _OV_HEAD_H, _OV_LANE_H
 
@@ -17,8 +19,9 @@ def app():
     return QApplication.instance() or QApplication([])
 
 
-def _seg(sid, kind, lane, t0, t1):
-    return SimpleNamespace(id=sid, kind=kind, lane=lane, t_start=t0, t_end=t1)
+def _seg(sid, kind, lane, t0, t1, status="generated"):
+    return SimpleNamespace(id=sid, kind=kind, lane=lane,
+                           t_start=t0, t_end=t1, status=status)
 
 
 def _segs_2bgm_1sfx():
@@ -141,3 +144,57 @@ def test_click_blank_overlay_area_swallowed(app):
     _press(w, x, row_y)
     assert ph == []
     assert w._mode is None
+
+
+# ── 按 status 上色（D6） ────────────────────────────────────────────
+
+def test_overlay_block_style_three_states_differ():
+    """三态各产出不同的（颜色/样式, 文案前缀）。"""
+    gen = _overlay_block_style("generated")
+    ing = _overlay_block_style("generating")
+    fail = _overlay_block_style("failed")
+    # 前缀各不相同
+    prefixes = {gen[1], ing[1], fail[1]}
+    assert len(prefixes) == 3
+    # generating / failed 带状态标记前缀，generated 不带
+    assert gen[1] == ""
+    assert ing[1].startswith("⟳")
+    assert fail[1].startswith("✕")
+
+
+def test_overlay_block_style_failed_is_reddish():
+    """失败态用偏红色调，与 generated 区分。"""
+    _, _ = _overlay_block_style("generated")
+    fail_color, _ = _overlay_block_style("failed")
+    # 红分量明显大于绿/蓝
+    assert fail_color.red() > fail_color.green()
+    assert fail_color.red() > fail_color.blue()
+
+
+def test_overlay_block_style_unknown_status_falls_back_to_generated():
+    """未知 status 兜底走 generated（无前缀）。"""
+    assert _overlay_block_style("whatever") == _overlay_block_style("generated")
+
+
+def test_set_overlay_three_status_paints_without_crash(app):
+    """generating/failed/generated 三态混合 → set_overlay + grab 不崩。"""
+    w = DawTrackView(Selection())
+    w.resize(800, 400)
+    w.set_duration(30.0)
+    segs = [
+        _seg("b0", "bgm", 0, 0.0, 10.0, status="generated"),
+        _seg("b1", "bgm", 1, 5.0, 15.0, status="generating"),
+        _seg("s0", "sfx", 0, 2.0, 4.0, status="failed"),
+    ]
+    w.set_overlay(segs, collapsed=False)
+    w.grab()
+
+
+def test_set_overlay_segment_without_status_defaults_generated(app):
+    """无 status 属性的 segment（旧数据）→ getattr 兜底 generated，不崩。"""
+    w = DawTrackView(Selection())
+    w.resize(800, 400)
+    w.set_duration(30.0)
+    seg = SimpleNamespace(id="x", kind="bgm", lane=0, t_start=0.0, t_end=5.0)
+    w.set_overlay([seg], collapsed=False)
+    w.grab()
