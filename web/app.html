@@ -99,8 +99,9 @@
     const page = a.dataset.page;
     if (page) {
       PH.hidden = true; VIEW.hidden = false;
-      // 透传 api 给内容页(同源时其 fetch 走 location.origin)
-      VIEW.src = page;
+      // 把壳的 ?sw=&media= 等后端地址转发给内容页(其 fetch 据此调两个 agent)
+      const q = location.search ? (page.includes('?') ? '&' : '?') + location.search.slice(1) : '';
+      VIEW.src = page + q;
     } else {
       VIEW.hidden = true; VIEW.removeAttribute('src');
       PHN.textContent = a.textContent.trim();
