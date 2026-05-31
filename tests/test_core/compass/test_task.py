@@ -221,3 +221,96 @@ def test_runner_routes_music(tmp_path: Path):
     result = runner.run_task(t)
     assert len(mus.calls) == 1
     assert result.status == "done"
+
+
+# ---- A3 · TaskRunner 并发能力（Semaphore，默认串行向后兼容）------------
+
+def _fill_queue(q: TaskQueue, n: int, *, prefix: str = "T") -> None:
+    """往队列塞 n 个 image 任务，out_path 各异。"""
+    for i in range(n):
+        q.submit(Task(task_id=f"{prefix}-{i}", type="image",
+                      out_path=f"shots/{prefix}_{i}.png"))
+
+
+def test_run_all_default_concurrency_is_serial(tmp_path: Path):
+    """不传 max_concurrency → 默认串行（=1），结果数==输入数，全 done。"""
+    prov = _FakeProvider(tmp_path)
+    runner = TaskRunner(providers={"image": prov}, project_root=tmp_path)
+    q = TaskQueue()
+    _fill_queue(q, 5)
+    results = runner.run_all(q)
+    assert len(results) == 5
+    assert all(r.status == "done" for r in results)
+    assert len(prov.calls) == 5
+
+
+def test_run_all_max_concurrency_1_matches_serial(tmp_path: Path):
+    """max_concurrency=1 行为与串行一致：结果有序、全 done。"""
+    prov = _FakeProvider(tmp_path)
+    runner = TaskRunner(providers={"image": prov}, project_root=tmp_path)
+    q = TaskQueue()
+    _fill_queue(q, 4)
+    results = runner.run_all(q, max_concurrency=1)
+    assert [r.task_id for r in results] == ["T-0", "T-1", "T-2", "T-3"]
+    assert all(r.status == "done" for r in results)
+
+
+def test_run_all_concurrent_all_complete(tmp_path: Path):
+    """max_concurrency=3 并发跑多个 task → 全部完成，不丢任务。"""
+    prov = _FakeProvider(tmp_path)
+    runner = TaskRunner(providers={"image": prov}, project_root=tmp_path)
+    q = TaskQueue()
+    _fill_queue(q, 9)
+    results = runner.run_all(q, max_concurrency=3)
+    assert len(results) == 9  # 不丢任务，结果数==输入数
+    assert all(r.status == "done" for r in results)
+    assert len(prov.calls) == 9
+    # 所有产物均落盘
+    for i in range(9):
+        assert (tmp_path / f"shots/T_{i}.png").exists()
+
+
+def test_run_all_concurrent_result_order_stable(tmp_path: Path):
+    """并发下结果聚合顺序仍稳定 = 入队顺序（可断言）。"""
+    prov = _FakeProvider(tmp_path)
+    runner = TaskRunner(providers={"image": prov}, project_root=tmp_path)
+    q = TaskQueue()
+    _fill_queue(q, 6)
+    results = runner.run_all(q, max_concurrency=3)
+    assert [r.task_id for r in results] == [f"T-{i}" for i in range(6)]
+
+
+def test_run_all_concurrent_idempotent_skip(tmp_path: Path):
+    """并发下幂等：已存在 out_path 的任务跳过 provider，仍 done。"""
+    # 预置其中 2 个产物
+    for i in (1, 3):
+        p = tmp_path / f"shots/T_{i}.png"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("already", encoding="utf-8")
+
+    prov = _FakeProvider(tmp_path)
+    runner = TaskRunner(providers={"image": prov}, project_root=tmp_path)
+    q = TaskQueue()
+    _fill_queue(q, 5)
+    results = runner.run_all(q, max_concurrency=3)
+
+    assert len(results) == 5
+    assert all(r.status == "done" for r in results)
+    # 仅未预置的 3 个调了 provider；已存在的 2 个幂等跳过
+    called_ids = {t.task_id for t in prov.calls}
+    assert called_ids == {"T-0", "T-2", "T-4"}
+    # 预置文件未被覆盖
+    assert (tmp_path / "shots/T_1.png").read_text(encoding="utf-8") == "already"
+
+
+def test_run_all_concurrent_via_constructor_arg(tmp_path: Path):
+    """构造参数 max_concurrency 亦生效（与 run_all 关键字等价）。"""
+    prov = _FakeProvider(tmp_path)
+    runner = TaskRunner(providers={"image": prov}, project_root=tmp_path,
+                        max_concurrency=3)
+    q = TaskQueue()
+    _fill_queue(q, 7)
+    results = runner.run_all(q)
+    assert len(results) == 7
+    assert all(r.status == "done" for r in results)
+    assert [r.task_id for r in results] == [f"T-{i}" for i in range(7)]

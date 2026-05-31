@@ -12,8 +12,10 @@ provider 走依赖注入（任意带 `run(task)` 的对象）便于测。
 from __future__ import annotations
 
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from threading import Semaphore
 from typing import Optional, Union
 
 # 四种任务类型（对应四类 provider）
@@ -118,11 +120,22 @@ class TaskRunner:
 
     providers：{type: provider}，provider 任意带 `run(task)` 的对象。
     project_root：out_path 相对此根解析为绝对路径。
+    max_concurrency：默认并发度（Semaphore 上限）。默认 1 = 串行，
+        等价历史行为；>1 时 run_all 用线程池 + Semaphore 限流并发执行
+        run_task（为 music max=3 / 编剧并行铺路）。run_all 可用同名关键字
+        临时覆盖此默认值。
     """
 
-    def __init__(self, providers: dict, project_root: Union[str, Path]) -> None:
+    def __init__(
+        self,
+        providers: dict,
+        project_root: Union[str, Path],
+        *,
+        max_concurrency: int = 1,
+    ) -> None:
         self.providers = dict(providers or {})
         self.project_root = Path(project_root)
+        self.max_concurrency = max(1, int(max_concurrency))
 
     def _abs_out(self, task: Task) -> Optional[Path]:
         """out_path → 绝对路径；out_path 为空 → None。"""
@@ -158,12 +171,45 @@ class TaskRunner:
             task.status = STATUS_FAILED
         return task
 
-    def run_all(self, queue: TaskQueue) -> list[Task]:
-        """排空队列，逐个 run_task，返回结果列表。"""
-        results: list[Task] = []
+    def run_all(
+        self,
+        queue: TaskQueue,
+        *,
+        max_concurrency: Optional[int] = None,
+    ) -> list[Task]:
+        """排空队列，run_task 各任务，返回**入队顺序**稳定的结果列表。
+
+        max_concurrency：None → 用构造时的 self.max_concurrency。
+            ==1 → 串行（逐个 run_task，等价历史行为）；
+            >1 → 线程池 + Semaphore 限流并发执行 run_task。
+        完成判定仍看 out_path 文件存在、幂等跳过已存在产物（由 run_task 保证）。
+        结果聚合顺序恒为入队顺序，与实际完成先后无关，故可断言。
+        """
+        # 先排空队列为有序列表，保证结果聚合顺序 = 入队顺序
+        tasks: list[Task] = []
         while True:
             task = queue.pop()
             if task is None:
                 break
-            results.append(self.run_task(task))
-        return results
+            tasks.append(task)
+
+        limit = self.max_concurrency if max_concurrency is None else max(1, int(max_concurrency))
+
+        # 串行：保持历史行为（无线程池开销）
+        if limit <= 1 or len(tasks) <= 1:
+            return [self.run_task(t) for t in tasks]
+
+        # 并发：Semaphore 限流，结果按入队下标回填（顺序稳定）
+        sem = Semaphore(limit)
+        results: list[Optional[Task]] = [None] * len(tasks)
+
+        def _worker(idx: int, t: Task) -> None:
+            with sem:
+                results[idx] = self.run_task(t)
+
+        with ThreadPoolExecutor(max_workers=limit) as pool:
+            futures = [pool.submit(_worker, i, t) for i, t in enumerate(tasks)]
+            for fut in futures:
+                fut.result()  # 传播 worker 内异常（如未注册 provider）
+
+        return [r for r in results if r is not None]

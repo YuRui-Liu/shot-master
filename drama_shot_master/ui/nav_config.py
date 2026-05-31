@@ -56,3 +56,51 @@ def icon_path(filename: str) -> "Path | None":
 
 # 功能名映射（key → 显示名），便于面包屑/标题查询
 LABELS = {key: label for label, key in FUNCS}
+
+
+# ---- 门禁元数据：PHASES 中文 emoji 标题 ↔ manifest.STAGE_NAMES 显式映射 -----
+#
+# manifest.STAGE_NAMES = ("screenwriter", "assets", "storyboard", "production")
+# 与本模块 PHASES 一一对位（顺序即制作管线先后）：
+#   ⓪ 剧本创作 → screenwriter
+#   ① 素材准备 → assets
+#   ② 分镜创作 → storyboard
+#   ③ 视频出片 → production
+# 显式列出而非 zip(PHASES, STAGE_NAMES)，避免日后任一侧调序时静默错位。
+# 本模块保持 Qt-free，故此处复制英文阶段名常量（与 manifest.STAGE_NAMES 等价），
+# 不在导航壳里硬依赖 compass.manifest，单测另行校验两者自洽。
+PHASE_STAGE_MAP = {
+    "⓪ 剧本创作": "screenwriter",
+    "① 素材准备": "assets",
+    "② 分镜创作": "storyboard",
+    "③ 视频出片": "production",
+}
+
+# func_key → STAGE_NAMES 之一：该功能可达的阶段 state 门禁所在。
+# 由 PHASES 分组 × PHASE_STAGE_MAP 推导（每功能恰属一个阶段）。
+PHASE_GATES = {
+    key: PHASE_STAGE_MAP[title]
+    for title, keys in PHASES
+    for key in keys
+}
+
+# func_key → PHASES 阶段标题（中文 emoji）反查表。
+_PHASE_OF = {key: title for title, keys in PHASES for key in keys}
+
+
+def phase_of(func_key: str) -> "str | None":
+    """func_key → 所属 PHASES 阶段标题（中文 emoji）；未知 → None。"""
+    return _PHASE_OF.get(func_key)
+
+
+def stage_of(func_key: str) -> "str | None":
+    """func_key → 门禁阶段（STAGE_NAMES 之一）；未知 → None。"""
+    return PHASE_GATES.get(func_key)
+
+
+def gated_funcs(stage: str) -> list:
+    """stage（STAGE_NAMES 之一）→ 该阶段门禁下的 func_key 列表（按 FUNCS 顺序）。
+
+    未知阶段返回空列表（不抛）。
+    """
+    return [key for _label, key in FUNCS if PHASE_GATES.get(key) == stage]
