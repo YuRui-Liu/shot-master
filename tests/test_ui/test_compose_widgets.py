@@ -71,3 +71,15 @@ def test_compose_panel_instantiates_and_loads_dir(tmp_path):
     assert hasattr(panel, "sendToSoundtrack")
     assert hasattr(panel, "dirty")
     assert hasattr(panel, "to_payload")
+
+
+def test_compose_manager_smoke():
+    _app()
+    from drama_shot_master.core.compose_task_store import ComposeTaskStore
+    from drama_shot_master.ui.panels.compose_task_manager_panel import ComposeTaskManagerPanel
+    store = ComposeTaskStore()
+    store.add("A", {"clips": []})
+    mgr = ComposeTaskManagerPanel(store, on_persist=lambda: None)
+    assert hasattr(mgr, "taskSelected")
+    assert mgr.get_status(store.all()[0].id) in ("空闲", "生成中", "完成", "失败")
+    mgr.refresh()  # must not crash
