@@ -11,7 +11,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QRect, QRectF, QPointF, QTimer
 from PySide6.QtGui import (
     QPainter, QColor, QLinearGradient, QConicalGradient, QRadialGradient,
-    QBrush, QPen, QPixmap,
+    QBrush, QPen, QPixmap, QFont,
 )
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy,
@@ -42,6 +42,85 @@ _STAGE_GLYPH = {"done": "✓", "active": "⟳", "pending": "○"}
 _DEFAULT_STAGES = ("加载配置 / 风格圣经", "索引项目资源", "准备工作区")
 
 
+class _MiniBar(QWidget):
+    """单步清单行右侧的迷你进度条（复刻 mockup .mini / .mini i）。
+
+    done → 满（蓝紫渐变）；active → 随相位左右伸缩动画（复刻 @keyframes load）；
+    pending → 空。QSS 渐变在 Win11 不渲染，故 QPainter 自绘。phase 由外部动画驱动。
+    """
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setFixedHeight(3)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._state = "pending"
+        self._phase = 0.0           # [0,1) active 动画相位
+
+    def set_state(self, state: str) -> None:
+        self._state = state
+        self.update()
+
+    def set_phase(self, phase: float) -> None:
+        if self._state == "active":
+            self._phase = phase
+            self.update()
+
+    def paintEvent(self, event):  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+        # 轨道（mockup .mini 背景 #12162a）
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0x12, 0x16, 0x2a))
+        p.drawRoundedRect(0, 0, w, h, 1.5, 1.5)
+        # 填充比例：done=1；active 在 0.2↔0.75↔0.45 间往返；pending=0
+        if self._state == "done":
+            frac = 1.0
+        elif self._state == "active":
+            # 复刻 @keyframes load{0%:20% 50%:75% 100%:45%} 的三角往返
+            t = self._phase
+            if t < 0.5:
+                frac = 0.20 + (0.75 - 0.20) * (t / 0.5)
+            else:
+                frac = 0.75 + (0.45 - 0.75) * ((t - 0.5) / 0.5)
+        else:
+            frac = 0.0
+        fw = int(w * frac)
+        if fw > 0:
+            grad = QLinearGradient(0, 0, w, 0)
+            grad.setColorAt(0.0, QColor(_BLUE))
+            grad.setColorAt(1.0, QColor(_PERIW))
+            p.setBrush(QBrush(grad))
+            p.drawRoundedRect(0, 0, fw, h, 1.5, 1.5)
+        p.end()
+
+
+class _GradientTitle(QLabel):
+    """标题：用横向渐变填充文字（复刻 mockup .title 的 background-clip:text）。
+
+    CSS：linear-gradient(90deg,#ffffff,#c7cdf2 60%,periw)。QLabel 默认平铺文字色无法
+    渐变，故重写 paintEvent 用 QLinearGradient 作画笔填字。
+    """
+
+    def __init__(self, text: str, parent: QWidget | None = None):
+        super().__init__(text, parent)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAlignment(Qt.AlignCenter)
+
+    def paintEvent(self, event):  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        grad = QLinearGradient(0, 0, self.width(), 0)
+        grad.setColorAt(0.0, QColor("#ffffff"))
+        grad.setColorAt(0.6, QColor("#c7cdf2"))
+        grad.setColorAt(1.0, QColor(_PERIW))
+        p.setPen(QPen(QBrush(grad), 0))
+        p.setFont(self.font())
+        p.drawText(self.rect(), int(self.alignment()), self.text())
+        p.end()
+
+
 class _StageRow(QWidget):
     """单步清单行：圆点图标 + 标签 + 迷你进度条。状态 done/active/pending。"""
 
@@ -62,7 +141,11 @@ class _StageRow(QWidget):
         self._lab = QLabel(text)
         self._lab.setObjectName("SplashStageLabel")
         lay.addWidget(self._lab)
-        lay.addStretch(1)
+        lay.addSpacing(4)
+
+        # 右侧迷你进度条（mockup .mini，flex:1 占满剩余宽）
+        self._mini = _MiniBar()
+        lay.addWidget(self._mini, 1)
 
         self.set_state("pending")
 
@@ -84,6 +167,10 @@ class _StageRow(QWidget):
             lab_css = f"color:{_DIM};"
         self._ic.setStyleSheet(f"font-size:10px;{ic_css}")
         self._lab.setStyleSheet(f"font-size:12px;{lab_css}")
+        self._mini.set_state(state)
+
+    def set_mini_phase(self, phase: float) -> None:
+        self._mini.set_phase(phase)
 
     def state(self) -> str:
         return self._state
@@ -111,19 +198,30 @@ class SplashScreen(QWidget):
         self._stage_rows: list[_StageRow] = []
         self._stages = list(_DEFAULT_STAGES)
 
-        # 环形 loading 动画：QTimer 自增角度 → update() 触发 paintEvent 重绘旋转弧。
-        # （HTML mockup 的 .mark .ring 用 CSS spin 2.4s linear，这里用 ~60fps 定时器复刻。）
-        self._ring_angle = 0.0
+        # 动画时基：QTimer ~60fps 自增 elapsed(ms)，各动画按各自周期取相位。
+        # 复刻 mockup 的多条 CSS 动画：
+        #   .mark .ring  → spin 2.4s linear（图标外圈旋转弧）
+        #   .pill .dot   → blink 1.2s（LOADING 圆点闪烁）
+        #   .st.active .mini i → load 1.6s（活跃步迷你条往返）
+        #   .bar i       → shimmer 2s（底部主进度条流光）
+        self._elapsed_ms = 0.0
+        self._ring_angle = 0.0          # 兼容旧字段/测试，由 elapsed 推导
         self._spin_timer = QTimer(self)
         self._spin_timer.setInterval(16)            # ≈60fps
-        self._spin_timer.timeout.connect(self._advance_spin)
+        self._spin_timer.timeout.connect(self._advance_anim)
         self._spin_timer.start()
 
         self._build_ui()
 
-    def _advance_spin(self) -> None:
-        """每帧推进环角度并请求重绘（驱动品牌图标外圈旋转弧）。"""
-        self._ring_angle = (self._ring_angle + 6.0) % 360.0
+    def _advance_anim(self) -> None:
+        """每帧推进时基并请求重绘（驱动环弧 / 迷你条 / 流光）。"""
+        self._elapsed_ms += self._spin_timer.interval()
+        # 环：2.4s 一圈 = 150°/s（复刻 CSS spin 2.4s linear）
+        self._ring_angle = (self._elapsed_ms / 2400.0 * 360.0) % 360.0
+        # 活跃步迷你条相位：1.6s 周期（复刻 @keyframes load 1.6s）
+        mini_phase = (self._elapsed_ms % 1600.0) / 1600.0
+        for r in self._stage_rows:
+            r.set_mini_phase(mini_phase)
         self.update()
 
     # ------------------------------------------------------------------ UI
@@ -132,18 +230,23 @@ class SplashScreen(QWidget):
         root.setContentsMargins(24, 18, 24, 18)
         root.setSpacing(0)
 
-        # 顶部 LOADING pill 行
+        # 顶部行：左 LOADING pill（含闪烁圆点）+ 右「跳过 →」
         top = QHBoxLayout()
         top.setContentsMargins(0, 0, 0, 0)
-        pill = QLabel("● LOADING")
-        pill.setObjectName("SplashPill")
-        pill.setStyleSheet(
+        # 文本前留全角空格给自绘闪烁圆点（_paint_pill_dot 画在左 padding 内）
+        self._pill = QLabel("  LOADING")
+        self._pill.setObjectName("SplashPill")
+        self._pill.setStyleSheet(
             f"color:{_BLUE};font-size:10px;font-weight:600;letter-spacing:1.2px;"
             f"border:1px solid #294a78;background:rgba(74,158,255,0.10);"
-            f"border-radius:10px;padding:2px 10px;"
+            f"border-radius:10px;padding:2px 10px 2px 14px;"
         )
-        top.addWidget(pill)
+        top.addWidget(self._pill)
         top.addStretch(1)
+        self._skip_lbl = QLabel("跳过 →")
+        self._skip_lbl.setObjectName("SplashSkip")
+        self._skip_lbl.setStyleSheet(f"color:{_FAINT};font-size:11px;")
+        top.addWidget(self._skip_lbl)
         root.addLayout(top)
 
         root.addStretch(1)
@@ -159,18 +262,19 @@ class SplashScreen(QWidget):
         self._load_icon()
         brand.addWidget(self._icon_lbl, 0, Qt.AlignHCenter)
 
-        self._title_lbl = QLabel(_BRAND_TITLE)
+        self._title_lbl = _GradientTitle(_BRAND_TITLE)
         self._title_lbl.setObjectName("SplashTitle")
-        self._title_lbl.setAlignment(Qt.AlignCenter)
-        self._title_lbl.setStyleSheet(
-            f"color:{_TXT};font-size:19px;font-weight:750;letter-spacing:0.5px;"
-        )
+        tf = self._title_lbl.font()
+        tf.setPixelSize(19)
+        tf.setWeight(QFont.Weight.DemiBold)  # ≈750；Qt 字重档位最接近的粗体
+        tf.setLetterSpacing(QFont.AbsoluteSpacing, 0.5)
+        self._title_lbl.setFont(tf)
         brand.addWidget(self._title_lbl)
 
         self._version_lbl = QLabel(_VERSION_LINE)
         self._version_lbl.setAlignment(Qt.AlignCenter)
         self._version_lbl.setStyleSheet(
-            f"color:{_SUB};font-size:10px;letter-spacing:2px;"
+            f"color:{_SUB};font-size:10px;letter-spacing:3px;"
         )
         brand.addWidget(self._version_lbl)
         root.addLayout(brand)
@@ -340,6 +444,9 @@ class SplashScreen(QWidget):
         self._paint_glow(p, w - 220, h - 200, 300, QColor(139, 127, 217, 105))
         self._paint_glow(p, w - 150, -40, 180, QColor(167, 139, 250, 46))
 
+        # 极淡蓝色网格（复刻 mockup .grid：34px 网格，opacity ~.05）
+        self._paint_grid(p, w, h)
+
         # 暗角
         vig = QRadialGradient(w / 2, h / 2, max(w, h) * 0.62)
         vig.setColorAt(0.42, QColor(0, 0, 0, 0))
@@ -355,16 +462,52 @@ class SplashScreen(QWidget):
         p.setBrush(Qt.NoBrush)
         p.drawRoundedRect(0, 0, w - 1, h - 1, radius, radius)
 
-        # 品牌图标外圈旋转弧（环形 loading 动画，QTimer 驱动 self._ring_angle）
+        # 品牌图标外圈旋转环（复刻 .mark .ring：蓝顶 + 紫右，余透明，旋转）
         self._paint_spinner_ring(p)
 
-        # 主进度条（底部 holder 位置自绘）
+        # LOADING pill 圆点闪烁（复刻 .pill .dot blink 1.2s）
+        self._paint_pill_dot(p)
+
+        # 主进度条（底部 holder 位置自绘，含流光 shimmer）
         self._paint_progress_bar(p)
 
         p.end()
 
+    def _paint_grid(self, p: QPainter, w: int, h: int) -> None:
+        """极淡蓝网格线（mockup .grid：34px 间距，opacity ~.05 → alpha≈13）。"""
+        pen = QPen(QColor(0x9b, 0xb0, 0xff, 13))
+        pen.setWidth(1)
+        p.setPen(pen)
+        step = 34
+        x = step
+        while x < w:
+            p.drawLine(x, 0, x, h)
+            x += step
+        y = step
+        while y < h:
+            p.drawLine(0, y, w, y)
+            y += step
+
+    def _paint_pill_dot(self, p: QPainter) -> None:
+        """LOADING pill 左侧圆点 + blink（1.2s 周期透明度 1↔.3）。"""
+        pill = getattr(self, "_pill", None)
+        if pill is None:
+            return
+        # blink：三角波 1↔.3↔1
+        t = (self._elapsed_ms % 1200.0) / 1200.0
+        opacity = 1.0 - 0.7 * (1.0 - abs(2.0 * t - 1.0))
+        c = QColor(_BLUE)
+        c.setAlphaF(max(0.0, min(1.0, opacity)))
+        # 圆点画在 pill 文本起始处（左 padding 内）
+        tl = pill.mapTo(self, pill.rect().topLeft())
+        cx = tl.x() + 11
+        cy = tl.y() + pill.height() / 2.0
+        p.setPen(Qt.NoPen)
+        p.setBrush(c)
+        p.drawEllipse(QPointF(cx, cy), 3.0, 3.0)
+
     def _paint_spinner_ring(self, p: QPainter) -> None:
-        """绕品牌图标画一段旋转的渐隐弧（复刻 mockup .mark .ring 的 spin 动画）。"""
+        """绕品牌图标旋转的双色环（复刻 .mark .ring：top=蓝 / right=紫，余透明）。"""
         lbl = getattr(self, "_icon_lbl", None)
         if lbl is None:
             return
@@ -375,20 +518,21 @@ class SplashScreen(QWidget):
         y = top_left.y() - pad
         d = lbl.width() + pad * 2
         rect = QRectF(x, y, d, d)
-        # 用 conical 渐变让弧首尾自然渐隐，整体随 angle 旋转
-        grad = QConicalGradient(rect.center(), -self._ring_angle)
-        head = QColor(_BLUE)
-        tail = QColor(_BLUE)
-        tail.setAlpha(0)
-        grad.setColorAt(0.0, head)
-        grad.setColorAt(0.28, head)
-        grad.setColorAt(0.30, tail)
-        grad.setColorAt(1.0, tail)
-        pen = QPen(QBrush(grad), 2.2)
-        pen.setCapStyle(Qt.RoundCap)
-        p.setPen(pen)
         p.setBrush(Qt.NoBrush)
-        p.drawArc(rect, 0, 360 * 16)
+        # Qt drawArc：0° = 3点钟方向，逆时针为正；角度 * 16。
+        # 复刻 CSS：border-top-color(顶 12点) + border-right-color(右 3点)，各占 ~90°，
+        # 整体随 -ring_angle 顺时针旋转（CSS spin 顺时针）。
+        base = -self._ring_angle
+        # 顶段（蓝）：以 12 点(90°) 为中心的 90° 弧
+        pen_blue = QPen(QColor(_BLUE), 1.6)
+        pen_blue.setCapStyle(Qt.FlatCap)
+        p.setPen(pen_blue)
+        p.drawArc(rect, int((base + 45) * 16), int(90 * 16))
+        # 右段（紫）：以 3 点(0°) 为中心的 90° 弧
+        pen_periw = QPen(QColor(_PERIW), 1.6)
+        pen_periw.setCapStyle(Qt.FlatCap)
+        p.setPen(pen_periw)
+        p.drawArc(rect, int((base - 45) * 16), int(90 * 16))
 
     def closeEvent(self, e):  # noqa: N802
         """关闭时停掉旋转定时器，避免遗留 QTimer 在窗口析构后回调。"""
@@ -423,12 +567,17 @@ class SplashScreen(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(16, 19, 36, 200))
         p.drawRoundedRect(x, y, bw, bh, 2, 2)
-        # 填充
+        # 填充：宽度跟随真实进度；蓝→紫→薄荷渐变随时间横向流动（复刻 shimmer 2s）。
         fw = int(bw * self._progress)
         if fw > 0:
-            grad = QLinearGradient(x, 0, x + bw, 0)
+            # background-size:200% → 渐变跨度 = 2×条宽；position 在 2s 内平移一个条宽。
+            shift = (self._elapsed_ms % 2000.0) / 2000.0 * bw
+            g0 = x - bw + shift
+            grad = QLinearGradient(g0, 0, g0 + 2 * bw, 0)
             grad.setColorAt(0.0, QColor(_BLUE))
-            grad.setColorAt(0.5, QColor(_PERIW))
-            grad.setColorAt(1.0, QColor(_MINT))
+            grad.setColorAt(0.25, QColor(_PERIW))
+            grad.setColorAt(0.5, QColor(_MINT))
+            grad.setColorAt(0.75, QColor(_PERIW))
+            grad.setColorAt(1.0, QColor(_BLUE))
             p.setBrush(QBrush(grad))
             p.drawRoundedRect(x, y, fw, bh, 2, 2)
