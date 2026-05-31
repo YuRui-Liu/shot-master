@@ -388,6 +388,11 @@ class AppShell(QMainWindow):
         再往后的阶段仍锁定。screenwriter 为入口恒可达。遍历 STAGE_NAMES，未知阶段静默。
         """
         from drama_shot_master.core.compass.manifest import STAGE_NAMES
+        # 流程锁关（默认）→ 全部阶段可达，便于快速调试观察各面板。
+        if not getattr(self.cfg, "pipeline_lock_enabled", False):
+            for stage in STAGE_NAMES:
+                self.sidebar.set_phase_accessible(stage, True)
+            return
         prev_completed = True  # 入口前视为已完成 → screenwriter 恒可达
         for stage in STAGE_NAMES:
             st = self.state.pipeline_state.get(stage)

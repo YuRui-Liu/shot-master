@@ -294,6 +294,7 @@ def test_load_project_into_ui_drives_overview_and_gates(tmp_path):
         encoding="utf-8",
     )
 
+    w.cfg.pipeline_lock_enabled = True   # 显式开流程锁，测门禁行为
     w._load_project_into_ui(pdir)
 
     # 落在概览页
@@ -336,12 +337,36 @@ def test_pending_frontier_stage_is_accessible(tmp_path):
         }, ensure_ascii=False),
         encoding="utf-8",
     )
+    w.cfg.pipeline_lock_enabled = True   # 显式开流程锁，测 frontier
     w._load_project_into_ui(pdir)
     assert w.sidebar._buttons["screenwriter"].isEnabled()
     assert w.sidebar._buttons["asset_library"].isEnabled()      # frontier，可达
     assert not w.sidebar._buttons["storyboard"].isEnabled()     # 前序未完成，锁
     assert not w.sidebar._buttons["video_gen"].isEnabled()
     assert not w.sidebar._buttons["video_post"].isEnabled()
+
+
+def test_pipeline_lock_off_all_accessible(tmp_path):
+    """流程锁关（默认）→ 全部阶段可达（便于快速调试）。"""
+    import json
+    _app()
+    w = AppShell()
+    assert getattr(w.cfg, "pipeline_lock_enabled", False) is False   # 默认关
+    pdir = tmp_path / "P-050_unlocked"
+    pdir.mkdir(parents=True)
+    (pdir / "project.json").write_text(
+        json.dumps({"project_id": "P-050", "project_name": "unlocked",
+                    "pipeline": {"screenwriter": {"state": "completed"},
+                                 "assets": {"state": "pending"},
+                                 "storyboard": {"state": "pending"},
+                                 "production": {"state": "pending"}}},
+                   ensure_ascii=False),
+        encoding="utf-8",
+    )
+    w._load_project_into_ui(pdir)
+    # 默认关 → 即便后续阶段 pending，也全部可点
+    for key in ("screenwriter", "asset_library", "storyboard", "video_gen", "video_post"):
+        assert w.sidebar._buttons[key].isEnabled()
 
 
 def test_overview_stage_click_ignores_locked_page(tmp_path):
@@ -364,6 +389,7 @@ def test_overview_stage_click_ignores_locked_page(tmp_path):
         }, ensure_ascii=False),
         encoding="utf-8",
     )
+    w.cfg.pipeline_lock_enabled = True   # 显式开锁，测锁定阶段点击被忽略
     w._load_project_into_ui(pdir)
     # 起点：概览页
     assert w.stack.currentWidget() is w.pages["overview"]

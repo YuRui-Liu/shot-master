@@ -72,6 +72,9 @@ class Config:
     imggen_api_key: str = ""
     imggen_output_dir: str = ""
     imggen_watermark: bool = False
+    # 流程锁：开则侧栏按 pipeline 阶段门禁置灰（frontier 解锁）；关则全部可达。
+    # 默认关，便于快速调试观察各面板（设置面板可改）。
+    pipeline_lock_enabled: bool = False
     soundtrack_workflow_id: str = "2059090557116440578"
     soundtrack_output_dir: str = ""
     soundtrack_seeds_count: int = 2
