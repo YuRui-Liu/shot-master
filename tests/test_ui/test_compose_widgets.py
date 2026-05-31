@@ -132,6 +132,18 @@ def test_compose_panel_has_analyze_and_render(tmp_path):
     assert p.model().kept_clips()[0].auto_transition == "dissolve"
 
 
+def test_inspector_shows_cv_scores():
+    _app()
+    from drama_shot_master.ui.widgets.compose.transition_inspector import TransitionInspector
+    insp = TransitionInspector()
+    insp.set_connector(index=0, effect="dissolve", duration=0.5, source="auto",
+                       locked=False, cv_scores={"hist": 0.78, "feature": 0.88,
+                                                "motion": 0.5, "score": 0.82})
+    assert insp.has_scores() is True
+    insp.set_connector(index=1, effect="fade", duration=0.5, source="user", locked=True)
+    assert insp.has_scores() is False
+
+
 def test_connector_state_reflects_ai_locked_manual():
     _app()
     from drama_shot_master.core.composition_model import ReelClip, CompositionModel

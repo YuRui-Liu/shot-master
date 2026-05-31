@@ -134,7 +134,8 @@ class ComposePanel(QWidget):
             return
         c = kept[idx]
         src = "user" if c.user_transition else "auto"
-        self._inspector.set_connector(idx, c.effective_transition(), c.effective_duration(), src, c.locked)
+        self._inspector.set_connector(idx, c.effective_transition(), c.effective_duration(), src, c.locked,
+                                      cv_scores=c.cv_scores)
 
     def _on_transition_changed(self, idx, eff, dur, locked):
         kept = self._model.kept_clips()
