@@ -39,3 +39,19 @@ def test_trim_bar_emits_in_out():
     assert got[-1] == (1.5, 8.0)
     bar.set_in(9.0)         # 超过 out → 被夹到 out 之前
     assert bar.in_point() < bar.out_point()
+
+
+def test_inspector_emits_override_and_lock():
+    _app()
+    from drama_shot_master.ui.widgets.compose.transition_inspector import TransitionInspector
+    insp = TransitionInspector()
+    insp.set_connector(index=0, effect="dissolve", duration=0.5, source="auto", locked=False)
+    got = []
+    insp.changed.connect(lambda idx, eff, dur, locked: got.append((idx, eff, dur, locked)))
+    insp.set_effect("smoothleft")
+    insp.set_duration(0.8)
+    insp.set_locked(True)
+    assert got[-1][0] == 0
+    assert got[-1][1] == "smoothleft"
+    assert got[-1][2] == 0.8
+    assert got[-1][3] is True
