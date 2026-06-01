@@ -199,7 +199,7 @@
         <button class="btn-secondary" id="btnSave" disabled>保存</button>
         <button class="btn-secondary" id="btnOpenDir">📂 打开 prompts/</button>
         <span class="grow"></span>
-        <button id="btnAdvance">推进到视频提示词 →</button>
+        <button id="btnAdvance">推进到资源库 →</button>
       </div>
     </div>
   </div>
@@ -784,11 +784,10 @@ function toast(msg) {
   _toastTimer = setTimeout(() => (el.style.opacity = "0"), 2600);
 }
 
-/* ---------- 推进到视频提示词（壳 video_post 子向导）---------- */
+/* ---------- 推进到资源库（壳 app.html 监听 prompts.advance → go(asset_library)）---------- */
 $("btnAdvance").addEventListener("click", () => {
-  /* TODO: 壳 app.html 目前仅监听 ideate.advance；建议新增对 prompts.advance 的处理。 */
   window.parent && window.parent.postMessage(
-    { type: "prompts.advance", stage: "video", episode_id: activeEp }, "*");
+    { type: "prompts.advance", stage: "asset_library", episode_id: activeEp }, "*");
 });
 
 /* ---------- 回分镜步 ---------- */

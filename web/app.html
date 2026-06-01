@@ -225,7 +225,7 @@
     else if (d.type === 'ideate.advance') gotoSwStage('剧本');
     else if (d.type === 'storyboard.advance') gotoSwStage('出图 Prompt');
     else if (d.type === 'prompts.back') gotoSwStage('分镜');
-    else if (d.type === 'prompts.advance') go('video_gen');   // 出图prompt 完成 → 视频生成
+    else if (d.type === 'prompts.advance') go('asset_library');   // 出图prompt 完成 → 资源库
     // 概览/其它页通用导航：{type:'nav', key:<左栏 data-key>}
     else if (d.type === 'nav' && d.key) {
       if (links.some(x => x.dataset.key === d.key)) go(d.key);
