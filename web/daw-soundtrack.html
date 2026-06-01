@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>糯米AI · ⑥ 视频后期 · 配乐混音 DAW</title>
 <link rel="stylesheet" href="tokens.css">
+<!-- wavesurfer.js v7（真实波形）。离线时改为本地：<script src="vendor/wavesurfer.min.js"></script> -->
+<script src="https://unpkg.com/wavesurfer.js@7"></script>
 <style>
   /* ============================================================
      配乐 / 混音 DAW —— 静态 mockup（P4）
@@ -134,10 +136,21 @@
   .trk {
     height: 84px; border-bottom: 1px solid var(--border-lo); position: relative;
   }
-  .trk canvas { display: block; width: 100%; height: 84px; }
+  /* wavesurfer 渲染容器（每轨一个 WaveSurfer 实例挂这里） */
+  .wave-host {
+    position: absolute; inset: 0; padding: 10px 0;
+    display: flex; align-items: center;
+  }
+  .wave-host > div { width: 100%; }
+  /* 无音源时的静态占位提示（覆盖在容器上，加载真实音频后由 JS 隐藏） */
+  .wave-ph {
+    position: absolute; inset: 0; display: flex; align-items: center; padding-left: 12px;
+    font-size: 11px; color: var(--faint); pointer-events: none;
+  }
+  .trk.readonly .wave-host { opacity: .62; }
   /* 片段块叠在波形画布上（标注 clip 名 / 区间） */
   .clip {
-    position: absolute; top: 12px; bottom: 12px; border-radius: 5px;
+    position: absolute; top: 12px; bottom: 12px; border-radius: 5px; z-index: 3;
     display: flex; align-items: center; padding: 0 9px; overflow: hidden;
     font-size: 11.5px; color: #fff; border: 1px solid rgba(255,255,255,.18);
     box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: grab;
@@ -250,19 +263,31 @@
     <span class="legend"><span class="sw" style="background:var(--done);border-radius:50%;"></span>大爆点</span>
     <span class="legend"><span class="sw" style="background:var(--mauve);border-radius:50%;"></span>普通卡点</span>
     <span class="spacer"></span>
-    <span class="note">静态 mockup · 真实波形/播放头接 media_agent</span>
-    <span class="api">POST /soundtrack · ws 播放头</span>
+    <span class="note">wavesurfer.js 真实波形 · 播放头接 media_agent（WS）</span>
+    <span class="api">POST /soundtrack · ws://…/soundtrack/ws 播放头</span>
   </div>
 </div>
 
 <script>
 /* 可配 API base（真机联调由主控做） */
 const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450';
-/* media_agent 端点：/imaging /imggen /transition /soundtrack（本页用 /soundtrack） */
+const SW_API    = new URLSearchParams(location.search).get('sw')    || 'http://127.0.0.1:18430';
+/* media_agent 端点：/imaging /imggen /transition /soundtrack（本页用 /soundtrack）
+   后端 WS（播放头位置）：ws://127.0.0.1:18450/soundtrack/ws —— 无连接时本地定时器演示 */
 
 const TOTAL = 24.0;          // 成片总时长（秒）—— stub
 const PX_PER_SEC = 58;       // 时间线缩放
 const TL_WIDTH = TOTAL * PX_PER_SEC;
+
+/* 示例音源（CDN 公开样例，仅用于离线演示真实波形渲染；
+   真机由 media_agent 成片/BGM/SFX 输出经 setTrackSrc(track,url) 注入，覆盖此默认）。
+   离线无网时设为 null → 显示静态占位，不渲染波形。 */
+const DEMO_SRC = {
+  orig: 'https://cdn.jsdelivr.net/gh/wavesurfer-js/wavesurfer.js@7/examples/audio/audio.wav',
+  bgm:  'https://cdn.jsdelivr.net/gh/wavesurfer-js/wavesurfer.js@7/examples/audio/demo.wav',
+  sfx:  'https://cdn.jsdelivr.net/gh/wavesurfer-js/wavesurfer.js@7/examples/audio/nasa.mp3',
+  dlg:  null   // 对白只读：混在原声内，无独立音源
+};
 
 /* 轨道定义（取自确认稿：原声/BGM/SFX 三轨 + 对白只读占位）
    color 用于波形与 clip 块；readonly 轨无 M/S/音量。 */
@@ -328,51 +353,99 @@ function renderHeads() {
   });
 }
 
-/* ---------- 波形占位（Canvas 伪随机包络，标注真实波形接 /soundtrack） ---------- */
-function drawWaveform(canvas, color, seed, silent) {
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  canvas.width = w * dpr; canvas.height = h * dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, w, h);
-  if (silent) return;
-  const mid = h / 2;
-  ctx.strokeStyle = color; ctx.globalAlpha = 0.7; ctx.lineWidth = 1;
-  let s = seed;
-  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-  ctx.beginPath();
-  for (let x = 0; x < w; x += 2) {
-    const env = 0.3 + 0.7 * Math.abs(Math.sin(x / 40 + seed));
-    const amp = env * (mid - 6) * (0.4 + 0.6 * rnd());
-    ctx.moveTo(x, mid - amp);
-    ctx.lineTo(x, mid + amp);
-  }
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+/* ---------- wavesurfer 实例池（每轨一个；id -> WaveSurfer） ---------- */
+const WS = {};            // { trackId: WaveSurfer }
+const wsReady = {};       // { trackId: bool } 是否已 ready（用于联动播放/跳转）
+
+/* hex 颜色转 rgba（给波形 progress/wave 上不同透明度） */
+function rgba(hex, a) {
+  const m = hex.replace('#', '');
+  const r = parseInt(m.substring(0, 2), 16);
+  const g = parseInt(m.substring(2, 4), 16);
+  const b = parseInt(m.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
 }
 
-/* ---------- 渲染：波形轨 + clip 块 ---------- */
+/* 创建一条音轨的 WaveSurfer 实例并渲染真实波形。
+   宽度铺满时间线（TL_WIDTH），与标尺/卡点像素对齐。 */
+function makeWave(track, hostEl, phEl) {
+  if (typeof WaveSurfer === 'undefined') return null;  // CDN 未加载（离线）→ 保留占位
+  const ws = WaveSurfer.create({
+    container: hostEl,
+    width: TL_WIDTH,
+    height: 60,
+    waveColor: rgba(track.color, 0.55),
+    progressColor: rgba(track.color, 0.95),
+    cursorColor: 'transparent',     // 播放头由全局 .playhead 统一画，关掉每轨游标
+    barWidth: 2, barGap: 1, barRadius: 2,
+    normalize: true,
+    interact: false,                // 定位走全局时间线点击 → 统一 seek
+    media: undefined,
+  });
+  ws.on('ready', () => {
+    wsReady[track.id] = true;
+    if (phEl) phEl.style.display = 'none';   // 隐藏静态占位
+    ws.setMuted(true);                       // 真机由「主输出」统一出声；此处仅做波形+静音从动
+    ws.setVolume((track.vol || 100) / 100);
+  });
+  ws.on('error', () => { if (phEl) phEl.textContent = '（波形加载失败，离线时改本地音源）'; });
+  return ws;
+}
+
+/* 对外接口：把 media_agent 成片/BGM/SFX 输出 url 接到某条轨。
+   真机：setTrackSrc('orig', `${MEDIA_API}/soundtrack/output/ep1/master.wav`) 等。 */
+function setTrackSrc(trackId, url) {
+  const ws = WS[trackId];
+  const phEl = document.getElementById('waveph-' + trackId);
+  if (!ws || !url) { if (phEl) phEl.style.display = ''; return; }
+  wsReady[trackId] = false;
+  if (phEl) { phEl.style.display = ''; phEl.textContent = '加载波形…'; }
+  ws.load(url);
+}
+window.setTrackSrc = setTrackSrc;   // 暴露给主控/壳调用
+
+/* ---------- 渲染：波形轨（wavesurfer 容器）+ clip 块 ---------- */
 function renderLanes() {
   const lanes = document.getElementById('lanes');
   document.getElementById('tlInner').style.width = TL_WIDTH + 'px';
-  TRACKS.forEach((t, i) => {
+  TRACKS.forEach((t) => {
     const trk = document.createElement('div');
-    trk.className = 'trk';
-    const cv = document.createElement('canvas');
-    cv.id = 'wave-' + i;
-    trk.appendChild(cv);
-    // clip 块
+    trk.className = 'trk' + (t.readonly ? ' readonly' : '');
+
+    // wavesurfer 渲染容器
+    const host = document.createElement('div');
+    host.className = 'wave-host';
+    host.id = 'wavehost-' + t.id;
+    trk.appendChild(host);
+
+    // 静态占位（无音源 / 加载中显示，ready 后隐藏）
+    const ph = document.createElement('div');
+    ph.className = 'wave-ph';
+    ph.id = 'waveph-' + t.id;
+    ph.textContent = t.readonly ? '对白混在原声内 · 无独立波形' : '示例波形（真机接 media_agent 输出）';
+    trk.appendChild(ph);
+
+    // clip 块（叠在波形上）
     t.clips.forEach(c => {
       const clip = document.createElement('div');
       clip.className = 'clip';
       clip.style.left = (c.s * PX_PER_SEC) + 'px';
       clip.style.width = ((c.e - c.s) * PX_PER_SEC - 2) + 'px';
-      clip.style.background = t.color;
+      clip.style.background = rgba(t.color, 0.32);
+      clip.style.borderColor = rgba(t.color, 0.5);
       clip.innerHTML = `<span class="lab">${c.lab}</span>${c.sub ? `<span class="sub">${c.sub}</span>` : ''}`;
       trk.appendChild(clip);
     });
+
     lanes.appendChild(trk);
+
+    // 建 WaveSurfer 实例并加载示例音源（无音源的只读轨跳过）
+    const ws = makeWave(t, host, ph);
+    if (ws) {
+      WS[t.id] = ws;
+      const src = DEMO_SRC[t.id];
+      if (src) { ph.textContent = '加载波形…'; ws.load(src); }
+    }
   });
 }
 
@@ -417,8 +490,13 @@ function renderAccents() {
   });
 }
 
-/* ---------- 走带 / 播放头（本地动画 stub，真机接 ws） ---------- */
+/* ---------- 走带 / 播放头 ----------
+   播放头位置来源（双通道）：
+   ① 后端 WS：ws://MEDIA/soundtrack/ws 推 { t: 秒 }（真机权威播放头，由 media_agent 驱动）
+   ② 本地定时器：无 WS 连接时本地 requestAnimationFrame 演示推进
+   transport 播放/暂停联动各 wavesurfer 实例（波形 progress 同步走）。 */
 let playing = false, cur = 0, raf = null, last = 0;
+let wsLink = null, wsConnected = false;    // 后端播放头 WS
 const playhead = document.getElementById('playhead');
 const tcCur = document.getElementById('tcCur');
 function fmt(t) {
@@ -429,42 +507,106 @@ function updateHead() {
   playhead.style.left = (cur * PX_PER_SEC) + 'px';
   tcCur.textContent = fmt(cur);
 }
+
+/* 把当前时间 cur 同步到所有 wavesurfer（按各自时长换算进度比例） */
+function syncWaves(seek) {
+  Object.keys(WS).forEach(id => {
+    const ws = WS[id];
+    if (!ws || !wsReady[id]) return;
+    const dur = ws.getDuration() || TOTAL;
+    if (seek) { try { ws.seekTo(Math.max(0, Math.min(1, cur / dur))); } catch (e) {} }
+  });
+}
+function wavesPlay(on) {
+  Object.keys(WS).forEach(id => {
+    const ws = WS[id];
+    if (!ws || !wsReady[id]) return;
+    try { on ? ws.play() : ws.pause(); } catch (e) {}
+  });
+}
+
+/* 本地定时器推进（仅在未连后端 WS 时启用） */
 function tick(ts) {
   if (!playing) return;
   if (!last) last = ts;
   cur += (ts - last) / 1000; last = ts;
-  if (cur >= TOTAL) { cur = TOTAL; playing = false; document.getElementById('btnPlay').textContent = '►'; }
+  if (cur >= TOTAL) { cur = TOTAL; setPlay(false); }
   updateHead();
-  if (playing) raf = requestAnimationFrame(tick);
+  if (playing && !wsConnected) raf = requestAnimationFrame(tick);
 }
 function setPlay(on) {
   playing = on; last = 0;
   document.getElementById('btnPlay').textContent = on ? '❚❚' : '►';
-  if (on) raf = requestAnimationFrame(tick); else cancelAnimationFrame(raf);
+  if (on) { syncWaves(true); wavesPlay(true); if (!wsConnected) raf = requestAnimationFrame(tick); }
+  else { cancelAnimationFrame(raf); wavesPlay(false); }
+}
+
+/* 外部（点击定位/停止/回到开头）改 cur 后调用：刷新播放头 + 同步波形 */
+function seekTo(t) {
+  cur = Math.max(0, Math.min(TOTAL, t));
+  updateHead();
+  syncWaves(true);
+}
+
+/* 后端播放头 WS stub：连 ws://MEDIA/soundtrack/ws；
+   收到 { t } 即用后端权威位置驱动播放头（停掉本地定时器）。
+   连不上（离线/无后端）时静默回退本地定时器演示。 */
+function connectPlayheadWS() {
+  let wsUrl;
+  try {
+    const u = new URL(MEDIA_API);
+    wsUrl = (u.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + u.host + '/soundtrack/ws';
+  } catch (e) { wsUrl = 'ws://127.0.0.1:18450/soundtrack/ws'; }
+  try {
+    wsLink = new WebSocket(wsUrl);
+  } catch (e) { return; }   // 回退本地定时器
+  wsLink.addEventListener('open', () => { wsConnected = true; });
+  wsLink.addEventListener('message', (ev) => {
+    // 后端约定推 JSON { t: 秒, playing?: bool }；非 JSON 时容错忽略
+    let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
+    if (typeof d.t === 'number') { cur = Math.max(0, Math.min(TOTAL, d.t)); updateHead(); syncWaves(true); }
+    if (typeof d.playing === 'boolean' && d.playing !== playing) setPlay(d.playing);
+  });
+  wsLink.addEventListener('close', () => { wsConnected = false; });
+  wsLink.addEventListener('error', () => { wsConnected = false; });
+}
+
+/* M/S 状态 → 各轨 wavesurfer 静音：有任一 Solo 亮时只放亮 S 的轨；否则放未 Mute 的轨。
+   注：示例中各轨默认 setMuted(true)（统一从主输出出声），此处仍按混音逻辑维护 muted 状态，
+   真机切到「各轨独立出声」时即生效。 */
+function applyMuteSolo() {
+  const soloAny = TRACKS.some((t, i) => !t.readonly && document.querySelector(`.ms.s[data-trk="${i}"]`)?.classList.contains('on'));
+  TRACKS.forEach((t, i) => {
+    if (t.readonly) return;
+    const muteOn = document.querySelector(`.ms.m[data-trk="${i}"]`)?.classList.contains('on');
+    const soloOn = document.querySelector(`.ms.s[data-trk="${i}"]`)?.classList.contains('on');
+    const audible = soloAny ? soloOn : !muteOn;
+    const ws = WS[t.id];
+    if (ws) { try { ws.setMuted(!audible); } catch (e) {} }
+  });
 }
 
 /* ---------- 交互绑定（stub：仅占位，真机由主控接 /soundtrack） ---------- */
 function wire() {
   document.getElementById('btnPlay').addEventListener('click', () => setPlay(!playing));
-  document.getElementById('btnStop').addEventListener('click', () => { setPlay(false); cur = 0; updateHead(); });
-  document.getElementById('btnStart').addEventListener('click', () => { cur = 0; updateHead(); });
+  document.getElementById('btnStop').addEventListener('click', () => { setPlay(false); seekTo(0); });
+  document.getElementById('btnStart').addEventListener('click', () => { seekTo(0); });
 
-  // 时间线点击定位播放头
+  // 时间线点击定位播放头（同步各 wavesurfer 进度）
   const inner = document.getElementById('tlInner');
   inner.addEventListener('click', (e) => {
     if (e.target.closest('.thead')) return;
     const rect = inner.getBoundingClientRect();
     const x = e.clientX - rect.left + document.getElementById('timeline').scrollLeft;
-    cur = Math.max(0, Math.min(TOTAL, x / PX_PER_SEC));
-    updateHead();
+    seekTo(x / PX_PER_SEC);
   });
 
-  // M / S 切换（独奏逻辑：有 S 时只听亮 S 的轨）
+  // M / S 切换 —— 联动对应轨 wavesurfer 静音/独奏
   document.querySelectorAll('.ms').forEach(b => {
-    b.addEventListener('click', () => { b.classList.toggle('on'); });
+    b.addEventListener('click', () => { b.classList.toggle('on'); applyMuteSolo(); });
   });
 
-  // 轨道音量条点击设值
+  // 轨道音量条点击设值 —— 联动对应轨 wavesurfer 音量
   document.querySelectorAll('.vol').forEach(v => {
     v.addEventListener('click', (e) => {
       const rect = v.getBoundingClientRect();
@@ -472,7 +614,10 @@ function wire() {
       v.querySelector('.fill').style.width = (ratio * 100) + '%';
       v.querySelector('.knob').style.left = (ratio * 100) + '%';
       const i = v.getAttribute('data-trk');
-      document.getElementById('pct-' + i).textContent = Math.round(ratio * 150) + '%';
+      const pct = Math.round(ratio * 150);
+      document.getElementById('pct-' + i).textContent = pct + '%';
+      const tk = TRACKS[i];
+      if (tk) { tk.vol = pct; const ws = WS[tk.id]; if (ws) { try { ws.setVolume(Math.min(1, pct / 100)); } catch (e2) {} } }
     });
   });
 
@@ -491,17 +636,12 @@ function wire() {
 /* ---------- 启动 ---------- */
 function init() {
   renderHeads();
-  renderLanes();
+  renderLanes();      // 内部为每轨建 WaveSurfer 实例并加载示例音源（真实波形）
   drawRuler();
   renderAccents();
-  // 波形需在 lane 布局后量取宽度
-  TRACKS.forEach((t, i) => {
-    const cv = document.getElementById('wave-' + i);
-    cv.style.width = TL_WIDTH + 'px';
-    drawWaveform(cv, '#ffffff', i * 7 + 3, t.readonly);
-  });
   updateHead();
   wire();
+  connectPlayheadWS();  // 连后端播放头 WS，连不上静默回退本地定时器
 }
 window.addEventListener('DOMContentLoaded', init);
 </script>
