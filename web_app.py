@@ -37,7 +37,7 @@ def _wait_health(url: str, timeout: float = 25.0) -> bool:
 
 def main() -> int:
     from PySide6.QtWidgets import QApplication
-    from PySide6.QtCore import QUrl
+    from PySide6.QtCore import QUrl, QTimer
     from drama_shot_master.config import load_config
     from drama_shot_master.ui.web_host import WebHostWindow
 
@@ -50,31 +50,50 @@ def main() -> int:
     except Exception:
         pass
 
-    # 1) media_agent —— 媒体后端 + /ui 静态托管
-    media = subprocess.Popen([sys.executable, "-m", "media_agent.server"])
-    media_ok = _wait_health(MEDIA_API + "/health")
-    print(f"[web_app] media_agent: {'OK' if media_ok else 'TIMEOUT'} @ {MEDIA_API}")
-
-    # 2) screenwriter_agent —— 编剧链路（复用现成 lifecycle：端口探测/health/nonce/terminate）
-    lifecycle = None
-    sw_port = getattr(cfg, "screenwriter_agent_port", 18430)
-    try:
-        from drama_shot_master.agents.screenwriter_lifecycle import ScreenwriterLifecycle
-        lifecycle = ScreenwriterLifecycle(base_port=sw_port, cfg=cfg)
-        sw_port = lifecycle.spawn() or sw_port
-        print(f"[web_app] screenwriter_agent @ :{sw_port} alive={lifecycle.is_alive()}")
-    except Exception as e:
-        print(f"[web_app] screenwriter_agent spawn 失败(编剧页将不可用): {e}")
-
-    # 3) 打开 Web 应用壳（同源 /ui，?sw=&media= 注入后端地址）
-    url = QUrl(f"{MEDIA_API}/ui/app.html?sw=http://127.0.0.1:{sw_port}&media={MEDIA_API}")
-    win = WebHostWindow(url, title="糯米 AI · 分镜影视创作台", frameless=True)
+    # 0) 打开即显加载页(splash.html, file://) —— 立刻可见，缓解等待感
+    web_dir = Path(__file__).parent / "web"
+    win = WebHostWindow(QUrl.fromLocalFile(str(web_dir / "splash.html")),
+                        title="糯米 AI · 分镜影视创作台", frameless=True)
     win.resize(1360, 900)
     win.show()
+    app.processEvents()   # 立即渲染 splash
+
+    def _js(code: str):
+        try:
+            win.view.page().runJavaScript(code)
+        except Exception:
+            pass
+
+    state = {"lifecycle": None, "media": None, "sw_port": getattr(cfg, "screenwriter_agent_port", 18430)}
+
+    def boot():
+        # 1) media_agent —— 媒体后端 + /ui 静态托管
+        _js("window.splashStage && splashStage(0,'active')")
+        state["media"] = subprocess.Popen([sys.executable, "-m", "media_agent.server"])
+        media_ok = _wait_health(MEDIA_API + "/health")
+        print(f"[web_app] media_agent: {'OK' if media_ok else 'TIMEOUT'} @ {MEDIA_API}")
+        _js("window.splashStage && (splashStage(0,'done'),splashStage(1,'active')); window.splashProgress && splashProgress(0.5)")
+        # 2) screenwriter_agent —— 编剧链路
+        try:
+            from drama_shot_master.agents.screenwriter_lifecycle import ScreenwriterLifecycle
+            lc = ScreenwriterLifecycle(base_port=state["sw_port"], cfg=cfg)
+            state["sw_port"] = lc.spawn() or state["sw_port"]
+            state["lifecycle"] = lc
+            print(f"[web_app] screenwriter_agent @ :{state['sw_port']} alive={lc.is_alive()}")
+        except Exception as e:
+            print(f"[web_app] screenwriter_agent spawn 失败(编剧页将不可用): {e}")
+        _js("window.splashStage && (splashStage(1,'done'),splashStage(2,'done'),splashStage(3,'done')); window.splashProgress && splashProgress(1)")
+        # 3) 切到 Web 应用壳（同源 /ui，?sw=&media= 注入后端地址）
+        sw = state["sw_port"]
+        win.view.load(QUrl(f"{MEDIA_API}/ui/app.html?sw=http://127.0.0.1:{sw}&media={MEDIA_API}"))
+
+    QTimer.singleShot(250, boot)   # 让 splash 先渲染再启动后端
 
     try:
         ret = app.exec()
     finally:
+        lifecycle = state["lifecycle"]
+        media = state["media"]
         # 4) 确定性 teardown（避免 widget 在 QApplication 销毁后析构 → exit5）
         if lifecycle is not None:
             try:
