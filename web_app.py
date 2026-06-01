@@ -68,7 +68,7 @@ def main() -> int:
 
     # 3) 打开 Web 应用壳（同源 /ui，?sw=&media= 注入后端地址）
     url = QUrl(f"{MEDIA_API}/ui/app.html?sw=http://127.0.0.1:{sw_port}&media={MEDIA_API}")
-    win = WebHostWindow(url, title="糯米 AI · 分镜影视创作台")
+    win = WebHostWindow(url, title="糯米 AI · 分镜影视创作台", frameless=True)
     win.resize(1360, 900)
     win.show()
 

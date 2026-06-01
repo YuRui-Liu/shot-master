@@ -23,8 +23,10 @@
     padding: 4px 10px; border: 1px solid var(--border); border-radius: 12px; }
   .winctl { display: flex; gap: 4px; margin-left: 14px; }
   .winctl span { width: 26px; height: 22px; display: grid; place-items: center; color: var(--muted);
-    border-radius: 5px; cursor: default; }
+    border-radius: 5px; cursor: pointer; -webkit-app-region: no-drag; }
   .winctl span:hover { background: var(--panel2); color: var(--fg); }
+  .winctl span[data-win="close"]:hover { background: #c0392b; color: #fff; }
+  .tb-act { -webkit-app-region: no-drag; }
 
   /* 主体 = 左导航 + 内容 */
   .main { flex: 1; display: flex; min-height: 0; }
@@ -39,8 +41,13 @@
   .nav .sp { flex: 1; }
   .nav .sep { height: 1px; background: var(--border-lo); margin: 8px 6px; }
 
-  .view-wrap { flex: 1; min-width: 0; position: relative; background: var(--bg); }
-  #view { width: 100%; height: 100%; border: 0; display: block; }
+  .view-wrap { flex: 1; min-width: 0; position: relative; background: var(--bg); display: flex; flex-direction: column; }
+  #view { flex: 1; width: 100%; border: 0; display: block; }
+  .subnav { display: flex; gap: 6px; padding: 7px 12px; background: var(--navy); border-bottom: 1px solid var(--border-lo); }
+  .subnav[hidden] { display: none; }
+  .subnav button { font: inherit; font-size: 12.5px; color: var(--muted); background: var(--field);
+    border: 1px solid var(--border); border-radius: 7px; padding: 5px 14px; cursor: pointer; }
+  .subnav button.on { color: #06122a; background: linear-gradient(135deg, var(--blue), var(--periw)); font-weight: 600; border-color: transparent; }
   .placeholder { position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
     color: var(--muted); gap: 8px; background: var(--bg); }
   .placeholder[hidden] { display: none; }   /* hidden 属性需显式覆盖 display:grid */
@@ -55,7 +62,7 @@
     <div class="crumb">项目 / <b id="proj">测试剧本_废铁场之夜</b></div>
     <div class="tb-sp"></div>
     <div class="tb-act"><span class="dot ok"></span>任务中心</div>
-    <div class="winctl"><span>➖</span><span>□</span><span>✕</span></div>
+    <div class="winctl"><span data-win="min">➖</span><span data-win="max">□</span><span data-win="close">✕</span></div>
   </div>
 
   <div class="main">
@@ -74,6 +81,7 @@
     </nav>
 
     <div class="view-wrap">
+      <div class="subnav" id="subnav" hidden></div>
       <iframe id="view" title="content"></iframe>
       <div class="placeholder" id="ph" hidden>
         <div class="big" id="ph-name"></div>
@@ -85,36 +93,77 @@
 </div>
 
 <script>
-  // hash 路由：#/<navKey> → 加载对应内容页(iframe)；无页则显占位。
+  // hash 路由：#/<navKey> → 加载内容页(iframe)；video_post 为容器(子tab)；无页显占位。
   const NAV = document.getElementById('nav');
   const VIEW = document.getElementById('view');
   const PH = document.getElementById('ph');
   const PHN = document.getElementById('ph-name');
+  const SUBNAV = document.getElementById('subnav');
   const links = [...NAV.querySelectorAll('a')];
   const LABEL = Object.fromEntries(links.map(a => [a.dataset.key, a.textContent.trim()]));
+  const Q = location.search ? location.search.slice(1) : '';
+
+  // 视频后期 = 容器：智能转场 / 配音 / 配乐 三子页切换
+  const SUBROUTES = {
+    video_post: [
+      { label: '智能转场', page: 'compose.html' },
+      { label: '配音', page: 'dub-mode2.html' },
+      { label: '配乐', page: 'daw-soundtrack.html' },
+    ],
+  };
+
+  function loadPage(page) {
+    PH.hidden = true; VIEW.hidden = false;
+    const q = Q ? (page.includes('?') ? '&' : '?') + Q : '';
+    VIEW.src = page + q;
+  }
+  function showPlaceholder(name) {
+    VIEW.hidden = true; VIEW.removeAttribute('src');
+    PHN.textContent = name; PH.hidden = false;
+  }
+  function renderSub(key) {
+    const subs = SUBROUTES[key];
+    SUBNAV.innerHTML = '';
+    if (!subs) { SUBNAV.hidden = true; return null; }
+    SUBNAV.hidden = false;
+    subs.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.textContent = s.label;
+      if (i === 0) b.classList.add('on');
+      b.addEventListener('click', () => {
+        [...SUBNAV.children].forEach(x => x.classList.toggle('on', x === b));
+        loadPage(s.page);
+      });
+      SUBNAV.appendChild(b);
+    });
+    return subs[0].page;
+  }
 
   function go(key) {
     const a = links.find(x => x.dataset.key === key) || links[0];
     links.forEach(x => x.classList.toggle('active', x === a));
-    const page = a.dataset.page;
-    if (page) {
-      PH.hidden = true; VIEW.hidden = false;
-      // 把壳的 ?sw=&media= 等后端地址转发给内容页(其 fetch 据此调两个 agent)
-      const q = location.search ? (page.includes('?') ? '&' : '?') + location.search.slice(1) : '';
-      VIEW.src = page + q;
-    } else {
-      VIEW.hidden = true; VIEW.removeAttribute('src');
-      PHN.textContent = a.textContent.trim();
-      PH.hidden = false;
-    }
+    const subFirst = renderSub(a.dataset.key);
+    const target = subFirst || a.dataset.page;
+    if (target) loadPage(target);
+    else showPlaceholder(a.textContent.trim());
     if (location.hash !== '#/' + key) history.replaceState(null, '', '#/' + key);
     document.title = '糯米 AI · ' + (LABEL[key] || '');
   }
 
   links.forEach(a => a.addEventListener('click', () => go(a.dataset.key)));
   window.addEventListener('hashchange', () => go((location.hash.replace('#/', '') || 'storyboard')));
-  // 默认进"分镜板"(已迁页中最完整)
   go((location.hash.replace('#/', '') || 'storyboard'));
+
+  // 窗控桥：无边框时 window.winctl 由 QWebChannel 注入；纯浏览器中无则忽略。
+  function wc(fn) { try { if (window.winctl && window.winctl[fn]) window.winctl[fn](); } catch (e) {} }
+  document.querySelectorAll('.winctl span').forEach(s => {
+    const m = { min: 'minimize', max: 'toggleMax', close: 'closeWin' }[s.dataset.win];
+    s.addEventListener('click', () => wc(m));
+  });
+  document.querySelector('.titlebar').addEventListener('mousedown', (e) => {
+    if (e.target.closest('.winctl') || e.target.closest('.tb-act')) return;
+    wc('startMove');   // 无边框时系统拖动窗口
+  });
 </script>
 </body>
 </html>
