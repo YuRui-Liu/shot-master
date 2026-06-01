@@ -51,11 +51,11 @@
   .preset:hover { background: rgba(138,127,217,.24); }
   /* 参考图 + 参数 + 生成 同一行(紧凑，不抢提示词重点) */
   .ctrl-row { display: flex; align-items: center; gap: 18px; margin-top: 13px; flex-wrap: wrap; }
-  .refs { display: flex; gap: 7px; align-items: center; }
+  .refs { display: flex; gap: 9px; align-items: center; }
   .refs .rl { font-size: 11.5px; color: var(--muted); }
-  .ref-th { width: 44px; height: 44px; border-radius: 7px; background: linear-gradient(135deg,#2a2d42,#1a1c2e); border: 1px solid var(--border-lo); position: relative; overflow: hidden; }
-  .ref-th .tag { position: absolute; left: 0; right: 0; bottom: 0; font-size: 8px; background: rgba(0,0,0,.6); color: #9cc7ff; text-align: center; }
-  .ref-add { width: 44px; height: 44px; border-radius: 7px; border: 1px dashed var(--border); display: grid; place-items: center; color: var(--faint); cursor: pointer; }
+  .ref-th { width: 68px; height: 68px; border-radius: 9px; background: linear-gradient(135deg,#2a2d42,#1a1c2e); border: 1px solid var(--border-lo); position: relative; overflow: hidden; }
+  .ref-th .tag { position: absolute; left: 0; right: 0; bottom: 0; font-size: 9.5px; background: rgba(0,0,0,.6); color: #9cc7ff; text-align: center; padding: 1px 0; }
+  .ref-add { width: 68px; height: 68px; border-radius: 9px; border: 1px dashed var(--border); display: grid; place-items: center; color: var(--faint); font-size: 18px; cursor: pointer; }
   .params { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .params .pg { display: flex; align-items: center; gap: 6px; }
   .params .pg label { font-size: 11.5px; color: var(--muted); }
@@ -108,8 +108,9 @@
         <textarea class="prompt-hero">暴雨夜。城郊废品回收站俯拍全景：24mm 广角镜头静止俯视，锈死龙门吊横贯画面中轴线，左侧堆叠库存车壳如倾斜墓碑群；地面浑浊积水没过脚踝，泛着黄褐反光，倒映七束晃动的手电光斑。电影级质感，HD 高清画质。</textarea>
         <div class="presets">
           <span class="plab">预置专业片段：</span>
-          <span class="preset">电影级质感</span><span class="preset">HD 高清</span><span class="preset">浅景深</span>
-          <span class="preset">体积光</span><span class="preset">35mm 胶片颗粒</span><span class="preset">广角畸变</span><span class="preset">禁字幕水印</span>
+          <span class="preset">三视图</span><span class="preset">人设</span><span class="preset">特写</span>
+          <span class="preset">中焦</span><span class="preset">广角</span><span class="preset">360°</span>
+          <span class="preset">2D</span><span class="preset">3D</span><span class="preset">国漫</span>
         </div>
         <div class="ctrl-row">
           <div class="refs"><span class="rl">参考图:</span>
