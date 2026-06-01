@@ -22,9 +22,10 @@
   .work { flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 16px; gap:12px; }
 
   /* ① 顶部 = 左:视频预览(主焦点,更大) | 右:LLM 对话(辅助,克制收窄) */
+  /* 顶部区:固定中等高(由视频240px驱动),flex-shrink:0→绝不挤占下方轨道区 */
   .preview { flex-shrink:0; display:flex; gap:16px; align-items:stretch; }
-  .video-col { flex:1.9 1 0; min-width:0; display:flex; flex-direction:column; gap:10px; }   /* 视频列占主导(~2/3) */
-  .video-box { width:100%; aspect-ratio:16/9; background:#06070d; border:1px solid var(--border); border-radius:12px; display:grid; place-items:center; color:var(--faint); font-size:13px; position:relative; overflow:hidden; box-shadow:0 8px 28px rgba(0,0,0,.4); }
+  .video-col { flex:0 0 auto; display:flex; flex-direction:column; gap:9px; }   /* 不 flex-grow,视频固定尺寸 */
+  .video-box { height:240px; aspect-ratio:16/9; width:auto; background:#06070d; border:1px solid var(--border); border-radius:12px; display:grid; place-items:center; color:var(--faint); font-size:13px; position:relative; overflow:hidden; box-shadow:0 8px 28px rgba(0,0,0,.4); }
   .video-box .ph{ text-align:center; } .video-box .play{ position:absolute; inset:0; display:grid; place-items:center; }
   .video-box .pbtn{ width:54px; height:54px; border-radius:50%; background:rgba(74,158,255,.85); display:grid; place-items:center; color:#06122a; font-size:22px; }
   /* 视频下方的进度+播放控制条 */
@@ -61,12 +62,16 @@
   @media (max-width:960px){ .preview{ flex-direction:column; } .video-box{ max-width:100%; width:100%; } }
 
   /* ② 多轨道时间轴 */
-  .daw { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--border); border-radius:11px; overflow:hidden; }
+  /* 轨道区:flex占据顶部区之外的全部剩余空间→保证≥4条轨道可见 */
+  .daw { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--border); border-radius:11px; overflow:hidden; position:relative; }
+  /* 4固定主轨常驻(不滚) + 叠加轨在下方区域内部滚动 */
+  .tracks-fixed { flex-shrink:0; }
+  .tracks-overlay { flex:1; min-height:0; overflow-y:auto; }
   .ruler { height:24px; background:var(--navy); border-bottom:1px solid var(--border-lo); display:flex; align-items:center; padding-left:130px; font-size:10px; color:var(--faint); gap:46px; }
-  .tracks { flex:1; overflow-y:auto; position:relative; }
+  .tracks { position:relative; }
   /* 播放头贯穿 */
   .playhead { position:absolute; top:0; bottom:0; left:calc(130px + 38%); width:2px; background:var(--blue); z-index:5; pointer-events:none; }
-  .track { display:flex; align-items:stretch; height:60px; border-bottom:1px solid var(--border-lo); }
+  .track { display:flex; align-items:stretch; height:56px; border-bottom:1px solid var(--border-lo); }
   .track .thead { width:130px; flex-shrink:0; background:var(--navy); border-right:1px solid var(--border-lo); padding:8px 10px; display:flex; flex-direction:column; gap:4px; }
   .track .thead .nm{ font-size:12px; font-weight:600; display:flex; align-items:center; gap:6px; }
   .track .thead .nm .dot{ width:9px; height:9px; border-radius:2px; }
@@ -90,7 +95,7 @@
 </style>
 </head>
 <body>
-<div class="note"><b>视频后期 · 配乐 DAW 布局确认稿</b> —— 按需求：<b>① 顶部大屏视频预览</b>（按钮加载视频，播放头与轨道同步）+ <b>② 4 条固定主轨</b>（原声/BGM/SFX/对白）+ <b>③ 无限动态叠加轨</b>（框选生成的 overlay 片段，可不断新增）。交互参考 3c/3d，<b>配色用本项目蓝紫</b>（不取参考稿配色）。<b>v3</b>：左=视频预览(进度条在视频下方,可<b>框选时段</b>)，右=<b>LLM 对话面板</b>（按智能配乐文档：框选时段→对话识别画面情绪 valence/arousal/intensity→选 BGM/SFX→comfyui 工作流返回音频落轨）。下方=4 固定轨+无限叠加轨。配色用本项目蓝紫。请浏览器确认。</div>
+<div class="note"><b>视频后期 · 配乐 DAW 布局确认稿</b> —— 按需求：<b>① 顶部大屏视频预览</b>（按钮加载视频，播放头与轨道同步）+ <b>② 4 条固定主轨</b>（原声/BGM/SFX/对白）+ <b>③ 无限动态叠加轨</b>（框选生成的 overlay 片段，可不断新增）。交互参考 3c/3d，<b>配色用本项目蓝紫</b>（不取参考稿配色）。<b>v5(按头脑风暴定论)</b>：顶部区<b>固定中等高</b>(视频240px,flex-shrink:0,绝不挤压轨道)，左视频(下方进度可框选)+右LLM对话(与视频同高·收窄克制)；下方轨道区 flex 占满剩余→<b>4固定主轨常驻可见</b>(原声/BGM/SFX/对白)，<b>动态叠加轨在其下方区域内部滚动</b>(无限新增)。配色蓝紫。请浏览器确认(小窗下应仍同时看到4条固定轨)。</div>
 
 <div class="head">
   <h1>视频后期 · 配乐</h1>
@@ -141,9 +146,9 @@
   <!-- ② 多轨道 -->
   <div class="daw">
     <div class="ruler"><span>0s</span><span>10s</span><span>20s</span><span>30s</span><span>40s</span><span>50s</span><span>60s</span></div>
-    <div class="tracks">
-      <div class="playhead"></div>
-      <!-- 4 固定主轨 -->
+    <div class="playhead"></div>
+    <!-- 4 固定主轨:常驻不滚 -->
+    <div class="tracks tracks-fixed">
       <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--video)"></span>原声</div><div class="ctl"><span class="b">M</span><span class="b">S</span></div></div>
         <div class="lane video"><div class="clip" style="left:2%;width:96%">原声波形（加载视频后抽取）</div></div></div>
       <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--bgm)"></span>BGM</div><div class="ctl"><span class="b">M</span><span class="b">S</span></div></div>
@@ -152,12 +157,16 @@
         <div class="lane sfx"><div class="clip" style="left:18%;width:8%">脚步</div><div class="clip" style="left:60%;width:10%">玻璃碎</div></div></div>
       <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--dialogue)"></span>对白</div><div class="ctl"><span class="b">M</span><span class="b">S</span></div></div>
         <div class="lane dialogue"><div class="clip" style="left:8%;width:20%">台词A</div><div class="clip" style="left:40%;width:26%">台词B</div></div></div>
-      <!-- ③ 无限动态叠加轨（框选生成的 overlay） -->
-      <div class="ov-head">动态叠加轨（框选区间 + prompt → 生成 BGM/SFX 片段，可无限新增）<span class="hint">Shift+框选时间轴</span><span class="add">＋ 新增叠加轨</span></div>
+    </div>
+    <!-- ③ 无限动态叠加轨:此区内部滚动(固定轨永远可见) -->
+    <div class="ov-head">动态叠加轨（框选区间 + prompt → 生成 BGM/SFX，可无限新增·此区滚动）<span class="hint">Shift+框选</span><span class="add">＋ 新增叠加轨</span></div>
+    <div class="tracks tracks-overlay">
       <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--overlay)"></span>叠加 1</div><div class="ctl"><span class="b">M</span><span class="b">S</span><span class="b">✕</span></div></div>
         <div class="lane overlay"><div class="clip" style="left:46%;width:22%">overlay·泵感BGM</div></div></div>
       <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--overlay)"></span>叠加 2</div><div class="ctl"><span class="b">M</span><span class="b">S</span><span class="b">✕</span></div></div>
         <div class="lane overlay"><div class="clip" style="left:24%;width:14%">overlay·环境声</div></div></div>
+      <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--overlay)"></span>叠加 3</div><div class="ctl"><span class="b">M</span><span class="b">S</span><span class="b">✕</span></div></div>
+        <div class="lane overlay"><div class="clip" style="left:62%;width:12%">overlay·心跳</div></div></div>
     </div>
   </div>
 
