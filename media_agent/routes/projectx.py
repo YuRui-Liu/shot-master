@@ -15,6 +15,7 @@ from pydantic import BaseModel
 import json
 
 from drama_shot_master.core.compass.manifest import load_manifest, save_manifest
+from drama_shot_master.core.ffmpeg_locate import probe_video_meta
 from drama_shot_master.core.recent_projects import RecentProjectsManager
 
 router = APIRouter()
@@ -266,7 +267,10 @@ _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 def project_clips(project: str, sub: str = ""):
     """列出项目目录（或 project/sub 子目录）下的视频与图片片段。
 
-    转场页用：返回 {clips:[{name,path(posix),kind,size}]}，按文件名排序。
+    转场页用：返回 {clips:[{name,path(posix),kind,size,duration,width,height,
+    fps,codec,has_audio}]}，按文件名排序。
+    视频文件通过 ffprobe 补充元信息（单文件单次调用）；图片字段为默认值。
+    每文件独立错误处理：ffprobe 失败时该文件元字段回退为默认值。
     project 空 → 400；目录不存在 → 空列表（不报错）。
     """
     proj = (project or "").strip()
@@ -304,7 +308,26 @@ def project_clips(project: str, sub: str = ""):
             "path": p.as_posix(),
             "kind": kind,
             "size": size,
+            "duration": 0.0,
+            "width": 0,
+            "height": 0,
+            "fps": 0.0,
+            "codec": "",
+            "has_audio": False,
         })
+        if kind == "video":
+            try:
+                meta = probe_video_meta(str(p))
+            except Exception:
+                meta = {}
+            clips[-1].update({
+                "duration": meta.get("duration", 0.0),
+                "width": meta.get("width", 0),
+                "height": meta.get("height", 0),
+                "fps": meta.get("fps", 0.0),
+                "codec": meta.get("codec", ""),
+                "has_audio": meta.get("has_audio", False),
+            })
     return {"clips": clips}
 
 
@@ -441,6 +464,13 @@ def project_overview(project: str):
         if sst is not None and sst.state != "completed" and sst.next_action:
             next_action = sst.next_action
             break
+
+    # 全阶段 done 时的兜底：给一个完成态提示
+    if not next_action and all(states[k] == "done" for k in _STAGE_ORDER):
+        next_action = "全部阶段已完成"
+    # 有阶段 lock（未开始）且无其他待办的兜底
+    elif not next_action and any(states[k] == "lock" for k in _STAGE_ORDER):
+        next_action = "前往「剧本创作」开始新项目"
 
     return {
         "project": {

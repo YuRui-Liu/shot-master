@@ -229,6 +229,11 @@
     else if (d.type === 'nav' && d.key) {
       if (links.some(x => x.dataset.key === d.key)) go(d.key);
     }
+    // compose.html「送去配乐」按钮：切到智能配乐页并传入视频路径
+    else if (d.type === 'soundtrack.open' && d.videoPath) {
+      Q = 'video=' + encodeURIComponent(d.videoPath);
+      go('smart_soundtrack');
+    }
     // 文件/目录选择中继：iframe 内容页无法直连 QWebChannel(只注入主帧)，
     // 故经壳调 window.filepick 原生对话框，结果回传给请求方 iframe。
     else if (d.type === 'pick.request' && e.source) {

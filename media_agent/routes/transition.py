@@ -13,6 +13,32 @@ from drama_shot_master.core.composition_model import CompositionModel
 from drama_shot_master.core.transition_analyzer import analyze_composition
 from drama_shot_master.core import transition_render as tr
 
+import asyncio
+import re
+
+from fastapi.responses import StreamingResponse
+
+from media_agent.core.sse import sse_event
+
+
+def _compute_total_duration(comp: CompositionModel) -> float:
+    """根据 composition 计算输出视频总时长（秒）。"""
+    kept = comp.kept_clips()
+    if not kept:
+        return 0.0
+    durs = [max(0.01, c.trimmed_duration() or c.duration or 0.0) for c in kept]
+    if len(kept) == 1:
+        return durs[0]
+    total = durs[0]
+    for i in range(1, len(kept)):
+        t = kept[i - 1].effective_transition()
+        d = kept[i - 1].effective_duration()
+        if t == "none" or d >= min(durs[i - 1], durs[i]):
+            total += durs[i]
+        else:
+            total += durs[i] - d
+    return total
+
 router = APIRouter(prefix="/transition")
 
 
@@ -60,3 +86,73 @@ def render(req: RenderRequest):
         raise HTTPException(status_code=400, detail=msg)
     out = tr.render(comp, req.out_path)
     return {"output": out, "warning": (msg if msg != "ok" else "")}
+
+
+class RenderStreamRequest(BaseModel):
+    composition: dict
+    out_path: str
+
+
+@router.post("/render-stream")
+async def render_stream(req: RenderStreamRequest):
+    """流式渲染成片（SSE），逐帧报告 ffmpeg 进度（基于 stderr time=… 解析）。"""
+    comp = CompositionModel.from_dict(req.composition)
+    ok, msg = comp.validate()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+
+    from drama_shot_master.core.ffmpeg_locate import ffmpeg_path, probe_duration, has_audio_stream
+
+    args = tr.build_ffmpeg_args(
+        comp, req.out_path, ffmpeg=ffmpeg_path(),
+        probe=probe_duration, has_audio=has_audio_stream,
+    )
+
+    total_duration = _compute_total_duration(comp)
+    time_re = re.compile(r"time=(\d+):(\d+):(\d+)(?:\.(\d+))?")
+
+    async def gen():
+        yield sse_event("status", {"phase": "start", "args": args})
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except FileNotFoundError:
+            yield sse_event("error", {"message": "ffmpeg 可执行文件未找到"})
+            return
+
+        last_pct = -1
+        while True:
+            line_bytes = await proc.stderr.readline()
+            if not line_bytes:
+                break
+            line = line_bytes.decode("utf-8", "ignore")
+            m = time_re.search(line)
+            if m:
+                h, mi, s = int(m[1]), int(m[2]), int(m[3])
+                ms = int(m[4]) / 100.0 if m[4] else 0.0
+                elapsed = h * 3600 + mi * 60 + s + ms
+                pct = round(min(elapsed / total_duration * 100, 100), 1) if total_duration > 0 else 0
+                if pct > last_pct:
+                    last_pct = pct
+                    yield sse_event("progress", {"percent": pct, "elapsed": round(elapsed, 2), "total": round(total_duration, 2)})
+
+        await proc.wait()
+
+        if proc.returncode == 0:
+            yield sse_event("done", {"output": req.out_path, "warning": (msg if msg != "ok" else "")})
+        else:
+            # drain remaining stderr for error tail
+            stderr_text = ""
+            while True:
+                chunk = await proc.stderr.read()
+                if not chunk:
+                    break
+                stderr_text += chunk.decode("utf-8", "ignore")
+            tail = (stderr_text)[-800:]
+            yield sse_event("error", {"exit_code": proc.returncode, "message": f"ffmpeg 渲染失败：\n{tail}"})
+
+    return StreamingResponse(gen(), media_type="text/event-stream")

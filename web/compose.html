@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -97,6 +97,12 @@
     color: var(--fg); background: rgba(8,9,16,.65); border-radius: 3px; padding: 0 6px; line-height: 17px;
   }
   .clip .kindbadge { left: 54px; }   /* 有编号时右移 */
+  /* 外部片段标记：虚线边框 + warn 色，明确标识非项目生成片 */
+  .clip.ext { border-style: dashed; border-color: var(--warn); }
+  .extbadge {
+    position: absolute; bottom: 34px; right: 6px; font-size: 8px; color: var(--warn);
+    background: rgba(224,168,90,.16); border: 1px solid #6b5520; border-radius: 3px; padding: 0 5px; line-height: 16px;
+  }
   .clip.add { border-style: dashed; background: transparent; }
   .clip.add .thumb { background: none; display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 26px; }
 
@@ -352,9 +358,11 @@ async function getJSON(url) {
 
 /* ===== 转场效果 ↔ 中文标签映射（与后端 transition_analyzer / ffmpeg xfade 名一致） ===== */
 const FX_LABEL = {
-  dissolve: "叠化 (dissolve)", smoothleft: "推左 (smoothleft)", smoothright: "推右 (smoothright)",
-  smoothup: "推上 (smoothup)", smoothdown: "推下 (smoothdown)", circleopen: "圆开 (circleopen)",
-  fadeblack: "淡入黑 (fadeblack)", cut: "硬切 (cut)",
+  dissolve: "叠化 (dissolve)", fadeblack: "淡入黑 (fadeblack)",
+  smoothleft: "推左 (smoothleft)", smoothright: "推右 (smoothright)",
+  smoothup: "推上 (smoothup)", smoothdown: "推下 (smoothdown)",
+  circleopen: "圆开 (circleopen)", circleclose: "圆闭 (circleclose)",
+  fade: "淡入淡出 (fade)", cut: "硬切 (cut)",
 };
 function fxLabel(fx) { return FX_LABEL[fx] || (fx ? `${fx}` : "叠化 (dissolve)"); }
 function catFor(total) {
@@ -364,22 +372,11 @@ function catFor(total) {
 }
 
 /* ===== stub 数据：片段 + 切口（cut 在两片段之间）=====
-   clips 用 let：列出生成目录(GET /project/clips)命中后整表替换为真实片段。
+   clips 用 let：列出生成目录(GET /project/clips)命中后追加真实片段（不覆盖已加载的）。
    每片段含 trimIn/trimOut（秒，null=未裁）→ 渲染时 ffmpeg -ss/-to 实裁。 */
-let clips = [
-  { id: 1, name: "片段 01", dur: "0:08.4", durSec: 8.4,  shots: "3 镜", cls: "",   kept: true, path: "clip01.mp4", kind: "video", trimIn: null, trimOut: null },
-  { id: 2, name: "片段 02", dur: "0:11.0 ✂", durSec: 11.0, shots: "2 镜", cls: "c2", kept: true, path: "clip02.mp4", kind: "video", trimIn: 1.6, trimOut: 9.1 },
-  { id: 3, name: "片段 03", dur: "0:06.2", durSec: 6.2,  shots: "1 镜", cls: "c3", kept: true, path: "clip03.mp4", kind: "video", trimIn: null, trimOut: null },
-  { id: 4, name: "片段 04", dur: "0:09.1", durSec: 9.1,  shots: "—",   cls: "c4", kept: false, path: "clip04.mp4", kind: "video", trimIn: null, trimOut: null },
-  { id: 5, name: "片段 05", dur: "0:07.8", durSec: 7.8,  shots: "2 镜", cls: "",   kept: true, path: "clip05.mp4", kind: "video", trimIn: null, trimOut: null },
-];
+let clips = [];
 /* 切口状态：ai | analyzing | manual | locked | cut；含 CV 评分拆解（hist 直方图 / sift 结构 / flow 光流）。 */
-const cuts = [
-  { id: "c12", a: 1, b: 2, status: "ai",     effect: "叠化 (dissolve)",    fx: "dissolve",   dur: 0.5, scores: { hist: 0.78, sift: 0.88, flow: 0.50 }, total: 0.82, cat: "高匹配 → 万能类（叠化）" },
-  { id: "c23", a: 2, b: 3, status: "manual", effect: "推进 (smoothleft)",  fx: "smoothleft", dur: 0.6, scores: { hist: 0.42, sift: 0.55, flow: 0.71 }, total: 0.61, cat: "中匹配+运动 → 方向类（推进）" },
-  { id: "c34", a: 3, b: 4, status: "cut",    effect: "硬切 (cut)",         fx: "cut",        dur: 0.0, scores: { hist: 0.30, sift: 0.28, flow: 0.20 }, total: 0.26, cat: "低匹配 → 创意/硬切" },
-  { id: "c45", a: 4, b: 5, status: "locked", effect: "圆开 (circleopen)",  fx: "circleopen", dur: 0.7, scores: { hist: 0.60, sift: 0.64, flow: 0.40 }, total: 0.55, cat: "锁定（重跑不覆盖）" },
-];
+const cuts = [];
 
 let selClip = 2;     // 当前预览片段
 let selCut  = "c12"; // 当前检查器切口
@@ -421,14 +418,31 @@ function buildComposition() {
     }
     return rc;
   });
-  return { clips: reelClips, fps: 30, width: 1920, height: 1080, output_prefix: PROJECT || "compose" };
+  // Read fps/width/height from first kept video clip real metadata; fallback 1920x1080/30fps
+  let fps = 30, width = 1920, height = 1080;
+  for (const cl of kept) {
+    if (cl.kind !== "image" && cl.fps && cl.w && cl.h) {
+      fps = cl.fps; width = cl.w; height = cl.h; break;
+    }
+  }
+  return { clips: reelClips, fps, width, height, output_prefix: PROJECT || "compose" };
 }
 
-/* ===== 把后端 composition 回填到页面 cuts/clips（更新圆点匹配分/效果） ===== */
+/* ===== 把后端 composition 回填到页面 cuts/clips（更新圆点匹配分/效果 + 片段时长） ===== */
 function applyComposition(comp) {
   if (!comp || !comp.clips) return;
   const byId = {};
   comp.clips.forEach((rc) => { byId[String(rc.clip_id)] = rc; });
+  // P1-1: CV 分析后端可能返回 probe 检测到的真实时长，回填到 clips
+  comp.clips.forEach((rc) => {
+    if (rc.duration != null && rc.duration > 0) {
+      const cl = clips.find((c) => String(c.id) === String(rc.clip_id));
+      if (cl && Math.abs(cl.durSec - rc.duration) > 0.01) {
+        cl.durSec = rc.duration;
+        cl.dur = durLabel(rc.duration);
+      }
+    }
+  });
   cuts.forEach((cut) => {
     const rc = byId[String(cut.a)];               // 切口参数在前一个片段上
     if (!rc) return;
@@ -501,6 +515,7 @@ async function loadExternal() {
       thumb: c.thumb || "",
       trimIn: null, trimOut: null,
       _external: true,
+      w: c.w || null, h: c.h || null, fps: c.fps || null,
     }));
     newClips.forEach(c => clips.push(c));
     rebuildCutsFromOrder();
@@ -511,7 +526,25 @@ async function loadExternal() {
     else { toast("外部导入失败：" + e.message); }
   }
 }
-const EFFECTS = ["叠化 (dissolve)", "推进 (smoothleft)", "圆开 (circleopen)", "淡入黑 (fadeblack)", "硬切 (cut)"];
+const EFFECTS = [
+  "叠化 (dissolve)", "淡入黑 (fadeblack)",
+  "推左 (smoothleft)", "推右 (smoothright)",
+  "推上 (smoothup)", "推下 (smoothdown)",
+  "圆开 (circleopen)", "圆闭 (circleclose)",
+  "淡入淡出 (fade)", "硬切 (cut)",
+];
+const FX_MAP = {
+  "叠化 (dissolve)": "dissolve",
+  "淡入黑 (fadeblack)": "fadeblack",
+  "推左 (smoothleft)": "smoothleft",
+  "推右 (smoothright)": "smoothright",
+  "推上 (smoothup)": "smoothup",
+  "推下 (smoothdown)": "smoothdown",
+  "圆开 (circleopen)": "circleopen",
+  "圆闭 (circleclose)": "circleclose",
+  "淡入淡出 (fade)": "fade",
+  "硬切 (cut)": "cut",
+};
 
 const NODE_ICON = { ai: "⤬", analyzing: "◌", manual: "▷", locked: "◐", cut: "▭" };
 const TAG_TXT   = { ai: "AI", analyzing: "分析", manual: "手动", locked: "锁定", cut: "硬切" };
@@ -525,7 +558,7 @@ function renderStrip() {
   clips.forEach((cl, i) => {
     // 片段卡
     const card = document.createElement("div");
-    card.className = "clip " + cl.cls + (cl.kept ? "" : " dropped") + (cl.id === selClip ? " sel" : "");
+    card.className = "clip " + cl.cls + (cl.kept ? "" : " dropped") + (cl.id === selClip ? " sel" : "") + (cl._external ? " ext" : "");
     card.setAttribute("draggable", "true");
     card.dataset.clipId = String(cl.id);
     // 缩略图：图片片段=自身首帧；视频=同名图(若有)否则退化为纯文件名卡片(不造假抽帧)
@@ -544,6 +577,7 @@ function renderStrip() {
         ${cl.shots && cl.shots !== "—" ? `<div class="shots">${esc(cl.shots)}</div>` : ""}
         ${trimmed ? `<div class="trimmed">✂ 已裁</div>` : ""}
         ${cl.kind === "image" ? `<div class="kindbadge">图</div>` : ""}
+        ${cl._external ? `<div class="extbadge">EXT</div>` : ""}
       </div>
       <div class="meta"><div class="c-name">${esc(cl.name)}</div><div class="c-dur">${esc(cl.dur)}</div></div>`;
     card.addEventListener("click", (e) => {
@@ -557,6 +591,9 @@ function renderStrip() {
       if (cl.kind === "video" && cl.path) {
         const pvBox = document.querySelector(".player");
         if (pvBox) {
+          // P1-3: 清理旧视频元素避免内存泄漏与多视频并发播放
+          const oldVid = pvBox.querySelector("video");
+          if (oldVid) { oldVid.pause(); oldVid.remove(); }
           const src = fileSrc(cl.path);
           pvBox.innerHTML = `<video src="${src}" controls autoplay preload="auto" style="width:100%;max-height:400px;border-radius:8px;background:#000;"
             onerror="this.nextElementSibling && (this.nextElementSibling.style.display='')"></video>
@@ -724,8 +761,8 @@ function wireInspector(c) {
   const insp = document.getElementById("inspector");
   insp.querySelector('[data-act="pickfx"]').addEventListener("click", () => {
     const i = EFFECTS.indexOf(c.effect);
-    c.effect = EFFECTS[(i + 1) % EFFECTS.length];      // stub：循环切换效果
-    c.fx = c.effect.match(/\((\w+)\)/)[1];
+    c.effect = EFFECTS[(i + 1) % EFFECTS.length];
+    c.fx = FX_MAP[c.effect] || "dissolve";
     if (c.fx === "cut") c.dur = 0.0;
     renderInspector(); renderStrip();
   });
@@ -761,35 +798,43 @@ async function loadClips() {
     const data = await getJSON(`${MEDIA_API}/project/clips?${qs.toString()}`);
     const list = (data && data.clips) || [];
     if (!list.length) { toast("该目录下没有可用片段"); return; }
-    clips = list.map((c, i) => {
-      const sec = (typeof c.duration === "number") ? c.duration : 0;  // 后端若给 duration
-      return {
-        id: i + 1,
-        name: c.name || `片段 ${String(i + 1).padStart(2, "0")}`,
+    const existingPaths = new Set(clips.map((c) => c.path));
+    let nextId = clips.length ? Math.max(...clips.map((c) => c.id)) + 1 : 1;
+    let added = 0;
+    for (const c of list) {
+      const p = c.path || c.name;
+      if (existingPaths.has(p)) continue;  // skip duplicate
+      const sec = (typeof c.duration === "number") ? c.duration : 0;
+      clips.push({
+        id: nextId++,
+        name: c.name || `片段 ${String(nextId).padStart(2, "0")}`,
         dur: durLabel(sec),
         durSec: sec,
         shots: c.shots || "—",
-        cls: ["", "c2", "c3", "c4"][i % 4],
+        cls: ["", "c2", "c3", "c4"][nextId % 4],
         kept: true,
-        path: c.path || c.name,
+        path: p,
         kind: c.kind === "image" ? "image" : "video",
         thumb: c.thumb || "",
         trimIn: null, trimOut: null,
-      };
-    });
+        w: c.w || null, h: c.h || null, fps: c.fps || null,
+      });
+      added++;
+    }
+    if (!added) { toast("没有新片段（全部已加载）"); return; }
     clipsLoaded = true;
-    selClip = clips.length ? clips[0].id : null;
+    if (selClip == null && clips.length) selClip = clips[0].id;
     rebuildCutsFromOrder();
     renderStrip(); renderInspector(); renderTrim();
     document.getElementById("anaState").textContent =
-      `已列出 ${clips.length} 个片段${clipsSub ? "（" + clipsSub + "）" : ""} · 点「一键智能转场」跑 CV`;
-    toast(`已列出 ${clips.length} 个片段`);
+      `已加载 ${clips.length} 个片段${clipsSub ? "（" + clipsSub + "）" : ""} · 本次追加 ${added} · 点「一键智能转场」跑 CV`;
+    toast(`已追加 ${added} 个片段（总计 ${clips.length}）`);
   } catch (e) {
     if (e.status === 404) {
       // TODO(backend): media_agent 尚未实现 GET /project/clips；落地后此分支自动转成功。
-      toast("后端暂未提供「列生成目录」端点(GET /project/clips · 404)，保留示例片段");
+      toast("后端暂未提供「列生成目录」端点(GET /project/clips · 404)");
       document.getElementById("anaState").textContent =
-        "TODO · 后端 /project/clips 待实现，当前为示例片段（不影响分析/渲染真机片段路径）";
+        "TODO · 后端 /project/clips 待实现（不影响分析/渲染真机片段路径）";
     } else {
       toast("列目录失败：" + e.message);
     }
@@ -855,6 +900,7 @@ async function analyze() {
 
 /* ===== 生成成片（真机：POST /transition/render，同步阻塞至 ffmpeg 完成 → {output}） ===== */
 let rendering = false;
+let lastOutput = null;  // 最近一次渲染产出路径，供「送去配乐」postMessage 用
 function render() {
   if (rendering) return;
   if (!PROJECT) { toast("请先在首页选择项目"); return; }
@@ -871,12 +917,13 @@ function render() {
     pf.style.width = p + "%";
     st.textContent = `渲染中 ${Math.floor(p)}% · xfade/acrossfade 归一化 1080p/30fps`;
   }, 380);
-  const out_path = `${PROJECT || "compose"}_reel.mp4`;
+  const out_path = PROJECT + "/compose/reel.mp4";
   postJSON(`${MEDIA_API}/transition/render`, { composition: buildComposition(), out_path })
     .then((res) => {
       clearInterval(tick);
       pf.style.width = "100%";
       const output = res.output || out_path;
+      lastOutput = output;
       st.textContent = `✓ 成片已生成：${output}（保留原音 acrossfade）· 可送去配乐`;
       if (res.warning) toast("提示：" + res.warning);
       if (tosoundBtn) { tosoundBtn.dataset.output = output; tosoundBtn.removeAttribute("disabled"); }
@@ -908,6 +955,9 @@ function wireToolbar() {
           if (cl && cl.kind === "video" && cl.path) {
             const pvBox = document.querySelector(".player");
             if (pvBox) {
+              // P1-3: 清理旧视频元素避免内存泄漏与多视频并发播放
+              const oldVid = pvBox.querySelector("video");
+              if (oldVid) { oldVid.pause(); oldVid.remove(); }
               const src = fileSrc(cl.path);
               pvBox.innerHTML = `<video src="${src}" controls autoplay style="width:100%;max-height:400px;border-radius:8px;background:#000;"></video>`;
             }
@@ -917,9 +967,8 @@ function wireToolbar() {
           break;
         }
         case "tosound": {
-          const output = el.dataset.output;
-          if (!output) { toast("请先「生成成片」再送去配乐"); break; }
-          toast("送去配乐：" + output + "（切到配乐工作区）");
+          if (!lastOutput) { toast("请先「生成成片」再送去配乐"); break; }
+          window.parent.postMessage({ type: "soundtrack.open", videoPath: lastOutput }, "*");
           break;
         }
       }
@@ -941,6 +990,7 @@ renderStrip();
 renderInspector();
 renderTrim();
 wireToolbar();
+loadClips();
 </script>
 </body>
 </html>
