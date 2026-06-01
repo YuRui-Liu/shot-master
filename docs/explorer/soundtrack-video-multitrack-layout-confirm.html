@@ -21,19 +21,44 @@
 
   .work { flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 16px; gap:12px; }
 
-  /* ① 顶部大屏视频预览 —— 视频居中,进度条+播放控制在视频「下方」 */
-  .preview { flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:10px; }
-  .video-box { width:520px; max-width:100%; aspect-ratio:16/9; background:#06070d; border:1px solid var(--border); border-radius:11px; display:grid; place-items:center; color:var(--faint); font-size:13px; position:relative; overflow:hidden; }
+  /* ① 顶部 = 左:视频预览(+下方进度) | 右:LLM 对话面板(选时段→识别情绪→生成BGM/SFX) */
+  .preview { flex-shrink:0; display:flex; gap:14px; align-items:stretch; }
+  .video-col { flex:0 0 auto; display:flex; flex-direction:column; gap:9px; }
+  .video-box { width:460px; max-width:48vw; aspect-ratio:16/9; background:#06070d; border:1px solid var(--border); border-radius:11px; display:grid; place-items:center; color:var(--faint); font-size:13px; position:relative; overflow:hidden; }
   .video-box .ph{ text-align:center; } .video-box .play{ position:absolute; inset:0; display:grid; place-items:center; }
   .video-box .pbtn{ width:54px; height:54px; border-radius:50%; background:rgba(74,158,255,.85); display:grid; place-items:center; color:#06122a; font-size:22px; }
-  /* 视频下方的进度+播放控制条(全宽对齐视频) */
-  .pv-ctrl { width:520px; max-width:100%; display:flex; flex-direction:column; gap:7px; }
+  /* 视频下方的进度+播放控制条 */
+  .pv-ctrl { display:flex; flex-direction:column; gap:7px; }
   .pv-ctrl .row{ display:flex; align-items:center; gap:10px; }
-  .pv-ctrl .tl{ flex:1; height:6px; background:var(--field); border-radius:3px; position:relative; }
+  .pv-ctrl .tl{ flex:1; height:6px; background:var(--field); border-radius:3px; position:relative; cursor:pointer; }
   .pv-ctrl .tl .ph2{ position:absolute; left:38%; top:-4px; width:3px; height:14px; background:var(--blue); border-radius:1px; }
+  /* 框选高亮区(在进度条上选时段) */
+  .pv-ctrl .tl .sel{ position:absolute; left:30%; width:22%; top:0; bottom:0; background:rgba(167,139,250,.35); border:1px solid var(--overlay); border-radius:3px; }
   .pv-ctrl .t{ font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
-  .pv-ctrl .meta{ font-size:11.5px; color:var(--faint); flex:1; }
+  .pv-ctrl .meta{ font-size:11.5px; color:var(--faint); }
   .pv-ctrl .chip{ font-size:11px; color:var(--periw); border:1px solid var(--border); border-radius:9px; padding:3px 11px; cursor:pointer; }
+
+  /* 右:LLM 对话面板 */
+  .chat-col { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--border); border-radius:11px; overflow:hidden; }
+  .chat-hd { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border-lo); }
+  .chat-hd .t{ font-size:12.5px; font-weight:600; background:linear-gradient(135deg,var(--blue),var(--mauve)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .chat-hd .seg{ margin-left:auto; font-size:11px; color:var(--overlay); background:rgba(167,139,250,.14); border:1px solid #4a3d6e; border-radius:9px; padding:2px 10px; }
+  .chat-body{ flex:1; overflow:auto; padding:12px 14px; display:flex; flex-direction:column; gap:9px; min-height:150px; }
+  .msg{ font-size:12px; line-height:1.55; padding:8px 11px; border-radius:9px; max-width:88%; }
+  .msg.sys{ align-self:center; color:var(--faint); font-size:11px; background:none; max-width:100%; text-align:center; }
+  .msg.u{ align-self:flex-end; background:rgba(74,158,255,.12); color:var(--fg2); }
+  .msg.a{ align-self:flex-start; background:var(--navy); color:var(--fg2); }
+  .msg.a .emo{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .msg.a .tag{ font-size:10.5px; color:#9bd6a4; border:1px solid #2c5a44; border-radius:8px; padding:1px 8px; }
+  .msg.a .gen{ margin-top:8px; display:flex; gap:8px; }
+  .msg.a .gbtn{ font-size:11.5px; border-radius:7px; padding:5px 12px; cursor:pointer; border:none; }
+  .msg.a .gbtn.bgm{ background:linear-gradient(135deg,var(--bgm),#6a5fb0); color:#fff; }
+  .msg.a .gbtn.sfx{ background:linear-gradient(135deg,var(--sfx),#3aa978); color:#06231a; font-weight:600; }
+  .chat-foot{ display:flex; gap:8px; padding:10px 14px; border-top:1px solid var(--border-lo); }
+  .chat-foot input{ flex:1; }
+  .chat-foot .send{ background:var(--panel2); color:var(--fg2); border:1px solid var(--border); border-radius:7px; padding:7px 14px; font-size:12.5px; cursor:pointer; }
+  .chat-foot .recog{ background:rgba(74,158,255,.14); color:var(--blue); border:1px solid var(--blue-dim); border-radius:7px; padding:7px 12px; font-size:12px; cursor:pointer; white-space:nowrap; }
+  @media (max-width:960px){ .preview{ flex-direction:column; } .video-box{ max-width:100%; width:100%; } }
 
   /* ② 多轨道时间轴 */
   .daw { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--border); border-radius:11px; overflow:hidden; }
@@ -65,7 +90,7 @@
 </style>
 </head>
 <body>
-<div class="note"><b>视频后期 · 配乐 DAW 布局确认稿</b> —— 按需求：<b>① 顶部大屏视频预览</b>（按钮加载视频，播放头与轨道同步）+ <b>② 4 条固定主轨</b>（原声/BGM/SFX/对白）+ <b>③ 无限动态叠加轨</b>（框选生成的 overlay 片段，可不断新增）。交互参考 3c/3d，<b>配色用本项目蓝紫</b>（不取参考稿配色）。<b>v2</b>：进度条+播放控制移到<b>视频下方</b>（不在右侧）。请浏览器确认。</div>
+<div class="note"><b>视频后期 · 配乐 DAW 布局确认稿</b> —— 按需求：<b>① 顶部大屏视频预览</b>（按钮加载视频，播放头与轨道同步）+ <b>② 4 条固定主轨</b>（原声/BGM/SFX/对白）+ <b>③ 无限动态叠加轨</b>（框选生成的 overlay 片段，可不断新增）。交互参考 3c/3d，<b>配色用本项目蓝紫</b>（不取参考稿配色）。<b>v3</b>：左=视频预览(进度条在视频下方,可<b>框选时段</b>)，右=<b>LLM 对话面板</b>（按智能配乐文档：框选时段→对话识别画面情绪 valence/arousal/intensity→选 BGM/SFX→comfyui 工作流返回音频落轨）。下方=4 固定轨+无限叠加轨。配色用本项目蓝紫。请浏览器确认。</div>
 
 <div class="head">
   <h1>视频后期 · 配乐</h1>
@@ -78,15 +103,38 @@
 </div>
 
 <div class="work">
-  <!-- ① 顶部大屏视频预览(视频在上,进度+播放在下方) -->
+  <!-- ① 左:视频预览(下方进度) | 右:LLM 对话面板 -->
   <div class="preview">
-    <div class="video-box">
-      <div class="ph">点「加载视频」选择成片<br>预览 + 抽原声轨</div>
-      <div class="play"><div class="pbtn">▶</div></div>
+    <div class="video-col">
+      <div class="video-box">
+        <div class="ph">点「加载视频」选择成片<br>预览 + 抽原声轨</div>
+        <div class="play"><div class="pbtn">▶</div></div>
+      </div>
+      <div class="pv-ctrl">
+        <div class="row"><span class="t">00:38</span><div class="tl"><span class="sel"></span><span class="ph2"></span></div><span class="t">01:42</span></div>
+        <div class="row"><span class="chip">▶ 播放</span><span class="chip">⏸</span><span class="chip">🔊 100%</span><span class="meta">在进度条<b style="color:var(--overlay)">框选时段</b> → 右侧对话识别情绪/生成</span></div>
+      </div>
     </div>
-    <div class="pv-ctrl">
-      <div class="row"><span class="t">00:38</span><div class="tl"><span class="ph2"></span></div><span class="t">01:42</span></div>
-      <div class="row"><span class="chip">▶ 播放</span><span class="chip">⏸</span><span class="chip">🔊 100%</span><span class="meta">spb_final.mp4 · 16:9 · 24fps · 102s · 播放头与音轨同步走带</span></div>
+
+    <!-- 右:LLM 对话(选时段→识别情绪→comfyui工作流出 BGM/SFX) -->
+    <div class="chat-col">
+      <div class="chat-hd"><span class="t">✦ 配乐对话 · 情绪分析助手</span><span class="seg">选中区间 30–52s（22s）</span></div>
+      <div class="chat-body">
+        <div class="msg sys">框选视频时段后与 AI 对话：识别该段情绪 → 选 BGM 或 SFX → comfyui 工作流返回音频，落进下方轨道</div>
+        <div class="msg u">这段是男主雨夜独自走在废铁场，情绪压抑、孤独，帮我配一段 BGM</div>
+        <div class="msg a">已分析 30–52s 画面情绪：
+          <div class="emo"><span class="tag">melancholic</span><span class="tag">lonely</span><span class="tag">tense</span><span class="tag">valence -0.6</span><span class="tag">arousal 0.4</span><span class="tag">intensity 0.5</span></div>
+          建议：纯器乐、低动态、对白友好的暗色 BGM。tags: <i>Instrumental, dark ambient, melancholic, soft dynamics, dialogue-friendly</i>
+          <div class="gen"><button class="gbtn bgm">♪ 生成 BGM（ACE-Step）</button><button class="gbtn sfx">🔊 生成 SFX（雨声/脚步）</button></div>
+        </div>
+        <div class="msg u">脚步声太突兀，SFX 只要环境雨声</div>
+        <div class="msg a">收到。SFX 改为持续环境雨声（10s 可循环），生成后落「SFX 轨」30–52s。<div class="gen"><button class="gbtn sfx">🔊 生成环境雨声</button></div></div>
+      </div>
+      <div class="chat-foot">
+        <button class="recog">识别本段情绪</button>
+        <input type="text" placeholder="描述需求 / 调整（如：再忧伤些、加心跳声、换欢快）…">
+        <button class="send">发送</button>
+      </div>
     </div>
   </div>
 
