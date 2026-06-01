@@ -591,13 +591,29 @@ function renderStrip() {
       if (cl.kind === "video" && cl.path) {
         const pvBox = document.querySelector(".player");
         if (pvBox) {
-          // P1-3: 清理旧视频元素避免内存泄漏与多视频并发播放
+          // 清理旧视频元素避免内存泄漏与多视频并发播放
           const oldVid = pvBox.querySelector("video");
           if (oldVid) { oldVid.pause(); oldVid.remove(); }
+          const oldErr = pvBox.querySelector(".vid-err");
+          if (oldErr) oldErr.remove();
+          const playIcon = pvBox.querySelector(".play");
+          if (playIcon) playIcon.style.display = "none";
           const src = fileSrc(cl.path.replace(/\\/g, '/'));
-          pvBox.innerHTML = `<video src="${src}" controls autoplay preload="auto" style="width:100%;max-height:400px;border-radius:8px;background:#000;"
-           onerror="this.style.display='none';var d=this.nextElementSibling;if(d){d.style.display='';d.innerHTML='视频无法播放 &middot; <a href='+this.src+' target=_blank style=color:var(--blue);text-decoration:underline>点击链接直接打开</a>'}"></video>
-          <div style="display:none;color:var(--muted);font-size:11px;padding:40px;text-align:center;"></div>`;
+          const vid = document.createElement("video");
+          vid.src = src;
+          vid.controls = true;
+          vid.autoplay = true;
+          vid.preload = "auto";
+          vid.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:8px;z-index:1;";
+          vid.onerror = () => {
+            vid.remove();
+            const d = document.createElement("div");
+            d.className = "vid-err";
+            d.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;z-index:2;";
+            d.innerHTML = '视频无法播放 &middot; <a href="' + esc(src) + '" target="_blank" style="color:var(--blue);text-decoration:underline">点击链接直接打开</a>';
+            pvBox.appendChild(d);
+          };
+          pvBox.appendChild(vid);
         }
       }
       document.getElementById("pvTag").textContent = `预览：${cl.name}（也可切「整片预览」）`;
@@ -955,13 +971,27 @@ function wireToolbar() {
           if (cl && cl.kind === "video" && cl.path) {
             const pvBox = document.querySelector(".player");
             if (pvBox) {
-              // P1-3: 清理旧视频元素避免内存泄漏与多视频并发播放
               const oldVid = pvBox.querySelector("video");
               if (oldVid) { oldVid.pause(); oldVid.remove(); }
+              const oldErr = pvBox.querySelector(".vid-err");
+              if (oldErr) oldErr.remove();
+              const playIcon = pvBox.querySelector(".play");
+              if (playIcon) playIcon.style.display = "none";
               const src = fileSrc(cl.path.replace(/\\/g, '/'));
-              pvBox.innerHTML = `<video src="${src}" controls autoplay style="width:100%;max-height:400px;border-radius:8px;background:#000;"
-           onerror="this.style.display='none';var d=this.nextElementSibling;if(d){d.style.display='';d.innerHTML='视频无法播放 &middot; <a href='+this.src+' target=_blank style=color:var(--blue);text-decoration:underline>点击链接直接打开</a>'}"></video>
-          <div style="display:none;color:var(--muted);font-size:11px;padding:40px;text-align:center;"></div>`;
+              const vid = document.createElement("video");
+              vid.src = src;
+              vid.controls = true;
+              vid.autoplay = true;
+              vid.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:8px;z-index:1;";
+              vid.onerror = () => {
+                vid.remove();
+                const d = document.createElement("div");
+                d.className = "vid-err";
+                d.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;z-index:2;";
+                d.innerHTML = '视频无法播放 &middot; <a href="' + esc(src) + '" target="_blank" style="color:var(--blue);text-decoration:underline">点击链接直接打开</a>';
+                pvBox.appendChild(d);
+              };
+              pvBox.appendChild(vid);
             }
           } else {
             toast("请先选中一个视频片段");
@@ -996,5 +1026,7 @@ loadClips();
 </script>
 </body>
 </html>
+
+
 
 
