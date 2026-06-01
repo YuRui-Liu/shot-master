@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>视频后期·配乐 DAW 布局确认稿（视频预览+多轨道）</title>
+<link rel="stylesheet" href="../../web/tokens.css">
+<style>
+  /* 确认稿：配乐 DAW —— 顶部大屏视频预览 + 4 条固定主轨(原声/BGM/SFX/对白) + 无限动态叠加轨。
+     交互参考 3c-overlay(固定轨+动态叠加)/3d-framing(框选生成),但**配色用本项目蓝紫 tokens.css**(不取参考稿配色)。 */
+  :root{ --video:#4a9eff; --bgm:#8b7fd9; --sfx:#4ec98f; --dialogue:#e0a85a; --overlay:#a78bfa; }
+  body { margin:0; background:var(--bg); color:var(--fg); height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+  .note { background:rgba(74,158,255,.08); border-bottom:1px solid var(--blue-dim); padding:9px 20px; font-size:12px; color:var(--periw); flex-shrink:0; }
+  .note b{ color:var(--blue); }
+  .head { display:flex; align-items:center; gap:14px; padding:12px 20px 8px; flex-shrink:0; }
+  .head h1{ margin:0; font-size:18px; background:linear-gradient(135deg,var(--blue),var(--mauve)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .head .sub{ display:flex; gap:6px; margin-left:auto; }
+  .head .btn{ font-size:12.5px; padding:7px 14px; border-radius:8px; cursor:pointer; background:var(--panel2); color:var(--fg2); border:1px solid var(--border); }
+  .head .btn.load{ color:var(--blue); border-color:var(--blue-dim); }
+  .head .btn.gen{ background:linear-gradient(135deg,var(--blue),var(--periw)); color:#06122a; font-weight:700; border:none; }
+
+  .work { flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 16px; gap:12px; }
+
+  /* ① 顶部大屏视频预览 */
+  .preview { flex-shrink:0; display:flex; gap:14px; }
+  .video-box { flex:0 0 auto; width:380px; aspect-ratio:16/9; background:#06070d; border:1px solid var(--border); border-radius:11px; display:grid; place-items:center; color:var(--faint); font-size:13px; position:relative; overflow:hidden; }
+  .video-box .ph{ text-align:center; } .video-box .play{ position:absolute; inset:0; display:grid; place-items:center; }
+  .video-box .pbtn{ width:54px; height:54px; border-radius:50%; background:rgba(74,158,255,.85); display:grid; place-items:center; color:#06122a; font-size:22px; }
+  .pv-side { flex:1; display:flex; flex-direction:column; gap:8px; justify-content:center; }
+  .pv-side .row{ display:flex; align-items:center; gap:10px; }
+  .pv-side .tl{ flex:1; height:6px; background:var(--field); border-radius:3px; position:relative; }
+  .pv-side .tl .ph2{ position:absolute; left:38%; top:-4px; width:3px; height:14px; background:var(--blue); border-radius:1px; }
+  .pv-side .t{ font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .pv-side .meta{ font-size:11.5px; color:var(--faint); }
+  .pv-side .chip{ font-size:11px; color:var(--periw); border:1px solid var(--border); border-radius:9px; padding:2px 9px; }
+
+  /* ② 多轨道时间轴 */
+  .daw { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--border); border-radius:11px; overflow:hidden; }
+  .ruler { height:24px; background:var(--navy); border-bottom:1px solid var(--border-lo); display:flex; align-items:center; padding-left:130px; font-size:10px; color:var(--faint); gap:46px; }
+  .tracks { flex:1; overflow-y:auto; position:relative; }
+  /* 播放头贯穿 */
+  .playhead { position:absolute; top:0; bottom:0; left:calc(130px + 38%); width:2px; background:var(--blue); z-index:5; pointer-events:none; }
+  .track { display:flex; align-items:stretch; height:60px; border-bottom:1px solid var(--border-lo); }
+  .track .thead { width:130px; flex-shrink:0; background:var(--navy); border-right:1px solid var(--border-lo); padding:8px 10px; display:flex; flex-direction:column; gap:4px; }
+  .track .thead .nm{ font-size:12px; font-weight:600; display:flex; align-items:center; gap:6px; }
+  .track .thead .nm .dot{ width:9px; height:9px; border-radius:2px; }
+  .track .thead .ctl{ display:flex; gap:5px; }
+  .track .thead .b{ font-size:9.5px; color:var(--muted); border:1px solid var(--border); border-radius:4px; padding:1px 6px; cursor:pointer; }
+  .track .lane { flex:1; position:relative; background:repeating-linear-gradient(90deg,transparent,transparent 45px,var(--border-lo) 45px,var(--border-lo) 46px); }
+  .clip { position:absolute; top:8px; bottom:8px; border-radius:6px; display:flex; align-items:center; padding:0 8px; font-size:10.5px; color:#06122a; font-weight:600; overflow:hidden; }
+  .lane.video .clip{ background:linear-gradient(180deg,var(--video),#3a7fcc); }
+  .lane.bgm .clip{ background:linear-gradient(180deg,var(--bgm),#6a5fb0); color:#fff; }
+  .lane.sfx .clip{ background:linear-gradient(180deg,var(--sfx),#3aa978); }
+  .lane.dialogue .clip{ background:linear-gradient(180deg,var(--dialogue),#c2893f); }
+  .lane.overlay { background:#1a1626; }
+  .lane.overlay .clip{ background:repeating-linear-gradient(45deg,var(--overlay),var(--overlay) 6px,#7a5fd0 6px,#7a5fd0 12px); color:#fff; }
+  /* 固定主轨 4 条 + 动态叠加分隔 */
+  .ov-head { display:flex; align-items:center; gap:8px; padding:6px 12px; background:#15121f; border-bottom:1px solid var(--border-lo); font-size:11px; color:var(--mauve); }
+  .ov-head .add{ margin-left:auto; font-size:11px; color:var(--blue); border:1px solid var(--blue-dim); border-radius:6px; padding:3px 10px; cursor:pointer; }
+  .ov-head .hint{ color:var(--faint); }
+
+  .foot { flex-shrink:0; display:flex; align-items:center; gap:14px; font-size:11.5px; color:var(--muted); }
+  .foot .lg{ display:flex; align-items:center; gap:6px; } .foot .sw{ width:11px; height:11px; border-radius:3px; }
+</style>
+</head>
+<body>
+<div class="note"><b>视频后期 · 配乐 DAW 布局确认稿</b> —— 按需求：<b>① 顶部大屏视频预览</b>（按钮加载视频，播放头与轨道同步）+ <b>② 4 条固定主轨</b>（原声/BGM/SFX/对白）+ <b>③ 无限动态叠加轨</b>（框选生成的 overlay 片段，可不断新增）。交互参考 3c/3d，<b>配色用本项目蓝紫</b>（不取参考稿配色）。请浏览器确认 3 点是否符合预期。</div>
+
+<div class="head">
+  <h1>视频后期 · 配乐</h1>
+  <div class="sub">
+    <span class="btn load">📂 加载视频</span>
+    <span class="btn">⚡ 自动配乐</span>
+    <span class="btn">⚡ 检测卡点</span>
+    <span class="btn gen">⬇ 出片(混音)</span>
+  </div>
+</div>
+
+<div class="work">
+  <!-- ① 顶部大屏视频预览 -->
+  <div class="preview">
+    <div class="video-box">
+      <div class="ph">点「加载视频」选择成片<br>预览 + 抽原声轨</div>
+      <div class="play"><div class="pbtn">▶</div></div>
+    </div>
+    <div class="pv-side">
+      <div class="row"><span class="t">00:38</span><div class="tl"><span class="ph2"></span></div><span class="t">01:42</span></div>
+      <div class="row"><span class="meta">spb_final.mp4 · 16:9 · 24fps · 102s</span><span class="chip">▶ 播放</span><span class="chip">⏸</span><span class="chip">🔊 100%</span></div>
+      <div class="meta">视频播放头与下方所有音轨<b style="color:var(--blue)">同步走带</b>；点轨道片段可定位。</div>
+    </div>
+  </div>
+
+  <!-- ② 多轨道 -->
+  <div class="daw">
+    <div class="ruler"><span>0s</span><span>10s</span><span>20s</span><span>30s</span><span>40s</span><span>50s</span><span>60s</span></div>
+    <div class="tracks">
+      <div class="playhead"></div>
+      <!-- 4 固定主轨 -->
+      <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--video)"></span>原声</div><div class="ctl"><span class="b">M</span><span class="b">S</span></div></div>
+        <div class="lane video"><div class="clip" style="left:2%;width:96%">原声波形（加载视频后抽取）</div></div></div>
+      <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--bgm)"></span>BGM</div><div class="ctl"><span class="b">M</span><span class="b">S</span></div></div>
+        <div class="lane bgm"><div class="clip" style="left:4%;width:44%">主题BGM_01</div><div class="clip" style="left:52%;width:40%">情绪BGM_02</div></div></div>
+      <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--sfx)"></span>SFX</div><div class="ctl"><span class="b">M</span><span class="b">S</span></div></div>
+        <div class="lane sfx"><div class="clip" style="left:18%;width:8%">脚步</div><div class="clip" style="left:60%;width:10%">玻璃碎</div></div></div>
+      <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--dialogue)"></span>对白</div><div class="ctl"><span class="b">M</span><span class="b">S</span></div></div>
+        <div class="lane dialogue"><div class="clip" style="left:8%;width:20%">台词A</div><div class="clip" style="left:40%;width:26%">台词B</div></div></div>
+      <!-- ③ 无限动态叠加轨（框选生成的 overlay） -->
+      <div class="ov-head">动态叠加轨（框选区间 + prompt → 生成 BGM/SFX 片段，可无限新增）<span class="hint">Shift+框选时间轴</span><span class="add">＋ 新增叠加轨</span></div>
+      <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--overlay)"></span>叠加 1</div><div class="ctl"><span class="b">M</span><span class="b">S</span><span class="b">✕</span></div></div>
+        <div class="lane overlay"><div class="clip" style="left:46%;width:22%">overlay·泵感BGM</div></div></div>
+      <div class="track"><div class="thead"><div class="nm"><span class="dot" style="background:var(--overlay)"></span>叠加 2</div><div class="ctl"><span class="b">M</span><span class="b">S</span><span class="b">✕</span></div></div>
+        <div class="lane overlay"><div class="clip" style="left:24%;width:14%">overlay·环境声</div></div></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="lg"><i class="sw" style="background:var(--video)"></i>原声</span>
+    <span class="lg"><i class="sw" style="background:var(--bgm)"></i>BGM</span>
+    <span class="lg"><i class="sw" style="background:var(--sfx)"></i>SFX</span>
+    <span class="lg"><i class="sw" style="background:var(--dialogue)"></i>对白</span>
+    <span class="lg"><i class="sw" style="background:var(--overlay)"></i>动态叠加(斜纹)</span>
+    <span class="lg"><i class="sw" style="background:var(--blue);width:3px"></i>播放头(与视频同步)</span>
+  </div>
+</div>
+</body>
+</html>

@@ -40,7 +40,17 @@
   .editor { flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden; }
   .ed-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border-lo); }
   .ed-head input.nm { flex: 1; max-width: 260px; }
-  .ed-body { flex: 1; overflow: auto; padding: 16px; }
+  /* 编辑区 = 主表单 + 右侧专业提示词面板（保留原项目"右侧加专业提示词"的做法） */
+  .ed-body { flex: 1; overflow: hidden; padding: 16px; display: flex; gap: 16px; }
+  .ed-main { flex: 1; min-width: 0; overflow: auto; }
+  .ed-presets { width: 248px; flex-shrink: 0; overflow: auto; background: var(--navy); border: 1px solid var(--border-lo); border-radius: 9px; padding: 12px 13px; }
+  .ed-presets .pt { font-size: 11px; color: var(--periw); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 10px; }
+  .ed-presets .pgrp { margin-bottom: 13px; }
+  .ed-presets .pgl { font-size: 11px; color: var(--muted); margin-bottom: 7px; }
+  .ed-presets .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ed-presets .pchip { font-size: 11.5px; color: var(--periw); background: rgba(138,127,217,.14); border: 1px solid #4a3d6e; border-radius: 12px; padding: 4px 10px; cursor: pointer; }
+  .ed-presets .pchip:hover { background: rgba(138,127,217,.24); }
+  @media (max-width: 1000px){ .ed-body { flex-direction: column; } .ed-presets { width: auto; } }
   .mrow { display: flex; gap: 10px; margin-bottom: 14px; }
   .mbtn { flex: 1; text-align: center; padding: 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--field); color: var(--fg2); cursor: pointer; font-size: 13px; }
   .mbtn.on { border-color: var(--blue); background: rgba(74,158,255,.12); color: var(--fg); font-weight: 600; box-shadow: 0 0 0 1px var(--blue); }
@@ -74,7 +84,7 @@
 </style>
 </head>
 <body>
-<div class="note"><b>配音 · 模式1 自由模式 布局确认稿</b> —— 参考原 PySide 配音(任务表 名称/模式/状态 + 音色设计/声音克隆 表单)。与模式2(剧集分镜对齐,逐镜头)<b>不同</b>：模式1 是自由「配音任务列表」，每任务独立选模式+台词+参数，自由试听/合成。请浏览器确认。</div>
+<div class="note"><b>配音 · 模式1 自由模式 布局确认稿 v2</b> —— 基础布局沿用当前项目配音页(模式1/模式2 切换+任务列表)；模式1 编辑器 = 自由配音板.png(音色设计/声音克隆+台词+克隆参数 情感强度α/4情感子模式+采样参数+试听/保存/合成)。本版按反馈<b>新增 文件名前缀+保存路径</b>，并<b>保留原项目右侧「专业提示词」</b>（情绪/语气节奏/音色风格 chips，点击插入）。区别于模式2(剧集分镜对齐)。请浏览器确认。</div>
 
 <div class="head">
   <h1>配音 · 自由模式</h1>
@@ -99,6 +109,7 @@
   <div class="editor">
     <div class="ed-head"><input class="nm" type="text" value="机械音"> <span style="font-size:11.5px;color:var(--muted)">任务 3</span></div>
     <div class="ed-body">
+     <div class="ed-main">
       <div class="mrow"><div class="mbtn">音色设计</div><div class="mbtn on">声音克隆</div></div>
 
       <div class="grp">
@@ -132,6 +143,28 @@
         <div class="frow"><label>语速</label><input type="range" min="0.5" max="2" step="0.05" value="1.0"><span style="color:var(--blue);font-size:12px">1.0x</span></div>
         <div class="frow"><label>temperature</label><input type="text" value="0.8" style="max-width:80px"><label style="width:auto">top_p</label><input type="text" value="0.8" style="max-width:80px"><label style="width:auto">top_k</label><input type="text" value="30" style="max-width:80px"></div>
       </div>
+
+      <!-- 新增:输出(文件名前缀 + 保存路径) -->
+      <div class="grp">
+        <div class="glab">输出</div>
+        <div class="frow"><label>文件名前缀</label><input type="text" value="dub_机械音"></div>
+        <div class="frow"><label>保存路径</label><input type="text" value="（空=项目 dub/ 目录）" readonly><span class="pick">选择…</span></div>
+      </div>
+     </div><!-- /.ed-main -->
+
+     <!-- 右侧:专业提示词(保留原项目做法,点击插入台词/情感描述) -->
+     <aside class="ed-presets">
+       <div class="pt">专业提示词</div>
+       <div class="pgrp"><div class="pgl">情绪</div><div class="chips">
+         <span class="pchip">愤怒</span><span class="pchip">悲伤</span><span class="pchip">冷峻</span><span class="pchip">急促</span><span class="pchip">沙哑低沉</span><span class="pchip">温柔</span>
+       </div></div>
+       <div class="pgrp"><div class="pgl">语气/节奏</div><div class="chips">
+         <span class="pchip">停顿</span><span class="pchip">加重</span><span class="pchip">气声</span><span class="pchip">渐弱</span><span class="pchip">咬字清晰</span>
+       </div></div>
+       <div class="pgrp"><div class="pgl">音色风格</div><div class="chips">
+         <span class="pchip">机械音</span><span class="pchip">播音腔</span><span class="pchip">少年音</span><span class="pchip">御姐音</span><span class="pchip">磁性男声</span>
+       </div></div>
+     </aside>
     </div>
     <div class="ed-foot">
       <div class="waveph"></div>
