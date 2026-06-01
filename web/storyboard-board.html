@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -172,14 +172,15 @@
   }
   .side-meta { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.7; }
 
-  /* 灯箱：点击分镜图全屏查看 */
-  .lightbox { position: fixed; inset: 0; z-index: 6000; display: flex; align-items: center; justify-content: center; }
+  /* 灯箱：点击分镜图全屏查看，默认隐藏，open 时显示 */
+  .lightbox { position: fixed; inset: 0; z-index: 6000; display: none; align-items: center; justify-content: center; }
+  .lightbox.open { display: flex; }
   .lightbox .lb-overlay { position: absolute; inset: 0; background: rgba(8,9,18,.88); cursor: pointer; }
   .lightbox .lb-body { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; }
   .lightbox .lb-close { position: absolute; top: -36px; right: 0; color: var(--fg2); font-size: 22px; cursor: pointer; padding: 8px; }
   .lightbox .lb-close:hover { color: var(--fg); }
   .lightbox .lb-info { position: absolute; bottom: -30px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 11px; }
-  .preview { cursor: pointer; }  /* 可点击放大 */
+  .preview { cursor: pointer; }
   .preview:hover { border-color: var(--mauve); }
 
   /* ===== 工作模式切换 seg ===== */
@@ -842,7 +843,7 @@
     }, { once: true });
   }
 
-  // ---- 灯箱：点击分镜图全屏查看 ----
+  // ---- 灯箱：默认隐藏，点击分镜图打开，点击✕/遮罩关闭 ----
   function setupLightbox() {
     const lb = $("imgLightbox"), lbImg = $("lbImg"), lbClose = $("lbClose"), lbOverlay = $("lbOverlay"), lbInfo = $("lbInfo");
     if (!lb || !lbImg) return;
@@ -852,9 +853,9 @@
       if (!img || !img.src) return;
       lbImg.src = img.src;
       lbInfo.textContent = img.alt || "分镜图原图";
-      lb.hidden = false;
+      lb.classList.add("open");
     });
-    const close = () => { lb.hidden = true; };
+    const close = () => { lb.classList.remove("open"); };
     lbClose.addEventListener("click", close);
     lbOverlay.addEventListener("click", close);
   }
