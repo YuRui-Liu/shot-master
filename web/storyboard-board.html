@@ -188,16 +188,17 @@
   }
   .sbview-tools { display: inline-flex; align-items: center; gap: 14px; }
 
-  /* ===== 自由模式：批处理工具集 ===== */
+  /* ===== 自由模式：批处理工具集（对齐 batch-tools-redesign 确认稿质感）===== */
   .batch-win {
-    border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
-    background: var(--bg); display: flex; flex-direction: column; height: 640px;
+    border: 1px solid #000; border-radius: 11px; overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55);
+    background: var(--bg); display: flex; flex-direction: column; height: 660px;
   }
   .batch-toolbar {
     display: flex; align-items: center; gap: 14px;
     padding: 10px 16px; background: var(--navy); border-bottom: 1px solid var(--border-lo);
   }
-  .btabs { display: flex; gap: 6px; background: var(--field); border: 1px solid var(--border-lo); border-radius: 9px; padding: 3px; }
+  .btabs { display: flex; gap: 6px; background: #0f1120; border: 1px solid var(--border-lo); border-radius: 9px; padding: 3px; }
   .btab { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); padding: 7px 16px; border-radius: 7px; cursor: pointer; border: 1px solid transparent; }
   .btab .ico { width: 16px; height: 16px; opacity: .85; }
   .btab:hover { color: var(--fg2); }
@@ -268,12 +269,23 @@
   .pta { width: 100%; min-height: 88px; resize: vertical; background: var(--field); border: 1px solid var(--border); border-radius: 6px; color: var(--fg); font: inherit; font-size: 12px; line-height: 1.55; padding: 8px 10px; outline: none; }
   .pta:focus { border-color: var(--mauve); }
 
+  /* 自定义数字微调框 + 选择框（对齐确认稿质感，替代裸 input/select）*/
+  .spin { display: flex; align-items: center; background: var(--field); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; flex: 1; }
+  .spin input { flex: 1; background: transparent; border: none; outline: none; color: var(--fg); font: inherit; font-size: 12px; padding: 6px 9px; width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
+  .spin .stp { width: 24px; text-align: center; color: var(--muted); border-left: 1px solid var(--border); padding: 6px 0; cursor: pointer; font-size: 12px; user-select: none; }
+  .spin .stp:hover { color: var(--blue); }
+  .spin:focus-within { border-color: var(--mauve); }
+  .sel-box { flex: 1; background: var(--field); border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; color: var(--fg); font-size: 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; gap: 8px; }
+  .sel-box:hover { border-color: var(--blue-dim); }
+  .sel-box .car { color: var(--muted); font-size: 10px; flex: none; }
+  .quad .qcell .spin { width: 100%; }
+
   /* 底部执行栏 */
   .execbar { border-top: 1px solid var(--border-lo); background: var(--navy); padding: 11px 16px; }
   .prog-line { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .prog-line .pl { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .prog-line .pl b { color: var(--done); }
-  .bar { flex: 1; height: 7px; border-radius: 5px; background: var(--field); border: 1px solid var(--border-lo); overflow: hidden; }
+  .bar { flex: 1; height: 7px; border-radius: 5px; background: #0f1120; border: 1px solid var(--border-lo); overflow: hidden; }
   .bar .fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--blue), var(--periw)); border-radius: 5px; transition: width .3s; }
   .btnrow { display: flex; align-items: center; gap: 10px; }
   .bbtn { font: inherit; border: 1px solid var(--border); color: var(--fg2); border-radius: 8px; padding: 9px 18px; font-size: 12.5px; cursor: pointer; background: transparent; }
@@ -705,8 +717,8 @@
         <div class="pgroup">
           <div class="glab">画幅 / 数量</div>
           <div class="pgrid2">
-            <div class="prow"><span class="k sm">画幅</span><select><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></div>
-            <div class="prow"><span class="k sm">每条张数</span><input type="number" value="1"></div>
+            <div class="prow"><span class="k sm">画幅</span><div class="sel-box">9:16<span class="car">▾</span></div></div>
+            <div class="prow"><span class="k sm">每条张数</span><div class="spin"><input value="1"><span class="stp">⌄</span></div></div>
           </div>
         </div>
         <div class="pgroup">
@@ -715,7 +727,7 @@
         </div>
         <div class="pgroup">
           <div class="glab">输出</div>
-          <div class="prow" style="margin:0"><span class="k">格式</span><select><option>PNG</option><option>JPG</option><option>WEBP</option></select></div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><div class="sel-box">PNG<span class="car">▾</span></div></div>
         </div>`
     },
     split: {
@@ -726,22 +738,22 @@
         <div class="pgroup">
           <div class="glab">网格</div>
           <div class="pgrid2">
-            <div class="prow"><span class="k sm">源图 行</span><input type="number" value="2"></div>
-            <div class="prow"><span class="k sm">源图 列</span><input type="number" value="2"></div>
-            <div class="prow"><span class="k sm">子图 行</span><input type="number" value="1"></div>
-            <div class="prow"><span class="k sm">子图 列</span><input type="number" value="1"></div>
+            <div class="prow"><span class="k sm">源图 行</span><div class="spin"><input value="2"><span class="stp">⌄</span></div></div>
+            <div class="prow"><span class="k sm">源图 列</span><div class="spin"><input value="2"><span class="stp">⌄</span></div></div>
+            <div class="prow"><span class="k sm">子图 行</span><div class="spin"><input value="1"><span class="stp">⌄</span></div></div>
+            <div class="prow"><span class="k sm">子图 列</span><div class="spin"><input value="1"><span class="stp">⌄</span></div></div>
           </div>
           <div class="phint">子图行列须能 <b>整除</b> 源图行列。当前 2×2 → 拆出 4 张/图。</div>
         </div>
         <div class="pgroup">
           <div class="glab">白边 / 间距</div>
           <div class="pgrid2 quad">
-            <div class="qcell"><span class="ql">上</span><input type="number" value="12"></div>
-            <div class="qcell"><span class="ql">右</span><input type="number" value="12"></div>
-            <div class="qcell"><span class="ql">下</span><input type="number" value="12"></div>
-            <div class="qcell"><span class="ql">左</span><input type="number" value="12"></div>
+            <div class="qcell"><span class="ql">上</span><div class="spin"><input value="12"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">右</span><div class="spin"><input value="12"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">下</span><div class="spin"><input value="12"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">左</span><div class="spin"><input value="12"><span class="stp">⌄</span></div></div>
           </div>
-          <div class="prow" style="margin-top:9px;margin-bottom:0"><span class="k">间距</span><input type="number" value="6"></div>
+          <div class="prow" style="margin-top:9px;margin-bottom:0"><span class="k">间距</span><div class="spin"><input value="6"><span class="stp">⌄</span></div></div>
           <div class="detbtns">
             <span class="detbtn" data-det="white">检测白边</span>
             <span class="detbtn" data-det="grid">推断网格</span>
@@ -749,13 +761,14 @@
         </div>
         <div class="pgroup">
           <div class="ghead-sw"><span class="glab">重采样（缩放 / 超分）</span><span class="sw off"><span class="dot"></span></span></div>
-          <div class="prow"><span class="k">算法</span><select><option>AI 超分（ComfyUI）</option><option>LANCZOS</option></select></div>
-          <div class="prow"><span class="k">目标比例</span><select><option>9:16</option><option>16:9</option><option>1:1</option></select></div>
+          <div class="prow"><span class="k">算法</span><div class="sel-box">AI 超分（ComfyUI）<span class="car">▾</span></div></div>
+          <div class="prow"><span class="k">超分模型</span><div class="sel-box">4x-UltraSharp.pth<span class="car">▾</span></div></div>
+          <div class="prow"><span class="k">目标比例</span><div class="sel-box">9:16<span class="car">▾</span></div></div>
           <div class="phint">超分失败将自动回退 <b>LANCZOS</b>，并在完成提示中统计回退数量。</div>
         </div>
         <div class="pgroup">
           <div class="glab">输出</div>
-          <div class="prow" style="margin:0"><span class="k">格式</span><select><option>PNG</option><option>JPG</option></select></div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><div class="sel-box">PNG<span class="car">▾</span></div></div>
         </div>`
     },
     trim: {
@@ -765,23 +778,23 @@
       body: `
         <div class="pgroup">
           <div class="glab">检测</div>
-          <div class="prow"><span class="k">背景色</span><select><option>自动（采样四角）</option><option>白色</option><option>黑色</option></select></div>
-          <div class="prow" style="margin:0"><span class="k">容差</span><input type="number" value="10"></div>
+          <div class="prow"><span class="k">背景色</span><div class="sel-box">自动（采样四角）<span class="car">▾</span></div></div>
+          <div class="prow" style="margin:0"><span class="k">容差</span><div class="spin"><input value="10"><span class="stp">⌄</span></div></div>
           <div class="phint">容差越大，越接近背景色的像素越会被当作白边裁掉。</div>
         </div>
         <div class="pgroup">
           <div class="glab">保留边距</div>
           <div class="pgrid2 quad">
-            <div class="qcell"><span class="ql">上</span><input type="number" value="0"></div>
-            <div class="qcell"><span class="ql">右</span><input type="number" value="0"></div>
-            <div class="qcell"><span class="ql">下</span><input type="number" value="0"></div>
-            <div class="qcell"><span class="ql">左</span><input type="number" value="0"></div>
+            <div class="qcell"><span class="ql">上</span><div class="spin"><input value="0"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">右</span><div class="spin"><input value="0"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">下</span><div class="spin"><input value="0"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">左</span><div class="spin"><input value="0"><span class="stp">⌄</span></div></div>
           </div>
           <div class="detbtns"><span class="detbtn" data-det="white">检测白边</span></div>
         </div>
         <div class="pgroup">
           <div class="glab">输出</div>
-          <div class="prow" style="margin:0"><span class="k">格式</span><select><option>PNG</option><option>JPG</option></select></div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><div class="sel-box">PNG<span class="car">▾</span></div></div>
         </div>`
     },
     combine: {
@@ -792,19 +805,19 @@
         <div class="pgroup">
           <div class="glab">布局</div>
           <div class="pgrid2">
-            <div class="prow"><span class="k sm">行</span><input type="number" value="2"></div>
-            <div class="prow"><span class="k sm">列</span><input type="number" value="2"></div>
+            <div class="prow"><span class="k sm">行</span><div class="spin"><input value="2"><span class="stp">⌄</span></div></div>
+            <div class="prow"><span class="k sm">列</span><div class="spin"><input value="2"><span class="stp">⌄</span></div></div>
           </div>
           <div class="phint">需按顺序选满 <b>行×列</b> 张；缩略图角标 1·2·3… 即拼接顺序。</div>
         </div>
         <div class="pgroup">
           <div class="glab">间距 / 背景</div>
-          <div class="prow"><span class="k">间距(px)</span><input type="number" value="6"></div>
-          <div class="prow" style="margin:0"><span class="k">背景色</span><select><option>透明</option><option>白色</option><option>黑色</option></select></div>
+          <div class="prow"><span class="k">间距(px)</span><div class="spin"><input value="6"><span class="stp">⌄</span></div></div>
+          <div class="prow" style="margin:0"><span class="k">背景色</span><div class="sel-box">透明<span class="car">▾</span></div></div>
         </div>
         <div class="pgroup">
           <div class="glab">输出</div>
-          <div class="prow" style="margin:0"><span class="k">格式</span><select><option>PNG</option><option>JPG</option></select></div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><div class="sel-box">PNG<span class="car">▾</span></div></div>
         </div>`
     }
   };

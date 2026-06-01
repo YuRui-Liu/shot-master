@@ -12,7 +12,7 @@
   .home {
     position: relative; min-height: 100vh;
     display: flex; flex-direction: column; align-items: center;
-    padding: 30px 24px 0;
+    padding: 30px 24px 64px;   /* 底部留出「创作流程」步骤栏的空间 */
   }
   /* hero 顶部柔光 */
   .glow {
@@ -111,6 +111,36 @@
 
   /* 隐藏文件选择 input */
   #dirPicker { display: none; }
+
+  /* ===== 底部「创作流程」步骤栏：01 写剧本 → 02 出资源 → 03 做分镜 → 04 生成视频 ===== */
+  .flow {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 11px 16px;
+    border-top: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(13,16,32,0), rgba(13,16,32,.62) 40%, rgba(13,16,32,.78));
+    backdrop-filter: blur(6px);
+  }
+  .flow .flow-label {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--periw); font-weight: 600; opacity: .85; margin-right: 4px;
+  }
+  .flow .step { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
+  .flow .step .n {
+    width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; letter-spacing: .5px;
+    color: var(--periw); border: 1px solid #3a3a5e; background: rgba(138,127,217,.10);
+  }
+  .flow .step .tx { font-weight: 500; }
+  /* 首步高亮（蓝紫渐变圆点） */
+  .flow .step.on { color: var(--fg); }
+  .flow .step.on .n {
+    color: #06122a; border-color: transparent;
+    background: linear-gradient(135deg, var(--blue), var(--periw));
+    box-shadow: 0 0 0 1px rgba(74,158,255,.25), 0 4px 12px rgba(74,158,255,.22);
+  }
+  .flow .arr { color: var(--faint); font-size: 13px; user-select: none; }
 </style>
 </head>
 <body>
@@ -136,6 +166,18 @@
     <!-- 卡片由 JS 渲染 -->
   </div>
   <div class="dots" id="dots"></div>
+</div>
+
+<!-- ===== 底部「创作流程」步骤栏（引导：01 写剧本 → 02 出资源 → 03 做分镜 → 04 生成视频） ===== -->
+<div class="flow">
+  <span class="flow-label">创作流程</span>
+  <div class="step on"><span class="n">01</span><span class="tx">写剧本</span></div>
+  <span class="arr">→</span>
+  <div class="step"><span class="n">02</span><span class="tx">出资源</span></div>
+  <span class="arr">→</span>
+  <div class="step"><span class="n">03</span><span class="tx">做分镜</span></div>
+  <span class="arr">→</span>
+  <div class="step"><span class="n">04</span><span class="tx">生成视频</span></div>
 </div>
 
 <!-- 打开目录：用本地目录选择（壳/Electron 下走原生；浏览器降级为 webkitdirectory） -->

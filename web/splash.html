@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · 启动中</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* —— splash 自含 token：品牌蓝紫复用 tokens.css；其余深色/装饰色为本页局部 fallback —— */
+  :root{
+    --sp-navy:#0d1020; --sp-indigo:#1e1e3a; --sp-indigo2:#2a2a4a;
+    --sp-mint:#7fe0c8; --sp-appname:#d0d8f0; --sp-sub:#5a6a8a; --sp-faint:#46506e;
+    --sp-done:#4ec98f;
+  }
+  /* 全屏铺满：宿主壳把本页当作启动闪屏 */
+  html,body{height:100%;width:100%;overflow:hidden;background:#070810;}
+  body{margin:0;display:flex;align-items:center;justify-content:center;}
+
+  /* —— splash 容器：随窗口铺满，无圆角/边框，沉浸式 —— */
+  .splash{position:relative;width:100%;height:100%;
+    background:var(--sp-navy);overflow:hidden;}
+
+  /* 漂浮光晕（蓝紫双色 + mauve 点缀） */
+  .glow{position:absolute;inset:0;overflow:hidden;}
+  .glow span{position:absolute;border-radius:50%;filter:blur(80px);}
+  .g1{width:46vmin;height:46vmin;left:-8vmin;top:-12vmin;
+    background:radial-gradient(circle,var(--blue),transparent 70%);opacity:.4;
+    animation:drift1 9s ease-in-out infinite;}
+  .g2{width:42vmin;height:42vmin;right:-10vmin;bottom:-14vmin;
+    background:radial-gradient(circle,var(--periw),transparent 70%);opacity:.42;
+    animation:drift2 11s ease-in-out infinite;}
+  .g3{width:24vmin;height:24vmin;right:8vmin;top:-6vmin;
+    background:radial-gradient(circle,var(--mauve),transparent 70%);opacity:.2;
+    animation:drift1 13s ease-in-out infinite;}
+  @keyframes drift1{0%,100%{transform:translate(0,0);}50%{transform:translate(30px,24px);}}
+  @keyframes drift2{0%,100%{transform:translate(0,0);}50%{transform:translate(-26px,-20px);}}
+
+  .grid{position:absolute;inset:0;opacity:.05;
+    background-image:linear-gradient(#9bb0ff 1px,transparent 1px),linear-gradient(90deg,#9bb0ff 1px,transparent 1px);
+    background-size:38px 38px;}
+  .vig{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse at center,transparent 42%,rgba(0,0,0,.6) 100%);}
+
+  .content{position:absolute;inset:0;padding:28px 34px;display:flex;flex-direction:column;}
+
+  /* 顶栏：LOADING 徽标 */
+  .top{display:flex;align-items:center;justify-content:space-between;}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:1.2px;
+    color:var(--blue);border:1px solid #294a78;background:rgba(74,158,255,.1);
+    border-radius:20px;padding:3px 11px;font-weight:600;}
+  .pill .pdot{width:6px;height:6px;border-radius:50%;background:var(--blue);
+    box-shadow:0 0 8px var(--blue);animation:blink 1.2s infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+  .ver{font-size:11px;color:var(--sp-faint);letter-spacing:.5px;}
+
+  /* 品牌区：旋转环 + 真实图标 + 渐变标题 */
+  .brand{display:flex;flex-direction:column;align-items:center;gap:13px;margin:auto 0 16px;}
+  .mark{width:84px;height:84px;position:relative;display:flex;align-items:center;justify-content:center;}
+  .mark img{width:70px;height:70px;border-radius:17px;display:block;
+    box-shadow:0 8px 24px rgba(0,0,0,.55), 0 0 0 1px rgba(120,140,255,.12);}
+  .mark .ring{position:absolute;inset:0;border-radius:21px;border:1.8px solid transparent;
+    border-top-color:var(--blue);border-right-color:var(--periw);
+    animation:spin 2.4s linear infinite;}
+  .mark .ring2{position:absolute;inset:6px;border-radius:18px;border:1.4px solid transparent;
+    border-bottom-color:var(--mauve);border-left-color:var(--periw);
+    animation:spin 3.4s linear infinite reverse;opacity:.7;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .title{font-size:24px;font-weight:750;letter-spacing:.5px;
+    background:linear-gradient(90deg,#ffffff,#c7cdf2 55%,var(--periw));
+    -webkit-background-clip:text;background-clip:text;color:transparent;}
+  .vline{font-size:11px;color:var(--sp-sub);letter-spacing:3px;margin-top:-4px;}
+
+  /* 分阶段清单 */
+  .stages{width:100%;max-width:360px;margin:12px auto 0;display:flex;flex-direction:column;gap:11px;}
+  .st{display:flex;align-items:center;gap:10px;font-size:13px;}
+  .st .ic{width:19px;height:19px;border-radius:50%;flex:0 0 19px;display:flex;align-items:center;
+    justify-content:center;font-size:10px;border:1.5px solid var(--sp-indigo2);color:var(--sp-faint);
+    transition:all .25s;}
+  .st.done .ic{background:var(--sp-done);border-color:var(--sp-done);color:#06140b;}
+  .st.active .ic{border-color:var(--blue);color:var(--blue);animation:spin 1.6s linear infinite;}
+  .st .lab{color:var(--muted);transition:color .25s;}
+  .st.done .lab{color:var(--fg);} .st.active .lab{color:#dbe2ff;font-weight:600;}
+  .st .mini{flex:1;height:3px;background:#12162a;border-radius:2px;overflow:hidden;margin-left:4px;}
+  .st .mini i{display:block;height:100%;width:0;
+    background:linear-gradient(90deg,var(--blue),var(--periw));transition:width .3s ease;}
+  .st.done .mini i{width:100%;}
+  .st.active .mini i{width:55%;animation:load 1.6s ease-in-out infinite;}
+  @keyframes load{0%{width:20%;}50%{width:75%;}100%{width:45%;}}
+
+  /* 底部：轮换提示 + shimmer 进度条 + 状态/作者 */
+  .bottom{margin-top:auto;}
+  .tiprow{margin-bottom:8px;min-height:16px;}
+  .tip{font-size:11px;color:var(--sp-faint);transition:opacity .4s;}
+  .bar{height:4px;width:100%;background:#10132480;border-radius:2px;overflow:hidden;position:relative;}
+  /* 真实进度填充（splashProgress 驱动） */
+  .bar .fill{position:absolute;left:0;top:0;height:100%;width:0;border-radius:2px;
+    background:linear-gradient(90deg,var(--blue),var(--periw),var(--mauve));
+    transition:width .35s ease;}
+  /* shimmer 高光在填充之上滑动 */
+  .bar .shine{position:absolute;left:0;top:0;height:100%;width:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);
+    background-size:200% 100%;animation:shimmer 2s linear infinite;}
+  @keyframes shimmer{0%{background-position:120% 0;}100%{background-position:-120% 0;}}
+  .bl{display:flex;justify-content:space-between;align-items:center;margin-top:8px;}
+  .status{font-size:11px;color:var(--muted);} .status .b{color:var(--blue);}
+  .credit{font-size:10px;color:var(--sp-faint);letter-spacing:.5px;}
+  .credit b{color:var(--sp-sub);font-weight:600;}
+
+  /* 图标缺失兜底：渐变方块 + 字母 */
+  .mark .fallback{width:70px;height:70px;border-radius:17px;display:none;
+    align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#fff;
+    background:linear-gradient(135deg,var(--blue),var(--periw),var(--mauve));
+    box-shadow:0 8px 24px rgba(0,0,0,.55);}
+</style>
+</head>
+<body>
+<div class="splash">
+  <div class="glow"><span class="g1"></span><span class="g2"></span><span class="g3"></span></div>
+  <div class="grid"></div>
+  <div class="content">
+    <div class="top">
+      <span class="pill"><span class="pdot"></span>LOADING</span>
+      <span class="ver" id="ver">v0.9</span>
+    </div>
+
+    <div class="brand">
+      <div class="mark">
+        <div class="ring"></div>
+        <div class="ring2"></div>
+        <img id="appicon" src="../drama_shot_master/assets/app_icon.png" alt="app icon"
+             onerror="this.style.display='none';document.getElementById('iconFallback').style.display='flex';">
+        <div class="fallback" id="iconFallback">糯</div>
+      </div>
+      <div class="title">糯米AI分镜影视创作台</div>
+      <div class="vline">NUOMI AI · STORYBOARD STUDIO</div>
+
+      <div class="stages" id="stages">
+        <div class="st pending" data-stage="0">
+          <span class="ic">○</span><span class="lab">加载配置 / 风格圣经</span><span class="mini"><i></i></span>
+        </div>
+        <div class="st pending" data-stage="1">
+          <span class="ic">○</span><span class="lab">启动后端服务</span><span class="mini"><i></i></span>
+        </div>
+        <div class="st pending" data-stage="2">
+          <span class="ic">○</span><span class="lab">索引项目资源</span><span class="mini"><i></i></span>
+        </div>
+        <div class="st pending" data-stage="3">
+          <span class="ic">○</span><span class="lab">准备工作区</span><span class="mini"><i></i></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom">
+      <div class="tiprow"><span class="tip" id="tip">💡 提示：分镜可按编号一键回填 local_prompt</span></div>
+      <div class="bar"><div class="fill" id="fill"></div><div class="shine"></div></div>
+      <div class="bl">
+        <span class="status" id="status">正在启动…</span>
+        <span class="credit" id="credit">作者 · <b>二进制糯米</b></span>
+      </div>
+    </div>
+  </div>
+  <div class="vig"></div>
+</div>
+
+<script>
+/* ===== API 基址约定（与其它内容页一致；splash 自身不强制 fetch） ===== */
+const _qs = new URLSearchParams(location.search);
+const MEDIA_API = _qs.get("media") || "http://127.0.0.1:18450";
+
+/* ===== 阶段定义 ===== */
+const STAGE_LABELS = ["加载配置 / 风格圣经", "启动后端服务", "索引项目资源", "准备工作区"];
+const ICON = { pending:"○", active:"⟳", done:"✓" };
+const _stEls = Array.from(document.querySelectorAll(".st"));
+const _statusEl = document.getElementById("status");
+const _fillEl = document.getElementById("fill");
+
+/* ===== 宿主接口 1：window.splashStage(idx, state) =====
+   idx: 0..3；state: 'active' | 'done'。把 idx 之前的阶段自动标记为 done。 */
+window.splashStage = function(idx, state){
+  idx = Math.max(0, Math.min(STAGE_LABELS.length - 1, idx|0));
+  state = (state === "done") ? "done" : "active";
+  _autoMode = false;            // 宿主接管后停止占位动画推进
+  for (let i = 0; i < _stEls.length; i++){
+    const el = _stEls[i];
+    el.classList.remove("pending","active","done");
+    let cls;
+    if (i < idx)                 cls = "done";
+    else if (i === idx)          cls = state;
+    else                         cls = "pending";
+    el.classList.add(cls);
+    el.querySelector(".ic").textContent = ICON[cls];
+  }
+  const cur = STAGE_LABELS[idx];
+  const shownIdx = (state === "done") ? idx + 1 : idx;
+  _statusEl.innerHTML = Math.min(shownIdx + (state === "done" ? 0 : 1), STAGE_LABELS.length)
+    + " / " + STAGE_LABELS.length + " · <span class=\"b\">" + cur + "</span>";
+};
+
+/* ===== 宿主接口 2：window.splashProgress(0..1) ===== */
+window.splashProgress = function(p){
+  _autoMode = false;
+  p = Math.max(0, Math.min(1, Number(p) || 0));
+  _fillEl.style.width = (p * 100).toFixed(1) + "%";
+};
+
+/* ===== 可选：设置版本号 / 作者 / 商务（商务空则只显示作者） ===== */
+window.splashMeta = function(meta){
+  meta = meta || {};
+  if (meta.version) document.getElementById("ver").textContent = meta.version;
+  const credit = document.getElementById("credit");
+  const author = meta.author || "二进制糯米";
+  const biz = (meta.business || "").trim();
+  // 商务字段：填了显示 / 不填隐去 —— 仅在有值时追加
+  credit.innerHTML = "作者 · <b>" + author + "</b>"
+    + (biz ? "　商务 · <b>" + biz + "</b>" : "");
+};
+
+/* ===== 轮换提示（缓解等待感） ===== */
+const TIPS = [
+  "💡 提示：分镜可按编号一键回填 local_prompt",
+  "💡 提示：立意页可结构化选择题材 / 风格，默认 16:9",
+  "💡 提示：风格圣经统一全片视觉，避免镜头跳脱",
+  "💡 提示：框选画面即可生成并叠加多条子轨",
+  "💡 提示：流程锁开关在设置中，调试期可全解锁",
+];
+let _tipIdx = 0;
+const _tipEl = document.getElementById("tip");
+setInterval(() => {
+  _tipIdx = (_tipIdx + 1) % TIPS.length;
+  _tipEl.style.opacity = "0";
+  setTimeout(() => { _tipEl.textContent = TIPS[_tipIdx]; _tipEl.style.opacity = "1"; }, 380);
+}, 3200);
+
+/* ===== 自跑占位动画：宿主未接管前，给出“正在进行”的观感 =====
+   一旦宿主调用 splashStage / splashProgress，_autoMode 关闭，交还控制权。 */
+let _autoMode = true;
+let _autoStage = 0;
+let _autoProg = 0;
+window.splashStage(0, "active");          // 初始：第一阶段进行中
+const _autoTimer = setInterval(() => {
+  if (!_autoMode){ clearInterval(_autoTimer); return; }
+  // 缓动逼近但不到满，等待真实就绪信号
+  _autoProg = Math.min(0.92, _autoProg + (0.92 - _autoProg) * 0.06 + 0.004);
+  _fillEl.style.width = (_autoProg * 100).toFixed(1) + "%";
+  const target = Math.min(STAGE_LABELS.length - 1, Math.floor(_autoProg / 0.25));
+  if (target > _autoStage){
+    _autoStage = target;
+    // 占位推进时手动改类，避免触发 _autoMode=false
+    for (let i = 0; i < _stEls.length; i++){
+      const el = _stEls[i];
+      el.classList.remove("pending","active","done");
+      const cls = i < _autoStage ? "done" : (i === _autoStage ? "active" : "pending");
+      el.classList.add(cls);
+      el.querySelector(".ic").textContent = ICON[cls];
+    }
+    _statusEl.innerHTML = (_autoStage + 1) + " / " + STAGE_LABELS.length
+      + " · <span class=\"b\">" + STAGE_LABELS[_autoStage] + "</span>";
+  }
+}, 140);
+</script>
+</body>
+</html>
