@@ -6,17 +6,16 @@ render 跑 ffmpeg（长耗时，同样线程池）。
 """
 from __future__ import annotations
 
+import asyncio
+import re
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from drama_shot_master.core.composition_model import CompositionModel
 from drama_shot_master.core.transition_analyzer import analyze_composition
 from drama_shot_master.core import transition_render as tr
-
-import asyncio
-import re
-
-from fastapi.responses import StreamingResponse
 
 from media_agent.core.sse import sse_event
 
