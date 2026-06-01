@@ -14,7 +14,7 @@
   .work-head {
     display: flex; align-items: center; gap: 16px; margin-bottom: 14px; max-width: 1440px;
   }
-  .work-head h1 { margin: 0; font-size: 21px; }
+  .work-head h1 { margin: 0; font-size: 22px; background: linear-gradient(135deg, var(--blue), var(--mauve)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .shot-select { min-width: 210px; }
 
   /* 并行任务下拉切换器 */
@@ -534,6 +534,10 @@
   <main class="work">
     <div class="work-head">
       <h1>④ 视频生成 · CLIPS<span id="taskTitle" style="color:var(--mauve);font-weight:600;"> · 任务1</span></h1>
+      <div class="seg">
+        <button id="m1" class="on">模式1 · 高自由度·导演台</button>
+        <button id="m2">模式2 · 剧集分镜对齐</button>
+      </div>
       <select class="shot-select" id="sceneSelect">
         <option>加载剧集…</option>
       </select>
@@ -547,18 +551,6 @@
           </button>
           <div class="menu" id="taskMenu"></div>
         </div>
-      </div>
-    </div>
-
-    <div class="modebar">
-      <span class="lbl">工作模式</span>
-      <div class="seg">
-        <button id="m1" class="on">模式1 · 高自由度·导演台</button>
-        <button id="m2">模式2 · 剧集分镜对齐</button>
-      </div>
-      <div class="align-note" id="alignNote" style="visibility:hidden;">
-        <span class="badge" id="alignCount">已按分镜顺序自动对齐 3 个镜头</span>
-        分镜图 ↔ 分镜 自动对齐
       </div>
     </div>
 
@@ -862,7 +854,7 @@ function wireModes() {
     const one = n === 1;
     m1.classList.toggle("on", one); m2.classList.toggle("on", !one);
     p1.classList.toggle("show", one); p2.classList.toggle("show", !one);
-    note.style.visibility = one ? "hidden" : "visible";
+    if (note) note.style.visibility = one ? "hidden" : "visible";
   }
   m1.addEventListener("click", () => setMode(1));
   m2.addEventListener("click", () => setMode(2));

@@ -462,6 +462,55 @@ def project_overview(project: str):
     }
 
 
+# ---------- GET /project/center ----------
+
+@router.get("/project/center")
+def project_center():
+    """拉取最近项目列表用于项目中心页。
+
+    读取 recent_projects.json，为每个项目聚合 manifest(project_id/genre/status)、
+    episode_count、cover.jpg 信息。
+    """
+    recent = _manager().load()
+    projects: list[dict] = []
+    for entry in recent:
+        proj_path = entry.get("path", "")
+        if not proj_path:
+            continue
+        proj_dir = Path(proj_path)
+        if not proj_dir.exists():
+            continue
+
+        m = load_manifest(proj_dir)
+        idea = _read_idea(proj_dir)
+        ep_count = _episode_count(proj_dir, idea)
+
+        # 封面图
+        cover_path = proj_dir / "cover.jpg"
+        cover = cover_path.as_posix() if cover_path.is_file() else None
+
+        # shot_count：优先 manifest episodes 的 shots_done 总和，兜底 recent 条目
+        shot_count = 0
+        for ep_progress in m.episodes.values():
+            shot_count += len(ep_progress.shots_done)
+        if shot_count == 0:
+            shot_count = entry.get("shot_count", 0)
+
+        projects.append({
+            "name": entry.get("name", proj_dir.name),
+            "path": str(proj_dir),
+            "project_id": m.project_id,
+            "genre": m.genre or _genre_from_idea(idea),
+            "episode_count": ep_count,
+            "cover": cover,
+            "last_opened": entry.get("last_opened", ""),
+            "shot_count": shot_count,
+            "status": m.status,
+        })
+
+    return {"projects": projects, "total": len(projects)}
+
+
 # ---------- PUT /project/meta ----------
 
 class ProjectMetaBody(BaseModel):

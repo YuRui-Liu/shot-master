@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · 项目中心 · PROJECT CENTER</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ===== 壳内容页：无自带标题栏/侧栏（由 web/app.html 统一提供） ===== */
+  body { overflow: hidden; }
+
+  .wrap {
+    max-width: 1100px; margin: 0 auto; padding: 24px 28px 48px;
+    height: 100vh; display: flex; flex-direction: column; overflow-y: auto;
+  }
+
+  /* ===== 顶部标题栏 ===== */
+  .topbar {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex-shrink: 0;
+  }
+  .topbar h1 {
+    margin: 0; font-size: 24px; font-weight: 700; letter-spacing: .8px;
+    background: linear-gradient(135deg, var(--blue), var(--periw));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .topbar .count {
+    font-size: 13px; color: var(--muted); background: var(--panel);
+    border: 1px solid var(--border-lo); border-radius: 12px; padding: 2px 11px;
+    flex-shrink: 0; font-weight: 500;
+  }
+  .topbar .spacer { flex: 1; }
+  .topbar .btn-new {
+    font-size: 13.5px; font-weight: 600; padding: 9px 20px; border-radius: 8px; cursor: pointer;
+    color: #06122a; background: linear-gradient(135deg, var(--blue), var(--periw));
+    border: none; box-shadow: 0 4px 14px rgba(74,158,255,.28);
+    transition: filter .15s, transform .05s; display: flex; align-items: center; gap: 6px;
+  }
+  .topbar .btn-new:hover { filter: brightness(1.08); }
+  .topbar .btn-new:active { transform: translateY(1px); }
+  .topbar .btn-open {
+    font-size: 13px; color: var(--fg2); background: var(--panel);
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 18px;
+    cursor: pointer; transition: border-color .15s; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .topbar .btn-open:hover { border-color: var(--mauve); color: var(--fg); }
+
+  /* ===== 搜索/筛选栏 ===== */
+  .filterbar {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-shrink: 0;
+  }
+  .filterbar .search-wrap {
+    position: relative; flex: 1; max-width: 380px;
+  }
+  .filterbar .search-wrap .search-icon {
+    position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+    color: var(--faint); font-size: 14px; pointer-events: none; line-height: 1;
+  }
+  .filterbar .search-wrap input {
+    width: 100%; padding: 9px 12px 9px 32px; font-size: 13.5px;
+    background: var(--field); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--fg); outline: none;
+  }
+  .filterbar .search-wrap input::placeholder { color: var(--faint); }
+  .filterbar .search-wrap input:focus { border-color: var(--mauve); }
+  .filterbar .clear-btn {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    color: var(--faint); font-size: 16px; cursor: pointer; padding: 2px 6px;
+    border-radius: 4px; display: none; line-height: 1; user-select: none;
+  }
+  .filterbar .clear-btn:hover { color: var(--fg); background: var(--border); }
+  .filterbar .clear-btn.visible { display: block; }
+  /* 类型筛选药丸 */
+  .filterbar .pills { display: flex; gap: 6px; }
+  .filterbar .pill {
+    font-size: 12.5px; color: var(--muted); background: var(--panel);
+    border: 1px solid var(--border-lo); border-radius: 14px;
+    padding: 6px 15px; cursor: pointer; transition: border-color .15s, background .15s, color .15s;
+    user-select: none; font-weight: 500;
+  }
+  .filterbar .pill:hover { border-color: var(--mauve); color: var(--fg2); }
+  .filterbar .pill.active {
+    color: var(--fg); background: rgba(74,158,255,.12);
+    border-color: var(--blue); font-weight: 600;
+  }
+
+  /* ===== 当前项目高亮指示条 ===== */
+  .current-indicator {
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px; margin-bottom: 12px;
+    background: rgba(74,158,255,.06); border: 1px solid #243a5a;
+    border-radius: 8px; font-size: 12.5px; color: #bcd4f5; flex-shrink: 0;
+  }
+  .current-indicator .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+  .current-indicator .nm { font-weight: 600; color: var(--fg); }
+  .current-indicator .sp { flex: 1; }
+
+  /* ===== 项目列表 ===== */
+  .list-wrap { flex: 1; overflow-y: auto; min-height: 0; }
+
+  /* 空状态 */
+  .empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 72px 40px; text-align: center; color: var(--muted);
+  }
+  .empty .icon { font-size: 56px; margin-bottom: 16px; opacity: .6; }
+  .empty .msg { font-size: 15px; font-weight: 600; color: var(--fg2); margin-bottom: 8px; }
+  .empty .hint { font-size: 12.5px; color: var(--faint); line-height: 1.6; }
+  .empty .hint b { color: var(--muted); }
+
+  /* 列表行 */
+  .row {
+    display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-radius: 10px;
+    border: 1px solid transparent; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s;
+    margin-bottom: 4px; position: relative;
+  }
+  .row:hover { background: var(--panel); border-color: var(--border-lo); }
+  .row.current {
+    border-color: var(--blue) !important; background: rgba(74,158,255,.04);
+    box-shadow: 0 0 12px rgba(74,158,255,.12), inset 0 0 0 1px rgba(74,158,255,.06);
+  }
+  .row.hidden { display: none; }
+
+  /* 封面缩略图 */
+  .row .cover {
+    width: 48px; height: 48px; flex: 0 0 48px; border-radius: 8px;
+    overflow: hidden; background: linear-gradient(135deg, #243a5a, #3a2746);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .row .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .row .cover .fallback {
+    font-size: 20px; color: var(--faint); font-weight: 700;
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  }
+  /* 虚线框 + "?" 占位（无图时） */
+  .row .cover.fallback-mode {
+    border: 1.5px dashed var(--border); background: transparent;
+  }
+
+  /* 主体信息 */
+  .row .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .row .info .name-row { display: flex; align-items: center; gap: 8px; }
+  .row .info .name-row .name { font-size: 14.5px; font-weight: 650; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 当前打开 badge */
+  .row .info .name-row .cur-badge {
+    font-size: 10.5px; color: var(--blue); font-weight: 600;
+    background: rgba(74,158,255,.12); border: 1px solid #2c4a6e;
+    border-radius: 8px; padding: 1px 8px; white-space: nowrap; flex-shrink: 0;
+  }
+  /* 类型标签（有色） */
+  .row .info .name-row .genre-badge {
+    font-size: 10px; color: var(--periw); font-weight: 600;
+    background: rgba(138,127,217,.14); border: 1px solid #4a3d6e;
+    border-radius: 8px; padding: 1px 8px; white-space: nowrap; flex-shrink: 0;
+  }
+  /* 各类型颜色变体 */
+  .row .info .name-row .genre-badge.g-短剧 { color: #f0a070; background: rgba(240,160,112,.12); border-color: #6b4a32; }
+  .row .info .name-row .genre-badge.g-MV { color: #70c8f0; background: rgba(112,200,240,.12); border-color: #326b6b; }
+  .row .info .name-row .genre-badge.g-广告 { color: #f0d870; background: rgba(240,216,112,.12); border-color: #6b6232; }
+  .row .info .name-row .genre-badge.g-其他 { color: var(--muted); background: rgba(154,160,166,.10); border-color: var(--border); }
+  .row .info .meta-row { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
+  .row .info .meta-row .pid { font-variant-numeric: tabular-nums; color: var(--faint); font-family: "SF Mono", "Cascadia Code", "Consolas", "Courier New", monospace; }
+  .row .info .meta-row b { color: var(--fg2); font-weight: 500; }
+
+  /* 右侧：最后打开时间 + 进入按钮 */
+  .row .right { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+  .row .right .time { font-size: 12px; color: var(--faint); white-space: nowrap; }
+  .row .right .btn-enter {
+    font-size: 12.5px; font-weight: 600; padding: 7px 18px; border-radius: 7px; cursor: pointer;
+    color: #06122a; background: linear-gradient(135deg, var(--blue), var(--periw));
+    border: none; transition: filter .15s, transform .05s, background .15s;
+    white-space: nowrap;
+  }
+  .row .right .btn-enter:hover { filter: brightness(1.08); }
+  .row .right .btn-enter:active { transform: translateY(1px); }
+  .row .right .btn-enter.entered {
+    background: transparent; color: var(--done); border: 1px solid #2c5a44;
+    cursor: default; box-shadow: none; font-weight: 600;
+  }
+  .row .right .btn-enter.entered:hover { filter: none; }
+
+  /* 分页/加载底栏 */
+  .list-footer { display: flex; align-items: center; justify-content: center; padding: 14px 0 6px; gap: 8px; flex-shrink: 0; }
+  .list-footer .loading { font-size: 12px; color: var(--faint); }
+  .list-footer .dot-anim { display: inline-flex; gap: 4px; }
+  .list-footer .dot-anim i { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); animation: bounce 1s infinite ease; }
+  .list-footer .dot-anim i:nth-child(2) { animation-delay: .15s; }
+  .list-footer .dot-anim i:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%, 80%, 100% { opacity: .3; transform: scale(.8); } 40% { opacity: 1; transform: scale(1); } }
+
+  /* ===== 新建项目对话框（复用 welcome.html newMask 样式） ===== */
+  .modal-mask {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(8,10,20,.62); backdrop-filter: blur(4px);
+  }
+  .modal-mask.show { display: flex; }
+  .modal {
+    width: 460px; max-width: calc(100vw - 48px);
+    background: linear-gradient(160deg, #1b1f38, #14172a);
+    border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(74,158,255,.08);
+    padding: 24px 24px 20px;
+  }
+  .modal h3 {
+    margin: 0 0 4px; font-size: 18px; font-weight: 700; color: var(--fg);
+    background: linear-gradient(90deg, #fff, var(--periw));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .modal .sub { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+  .modal .field { margin-bottom: 14px; }
+  .modal .field label {
+    display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--periw); font-weight: 600; margin-bottom: 6px; opacity: .9;
+  }
+  .modal .field input {
+    width: 100%; box-sizing: border-box; font-size: 13.5px; color: var(--fg);
+    background: rgba(10,12,24,.7); border: 1px solid var(--border);
+    border-radius: 9px; padding: 10px 12px; outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .modal .field input::placeholder { color: var(--faint); }
+  .modal .field input:focus {
+    border-color: var(--blue); box-shadow: 0 0 0 3px rgba(74,158,255,.15);
+  }
+  .modal .hint { font-size: 11px; color: var(--faint); margin-top: 5px; line-height: 1.5; }
+  .modal .hint code { color: var(--periw); }
+  .modal .err { font-size: 12px; color: #ff8b8b; min-height: 16px; margin: 2px 0 10px; }
+  .modal .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+  .modal .mbtn {
+    font-size: 13.5px; font-weight: 600; padding: 9px 22px; border-radius: 9px;
+    cursor: pointer; border: none; transition: filter .15s, transform .05s;
+  }
+  .modal .mbtn:active { transform: translateY(1px); }
+  .modal .mbtn.pri {
+    color: #06122a; background: linear-gradient(90deg, var(--blue), var(--periw));
+    box-shadow: 0 6px 18px rgba(74,158,255,.28);
+  }
+  .modal .mbtn.pri:hover { filter: brightness(1.08); }
+  .modal .mbtn.pri:disabled { opacity: .55; cursor: default; filter: none; }
+  .modal .mbtn.gho {
+    color: var(--fg2); background: rgba(30,32,60,.6); border: 1px solid #2a2a4a;
+  }
+  .modal .mbtn.gho:hover { border-color: var(--mauve); color: var(--fg); }
+
+  /* 隐藏文件选择器 */
+  #dirPicker { display: none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <!-- ===== 顶部标题栏 ===== -->
+  <div class="topbar">
+    <h1>项目中心</h1>
+    <span class="count" id="projectCount">0 个项目</span>
+    <span class="spacer"></span>
+    <button class="btn-new" id="btnNew">＋ 新建项目</button>
+    <button class="btn-open" id="btnOpen">&#x1F4C1; 打开目录</button>
+  </div>
+
+  <!-- ===== 搜索/筛选栏 ===== -->
+  <div class="filterbar">
+    <div class="search-wrap">
+      <span class="search-icon">&#x1F50D;</span>
+      <input type="text" id="searchInput" placeholder="搜索项目名称…" autocomplete="off" spellcheck="false">
+      <span class="clear-btn" id="clearSearch">&#x2715;</span>
+    </div>
+    <div class="pills" id="genrePills">
+      <span class="pill active" data-genre="">全部</span>
+      <span class="pill" data-genre="短剧">短剧</span>
+      <span class="pill" data-genre="MV">MV</span>
+      <span class="pill" data-genre="广告">广告</span>
+      <span class="pill" data-genre="其他">其他</span>
+    </div>
+  </div>
+
+  <!-- ===== 当前打开项目指示条 ===== -->
+  <div class="current-indicator" id="currentIndicator" style="display:none">
+    <span class="dot"></span>
+    <span>当前打开：</span><span class="nm" id="currentName">—</span>
+    <span class="sp"></span>
+  </div>
+
+  <!-- ===== 项目列表容器 ===== -->
+  <div class="list-wrap" id="listWrap"></div>
+
+  <!-- ===== 底栏（加载态 / 汇总） ===== -->
+  <div class="list-footer" id="listFooter">
+    <span class="loading" id="loadingText">加载中 <span class="dot-anim"><i></i><i></i><i></i></span></span>
+  </div>
+</div>
+
+<!-- ===== 打开目录隐藏文件选择器（浏览器降级，真机由壳原生处理） ===== -->
+<input type="file" id="dirPicker" webkitdirectory directory>
+
+<!-- ===== 新建项目对话框（复用 welcome.html newMask 样式） ===== -->
+<div class="modal-mask" id="newMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nmTitle">
+    <h3 id="nmTitle">新建项目</h3>
+    <div class="sub">给项目起个名字，并指定一个根目录，项目会作为子文件夹建在其中。</div>
+
+    <div class="field">
+      <label for="nmName">项目名称</label>
+      <input id="nmName" type="text" placeholder="例如：真千金归来" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="field">
+      <label for="nmRoot">项目根目录</label>
+      <input id="nmRoot" type="text" placeholder="例如：D:\nuomi-projects 或 /Users/me/projects" autocomplete="off" spellcheck="false">
+      <div class="hint" id="nmRootHint">
+        将在此目录下创建 <code>P-NNN_项目名/</code> 子文件夹。请粘贴绝对路径。
+      </div>
+    </div>
+
+    <div class="err" id="nmErr"></div>
+
+    <div class="actions">
+      <button class="mbtn gho" id="nmCancel">取消</button>
+      <button class="mbtn pri" id="nmOk">创建并进入</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== 壳内容页：API 基址从 URLSearchParams 读 ===== */
+const _qs = new URLSearchParams(location.search);
+const MEDIA_API = _qs.get("media") || "http://127.0.0.1:18450";
+const PROJECT_DIR = _qs.get("project") || "";
+const PROJECT_NAME = _qs.get("name") || "";
+
+/* —— [A] 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）—— */
+function mediaUrl(p) {
+  if (!p) return "";
+  if (/^(https?:|data:|blob:)/.test(p)) return p;
+  var u = MEDIA_API + "/file?path=" + encodeURIComponent(p);
+  if (PROJECT_DIR && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p))
+    u += "&project=" + encodeURIComponent(PROJECT_DIR);
+  return u;
+}
+
+/* —— [B] 时间格式化 —— */
+function fmtTime(iso) {
+  if (!iso) return "";
+  var t = Date.parse(iso);
+  if (isNaN(t)) return String(iso);
+  var d = new Date(t);
+  var pad = function(n) { return (n < 10 ? "0" : "") + n; };
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+         " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+
+/* —— [C] HTML 转义 —— */
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/* ===== 状态 ===== */
+let allProjects = [];        // 后端原始数据
+let filteredProjects = [];   // 经搜索/筛选后的列表
+let activeGenre = "";       // 当前选中类型标签（空=全部）
+
+/* ===== DOM 引用 ===== */
+const listWrap = document.getElementById("listWrap");
+const listFooter = document.getElementById("listFooter");
+const loadingText = document.getElementById("loadingText");
+const searchInput = document.getElementById("searchInput");
+const clearSearch = document.getElementById("clearSearch");
+const genrePills = document.getElementById("genrePills");
+const currentIndicator = document.getElementById("currentIndicator");
+const currentNameEl = document.getElementById("currentName");
+const projectCountEl = document.getElementById("projectCount");
+
+/* ===== 新建项目对话框 DOM ===== */
+const newMask  = document.getElementById("newMask");
+const nmName   = document.getElementById("nmName");
+const nmRoot   = document.getElementById("nmRoot");
+const nmErr    = document.getElementById("nmErr");
+const nmOk     = document.getElementById("nmOk");
+const nmCancel = document.getElementById("nmCancel");
+let rootPrefillDone = false;
+
+/* —— 推断根目录 —— */
+function inferRootFromProjects() {
+  var counts = {};
+  for (var i = 0; i < allProjects.length; i++) {
+    var path = (allProjects[i] && allProjects[i].path) || "";
+    if (!path || path.startsWith("(demo)")) continue;
+    var idx = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+    if (idx <= 0) continue;
+    var parent = path.slice(0, idx);
+    counts[parent] = (counts[parent] || 0) + 1;
+  }
+  var best = "", bestN = 0;
+  for (var k in counts) if (counts[k] > bestN) { best = k; bestN = counts[k]; }
+  return best;
+}
+
+/* —— 预填根目录 —— */
+async function prefillRoot() {
+  if (rootPrefillDone) return;
+  rootPrefillDone = true;
+  var fromQs = (_qs.get("root") || "").trim();
+  if (fromQs) { nmRoot.value = fromQs; return; }
+  try {
+    var r = await fetch(MEDIA_API + "/config");
+    if (r.ok) {
+      var cfg = await r.json().catch(function() { return {}; });
+      var root = (cfg && (cfg.projects_root || cfg.screenwriter_project_root) || "").trim();
+      if (root) { nmRoot.value = root; return; }
+    }
+  } catch (e) { /* 后端未连接 */ }
+  var inferred = inferRootFromProjects();
+  if (inferred) nmRoot.value = inferred;
+}
+
+function openNewDialog() {
+  nmErr.textContent = "";
+  nmName.value = "";
+  newMask.classList.add("show");
+  prefillRoot();
+  setTimeout(function() { nmName.focus(); }, 30);
+}
+
+function closeNewDialog() { newMask.classList.remove("show"); }
+
+/* —— 提交新建 —— */
+async function submitNewProject() {
+  var name = (nmName.value || "").trim();
+  var projects_root = (nmRoot.value || "").trim();
+  if (!name) { nmErr.textContent = "请填写项目名称。"; nmName.focus(); return; }
+  if (!projects_root) { nmErr.textContent = "请填写项目根目录（绝对路径）。"; nmRoot.focus(); return; }
+
+  nmErr.textContent = "";
+  nmOk.disabled = true;
+  var oldLabel = nmOk.textContent;
+  nmOk.textContent = "创建中…";
+  try {
+    var r = await fetch(MEDIA_API + "/projects/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name, projects_root: projects_root }),
+    });
+    if (r.ok) {
+      var data = await r.json().catch(function() { return {}; });
+      var path = data.path || data.dir || "";
+      closeNewDialog();
+      openProject({ name: data.name || name, path: path });
+      return;
+    }
+    var detail = "";
+    try { detail = (await r.json()).detail || ""; } catch (e) { /* ignore */ }
+    nmErr.textContent = "新建失败（" + r.status + "）" + (detail ? "：" + detail : "");
+  } catch (e) {
+    nmErr.textContent = "无法连接后端 " + MEDIA_API + "。";
+  } finally {
+    nmOk.disabled = false;
+    nmOk.textContent = oldLabel;
+  }
+}
+
+// 对话框事件
+nmOk.addEventListener("click", submitNewProject);
+nmCancel.addEventListener("click", closeNewDialog);
+newMask.addEventListener("click", function(e) { if (e.target === newMask) closeNewDialog(); });
+nmName.addEventListener("keydown", function(e) { if (e.key === "Enter") submitNewProject(); });
+nmRoot.addEventListener("keydown", function(e) { if (e.key === "Enter") submitNewProject(); });
+document.addEventListener("keydown", function(e) {
+  if (newMask.classList.contains("show") && e.key === "Escape") closeNewDialog();
+});
+
+/* —— 打开目录 —— */
+function openDir() {
+  window.parent && window.parent.postMessage({ type: "project.openDirRequest" }, "*");
+  var picker = document.getElementById("dirPicker");
+  picker.value = "";
+  picker.click();
+}
+
+document.getElementById("dirPicker").addEventListener("change", function(e) {
+  var files = e.target.files;
+  if (!files || !files.length) return;
+  var rel = files[0].webkitRelativePath || "";
+  var dirName = rel.split("/")[0] || "";
+  if (dirName) openProject({ name: dirName, path: dirName });
+});
+
+document.getElementById("btnNew").addEventListener("click", openNewDialog);
+document.getElementById("btnOpen").addEventListener("click", openDir);
+
+/* ===== 打开项目 → postMessage 通知壳 ===== */
+function openProject(p) {
+  if (!p || !p.path) return;
+  window.parent && window.parent.postMessage(
+    { type: "project.open", path: p.path, name: p.name || "" }, "*");
+}
+
+/* ===== 约定封面路径 ===== */
+function coverPath(path) {
+  if (!path || path.startsWith("(demo)")) return "";
+  var sep = path.indexOf("\\") >= 0 ? "\\" : "/";
+  var trimmed = path.replace(/[\\/]+$/, "");
+  return trimmed + sep + "cover.jpg";
+}
+
+/* —— 类型标签样式类名 —— */
+function genreClass(genre) {
+  var g = (genre || "").trim();
+  if (g === "短剧" || g === "MV" || g === "广告" || g === "其他") return "g-" + g;
+  return "";
+}
+
+/* —— 渲染列表 —— */
+function renderList() {
+  listWrap.innerHTML = "";
+
+  // 筛选
+  applyFilters();
+
+  if (filteredProjects.length === 0) {
+    listWrap.innerHTML = '<div class="empty">' +
+      '<span class="icon">&#x1F4C1;</span>' +
+      '<div class="msg">还没有项目</div>' +
+      '<div class="hint">点击 <b>＋ 新建项目</b> 开始创作，或 <b>打开目录</b> 载入已有项目。</div>' +
+      '</div>';
+    listFooter.style.display = "none";
+    updateCurrentIndicator();
+    updateCount();
+    return;
+  }
+
+  listFooter.style.display = "flex";
+
+  for (var i = 0; i < filteredProjects.length; i++) {
+    var p = filteredProjects[i];
+    var isCurrent = PROJECT_DIR && p.path === PROJECT_DIR;
+    var row = document.createElement("div");
+    row.className = "row" + (isCurrent ? " current" : "");
+    row.dataset.index = String(i);
+
+    // 封面：约定 cover.jpg → mediaUrl，无图或加载失败用虚线框 + "?" 占位
+    var cvUrl = p.cover ? mediaUrl(p.cover) : "";
+    var coverHTML = "";
+    if (cvUrl) {
+      coverHTML = '<img src="' + esc(cvUrl) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';">' +
+                  '<span class="fallback" style="display:none">?</span>';
+    } else {
+      coverHTML = '<span class="fallback">?</span>';
+    }
+    var coverClass = cvUrl ? "cover" : "cover fallback-mode";
+
+    // 类型标签
+    var genre = p.genre || "";
+    var genreHTML = genre ? '<span class="genre-badge ' + genreClass(genre) + '">' + esc(genre) + '</span>' : "";
+    var curBadgeHTML = isCurrent ? '<span class="cur-badge">当前打开</span>' : "";
+
+    // P-ID
+    var pid = p.project_id || "";
+    var pidHTML = pid ? '<span class="pid">' + esc(pid) + '</span>' : "";
+
+    // 集数
+    var epCount = (p.episode_count != null) ? p.episode_count : 0;
+    var epHTML = epCount ? '<span>' + epCount + ' 集</span>' : "";
+
+    // 最后打开时间
+    var lastOpen = p.last_opened ? fmtTime(p.last_opened) : (p.opened_at_text || "");
+
+    // 进入按钮
+    var btnHTML = "";
+    if (isCurrent) {
+      btnHTML = '<button class="btn-enter entered">已进入</button>';
+    } else {
+      btnHTML = '<button class="btn-enter" data-path="' + esc(p.path) + '" data-name="' + esc(p.name) + '">进入</button>';
+    }
+
+    row.innerHTML =
+      '<div class="' + coverClass + '">' + coverHTML + '</div>' +
+      '<div class="info">' +
+        '<div class="name-row">' +
+          '<span class="name" title="' + esc(p.name) + '">' + esc(p.name) + '</span>' +
+          genreHTML +
+          curBadgeHTML +
+        '</div>' +
+        '<div class="meta-row">' +
+          pidHTML +
+          epHTML +
+        '</div>' +
+      '</div>' +
+      '<div class="right">' +
+        '<span class="time">' + esc(lastOpen) + '</span>' +
+        btnHTML +
+      '</div>';
+
+    // 行点击 → 打开项目（当前打开的行不重复触发）
+    row.addEventListener("click", function(p, isCur, evt) {
+      return function(evt) {
+        // 如果点在按钮上，让按钮处理；如果不是当前项目，整行点击=打开
+        if (evt.target.tagName === "BUTTON") return;
+        if (!isCur) openProject(p);
+      };
+    }(p, isCurrent));
+
+    listWrap.appendChild(row);
+  }
+
+  // 为所有"进入"按钮绑定事件
+  var enterBtns = listWrap.querySelectorAll(".btn-enter:not(.entered)");
+  for (var j = 0; j < enterBtns.length; j++) {
+    enterBtns[j].addEventListener("click", function(evt) {
+      evt.stopPropagation();
+      var btn = evt.target;
+      var path = btn.dataset.path;
+      var name = btn.dataset.name;
+      openProject({ path: path, name: name });
+    });
+  }
+
+  updateCurrentIndicator();
+  updateCount();
+}
+
+/* —— 筛选逻辑 —— */
+function applyFilters() {
+  var query = (searchInput.value || "").trim().toLowerCase();
+  filteredProjects = allProjects.filter(function(p) {
+    // 类型筛选
+    if (activeGenre && (p.genre || "") !== activeGenre) return false;
+    // 文本搜索（项目名称）
+    if (query) {
+      var name = (p.name || "").toLowerCase();
+      var pid = (p.project_id || "").toLowerCase();
+      if (name.indexOf(query) === -1 && pid.indexOf(query) === -1) return false;
+    }
+    return true;
+  });
+}
+
+function refilter() {
+  renderList();
+}
+
+/* —— 更新当前打开指示条 —— */
+function updateCurrentIndicator() {
+  if (PROJECT_DIR && PROJECT_NAME) {
+    currentIndicator.style.display = "flex";
+    currentNameEl.textContent = PROJECT_NAME;
+  } else if (PROJECT_DIR && filteredProjects.length > 0) {
+    // 尝试从列表中匹配当前项目名
+    for (var i = 0; i < allProjects.length; i++) {
+      if (allProjects[i].path === PROJECT_DIR) {
+        currentIndicator.style.display = "flex";
+        currentNameEl.textContent = allProjects[i].name || PROJECT_DIR;
+        return;
+      }
+    }
+    currentIndicator.style.display = "none";
+  } else {
+    currentIndicator.style.display = "none";
+  }
+}
+
+/* —— 更新项目计数 —— */
+function updateCount() {
+  var n = filteredProjects.length;
+  projectCountEl.textContent = n + " 个项目";
+}
+
+/* —— 加载项目列表 GET /project/center —— */
+async function loadProjects() {
+  loadingText.style.display = "inline";
+  listWrap.innerHTML = "";
+
+  try {
+    var r = await fetch(MEDIA_API + "/project/center");
+    if (r.ok) {
+      var data = await r.json();
+      var list = Array.isArray(data) ? data : (data && data.projects) || [];
+      // 时间倒序
+      list.sort(function(a, b) { return tsOf(b) - tsOf(a); });
+      allProjects = list.map(function(p) {
+        var path = p.path || p.dir || "";
+        return {
+          name: p.name || p.title || "(未命名)",
+          path: path,
+          project_id: p.project_id || "",
+          genre: p.genre || "",
+          episode_count: p.episode_count != null ? p.episode_count : 0,
+          cover: p.cover || coverPath(path),
+          shot_count: p.shot_count || 0,
+          status: p.status || "",
+          last_opened: p.last_opened || p.opened_at || "",
+          opened_at_text: p.opened_at_text || "",
+        };
+      });
+      loadingText.style.display = "none";
+      renderList();
+      return;
+    }
+  } catch (e) { /* 后端未连接 */ }
+
+  // 后端不可用 → 空状态提示
+  loadingText.style.display = "none";
+  listWrap.innerHTML = '<div class="empty">' +
+    '<span class="icon">&#x1F4C1;</span>' +
+    '<div class="msg">无法连接后端</div>' +
+    '<div class="hint">请确认 media_agent 已启动（' + esc(MEDIA_API) + '）。</div>' +
+    '</div>';
+  allProjects = [];
+  filteredProjects = [];
+  updateCount();
+  updateCurrentIndicator();
+}
+
+function tsOf(p) {
+  var v = p.last_opened || p.opened_at || p.mtime || p.updated_at;
+  if (typeof v === "number") return v;
+  var t = Date.parse(v);
+  return isNaN(t) ? 0 : t;
+}
+
+/* —— 搜索栏事件 —— */
+searchInput.addEventListener("input", function() {
+  var val = searchInput.value.trim();
+  if (val) clearSearch.classList.add("visible");
+  else clearSearch.classList.remove("visible");
+  refilter();
+});
+
+clearSearch.addEventListener("click", function() {
+  searchInput.value = "";
+  clearSearch.classList.remove("visible");
+  refilter();
+  searchInput.focus();
+});
+
+/* —— 类型标签点击 —— */
+genrePills.addEventListener("click", function(e) {
+  var pill = e.target;
+  if (!pill.classList.contains("pill")) return;
+  // 切换 active
+  var pills = genrePills.querySelectorAll(".pill");
+  for (var i = 0; i < pills.length; i++) pills[i].classList.remove("active");
+  pill.classList.add("active");
+  activeGenre = pill.dataset.genre || "";
+  refilter();
+});
+
+// 启动
+loadProjects();
+</script>
+</body>
+</html>

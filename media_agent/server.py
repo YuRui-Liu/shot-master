@@ -73,6 +73,16 @@ def create_app(cfg: MediaAgentConfig | None = None) -> FastAPI:
     from .routes.video import router as video_router
     app.include_router(video_router)
 
+    # favicon 路由 —— 浏览器自动请求 /favicon.ico，避免 404
+    from fastapi.responses import FileResponse, Response
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def _favicon():
+        icon = _REPO_ROOT / "drama_shot_master" / "assets" / "app_icon.ico"
+        if icon.is_file():
+            return FileResponse(str(icon), media_type="image/x-icon")
+        return Response(status_code=204)
+
     # 静态同源托管 web/：经 http://127.0.0.1:18450/ui/ 访问（与 API 同源）。
     if _WEB_DIR.is_dir():
         app.mount("/ui", StaticFiles(directory=str(_WEB_DIR), html=True), name="ui")

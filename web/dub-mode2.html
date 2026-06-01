@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>糯米AI · ⑤ 配音 · DUBBING</title>
+<title>糯米AI · ⑥ 配音 · DUBBING</title>
 <link rel="stylesheet" href="tokens.css">
 <style>
   /* 作为壳内容页：自带标题栏/侧栏由 web/app.html 壳(糯米 AI)统一提供，本页不重复。 */
@@ -14,7 +14,7 @@
   .work-head {
     display: flex; align-items: center; gap: 16px; margin-bottom: 14px; max-width: 1180px; flex-wrap: wrap;
   }
-  .work-head h1 { margin: 0; font-size: 22px; }
+  .work-head h1 { margin: 0; font-size: 22px; background: linear-gradient(135deg, var(--blue), var(--mauve)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .ep-select { min-width: 150px; }
   .shot-select { min-width: 200px; }
   .head-spacer { flex: 1; }
@@ -369,11 +369,11 @@
 <div class="app">
   <main class="work">
     <div class="work-head">
-      <h1>⑤ 配音 · DUBBING</h1>
+      <h1>⑥ 配音 · DUBBING</h1>
       <select class="ep-select" id="epSelect">
-        <option>第 1 集</option>
-        <option>第 2 集</option>
-        <option>第 3 集</option>
+        <option>第1集</option>
+        <option>第2集</option>
+        <option>第3集</option>
       </select>
       <select class="shot-select" id="shotSelect">
         <option>全部镜头</option>
@@ -530,7 +530,7 @@
       <div class="side-panel">
         <div class="pv-head">
           <span class="pv-title">视频预览</span>
-          <span class="pv-sub" id="pvSub">第 1 集 · 跟随下方镜头</span>
+          <span class="pv-sub" id="pvSub">第1集 · 跟随下方镜头</span>
         </div>
         <div class="pv-now" id="pvNow"><!-- 当前镜头台词信息，由 JS 渲染 --></div>
         <div class="pv-spacer"></div>
@@ -659,9 +659,9 @@ const ttsState = {};
 
 /* ===== 并行任务（最多 5 个；切换当前任务） ===== */
 const PARALLEL_TASKS = [
-  { id: "t1", name: "任务A · 都市悬疑《废铁》", ep: "第 1 集", shots: 3 },
-  { id: "t2", name: "任务B · 古风《长安雨》", ep: "第 2 集", shots: 4 },
-  { id: "t3", name: "任务C · 校园《晚自习》", ep: "第 1 集", shots: 2 }
+  { id: "t1", name: "任务A · 都市悬疑《废铁》", ep: "第1集", shots: 3 },
+  { id: "t2", name: "任务B · 古风《长安雨》", ep: "第2集", shots: 4 },
+  { id: "t3", name: "任务C · 校园《晚自习》", ep: "第1集", shots: 2 }
 ];
 
 /* ===== 三个镜头：分镜图缩略 + 台词 + 默认配音参数（stub，体现自动对齐） ===== */

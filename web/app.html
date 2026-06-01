@@ -90,8 +90,9 @@
 <div class="app">
   <div class="titlebar">
     <div class="brand"><span class="logo"></span><span class="nm">糯米 AI</span></div>
-    <div class="crumb">项目 / <b id="proj">测试剧本_废铁场之夜</b></div>
+    <div class="crumb">项目 / <b id="proj">未选择项目</b></div>
     <div class="tb-sp"></div>
+    <div class="tb-act" id="pcBtn">项目中心</div>
     <div class="tb-act" id="tcBtn"><span class="dot ok"></span>任务中心<span class="cnt" id="tcCnt">0</span></div>
     <div class="winctl"><span data-win="min">—</span><span data-win="max">□</span><span data-win="close">✕</span></div>
   </div>
@@ -106,6 +107,7 @@
   <div class="main">
     <nav class="nav" id="nav">
       <!-- NAV_ITEMS (nav_config.py 本项目规范) -->
+      <a data-key="project_center" data-page="project-center.html"><span class="ic">▦</span>项目中心</a>
       <a data-key="overview"      data-page="overview.html"        ><span class="ic">▦</span>概览</a>
       <a data-key="screenwriter"  data-page="ideate.html"          ><span class="ic">✎</span>剧本创作</a>
       <a data-key="asset_library" data-page="asset-library.html"   ><span class="ic">◈</span>资源库</a>
@@ -400,6 +402,10 @@
     tcDrawer.setAttribute('aria-hidden', open ? 'false' : 'true');
     if (open) tcRender();
   }
+  document.getElementById('pcBtn').addEventListener('click', () => {
+    document.querySelector('.app').classList.remove('landing');   // 首页→显示左栏
+    go('project_center');
+  });
   document.getElementById('tcBtn').addEventListener('click', () => tcToggle(true));
   document.getElementById('tcClose').addEventListener('click', () => tcToggle(false));
   tcMask.addEventListener('click', () => tcToggle(false));

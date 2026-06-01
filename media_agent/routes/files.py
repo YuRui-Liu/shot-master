@@ -10,9 +10,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 router = APIRouter()
+
+
+def _is_cover_request(path_str: str) -> bool:
+    """检查请求路径是否指向项目的 cover.jpg / cover.png 等封面文件。"""
+    name = Path(path_str).name.lower()
+    return name in ("cover.jpg", "cover.jpeg", "cover.png", "cover.webp")
+
 
 # 扩展名 → media_type。未列出的按 application/octet-stream 兜底交给 FileResponse。
 _MEDIA_TYPES = {
@@ -54,6 +61,9 @@ def get_file(path: str, project: str = ""):
 
     target = _resolve(raw, (project or "").strip())
     if not target.exists() or not target.is_file():
+        # 封面文件缺失 → 返回 204 No Content，前端可据此静默忽略
+        if _is_cover_request(raw):
+            return Response(status_code=204)
         raise HTTPException(status_code=404, detail=f"文件不存在: {path}")
 
     media_type = _MEDIA_TYPES.get(target.suffix.lower())
