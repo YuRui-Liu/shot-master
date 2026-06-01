@@ -22,11 +22,11 @@
   .tb-act { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px;
     padding: 4px 10px; border: 1px solid var(--border); border-radius: 12px; }
   .winctl { display: flex; gap: 4px; margin-left: 14px; }
-  .winctl span { width: 26px; height: 22px; display: grid; place-items: center; color: var(--muted);
-    border-radius: 5px; cursor: pointer; -webkit-app-region: no-drag; }
-  .winctl span:hover { background: var(--panel2); color: var(--fg); }
-  .winctl span[data-win="close"]:hover { background: #c0392b; color: #fff; }
+  .winctl span { width: 28px; height: 22px; display: grid; place-items: center; color: var(--fg);
+    font-size: 13px; border-radius: 5px; cursor: pointer; -webkit-app-region: no-drag; }
+  .winctl span:hover { background: var(--panel2); color: #fff; }   /* 三者同色(白)，统一 */
   .tb-act { -webkit-app-region: no-drag; }
+  .app.landing .nav { display: none; }   /* 首页(无项目)=全宽落地页，无左侧栏 */
 
   /* 主体 = 左导航 + 内容 */
   .main { flex: 1; display: flex; min-height: 0; }
@@ -62,7 +62,7 @@
     <div class="crumb">项目 / <b id="proj">测试剧本_废铁场之夜</b></div>
     <div class="tb-sp"></div>
     <div class="tb-act"><span class="dot ok"></span>任务中心</div>
-    <div class="winctl"><span data-win="min">➖</span><span data-win="max">□</span><span data-win="close">✕</span></div>
+    <div class="winctl"><span data-win="min">—</span><span data-win="max">□</span><span data-win="close">✕</span></div>
   </div>
 
   <div class="main">
@@ -159,6 +159,7 @@
     PROJECT = path;
     const nm = path.split(/[\\/]/).filter(Boolean).pop() || path;
     const pe = document.getElementById('proj'); if (pe) pe.textContent = nm;
+    document.querySelector('.app').classList.remove('landing');   // 进项目 → 显左栏
     SUBNAV.hidden = true;
     go('overview');
   }
@@ -173,7 +174,8 @@
   if (PROJECT) {
     go(location.hash.replace('#/', '') || 'storyboard');
   } else {
-    // 无项目 → 落首页选/建项目（welcome.html 经 postMessage 通知本壳）
+    // 无项目 → 全宽首页落地页(隐藏左栏)，welcome.html 经 postMessage 通知本壳
+    document.querySelector('.app').classList.add('landing');
     links.forEach(x => x.classList.remove('active'));
     SUBNAV.hidden = true;
     loadPage('welcome.html');

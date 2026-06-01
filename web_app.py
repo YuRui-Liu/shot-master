@@ -15,8 +15,10 @@ os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
 import sys
 import subprocess
+import threading
 import time
 import urllib.request
+from pathlib import Path
 
 MEDIA_PORT = 18450
 MEDIA_API = f"http://127.0.0.1:{MEDIA_PORT}"
@@ -64,16 +66,14 @@ def main() -> int:
         except Exception:
             pass
 
-    state = {"lifecycle": None, "media": None, "sw_port": getattr(cfg, "screenwriter_agent_port", 18430)}
+    state = {"lifecycle": None, "media": None, "media_ok": False, "ready": False,
+             "sw_port": getattr(cfg, "screenwriter_agent_port", 18430)}
 
-    def boot():
-        # 1) media_agent —— 媒体后端 + /ui 静态托管
-        _js("window.splashStage && splashStage(0,'active')")
+    def _work():
+        # 后台线程 spawn 两个 agent —— 不阻塞 GUI，splash 才能立即渲染+动画
         state["media"] = subprocess.Popen([sys.executable, "-m", "media_agent.server"])
-        media_ok = _wait_health(MEDIA_API + "/health")
-        print(f"[web_app] media_agent: {'OK' if media_ok else 'TIMEOUT'} @ {MEDIA_API}")
-        _js("window.splashStage && (splashStage(0,'done'),splashStage(1,'active')); window.splashProgress && splashProgress(0.5)")
-        # 2) screenwriter_agent —— 编剧链路
+        state["media_ok"] = _wait_health(MEDIA_API + "/health")
+        print(f"[web_app] media_agent: {'OK' if state['media_ok'] else 'TIMEOUT'} @ {MEDIA_API}")
         try:
             from drama_shot_master.agents.screenwriter_lifecycle import ScreenwriterLifecycle
             lc = ScreenwriterLifecycle(base_port=state["sw_port"], cfg=cfg)
@@ -82,12 +82,31 @@ def main() -> int:
             print(f"[web_app] screenwriter_agent @ :{state['sw_port']} alive={lc.is_alive()}")
         except Exception as e:
             print(f"[web_app] screenwriter_agent spawn 失败(编剧页将不可用): {e}")
-        _js("window.splashStage && (splashStage(1,'done'),splashStage(2,'done'),splashStage(3,'done')); window.splashProgress && splashProgress(1)")
-        # 3) 切到 Web 应用壳（同源 /ui，?sw=&media= 注入后端地址）
-        sw = state["sw_port"]
-        win.view.load(QUrl(f"{MEDIA_API}/ui/app.html?sw=http://127.0.0.1:{sw}&media={MEDIA_API}"))
+        state["ready"] = True
 
-    QTimer.singleShot(250, boot)   # 让 splash 先渲染再启动后端
+    prog = {"p": 0.06, "m": False}
+    timer = QTimer()
+
+    def _tick():
+        # 主线程驱动 splash 进度/阶段；ready 后切 app.html
+        if state["media_ok"] and not prog["m"]:
+            prog["m"] = True
+            _js("window.splashStage && (splashStage(0,'done'),splashStage(1,'active'))")
+        prog["p"] = min(0.92, prog["p"] + 0.02)
+        _js(f"window.splashProgress && splashProgress({prog['p']:.3f})")
+        if state["ready"]:
+            timer.stop()
+            _js("window.splashStage && (splashStage(1,'done'),splashStage(2,'done'),splashStage(3,'done')); window.splashProgress && splashProgress(1)")
+            sw = state["sw_port"]
+            win.view.load(QUrl(f"{MEDIA_API}/ui/app.html?sw=http://127.0.0.1:{sw}&media={MEDIA_API}"))
+
+    state["_timer"] = timer
+    timer.timeout.connect(_tick)
+    def _start():
+        _js("window.splashStage && splashStage(0,'active')")
+        threading.Thread(target=_work, daemon=True).start()
+        timer.start(150)
+    QTimer.singleShot(120, _start)   # 让 splash 先绘出再起后端(后台线程)
 
     try:
         ret = app.exec()
