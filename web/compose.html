@@ -594,7 +594,7 @@ function renderStrip() {
           // P1-3: 清理旧视频元素避免内存泄漏与多视频并发播放
           const oldVid = pvBox.querySelector("video");
           if (oldVid) { oldVid.pause(); oldVid.remove(); }
-          const src = fileSrc(cl.path);
+          const src = fileSrc(cl.path.replace(/\\/g, '/'));
           pvBox.innerHTML = `<video src="${src}" controls autoplay preload="auto" style="width:100%;max-height:400px;border-radius:8px;background:#000;"
             onerror="this.nextElementSibling && (this.nextElementSibling.style.display='')"></video>
             <div style="display:none;color:var(--muted);font-size:11px;padding:40px;text-align:center;">视频无法播放 · 尝试点击路径直接访问文件</div>`;
@@ -958,7 +958,7 @@ function wireToolbar() {
               // P1-3: 清理旧视频元素避免内存泄漏与多视频并发播放
               const oldVid = pvBox.querySelector("video");
               if (oldVid) { oldVid.pause(); oldVid.remove(); }
-              const src = fileSrc(cl.path);
+              const src = fileSrc(cl.path.replace(/\\/g, '/'));
               pvBox.innerHTML = `<video src="${src}" controls autoplay style="width:100%;max-height:400px;border-radius:8px;background:#000;"></video>`;
             }
           } else {
@@ -994,3 +994,5 @@ loadClips();
 </script>
 </body>
 </html>
+
+
