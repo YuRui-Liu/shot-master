@@ -487,9 +487,7 @@ const FORMS = {
         row('API Key', `<input class="inp pw" type="password" data-cfg="runninghub_api_key" placeholder="未填" value="${htmlesc(getCfg('runninghub_api_key'))}">
                         <button class="btn-sm test" data-act="testRH">测试连接</button>`) +
         row('Base URL', `<input class="inp" data-cfg="runninghub_base_url" placeholder="https://www.runninghub.cn" value="${htmlesc(getCfg('runninghub_base_url'))}">`,
-            'fetch: GET <code>' + MA_API + '</code> 健康检查 / 工作流列表。') +
-        row('Workflow ID', `<input class="inp" data-cfg="runninghub_workflow_id" placeholder="请输入工作流 ID" value="${htmlesc(getCfg('runninghub_workflow_id'))}">`,
-            '提供方为 RunningHub 时必填的工作流标识。'));
+            '后端经 media_agent 实测连通/鉴权。各功能的具体工作流 ID 在对应功能页（视频生成 / 配音 / 配乐）填写。'));
   },
 
   /* ── 出图（绑 imggen_* + 共用 prompts_default_grid）── */
@@ -512,11 +510,15 @@ const FORMS = {
             '与「流程 &amp; 调试 → 默认宫格」共用 <code>prompts_default_grid</code>。'));
   },
 
-  /* ── 视频生成（cfg 暂无独立 videogen_* 字段，展示信息，不绑写）── */
+  /* ── 视频生成（RunningHub 工作流；workflow id 绑 cfg.workflow_ids.director / director_v3）── */
   videogen(s) {
-    return `<p class="intro">视频生成走 RunningHub 工作流（凭证见「平台核心 → RunningHub」）。真机经 media_agent <code>/video</code>。当前 <code>cfg</code> 暂无独立视频生成参数字段，此页仅作说明。</p>` +
-      card('视频生成后端',
-        row('提供方', `<input class="inp" value="RunningHub（共用平台凭证）" readonly>`, '帧率/清晰度等参数由具体工作流模板决定。'));
+    const wf = getCfg('workflow_ids', {}) || {};
+    return `<p class="intro">视频生成走 RunningHub 工作流（凭证见「平台核心 → RunningHub」）。真机经 media_agent <code>/video</code>。在此填两套导演台工作流 ID（绑 <code>cfg.workflow_ids</code>）。</p>` +
+      card('导演台工作流',
+        row('LTX2.3 导演台', `<input class="inp" data-wfid="director" placeholder="工作流 ID" value="${htmlesc(wf.director || '')}">`,
+            '标准导演台（LTX2.3）所用 RunningHub 工作流 ID，写入 <code>cfg.workflow_ids.director</code>。') +
+        row('高清导演台', `<input class="inp" data-wfid="director_v3" placeholder="工作流 ID" value="${htmlesc(wf.director_v3 || '')}">`,
+            '高清导演台（v3）所用 RunningHub 工作流 ID，写入 <code>cfg.workflow_ids.director_v3</code>。'));
   },
 
   /* ── 智能转场（另一终端独立分支负责，cfg 暂无字段，展示信息）── */
@@ -553,14 +555,23 @@ const FORMS = {
                         <span class="tg-note">${getCfg('soundtrack_fade_out', false) ? '开 — 末尾约 25% 衰减' : '关 — 保住完整段长（默认）'}</span>`));
   },
 
-  /* ── 编剧（绑 screenwriter_llm_* + screenwriter_models 同步四阶段）── */
+  /* ── 编剧（选 LLM 平台供应商 + 模型；key/base 集中在 LLM 平台，保存时回填 screenwriter_llm_*）── */
   screenwriter(s) {
     const models = getCfg('screenwriter_models', {}) || {};
     const model = models.ideate || models.script || '';
-    return `<p class="intro">编剧生成所用 LLM 平台凭证（绑 <code>cfg.screenwriter_llm_*</code>）+ 默认模型。模型名写入 <code>screenwriter_models</code> 四阶段。真机经 screenwriter_agent SSE 路由 <code>/ideate /script_outline /script_episode /storyboard /prompts</code>。</p>` +
+    // 供应商选项：cfg.llm_providers 的 key（含默认 base_url）为准，并入 LLM_PLATFORMS 预设
+    const provs = getCfg('llm_providers', {}) || {};
+    const provIds = [];
+    LLM_PLATFORMS.forEach(p => { if (!provIds.includes(p.id)) provIds.push(p.id); });
+    Object.keys(provs).forEach(k => { if (!provIds.includes(k)) provIds.push(k); });
+    const curProv = getCfg('screenwriter_provider', LLM_PLATFORMS[0].id);
+    const labelOf = id => { const p = LLM_PLATFORMS.find(x => x.id === id); return p ? p.label : id; };
+    const provOpts = provIds.map(id =>
+      `<option value="${htmlesc(id)}" ${curProv === id ? 'selected' : ''}>${htmlesc(labelOf(id))}</option>`).join('');
+    return `<p class="intro">编剧生成所用 LLM 平台 + 默认模型。<b>API Key / Base URL 在「平台核心 → LLM 平台」集中配置</b>，此处只选供应商；保存时按所选供应商回填 <code>screenwriter_llm_base_url/api_key</code>，模型名写入 <code>screenwriter_models</code> 四阶段。真机经 screenwriter_agent SSE 路由 <code>/ideate /script_outline /script_episode /storyboard /prompts</code>。</p>` +
       card('编剧模型',
-        row('Base URL', `<input class="inp" data-cfg="screenwriter_llm_base_url" placeholder="https://api.deepseek.com" value="${htmlesc(getCfg('screenwriter_llm_base_url'))}">`) +
-        row('API Key', `<input class="inp pw" type="password" data-cfg="screenwriter_llm_api_key" placeholder="未填" value="${htmlesc(getCfg('screenwriter_llm_api_key'))}">`) +
+        row('供应商', `<select class="sel" data-swprovider value="${htmlesc(curProv)}">${provOpts}</select>`,
+            '来自「LLM 平台」已配置的供应商；其 base_url/api_key 自动套用，无需在此重填。') +
         row('模型名', `<input class="inp" data-swmodel="all" placeholder="如 deepseek-v4-flash" value="${htmlesc(model)}">`,
             '写入 <code>screenwriter_models</code> 的 ideate/script/storyboard/prompts 四阶段。'));
   },
@@ -661,6 +672,22 @@ function wireFormInteractions(id) {
       setCfg('screenwriter_models', { ideate: v, script: v, storyboard: v, prompts: v });
     });
   });
+  // 编剧供应商 → 存 screenwriter_provider，并按 llm_providers[选中] 回填 screenwriter_llm_base_url/api_key
+  document.querySelectorAll('#formBody [data-swprovider]').forEach(el => {
+    el.addEventListener('change', () => {
+      const pid = el.value;
+      setCfg('screenwriter_provider', pid);
+      const provs = getCfg('llm_providers', {}) || {};
+      const p = provs[pid] || {};
+      const preset = LLM_PLATFORMS.find(x => x.id === pid);
+      setCfg('screenwriter_llm_base_url', p.base_url || (preset ? preset.base : ''));
+      setCfg('screenwriter_llm_api_key', p.api_key || '');
+    });
+  });
+  // 视频生成工作流 ID → cfg.workflow_ids.{director|director_v3}
+  document.querySelectorAll('#formBody [data-wfid]').forEach(el => {
+    el.addEventListener('input', () => setCfgNested('workflow_ids', el.dataset.wfid, el.value));
+  });
   // 通用 toggle（data-tg → bool 字段）
   document.querySelectorAll('#formBody [data-tg]').forEach(tg => {
     tg.addEventListener('click', () => {
@@ -753,8 +780,13 @@ function wireFormInteractions(id) {
   });
 }
 
-/* 测试连接：读同卡片内 base_url + api_key，直接 fetch 目标 base（非经 media_agent）。 */
+/* 测试连接：读同卡片内 base_url + api_key (+ LLM 平台卡可读 model)，走后端实测以绕开
+   浏览器 CORS / 错误请求方式。后端用 openai 兼容客户端实测，返回 {ok, message}。
+     LLM 平台 → POST {MA}/config/test/llm  {base_url, api_key, model?}
+     RunningHub → POST {MA}/config/test/runninghub {api_key, base_url?}
+   翻译等其它（data-act=testTrans 之类）暂仍按旧逻辑直连。 */
 function testConnection(btn) {
+  const act = btn.dataset.act;
   const cardEl = btn.closest('.card');
   const hint = btn.closest('.frow').nextElementSibling;
   const setHint = (ok, msg) => {
@@ -764,22 +796,45 @@ function testConnection(btn) {
       hint.textContent = msg;
     }
   };
-  let base = '', key = '';
-  cardEl.querySelectorAll('input').forEach(i => {
-    const v = i.value.trim();
-    if (!v) return;
-    const cfg = i.dataset.cfg || '';
-    const sub = i.dataset.sub || '';
-    if ((sub === 'base_url' || cfg.indexOf('base_url') >= 0 || cfg.indexOf('_url') >= 0)
-        && /^https?:\/\//.test(v)) base = v;
-    if (sub === 'api_key' || cfg.indexOf('api_key') >= 0 || cfg.indexOf('secret_key') >= 0) key = v;
-  });
-  // 兜底：取卡片内第一个 http(s) 输入框当 base
-  if (!base) {
-    cardEl.querySelectorAll('input').forEach(i => {
-      if (!base && /^https?:\/\//.test(i.value.trim())) base = i.value.trim();
+  // 从所在卡片读出 base / key / model
+  const readCard = () => {
+    let base = '', key = '', model = '';
+    cardEl.querySelectorAll('input, select').forEach(i => {
+      const v = (i.value || '').trim();
+      if (!v) return;
+      const cfg = i.dataset.cfg || '';
+      const sub = i.dataset.sub || '';
+      if (sub === 'base_url' || cfg.indexOf('base_url') >= 0 || cfg.indexOf('_url') >= 0) base = v;
+      if (sub === 'api_key' || cfg.indexOf('api_key') >= 0 || cfg.indexOf('secret_key') >= 0) key = v;
+      if (sub === 'model' || cfg.indexOf('model') >= 0 || i.dataset.swmodel) model = v;
     });
+    return { base, key, model };
+  };
+
+  const run = (path, body, validate) => {
+    if (validate) { const err = validate(body); if (err) { setHint(false, err); return; } }
+    btn.disabled = true; const old = btn.textContent; btn.textContent = '测试中…';
+    api(path, body)
+      .then(r => setHint(!!(r && r.ok), (r && r.message) || (r && r.ok ? '✓ 连接成功' : '✗ 测试失败')))
+      .catch(e => setHint(false, '✗ ' + e.message))
+      .finally(() => { btn.disabled = false; btn.textContent = old; });
+  };
+
+  if (act === 'testLLM') {
+    const { base, key, model } = readCard();
+    run('/config/test/llm', { base_url: base, api_key: key, model: model || undefined },
+        b => b.base_url ? '' : '请先填 Base URL');
+    return;
   }
+  if (act === 'testRH') {
+    const { base, key } = readCard();
+    run('/config/test/runninghub', { api_key: key, base_url: base || undefined },
+        b => b.api_key ? '' : '请先填 API Key');
+    return;
+  }
+
+  // 其它（翻译等）：保留旧的浏览器直连 GET 探测
+  const { base, key } = readCard();
   if (!base) { setHint(false, '请先填 Base URL'); return; }
   btn.disabled = true; const old = btn.textContent; btn.textContent = '测试中…';
   fetch(base, { method: 'GET', headers: key ? { Authorization: 'Bearer ' + key } : {} })
