@@ -127,6 +127,18 @@
 
   .advance { margin-top: 12px; width: 100%; }
   .advance:disabled { filter: grayscale(.6) brightness(.7); }
+
+  /* 续聊：多轮深挖/调整立意 */
+  .followup { margin-top: 12px; border-top: 1px solid var(--border-lo); padding-top: 12px; }
+  .followup .fu-lab { font-size: 11px; color: var(--periw); font-weight: 600; margin-bottom: 7px; }
+  .followup .fu-row { display: flex; gap: 8px; }
+  .followup .fu-row input { flex: 1; }
+  .followup .fu-send { background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); white-space: nowrap; }
+  .followup .fu-send:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
+  .followup .fu-hist { margin-top: 9px; display: flex; flex-direction: column; gap: 5px; max-height: 130px; overflow: auto; }
+  .followup .fu-msg { font-size: 11px; line-height: 1.5; padding: 5px 9px; border-radius: 8px; }
+  .followup .fu-msg.u { background: rgba(74,158,255,.1); color: var(--fg2); align-self: flex-end; max-width: 88%; }
+  .followup .fu-msg.a { background: var(--navy); color: var(--muted); align-self: flex-start; max-width: 88%; }
 </style>
 </head>
 <body>
@@ -240,6 +252,17 @@
         <div class="empty">填好左侧 context，点「生成候选」，AI 流式产出立意候选；点选一张后可推进到剧本阶段。</div>
       </div>
       <pre class="result raw-stream" id="rawStream"></pre>
+
+      <!-- 续聊：基于已生成候选多轮深挖/调整（messages 累积，发给 /ideate/chat） -->
+      <div class="followup" id="followup" style="display:none">
+        <div class="fu-lab">继续深挖 / 调整立意（多轮对话，保留上下文）</div>
+        <div class="fu-row">
+          <input type="text" id="fuInput" placeholder="如：第2个再强化打脸爽点，主角改成女医生 / 再给2个更虐的方向">
+          <button class="sec fu-send" id="fuSend">追问 ▸</button>
+        </div>
+        <div class="fu-hist" id="fuHist"></div>
+      </div>
+
       <button class="advance" id="advanceBtn" disabled>选定候选 · 推进到剧本 →</button>
     </div>
   </div>
@@ -262,8 +285,52 @@ const state = {
   style: { ref: "", name: "", meta: "" },
   candidates: [],
   selectedId: "",
+  messages: [],     // 多轮对话历史（user/assistant 累积，续聊深挖立意）
   abort: null,
 };
+
+/* —— 项目级持久化（localStorage 镜像，切页/重启不丢；真源仍是后端 创意.json） —— */
+const LS_STATE = "nuomi.ideate.state." + (PROJECT_DIR || "noproj");
+function saveState() {
+  try {
+    localStorage.setItem(LS_STATE, JSON.stringify({
+      candidates: state.candidates, selectedId: state.selectedId, messages: state.messages,
+      coreIdea: $("coreIdea").value, genre: state.genre, style: state.style, aspect: state.aspect,
+      episodes: $("episodes").value, duration: $("duration").value, candCount: $("candCount").value,
+      genreTags: $("genreTags").value, visualStyle: $("visualStyle").value,
+    }));
+  } catch {}
+}
+function restoreState() {
+  let s; try { s = JSON.parse(localStorage.getItem(LS_STATE) || "null"); } catch {}
+  if (!s) return;
+  if (s.coreIdea) $("coreIdea").value = s.coreIdea;
+  if (s.genreTags) $("genreTags").value = s.genreTags;
+  if (s.visualStyle) $("visualStyle").value = s.visualStyle;
+  if (s.episodes) $("episodes").value = s.episodes;
+  if (s.duration) $("duration").value = s.duration;
+  if (s.candCount) $("candCount").value = s.candCount;
+  if (s.genre && s.genre.id) {
+    state.genre = s.genre;
+    $("genreChip").textContent = s.genre.name;
+    const sub = $("genreSubChip");
+    if (s.genre.sub && s.genre.sub.length) { sub.textContent = "+" + s.genre.sub.join("·"); sub.style.display = ""; }
+    $("genreMeta").textContent = s.genre.meta || ("已选 " + s.genre.name);
+  }
+  if (s.style && s.style.ref) {
+    state.style = s.style;
+    $("styleChip").textContent = s.style.name;
+    $("styleMeta").textContent = s.style.meta || ("已选 " + s.style.name);
+  }
+  if (s.aspect) setAspect(s.aspect);
+  state.messages = Array.isArray(s.messages) ? s.messages : [];
+  state.candidates = Array.isArray(s.candidates) ? s.candidates : [];
+  state.selectedId = s.selectedId || "";
+  renderCandidates();
+  renderHistory();
+  if (state.selectedId) $("advanceBtn").disabled = false;
+  refreshInjection();
+}
 
 /* 画幅记住上次（localStorage；壳无项目时也可用） */
 const LS_AR = "nuomi.ideate.lastAspect";
@@ -280,7 +347,7 @@ function setAspect(ar) {
   refreshInjection();
 }
 document.querySelectorAll("#arRow .arb").forEach((b) =>
-  b.addEventListener("click", () => setAspect(b.getAttribute("data-ar"))));
+  b.addEventListener("click", () => { setAspect(b.getAttribute("data-ar")); saveState(); }));
 
 /* 高级折叠 */
 document.querySelectorAll(".adv .tog").forEach((t) =>
@@ -355,7 +422,7 @@ $("pickGenreBtn").addEventListener("click", async () => {
   if (g.sub.length) { sub.textContent = "+" + g.sub.join("·"); sub.style.display = ""; }
   else sub.style.display = "none";
   $("genreMeta").textContent = g.meta || `已选 ${g.name}`;
-  refreshInjection();
+  refreshInjection(); saveState();
 });
 $("pickStyleBtn").addEventListener("click", async () => {
   const list = await loadLib("styles");
@@ -364,7 +431,7 @@ $("pickStyleBtn").addEventListener("click", async () => {
   state.style = { ref: s.ref, name: s.name, meta: s.meta };
   $("styleChip").textContent = s.name;
   $("styleMeta").textContent = s.meta || `已选 ${s.name}`;
-  refreshInjection();
+  refreshInjection(); saveState();
 });
 
 /* —— 注入预览 + 规格 —— */
@@ -385,7 +452,9 @@ function refreshInjection() {
   $("injectBody").innerHTML = rows.join("");
 }
 ["episodes", "duration", "candCount"].forEach((id) =>
-  $(id).addEventListener("input", refreshInjection));
+  $(id).addEventListener("input", () => { refreshInjection(); saveState(); }));
+["coreIdea", "genreTags", "visualStyle"].forEach((id) =>
+  $(id).addEventListener("input", saveState));
 function esc(s) { return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
 refreshInjection();
 
@@ -429,26 +498,42 @@ function renderCandidates() {
       state.selectedId = id;
       renderCandidates();
       $("advanceBtn").disabled = false;
+      saveState();
     });
     root.appendChild(el);
   });
 }
 
-/* —— SSE：fetch + ReadableStream 读 text/event-stream（delta/done/error） —— */
+/* 首次生成：重置历史 + 候选，发起首轮 */
 async function generate() {
   const ctx = collectContext();
   if (!ctx.core_idea) { alert("请先填写「一句话主旨」"); return; }
-
   state.candidates = []; state.selectedId = "";
-  renderCandidates();
-  $("advanceBtn").disabled = true;
+  state.messages = [{ role: "user", content: "生成候选（按上面 context）" }];
+  renderCandidates(); renderHistory();
+  await runChat(ctx);
+}
+
+/* 续聊：基于已生成候选 + 历史，追加用户指令深挖/调整（messages 累积发给 /ideate/chat） */
+async function followup(instruction) {
+  if (!instruction) return;
+  if (!state.messages.length) { generate(); return; }   // 无历史 → 当首次
+  const ctx = collectContext();
+  state.messages.push({ role: "user", content: instruction });
+  renderHistory();
+  await runChat(ctx);
+}
+
+/* —— SSE 核心：fetch + ReadableStream 读 text/event-stream（delta/done/error） —— */
+async function runChat(ctx) {
+  $("advanceBtn").disabled = !state.selectedId;
   setStreaming(true);
   const raw = $("rawStream"); raw.classList.add("on"); raw.textContent = "● 正在连接 LLM…\n";
 
   const body = {
     project_dir: PROJECT_DIR,
     context: ctx,
-    messages: [{ role: "user", content: "生成候选（按上面 context）" }],
+    messages: state.messages.slice(),
     auto_save_idea_json: true,
   };
 
@@ -466,6 +551,7 @@ async function generate() {
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
+    let finished = false;
     raw.textContent = "";
     while (true) {
       const { value, done } = await reader.read();
@@ -481,13 +567,13 @@ async function generate() {
           raw.textContent = acc;
           $("streamPill").textContent = `● 流式生成中… 已收 ${acc.length} 字`;
         } else if (evt.event === "done") {
-          finishStream(evt.data, acc);
+          finishStream(evt.data, acc); finished = true;
         } else if (evt.event === "error") {
           throw new Error(evt.data.hint || evt.data.message || "生成失败");
         }
       }
     }
-    if (state.candidates.length === 0) finishStream({}, acc);
+    if (!finished) finishStream({}, acc);
   } catch (e) {
     if (e.name !== "AbortError") {
       raw.textContent += "\n⚠ " + e.message +
@@ -516,8 +602,26 @@ function parseSSE(chunk) {
 function finishStream(data, acc) {
   let cands = data.candidates;
   if (!Array.isArray(cands) || !cands.length) cands = tryParseCandidates(acc);
-  state.candidates = cands || [];
+  if (Array.isArray(cands) && cands.length) state.candidates = cands;   // 续聊：有新候选才替换，无则保留
+  if (acc && acc.trim()) state.messages.push({ role: "assistant", content: acc });  // 累积 assistant 轮供下一轮深挖
   renderCandidates();
+  renderHistory();
+  saveState();
+}
+
+/* 续聊历史渲染（首轮系统式指令不展示；assistant 轮折叠为简讯） */
+function renderHistory() {
+  const fu = $("followup"), hist = $("fuHist");
+  fu.style.display = state.candidates.length ? "" : "none";
+  hist.innerHTML = "";
+  state.messages.forEach((m, i) => {
+    if (i === 0 && m.role === "user") return;
+    const el = document.createElement("div");
+    el.className = "fu-msg " + (m.role === "assistant" ? "a" : "u");
+    el.textContent = m.role === "assistant" ? "✦ AI 已更新立意候选" : m.content;
+    hist.appendChild(el);
+  });
+  hist.scrollTop = hist.scrollHeight;
 }
 
 function tryParseCandidates(text) {
@@ -540,19 +644,42 @@ function setStreaming(on) {
 $("genBtn").addEventListener("click", generate);
 $("stopBtn").addEventListener("click", () => { if (state.abort) state.abort.abort(); });
 
-/* 选定推进：真机调 POST /ideate/select 再切到剧本页（由壳路由） */
+/* 续聊：追问深挖/调整（Enter 或点按钮） */
+$("fuSend").addEventListener("click", () => {
+  const v = $("fuInput").value.trim();
+  if (!v) return;
+  $("fuInput").value = "";
+  followup(v);
+});
+$("fuInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("fuSend").click(); });
+
+/* 取当前选定候选对象（id 规则与 renderCandidates 一致） */
+function selectedCandidate() {
+  return state.candidates.find((c, i) => (c.id || ("c" + (i + 1))) === state.selectedId) || null;
+}
+
+/* 选定推进：存选定立意到 sessionStorage（剧本页读取）+ 调 /ideate/select + 通知壳切「剧本」 */
 $("advanceBtn").addEventListener("click", async () => {
   if (!state.selectedId) return;
+  const cand = selectedCandidate();
+  try {
+    sessionStorage.setItem("nuomi.selectedIdea." + (PROJECT_DIR || "noproj"),
+      JSON.stringify({ id: state.selectedId, candidate: cand, context: collectContext() }));
+  } catch {}
   try {
     await fetch(SW_API + "/ideate/select", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_dir: PROJECT_DIR, selected_id: state.selectedId }),
     });
   } catch {}
+  saveState();
   /* 通知壳推进到「剧本」阶段（壳监听此事件做路由） */
   window.parent && window.parent.postMessage(
     { type: "ideate.advance", stage: "script", selected_id: state.selectedId }, "*");
 });
+
+/* 启动：恢复项目级持久化（切页/重启回显 候选/历史/表单，解决「立意切界面消失」） */
+restoreState();
 
 /* —— 健康检查 —— */
 (async function health() {

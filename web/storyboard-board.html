@@ -594,21 +594,23 @@
             <span class="t" id="gridTitle">源图</span>
             <span class="bmode" id="gridMode">多选 · 已选 3 张</span>
             <span class="gh-sp"></span>
+            <span class="mini" id="addSrc">＋ 添加源图…</span>
             <span class="mini" id="openDir">打开目录…</span>
             <span class="mini" id="selAll">全选</span>
             <span class="mini" id="selClear">清空</span>
           </div>
           <div class="gridwrap">
             <div class="thumbs" id="thumbs">
-              <div class="th sel"><div class="img"></div><div class="check">✓</div><div class="ord"></div><div class="name">grid_001.png</div></div>
-              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_002.png</div></div>
-              <div class="th sel"><div class="img"></div><div class="check">✓</div><div class="ord"></div><div class="name">grid_003.png</div></div>
-              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_004.png</div></div>
-              <div class="th sel"><div class="img"></div><div class="check">✓</div><div class="ord"></div><div class="name">grid_005.png</div></div>
-              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_006.png</div></div>
-              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_007.png</div></div>
-              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_008.png</div></div>
-              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_009.png</div></div>
+              <!-- 占位缩略图（无真实路径）：执行前需经「＋ 添加源图…」填入真实 src_path -->
+              <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_001.png</div></div>
+              <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_002.png</div></div>
+              <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_003.png</div></div>
+              <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_004.png</div></div>
+              <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_005.png</div></div>
+              <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_006.png</div></div>
+              <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_007.png</div></div>
+              <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_008.png</div></div>
+              <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_009.png</div></div>
             </div>
           </div>
         </div>
@@ -947,7 +949,7 @@
     $("panelBody").querySelectorAll(".sw").forEach(sw =>
       sw.addEventListener("click", () => sw.classList.toggle("off")));
     $("panelBody").querySelectorAll(".detbtn").forEach(b =>
-      b.addEventListener("click", () => alert("检测「" + b.textContent + "」：占位，真机走 " + MEDIA_API + " 检测端点。")));
+      b.addEventListener("click", () => runDetect(b.dataset.det)));
     updateValidity();
   }
 
@@ -1017,31 +1019,290 @@
     }
   }
 
-  // 输出目录 / 打开目录（占位）
-  $("pickDir").addEventListener("click", () => alert("选择输出目录：占位（真机弹系统目录选择）。"));
-  $("openDir").addEventListener("click", () => alert("打开源图目录：占位（真机弹系统目录选择并加载缩略图）。"));
-
-  // 预览 / 执行（占位 + 假进度条）
-  $("previewBtn").addEventListener("click", () =>
-    alert(TOOLS[curTool].preview + "：占位预览。真机叠加渲染。"));
-  $("execBtn").addEventListener("click", () => {
-    if (curTool === "imggen") { execImggenBatch(); return; }
-    // 其余工具（拆图/去白边/拼图）由对应域接，本终端只接出图
-    const t = TOOLS[curTool];
-    const total = Math.max(1, selectedThumbs().length);
-    let done = 0;
-    $("progFill").style.width = "0";
-    $("progText").innerHTML = "<b>0</b> / " + total + " · 执行中…";
-    const timer = setInterval(() => {
-      done++;
-      $("progFill").style.width = Math.round(done / total * 100) + "%";
-      $("progText").innerHTML = "<b>" + done + "</b> / " + total + (done >= total ? " · 完成 ✓" : " · 执行中…");
-      if (done >= total) {
-        clearInterval(timer);
-        alert(t.exec + "：占位完成。真机 → " + t.api);
-      }
-    }, 420);
+  // ---- 输出目录：点击可改（壳内无原生目录选择器，用 prompt 兜底）----
+  $("pickDir").addEventListener("click", () => {
+    const cur = $("outDir").textContent.trim();
+    const v = prompt("输出目录（绝对路径）：", cur);
+    if (v != null && v.trim()) $("outDir").textContent = v.trim();
   });
+  function outDir() {
+    const v = ($("outDir").textContent || "").trim();
+    return v && v !== "D:/works/ep01/tiles_out" ? v : (PROJECT ? PROJECT + "/tiles_out" : "");
+  }
+
+  // ---- 源图：缩略图网格当前没有真实路径，用「＋ 添加源图…」填真实 src_path ----
+  // 每个真实条目挂 data-path；占位缩略图(data-ph)无路径，执行时会被过滤并提示。
+  function addThumb(path) {
+    const norm = String(path).replace(/\\/g, "/").trim();
+    if (!norm) return null;
+    const name = norm.split("/").pop() || norm;
+    const th = document.createElement("div");
+    th.className = "th";
+    th.dataset.path = norm;
+    th.title = norm;
+    th.innerHTML = '<div class="img"></div><div class="check"></div><div class="ord"></div>' +
+      '<div class="name"></div>';
+    th.querySelector(".name").textContent = name;
+    // 真实文件用 file:// 缩略
+    const im = th.querySelector(".img");
+    im.style.backgroundImage = "url('" + fileSrc(norm) + "')";
+    im.style.backgroundSize = "cover";
+    im.style.backgroundPosition = "center";
+    $("thumbs").appendChild(th);
+    return th;
+  }
+  function addSources() {
+    const raw = prompt("粘贴源图绝对路径（每行一个，或用 ; 分隔）：", "");
+    if (raw == null) return;
+    const paths = raw.split(/[\n;]+/).map(s => s.trim()).filter(Boolean);
+    if (!paths.length) return;
+    // 首次添加真实源图时，移除占位缩略图
+    if ($("thumbs").querySelector(".th[data-path]") == null)
+      $("thumbs").querySelectorAll(".th[data-ph]").forEach(x => x.remove());
+    let added = 0;
+    paths.forEach(p => { if (addThumb(p)) added++; });
+    refreshGridMode(); updateValidity();
+    if (added) toast("已添加 " + added + " 张源图。", "ok");
+  }
+  $("addSrc").addEventListener("click", addSources);
+  $("openDir").addEventListener("click", addSources);
+
+  // 选中缩略图 → 真实路径列表（按 DOM/选择顺序）。无 data-path 的占位项被忽略。
+  function selectedPaths() {
+    return selectedThumbs().map(th => th.dataset.path).filter(Boolean);
+  }
+  // 取面板内 spin/sel-box 当前值（宽松解析）
+  function spinVals() { return [...$("panelBody").querySelectorAll(".spin input")].map(i => parseInt(i.value, 10)); }
+  function selBoxText(idx) {
+    const b = $("panelBody").querySelectorAll(".sel-box")[idx];
+    return b ? b.textContent.trim() : "";
+  }
+  function fmtVal() {
+    const boxes = $("panelBody").querySelectorAll(".sel-box");
+    const b = boxes[boxes.length - 1];
+    const t = (b ? b.textContent.trim().split(/\s/)[0] : "PNG").toUpperCase();
+    return t === "JPG" || t === "JPEG" ? "JPG" : "PNG";
+  }
+  function aspectFromText(txt) {
+    const m = String(txt).match(/(\d+)\s*[:：]\s*(\d+)/);
+    return m ? { w: +m[1], h: +m[2] } : { w: 0, h: 0 };
+  }
+
+  // ---- 检测白边 / 推断网格 → 回填表单 ----
+  async function runDetect(kind) {
+    const paths = selectedPaths();
+    if (!paths.length) { toast("请先「＋ 添加源图…」并选中 1 张作为检测源。"); return; }
+    const src = paths[0];
+    const ep = kind === "grid" ? "/imaging/infer_grid" : "/imaging/detect_borders";
+    try {
+      const resp = await fetch(MEDIA_API + ep, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ src_path: src }),
+      });
+      if (!resp.ok) { toast("检测失败：" + (await errHint(resp))); return; }
+      const d = await resp.json();
+      const spins = $("panelBody").querySelectorAll(".spin input");
+      if (kind === "grid") {
+        // 拆图面板前两个 spin = 源图 行 / 列
+        if (spins[0]) spins[0].value = d.rows;
+        if (spins[1]) spins[1].value = d.cols;
+        toast("推断网格：" + d.rows + " × " + d.cols, "ok");
+      } else {
+        const m = d.margins || {};
+        if (curTool === "split") {
+          // split 面板 quad 上右下左 = spins[4..7]，间距 = spins[8]
+          if (spins[4]) spins[4].value = m.top ?? 0;
+          if (spins[5]) spins[5].value = m.right ?? 0;
+          if (spins[6]) spins[6].value = m.bottom ?? 0;
+          if (spins[7]) spins[7].value = m.left ?? 0;
+          if (spins[8]) spins[8].value = d.gap ?? 0;
+        } else {
+          // trim 面板：容差 = spins[0]，保留边距 quad = spins[1..4]
+          if (spins[1]) spins[1].value = m.top ?? 0;
+          if (spins[2]) spins[2].value = m.right ?? 0;
+          if (spins[3]) spins[3].value = m.bottom ?? 0;
+          if (spins[4]) spins[4].value = m.left ?? 0;
+        }
+        toast("检测白边：上" + (m.top ?? 0) + " 右" + (m.right ?? 0) +
+          " 下" + (m.bottom ?? 0) + " 左" + (m.left ?? 0) + " · 间距" + (d.gap ?? 0), "ok");
+      }
+    } catch (e) {
+      toast("检测失败：" + (e && e.message ? e.message : e));
+    }
+  }
+
+  // ---- 预览：当前为路径校验/提示（壳内无叠加画布，给明确执行前反馈）----
+  $("previewBtn").addEventListener("click", () => {
+    const paths = selectedPaths();
+    if (curTool === "imggen") { toast("预览首条：执行后首张显于分镜视角预览。"); return; }
+    if (!paths.length) { toast("请先「＋ 添加源图…」并选中源图。"); return; }
+    toast(TOOLS[curTool].preview + "：已选 " + paths.length + " 张源图，可执行。", "ok");
+  });
+
+  // ---- 执行：按工具走真实后端 ----
+  $("execBtn").addEventListener("click", () => {
+    if (curTool === "imggen") return execImggenBatch();
+    if (curTool === "split") return execSplit();
+    if (curTool === "trim") return execTrim();
+    if (curTool === "combine") return execCombine();
+  });
+
+  // 进度条小工具
+  function setProg(done, total, suffix) {
+    $("progFill").style.width = (total ? Math.round(done / total * 100) : 0) + "%";
+    $("progText").innerHTML = "<b>" + done + "</b> / " + total + (suffix || "");
+  }
+  async function withExecBtn(fn) {
+    const b = $("execBtn"); const old = b.textContent;
+    b.disabled = true; b.textContent = "执行中…";
+    try { await fn(); } finally { b.disabled = false; b.textContent = old; }
+  }
+
+  // ---- 拆图：单图 → POST /imaging/split；多图 → POST /imaging/batch_split (SSE) ----
+  async function execSplit() {
+    const paths = selectedPaths();
+    if (!paths.length) { toast("请先「＋ 添加源图…」并选中源图后再拆图。"); return; }
+    if (!outDir()) { toast("请先选择输出目录（或在首页选择项目）。"); return; }
+    const sp = spinVals(); // [srcRows,srcCols,subRows,subCols, top,right,bottom,left, gap]
+    const fmt = fmtVal();
+    const aspect = aspectFromText(selBoxText(2)); // split 面板「目标比例」是第3个 sel-box
+    const od = outDir() + "/split";
+    const baseFor = p => (p.split("/").pop() || "cell").replace(/\.[^.]+$/, "");
+    const mkReq = p => ({
+      src_path: p,
+      src_rows: sp[0] || 1, src_cols: sp[1] || 1,
+      sub_rows: sp[2] || 1, sub_cols: sp[3] || 1,
+      margins: { top: sp[4] || 0, right: sp[5] || 0, bottom: sp[6] || 0, left: sp[7] || 0 },
+      gap: sp[8] || 0,
+      target_aspect: aspect,
+      out_dir: od, base_name: baseFor(p), fmt,
+    });
+
+    await withExecBtn(async () => {
+      if (paths.length === 1) {
+        setProg(0, 1, " · 执行中…");
+        const resp = await fetch(MEDIA_API + "/imaging/split", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(mkReq(paths[0])),
+        });
+        if (!resp.ok) { toast("拆图失败：" + (await errHint(resp))); setProg(0, 1, " · 失败"); return; }
+        const d = await resp.json();
+        const outs = (d && d.outputs) || [];
+        setProg(1, 1, " · 完成 ✓");
+        toast("拆图完成：" + outs.length + " 张 → " + od, "ok");
+        return;
+      }
+      // 多图批量 → SSE
+      const items = paths.map(mkReq);
+      await runSSE(MEDIA_API + "/imaging/batch_split", { items },
+        items.length, "拆图", od);
+    });
+  }
+
+  // ---- 去白边：逐张 POST /imaging/trim（同步 JSON，前端串行驱动进度）----
+  async function execTrim() {
+    const paths = selectedPaths();
+    if (!paths.length) { toast("请先「＋ 添加源图…」并选中源图后再去白边。"); return; }
+    if (!outDir()) { toast("请先选择输出目录（或在首页选择项目）。"); return; }
+    const sp = spinVals();      // [容差, 上,右,下,左]
+    const tol = sp[0] || 0;     // 容差越大越激进 → 白边阈值越低
+    const threshold = Math.max(0, Math.min(255, 255 - tol));
+    const fmt = fmtVal();
+    const od = outDir() + "/trim";
+    const ext = fmt === "JPG" ? "jpg" : "png";
+    const total = paths.length;
+    await withExecBtn(async () => {
+      let done = 0, ok = 0, fail = 0;
+      setProg(0, total, " · 执行中…");
+      for (const p of paths) {
+        const name = (p.split("/").pop() || "img").replace(/\.[^.]+$/, "");
+        try {
+          const resp = await fetch(MEDIA_API + "/imaging/trim", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              src_path: p, threshold, max_iter: 5,
+              out_path: od + "/" + name + "_trim." + ext, fmt,
+            }),
+          });
+          if (resp.ok) ok++; else { fail++; toast("去白边失败 " + name + "：" + (await errHint(resp))); }
+        } catch (e) { fail++; toast("去白边失败 " + name + "：" + (e && e.message ? e.message : e)); }
+        done++; setProg(done, total, done >= total ? " · 完成 ✓" : " · 执行中…");
+      }
+      if (fail) toast("去白边完成：成功 " + ok + " · 失败 " + fail, ok ? "ok" : undefined);
+      else toast("去白边完成：成功 " + ok + " 张 → " + od, "ok");
+    });
+  }
+
+  // ---- 拼图：POST /imaging/combine（一次拼一张大图）----
+  async function execCombine() {
+    const paths = selectedPaths(); // order 模式：按点击顺序
+    if (!paths.length) { toast("请先「＋ 添加源图…」并按拼接顺序点选。"); return; }
+    if (!outDir()) { toast("请先选择输出目录（或在首页选择项目）。"); return; }
+    const sp = spinVals();         // [行, 列, 间距]
+    const rows = sp[0] || 1, cols = sp[1] || 1, gap = sp[2] || 0;
+    if (paths.length !== rows * cols) {
+      toast("拼图需正好选 " + rows + "×" + cols + " = " + (rows * cols) + " 张，当前 " + paths.length + " 张。");
+      return;
+    }
+    const fmt = fmtVal();
+    const ext = fmt === "JPG" ? "jpg" : "png";
+    const od = outDir() + "/combine";
+    const ts = Date.now().toString().slice(-6);
+    await withExecBtn(async () => {
+      setProg(0, 1, " · 执行中…");
+      const resp = await fetch(MEDIA_API + "/imaging/combine", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          src_paths: paths, target_rows: rows, target_cols: cols, gap,
+          target_aspect: { w: 0, h: 0 }, scale_mode: "letterbox",
+          out_path: od + "/combine_" + ts + "." + ext, fmt,
+        }),
+      });
+      if (!resp.ok) { toast("拼图失败：" + (await errHint(resp))); setProg(0, 1, " · 失败"); return; }
+      const d = await resp.json();
+      setProg(1, 1, " · 完成 ✓");
+      toast("拼图完成 → " + (d && d.output ? d.output : od), "ok");
+    });
+  }
+
+  // ---- 通用 SSE 驱动（batch_split）：事件 progress / item_done / complete ----
+  async function runSSE(url, body, total, label, od) {
+    setProg(0, total, " · 执行中…");
+    let done = 0, okCount = 0, failCount = 0;
+    const resp = await fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok || !resp.body) { toast(label + "失败：" + (await errHint(resp))); return; }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done: rd } = await reader.read();
+      if (rd) break;
+      buf += dec.decode(value, { stream: true });
+      let sep;
+      while ((sep = buf.indexOf("\n\n")) !== -1) {
+        const block = buf.slice(0, sep); buf = buf.slice(sep + 2);
+        let ev = "", dataStr = "";
+        block.split("\n").forEach(line => {
+          if (line.startsWith("event:")) ev = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+        });
+        if (!ev) continue;
+        let data = {}; try { data = dataStr ? JSON.parse(dataStr) : {}; } catch (_) {}
+        if (ev === "item_done") {
+          done++;
+          if (data.status === "ok") okCount++; else { failCount++; if (data.error) toast(label + "失败 #" + (data.idx + 1) + "：" + data.error); }
+          setProg(done, total, " · 执行中…");
+        } else if (ev === "complete") {
+          setProg(data.total != null ? data.total : total, data.total != null ? data.total : total, " · 完成 ✓");
+        }
+      }
+    }
+    if (failCount) toast(label + "完成：成功 " + okCount + " · 失败 " + failCount + " → " + od, okCount ? "ok" : undefined);
+    else toast(label + "完成：成功 " + okCount + " 张 → " + od, "ok");
+  }
 
   // ---- 自由模式·出图批量：POST {MEDIA}/imggen/batch_generate（SSE 进度）----
   // 提示词面板每行一条 → 一个 GenRequest item。事件：progress / item_done / complete。

@@ -202,7 +202,47 @@ const $ = (id) => document.getElementById(id);
 let EPISODES = [];        // [{id:"E1", title, summary}]
 let activeEp = null;      // 当前选中集 id
 const epStatus = {};      // {E1: "idle"|"running"|"done"}
+const epContent = {};     // {E1: "正文…"} 各集编辑器内容（持久化）
 let busy = false;         // 单集/大纲流式互斥
+
+/* ---------- 项目级持久化（localStorage 镜像，切页/重启不丢正文） ---------- */
+const LS_SCRIPT = "nuomi.script.state." + (PROJECT_DIR || "noproj");
+function saveLocal() {
+  try {
+    localStorage.setItem(LS_SCRIPT, JSON.stringify({
+      episodes: EPISODES, status: epStatus, content: epContent, active: activeEp,
+      epCount: $("epCount").value, durSec: $("durSec").value, langStyle: $("langStyle").value,
+    }));
+  } catch {}
+}
+function restoreLocal() {
+  let s; try { s = JSON.parse(localStorage.getItem(LS_SCRIPT) || "null"); } catch {}
+  if (!s) return;
+  if (s.epCount) $("epCount").value = s.epCount;
+  if (s.durSec) $("durSec").value = s.durSec;
+  if (s.langStyle) $("langStyle").value = s.langStyle;
+  EPISODES = Array.isArray(s.episodes) ? s.episodes : [];
+  Object.assign(epStatus, s.status || {});
+  Object.assign(epContent, s.content || {});
+  renderEpList();
+  $("btnAll").disabled = EPISODES.length === 0;
+  if (s.active && EPISODES.some((e) => e.id === s.active)) selectEp(s.active);
+}
+
+/* 读立意页选定的立意（sessionStorage，同源跨页共享）→ 继承上下文显示 */
+function readSelectedIdea() {
+  try {
+    const raw = sessionStorage.getItem("nuomi.selectedIdea." + (PROJECT_DIR || "noproj"));
+    if (!raw) return;
+    const sel = JSON.parse(raw);
+    const t = sel && sel.candidate && (sel.candidate.title || sel.candidate.desc);
+    if (t) {
+      const tag = $("genreTag");
+      tag.textContent = "立意：" + String(t).slice(0, 28) + (String(t).length > 28 ? "…" : "");
+      tag.title = (sel.candidate.desc || "") + "（选自立意页，已落 创意.json）";
+    }
+  } catch {}
+}
 
 /* ---------- 健康检测 ---------- */
 async function checkHealth() {
@@ -291,7 +331,7 @@ function selectEp(id) {
   $("epBadge").style.display = "inline-block";
   $("epBadge").textContent = id;
   $("epTitle").firstChild.textContent = (ep && ep.title) ? ep.title + " " : id + " ";
-  $("episodeEditor").value = "";
+  $("episodeEditor").value = epContent[id] || "";
   $("episodeEditor").placeholder = "点「✦ 生成本集」由 AI 流式写入「" + (ep ? (ep.title || id) : id) + "」正文…";
   ["btnEpisode", "btnSave", "btnRegen"].forEach((b) => ($(b).disabled = false));
   renderEpList();
@@ -341,6 +381,7 @@ async function genOutline() {
         EPISODES = eps.map((e, i) => ({ id: e.id || ("E" + (i + 1)), title: e.title || "", summary: e.summary || "" }));
         renderEpList();
         $("btnAll").disabled = EPISODES.length === 0;
+        saveLocal();
       } else if (name === "error") {
         prev.textContent += "\n[错误] " + (data.message || data.code || "");
       }
@@ -363,6 +404,7 @@ async function genEpisode(epId) {
   ["btnEpisode", "btnRegen", "btnOutline", "btnAll"].forEach((b) => ($(b).disabled = true));
   const ta = $("episodeEditor");
   ta.value = "";
+  let acc = "";
   const body = {
     project_dir: PROJECT_DIR,
     episode_id: epId,
@@ -372,10 +414,13 @@ async function genEpisode(epId) {
   try {
     await streamSSE("/script/episode", body, (name, data) => {
       if (name === "delta") {
-        // 仅当用户仍在看这集时实时写入编辑器
-        if (activeEp === epId) { ta.value += (data.text || ""); ta.scrollTop = ta.scrollHeight; }
+        acc += (data.text || "");
+        // 仅当用户仍在看这集时实时写入编辑器（内容始终累积进 acc 以便持久化）
+        if (activeEp === epId) { ta.value = acc; ta.scrollTop = ta.scrollHeight; }
       } else if (name === "done") {
         epStatus[epId] = "done";
+        epContent[epId] = (activeEp === epId ? ta.value : acc);
+        saveLocal();
       } else if (name === "error") {
         epStatus[epId] = "idle";
         if (activeEp === epId) ta.value += "\n[错误] " + (data.message || data.code || "");
@@ -408,8 +453,10 @@ function toggleCollapse() {
   $("leftPane").classList.toggle("collapsed");
 }
 
-/* ---------- 保存（占位：真机由主控接落盘/确认；编辑器内容已是最终态） ---------- */
+/* ---------- 保存：持久化编辑器内容（localStorage 镜像，切页/重启不丢）。
+   注：真正落盘到项目 .md 需后端路由（POST /script/save_episode，Wave 2 补）。 ---------- */
 function saveEpisode() {
+  if (activeEp) { epContent[activeEp] = $("episodeEditor").value; saveLocal(); }
   const btn = $("btnSave");
   const old = btn.textContent;
   btn.textContent = "已保存 ✓";
@@ -467,9 +514,15 @@ $("btnEpisode").addEventListener("click", () => genEpisode(activeEp));
 $("btnRegen").addEventListener("click", () => genEpisode(activeEp));
 $("btnSave").addEventListener("click", saveEpisode);
 $("btnCollapse").addEventListener("click", toggleCollapse);
+/* 编辑器改动 → 缓存到当前集（持久化在 保存/切集/blur 时落 localStorage） */
+$("episodeEditor").addEventListener("input", () => { if (activeEp) epContent[activeEp] = $("episodeEditor").value; });
+$("episodeEditor").addEventListener("blur", () => { if (activeEp) { epContent[activeEp] = $("episodeEditor").value; saveLocal(); } });
+["epCount", "durSec", "langStyle"].forEach((id) => $(id).addEventListener("change", saveLocal));
 
 checkHealth();
 renderEpList();
+restoreLocal();           // 恢复分集/正文持久化（切页/重启不丢）
+readSelectedIdea();       // 显示立意页选定的立意（继承上下文）
 showInheritedContext();   // 域W3：只读显示当前选中题材/风格名
 </script>
 </body>

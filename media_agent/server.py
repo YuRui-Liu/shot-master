@@ -55,6 +55,12 @@ def create_app(cfg: MediaAgentConfig | None = None) -> FastAPI:
     from .routes.projects import router as projects_router
     app.include_router(projects_router)
 
+    from .routes.config import router as config_router
+    app.include_router(config_router)
+
+    from .routes.projectx import router as projectx_router
+    app.include_router(projectx_router)
+
     from .routes.tts import router as tts_router
     app.include_router(tts_router)
 

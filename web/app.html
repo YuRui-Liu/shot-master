@@ -104,8 +104,15 @@
   const Q = location.search ? location.search.slice(1) : '';
   let PROJECT = new URLSearchParams(location.search).get('project') || '';
 
-  // 视频后期 = 容器：智能转场 / 配音 / 配乐 三子页切换
+  // 子向导容器：剧本创作=编剧链阶段(立意→剧本→分镜→出图prompt)；视频后期=转场/配音/配乐。
+  // page 为空 → 阶段页待建(占位)。
   const SUBROUTES = {
+    screenwriter: [
+      { label: '立意', page: 'ideate.html' },
+      { label: '剧本', page: 'script.html' },
+      { label: '分镜', page: '' },
+      { label: '出图 Prompt', page: '' },
+    ],
     video_post: [
       { label: '智能转场', page: 'compose.html' },
       { label: '配音', page: 'dub-mode2.html' },
@@ -124,9 +131,10 @@
     VIEW.hidden = true; VIEW.removeAttribute('src');
     PHN.textContent = name; PH.hidden = false;
   }
+  let SUBBTN = {};   // label → button，供 selectSub 程序化切换(如 立意→剧本 推进)
   function renderSub(key) {
     const subs = SUBROUTES[key];
-    SUBNAV.innerHTML = '';
+    SUBNAV.innerHTML = ''; SUBBTN = {};
     if (!subs) { SUBNAV.hidden = true; return null; }
     SUBNAV.hidden = false;
     subs.forEach((s, i) => {
@@ -135,12 +143,15 @@
       if (i === 0) b.classList.add('on');
       b.addEventListener('click', () => {
         [...SUBNAV.children].forEach(x => x.classList.toggle('on', x === b));
-        loadPage(s.page);
+        if (s.page) loadPage(s.page);
+        else showPlaceholder(s.label + ' · 阶段页即将上线');
       });
       SUBNAV.appendChild(b);
+      SUBBTN[s.label] = b;
     });
     return subs[0].page;
   }
+  function selectSub(label) { const b = SUBBTN[label]; if (b) b.click(); }
 
   function go(key) {
     const a = links.find(x => x.dataset.key === key) || links[0];
@@ -166,6 +177,12 @@
   window.addEventListener('message', (e) => {
     const d = e.data || {};
     if (d.type === 'project.open' && d.path) openProject(d.path);
+    // 立意「选定→推进剧本」：切到剧本创作子向导的「剧本」阶段(选定立意经 sessionStorage 传递)。
+    else if (d.type === 'ideate.advance') {
+      const sw = links.find(x => x.dataset.key === 'screenwriter');
+      if (sw && !sw.classList.contains('active')) go('screenwriter');
+      selectSub('剧本');
+    }
   });
 
   links.forEach(a => a.addEventListener('click', () => go(a.dataset.key)));
