@@ -1,4 +1,4 @@
-"""配乐端点：prompt 组装(纯函数) / BGM 生成 / 批量。复用 sound_track_agent。
+"""配乐端点：prompt 组装(纯函数) / BGM 生成 / 批量 / DAW 管线。复用 sound_track_agent。
 
 设计取舍：
 - compose_prompt 走 prompt_composer 的纯函数（compose_music_prompt / compose_acestep_inputs），
@@ -8,8 +8,27 @@
   `_client_factory`（测试 monkeypatch 注入假 client，不打真实网络），配置用 `_load_cfg()`。
   prompt 既可由调用方直接给 tags/bpm/duration，也可只给风格/情绪让本端口内组装。
 - batch_generate 走 TaskRunner → SSE（对齐 TaskEvent）。
-- 跳过：mixdown / 整管线 advance —— 强依赖真实视频(cv2)+音频文件(ffmpeg/demucs)+会话态，
-  无法在零依赖 TestClient 下用假数据稳定验证；留给上层 GUI/集成测试。
+
+DAW 路由包装（不重写算法，只把 facade / pipeline / mixdown / accent / sfx / overlay
+包成 HTTP 端点）：
+- advance：走 facade.advance（持久化续跑的真实编排器）。其重依赖（豆包 provider +
+  RunningHub + ffmpeg/demucs/cv2）全藏在 facade._build_real_stages，本路由通过模块级
+  `_stages_factory` 注入 pipeline.Stages —— 测试给假 stages 即可零依赖跑全管线。
+- mixdown：走 mixdown.assemble_and_mix（numpy/ffmpeg 硬限幅多轨下混）。其全部 I/O 子步
+  （assemble_bgm/extract_audio/separate/duck/replace_video）皆为可注入参数，本路由通过
+  模块级 `_mixdown_io_factory` 注入假 I/O，测试不触 ffmpeg/demucs。
+- accent/detect：走 accent_detector.detect_accents（cv2 光流），模块级 `_accent_detector`
+  可注入。accent/mix：走 facade.build_accent_preview（段拼接+对齐+泵感的真实卡点试听链），
+  其 align/pump 与正片 mix 同路径。
+- sfx/detect：走 sfx.facade.plan_sfx_session（provider 可注入）；sfx/generate：走
+  sfx.facade.generate_sfx_all（client 可注入）。
+- overlay/*：走 overlay_gen.generate_overlay_clip（client 可注入）+ overlay_session
+  的 add/remove/list/save。
+
+WS 播放头：**跳过**。facade / ScoringSession / OverlaySession / pipeline 都无服务端
+播放时钟或播放头推送 API —— 播放/走带是纯前端（Web Audio / <audio>.currentTime）职责，
+后端只产出音频/会话静态产物。强造 ws://…/soundtrack/ws 会凭空发明后端不存在的状态机，
+违反"不重写算法"约束，故不建 WS 端点。
 """
 from __future__ import annotations
 
@@ -166,3 +185,372 @@ async def batch_generate(req: BatchGenerateRequest):
             yield sse_event(ev.type, ev.payload)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+# ===========================================================================
+# DAW 管线路由包装（advance / mixdown / accent / sfx / overlay）
+# ===========================================================================
+#
+# 共用约定：所有"会话"以 work_dir 为锚（facade.load_session / save 都读写
+# work_dir/session.json）。重依赖通过模块级工厂注入，测试 monkeypatch 即可。
+
+from sound_track_agent import facade as _facade  # noqa: E402
+from sound_track_agent.session import ScoringSession  # noqa: E402
+
+
+def _session_segment_view(sess: ScoringSession) -> list[dict]:
+    """段落精简视图（供前端时间线/状态渲染，避免回传全部候选大字段）。"""
+    out = []
+    for s in sess.segments:
+        chosen = None
+        if (s.chosen_candidate is not None
+                and 0 <= s.chosen_candidate < len(s.candidates)):
+            chosen = s.candidates[s.chosen_candidate].path
+        out.append({
+            "index": s.index,
+            "t_start": s.t_start,
+            "t_end": s.t_end,
+            "duration": s.duration,
+            "status": s.status,
+            "music_prompt": s.music_prompt,
+            "n_candidates": len(s.candidates),
+            "chosen_candidate": s.chosen_candidate,
+            "chosen_path": chosen,
+            "volume": s.volume,
+            "emotion": (s.emotion.to_dict() if s.emotion else None),
+        })
+    return out
+
+
+def _accents_view(sess: ScoringSession) -> list[dict]:
+    return [{"t": a.t, "intensity": a.intensity, "confirmed": a.confirmed}
+            for a in (getattr(sess, "accent_points", []) or [])]
+
+
+# ---------- advance：推进配乐管线一步（切镜→段落→情绪→生成→对齐→混音） ----------
+#
+# facade.advance 接受可注入的 stages（pipeline.Stages）；真实依赖在缺省时由
+# facade._build_real_stages 组装（豆包 + RunningHub + mixdown）。本路由的可注入点
+# 就是这个 stages 工厂：测试给假 stages，生产给 None（=facade 自建真实 stages）。
+
+def _default_stages_factory(session: ScoringSession, work_dir, cfg,
+                            workflow_id: str, seeds_count: int):
+    """缺省返回 None → facade.advance 内部用 _build_real_stages 组装真实链路。"""
+    return None
+
+
+# 可注入：测试替换为返回假 pipeline.Stages 的工厂（零网络/零 ffmpeg/零 cv2）
+_stages_factory = _default_stages_factory
+
+
+class AdvanceRequest(BaseModel):
+    work_dir: str
+    # video + global_style 用于在 session.json 不存在时新建会话（首次进入管线）
+    video: Optional[str] = None
+    global_style: Optional[str] = None
+    workflow_id: str = ""
+    seeds_count: int = 2
+    stop_after: str = "mix"             # STAGE_ORDER 之一
+    dialogue_segments: Optional[list[dict]] = None
+
+
+def _load_or_prepare_session(req: AdvanceRequest) -> ScoringSession:
+    sess = _facade.load_session(req.work_dir)
+    if sess is not None:
+        return sess
+    if not (req.video and req.global_style is not None):
+        raise ValueError(
+            "work_dir 下无 session.json，需提供 video + global_style 以新建会话")
+    return _facade.prepare_session(req.video, req.global_style, req.work_dir)
+
+
+@router.post("/advance")
+def advance(req: AdvanceRequest):
+    """推进配乐管线到 stop_after 阶段（可重复调用=续跑）。同步 JSON 返回当前会话状态。
+
+    选 JSON 而非 SSE：facade.advance 是"推进到某阶段后整体返回"的阻塞编排器，
+    阶段级进度只经 on_progress 回调（无产物），与 TaskRunner 的逐项 SSE 模型不契合。
+    前端要分步推进可逐阶段多次调用本端点（refine→tag→prompt→generate→align→mix）。
+    """
+    try:
+        sess = _load_or_prepare_session(req)
+        dialogue = None
+        if req.dialogue_segments:
+            from sound_track_agent.session import DialogueSegment
+            dialogue = [DialogueSegment.from_dict(d)
+                        for d in req.dialogue_segments]
+        cfg = _load_cfg()
+        stages = _stages_factory(
+            sess, req.work_dir, cfg, req.workflow_id, req.seeds_count)
+        sess = _facade.advance(
+            sess, req.work_dir, cfg=cfg, workflow_id=req.workflow_id,
+            seeds_count=req.seeds_count, stop_after=req.stop_after,
+            stages=stages, dialogue_segments=dialogue)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "stop_after": req.stop_after,
+        "output": sess.output,
+        "segments": _session_segment_view(sess),
+        "accents": _accents_view(sess),
+        "global_style": sess.global_style,
+    }
+
+
+# ---------- mixdown：真实多轨下混（numpy 硬限幅，走 mixdown.assemble_and_mix） ----------
+
+def _default_mixdown_io_factory() -> dict:
+    """缺省返回空 dict → assemble_and_mix 用其模块级真实 I/O（ffmpeg/demucs/soundfile）。"""
+    return {}
+
+
+# 可注入：测试返回 {separate, assemble_bgm_fn, extract_audio_fn, duck_and_mix_fn,
+#               replace_video_audio_fn, align_beats, apply_pump_fn, duration_of, ...}
+# 全为假实现 → 不触 ffmpeg/demucs。
+_mixdown_io_factory = _default_mixdown_io_factory
+
+
+class MixdownRequest(BaseModel):
+    work_dir: str
+    crossfade: float = 0.5
+    target_lufs: float = -14.0
+    big_threshold: float = 0.7
+    snap_window: float = 0.6
+    max_stretch: float = 0.10
+
+
+@router.post("/mixdown")
+def mixdown(req: MixdownRequest):
+    """段 BGM 拼接 → 卡点对齐+泵感 → 对白轨/Demucs → ducking → 写回视频。返回成片路径。
+
+    会话从 work_dir/session.json 读取（须已推进到至少 generate，各段有候选）。
+    """
+    from sound_track_agent.mixdown import assemble_and_mix
+    sess = _facade.load_session(req.work_dir)
+    if sess is None:
+        raise HTTPException(status_code=400,
+                            detail="work_dir 下无 session.json")
+    io = _mixdown_io_factory()
+    try:
+        out = assemble_and_mix(
+            sess, sess.source_mp4, req.work_dir,
+            crossfade=req.crossfade, target_lufs=req.target_lufs,
+            big_threshold=req.big_threshold, snap_window=req.snap_window,
+            max_stretch=req.max_stretch, **io)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    sess.output = out
+    sess.save(Path(req.work_dir) / "session.json")
+    return {"output": out}
+
+
+# ---------- accent：卡点检测（光流）/ 卡点混音(泵感试听) ----------
+
+def _default_accent_detector(video_path, **kw):
+    from sound_track_agent.accent_detector import detect_accents
+    return detect_accents(video_path, **kw)
+
+
+# 可注入：测试返回假 AccentPoint 列表（不触 cv2）
+_accent_detector = _default_accent_detector
+
+
+class AccentDetectRequest(BaseModel):
+    video: str
+    work_dir: Optional[str] = None     # 给则把检测结果写回 session.accent_points
+    k: float = 0.6
+    min_gap_s: float = 0.3
+
+
+@router.post("/accent/detect")
+def accent_detect(req: AccentDetectRequest):
+    """成片 MP4 → 动作爆点（accent_detector 光流）。给 work_dir 则写回 session 持久化。"""
+    pts = _accent_detector(req.video, k=req.k, min_gap_s=req.min_gap_s)
+    view = [{"t": float(p.t), "intensity": float(p.intensity),
+             "confirmed": bool(getattr(p, "confirmed", False))} for p in pts]
+    if req.work_dir:
+        sess = _facade.load_session(req.work_dir)
+        if sess is not None:
+            sess.accent_points = list(pts)
+            sess.save(Path(req.work_dir) / "session.json")
+    return {"accents": view}
+
+
+class AccentMixRequest(BaseModel):
+    work_dir: str
+    crossfade: float = 0.5
+    big_threshold: float = 0.7
+    snap_window: float = 0.6
+    max_stretch: float = 0.10
+
+
+@router.post("/accent/mix")
+def accent_mix(req: AccentMixRequest):
+    """卡点混音/泵感试听：段拼接+对齐+泵感产出一条 BGM wav（走 facade.build_accent_preview，
+    与正片 mix 共用 align+pump 路径）。返回 wav 路径。"""
+    sess = _facade.load_session(req.work_dir)
+    if sess is None:
+        raise HTTPException(status_code=400,
+                            detail="work_dir 下无 session.json")
+    try:
+        out = _facade.build_accent_preview(
+            sess, req.work_dir, crossfade=req.crossfade,
+            big_threshold=req.big_threshold, snap_window=req.snap_window,
+            max_stretch=req.max_stretch)
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"preview": out}
+
+
+# ---------- sfx：检测(规划) / 生成 ----------
+
+def _default_sfx_provider_factory(cfg):
+    return None        # None → sfx.facade 内部用 _build_provider 组装真实 provider
+
+
+def _default_sfx_client_factory(cfg):
+    return None        # None → sfx.facade 内部用 _build_client 组装真实 client
+
+
+# 可注入：测试返回假 provider / 假 client
+_sfx_provider_factory = _default_sfx_provider_factory
+_sfx_client_factory = _default_sfx_client_factory
+
+
+def _sfx_session_view(sess) -> dict:
+    shots = []
+    for s in sess.shots:
+        chosen = None
+        if (s.chosen_candidate is not None
+                and 0 <= s.chosen_candidate < len(s.candidates)):
+            chosen = s.candidates[s.chosen_candidate].path
+        shots.append({
+            "shot_index": s.shot_index,
+            "t_start": s.t_start,
+            "t_end": s.t_end,
+            "duration": s.duration,
+            "prompt_short": s.prompt_short,
+            "status": s.status,
+            "n_candidates": len(s.candidates),
+            "chosen_candidate": s.chosen_candidate,
+            "chosen_path": chosen,
+            "volume": s.volume,
+            "enabled": s.enabled,
+        })
+    return {"source_mp4": sess.source_mp4, "sfx_planned": sess.sfx_planned,
+            "shots": shots}
+
+
+class SfxDetectRequest(BaseModel):
+    video: str
+    work_dir: str
+
+
+@router.post("/sfx/detect")
+def sfx_detect(req: SfxDetectRequest):
+    """检测镜头 + LLM 推荐 SFX prompt → 持久化 sfx_session.json。走 sfx.facade.plan_sfx_session。"""
+    from sound_track_agent.sfx import facade as sfx_facade
+    cfg = _load_cfg()
+    sess = sfx_facade.plan_sfx_session(
+        req.video, req.work_dir, cfg=cfg,
+        provider=_sfx_provider_factory(cfg))
+    return _sfx_session_view(sess)
+
+
+class SfxGenerateRequest(BaseModel):
+    work_dir: str
+
+
+@router.post("/sfx/generate")
+def sfx_generate(req: SfxGenerateRequest):
+    """批量生成所有 planned 镜头的 SFX 候选 → 落盘。走 sfx.facade.generate_sfx_all。"""
+    from sound_track_agent.sfx import facade as sfx_facade
+    sess = sfx_facade.load_sfx_session(req.work_dir)
+    if sess is None:
+        raise HTTPException(status_code=400,
+                            detail="work_dir 下无 sfx_session.json（先调 /sfx/detect）")
+    cfg = _load_cfg()
+    sess = sfx_facade.generate_sfx_all(
+        sess, req.work_dir, cfg=cfg, client=_sfx_client_factory(cfg))
+    return _sfx_session_view(sess)
+
+
+# ---------- overlay：框选生成叠加子轨 ----------
+
+def _default_overlay_client_factory(cfg):
+    return None        # None → overlay_gen 内部用 _build_client 组装真实 client
+
+
+# 可注入：测试返回假 client
+_overlay_client_factory = _default_overlay_client_factory
+
+
+class OverlayGenerateRequest(BaseModel):
+    work_dir: str
+    kind: str          # "bgm" | "sfx"
+    prompt: str
+    t_start: float
+    t_end: float
+    seg_id: Optional[str] = None
+
+
+@router.post("/overlay/generate")
+def overlay_generate(req: OverlayGenerateRequest):
+    """框选一个时段 + prompt → 生成 overlay 片段音频 + 自动分轨入 overlay.json。
+
+    走 overlay_gen.generate_overlay_clip（缓存命中复用）+ overlay_session.add/save。
+    """
+    from sound_track_agent import overlay_gen
+    from sound_track_agent.overlay_session import load_overlay, save_overlay
+    from secrets import token_hex
+
+    if req.kind not in ("bgm", "sfx"):
+        raise HTTPException(status_code=400, detail=f"未知 kind: {req.kind}")
+    if req.t_end <= req.t_start:
+        raise HTTPException(status_code=400, detail="t_end 必须大于 t_start")
+    cfg = _load_cfg()
+    duration = float(req.t_end) - float(req.t_start)
+    try:
+        audio = overlay_gen.generate_overlay_clip(
+            req.kind, req.prompt, duration,
+            work_dir=req.work_dir, cfg=cfg,
+            client=_overlay_client_factory(cfg))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    sess = load_overlay(req.work_dir)
+    seg = sess.add(req.kind, req.t_start, req.t_end, req.prompt,
+                   seg_id=req.seg_id or token_hex(8), status="generated")
+    seg.audio_path = str(audio)
+    save_overlay(req.work_dir, sess)
+    return {"segment": seg.to_dict()}
+
+
+class OverlayListRequest(BaseModel):
+    work_dir: str
+
+
+@router.post("/overlay/list")
+def overlay_list(req: OverlayListRequest):
+    """列出 work_dir/overlay.json 中所有叠加子轨片段。"""
+    from sound_track_agent.overlay_session import load_overlay
+    sess = load_overlay(req.work_dir)
+    return {"segments": [s.to_dict() for s in sess.segments]}
+
+
+class OverlayRemoveRequest(BaseModel):
+    work_dir: str
+    seg_id: str
+
+
+@router.post("/overlay/remove")
+def overlay_remove(req: OverlayRemoveRequest):
+    """从 overlay.json 删除一个片段。"""
+    from sound_track_agent.overlay_session import load_overlay, save_overlay
+    sess = load_overlay(req.work_dir)
+    removed = sess.remove(req.seg_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"未找到片段: {req.seg_id}")
+    save_overlay(req.work_dir, sess)
+    return {"removed": req.seg_id,
+            "segments": [s.to_dict() for s in sess.segments]}

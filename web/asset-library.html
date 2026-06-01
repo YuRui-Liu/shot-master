@@ -161,38 +161,62 @@
    ref 库 → media_agent；genres/styles → 加载接口（media_agent 或专用） */
 const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450';
 const SW_API = new URLSearchParams(location.search).get('sw') || 'http://127.0.0.1:18430';
+// 项目目录（壳已转发 ?project=…）；空 → 占位+友好提示，不报错
+const PROJECT_DIR = new URLSearchParams(location.search).get('project') || new URLSearchParams(location.search).get('project_dir') || "";
 
-/* ===== 占位数据（结构对齐后端 schema；真机由 fetch 替换）===== */
-
-// 角色/场景/道具：对齐 compass ref_index.json → refs[]{name,path,source,status}
+/* ===== 资源库三类 ref（角色/场景/道具）=====
+   entries 由 GET {MEDIA_API}/assets/refs?project=<dir> 实拉填充（每条 {name,path,source,status}）。
+   后端 status：ready / pending（缺图）；本页另用前端态 generating（生成中，乐观更新）。 */
 const REF_DATA = {
-  characters: {
-    label: "角色", icon: "👤", refKey: "ref",
-    entries: [
-      { name: "周翠英（女主）", file: "@周翠英_ref.png", source: "ai-generated", status: "ready" },
-      { name: "沈墨（男主）",   file: "@沈墨_ref.png",   source: "ai-generated", status: "ready" },
-      { name: "陆夫人（反派）", file: "@陆夫人_ref.png", source: "ai-generated", status: "generating" },
-      { name: "管家老张",       file: "@管家老张_ref.png", source: "",          status: "empty" },
-      { name: "小丫鬟",         file: "@小丫鬟_ref.png", source: "custom",      status: "ready" },
-    ],
-  },
-  scenes: {
-    label: "场景", icon: "🏞", refKey: "ref",
-    entries: [
-      { name: "城郊废品回收站", file: "@城郊废品站_ref.png", source: "template", status: "ready" },
-      { name: "审讯室",         file: "@审讯室_ref.png",   source: "ai-generated", status: "ready" },
-      { name: "雨夜天台",       file: "@雨夜天台_ref.png", source: "ai-generated", status: "empty" },
-    ],
-  },
-  props: {
-    label: "道具", icon: "🗝",
-    entries: [
-      { name: "青铜钥匙", file: "@青铜钥匙_ref.png", source: "ai-generated", status: "ready" },
-      { name: "泛黄信纸", file: "@泛黄信纸_ref.png", source: "ai-generated", status: "generating" },
-      { name: "旧怀表",   file: "@旧怀表_ref.png",   source: "",            status: "empty" },
-    ],
-  },
+  characters: { label: "角色", icon: "👤", entries: [] },
+  scenes:     { label: "场景", icon: "🏞", entries: [] },
+  props:      { label: "道具", icon: "🗝", entries: [] },
 };
+let refsLoaded = false;   // 是否成功拉到过后端数据（区分「空项目」与「未拉取/失败」）
+
+/* 后端条目 status → 前端三态（ready / generating / empty）。
+   后端只有 ready / pending；pending（或缺 path）一律视作 empty 缺图。 */
+function uiStatus(e) {
+  if (e.status === "generating") return "generating";   // 前端乐观态
+  if (e.status === "ready" && e.path) return "ready";
+  return "empty";
+}
+
+/* 本地路径 → 壳内可显示 src（file://，与 storyboard-board fileSrc 一致）。
+   后端 path 相对项目目录 → 先拼 PROJECT_DIR 再转 file://。 */
+function refImgSrc(path) {
+  if (!path) return "";
+  let p = String(path).replace(/\\/g, "/");
+  const isAbs = /^[A-Za-z]:/.test(p) || p.startsWith("/") || /^(file|https?):/i.test(p);
+  if (/^(file|https?):/i.test(p)) return p;
+  if (!isAbs && PROJECT_DIR) {
+    p = String(PROJECT_DIR).replace(/\\/g, "/").replace(/\/+$/, "") + "/" + p.replace(/^\/+/, "");
+  }
+  return "file:///" + p.replace(/^\/+/, "");
+}
+
+/* 实拉三类 ref_index（GET /assets/refs?project=<dir>）。
+   无 project / 失败 → 保持空 entries + 友好提示，不抛错。 */
+async function loadRefs() {
+  if (!PROJECT_DIR) { refsLoaded = false; renderAll(); return; }
+  try {
+    const r = await fetch(MEDIA_API + "/assets/refs?project=" + encodeURIComponent(PROJECT_DIR));
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    ["characters", "scenes", "props"].forEach((k) => {
+      const refs = (j[k] && Array.isArray(j[k].refs)) ? j[k].refs : [];
+      REF_DATA[k].entries = refs.map((e) => ({
+        name: e.name || "", path: e.path || "", source: e.source || "",
+        status: e.status || "pending",
+      }));
+    });
+    refsLoaded = true;
+  } catch (e) {
+    refsLoaded = false;
+    console.warn("[asset-library] /assets/refs 不可用：", e.message);
+  }
+  renderAll();
+}
 
 // 题材模板：对齐 templates/genres/index.json → genres[]{genre_id,display_name}
 // 域W3：题材 tab 实拉 GET {MEDIA_API}/assets/genres（F1 域建）；以下为离线/失败回退占位。
@@ -299,7 +323,7 @@ const ST_CLASS = { ready: "ready", generating: "gen", empty: "empty" };
 function computeCompleteness() {
   let ready = 0, total = 0;
   ["characters", "scenes", "props"].forEach((k) => {
-    REF_DATA[k].entries.forEach((e) => { total++; if (e.status === "ready") ready++; });
+    REF_DATA[k].entries.forEach((e) => { total++; if (uiStatus(e) === "ready") ready++; });
   });
   return { ready, total, missing: total - ready };
 }
@@ -368,31 +392,47 @@ function renderGrid() {
   wireGrid();
 }
 
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
 function renderRefCards(key) {
   const def = REF_DATA[key];
+  // 无项目 / 拉取失败 / 空名单 → 友好提示（仍保留「手动新增」卡）
+  let lead = "";
+  if (!PROJECT_DIR) {
+    lead = `<div class="empty-hint" style="grid-column:1/-1">未选择项目 · 请先在首页打开一个项目（缺少 ?project=）。</div>`;
+  } else if (!refsLoaded) {
+    lead = `<div class="empty-hint" style="grid-column:1/-1">资源库读取失败 · 请确认媒体服务已启动后重试。</div>`;
+  } else if (def.entries.length === 0) {
+    lead = `<div class="empty-hint" style="grid-column:1/-1">暂无${esc(def.label)} · 点「从剧本提取${esc(def.label)}」或手动新增。</div>`;
+  }
   const cards = def.entries.map((e) => {
-    const sc = ST_CLASS[e.status];
-    const phs = { ready: def.icon, generating: "⟳", empty: "+" };
-    const acts = e.status === "ready"
-      ? `<button class="a blue" data-act="view" data-name="${e.name}">查看</button><button class="a" data-act="regen" data-name="${e.name}">↻ 重生</button>`
-      : e.status === "generating"
-        ? `<button class="a" data-act="cancel" data-name="${e.name}">取消</button>`
-        : `<button class="a blue" data-act="gen" data-name="${e.name}">✦ 生成</button><button class="a" data-act="import" data-name="${e.name}">导入</button>`;
-    const refLine = e.status === "empty"
+    const us = uiStatus(e);
+    const sc = ST_CLASS[us];
+    const img = us === "ready" ? refImgSrc(e.path) : "";
+    const thumbInner = img
+      ? `<img src="${esc(img)}" alt="${esc(e.name)}" onerror="this.style.display='none';this.parentNode.querySelector('.ph').style.display='';">`
+        + `<div class="ph" style="position:absolute;display:none">${def.icon}</div>`
+      : `<div class="ph">${us === "generating" ? "⟳" : (us === "ready" ? def.icon : "+")}</div>`;
+    const acts = us === "ready"
+      ? `<button class="a blue" data-act="view" data-name="${esc(e.name)}">查看</button><button class="a" data-act="regen" data-name="${esc(e.name)}">↻ 重生</button>`
+      : us === "generating"
+        ? `<button class="a" data-act="cancel" data-name="${esc(e.name)}">取消</button>`
+        : `<button class="a blue" data-act="gen" data-name="${esc(e.name)}">✦ 生成</button><button class="a" data-act="import" data-name="${esc(e.name)}">导入</button>`;
+    const refLine = us === "empty"
       ? `<div class="ref miss">未生成 · 出图前需补</div>`
-      : `<div class="ref">${e.file}</div>`;
+      : `<div class="ref">${esc(e.path || "—")}</div>`;
     return `
-      <div class="rcard">
-        <div class="thumb"><div class="ph">${phs[e.status]}</div><span class="st ${sc}">${ST_TEXT[e.status]}</span></div>
+      <div class="rcard" data-kind="${key}" data-name="${esc(e.name)}">
+        <div class="thumb">${thumbInner}<span class="st ${sc}">${ST_TEXT[us]}</span></div>
         <div class="rbody">
-          <div class="nm">${e.name}</div>
+          <div class="nm">${esc(e.name)}</div>
           ${refLine}
           <div class="acts">${acts}</div>
         </div>
       </div>`;
   });
-  cards.push(`<div class="rcard add" data-act="add"><div class="pl">+</div><div class="t">手动新增${def.label}</div></div>`);
-  return cards.join("");
+  cards.push(`<div class="rcard add" data-act="add"><div class="pl">+</div><div class="t">手动新增${esc(def.label)}</div></div>`);
+  return lead + cards.join("");
 }
 
 function renderGenreCards() {
@@ -432,13 +472,147 @@ function renderStyleCards() {
   }).join("");
 }
 
-/* ===== 交互 stub（占位，不接后端；真机由主控联调）===== */
-function onToolbar(act) {
-  // 真机：
-  //  extract → POST SW_API /storyboard 或实体抽取 → 回填 ref_index（SSE）
-  //  batch   → POST MEDIA_API /imggen 批量出缺图 ref（套当前 STYLE BIBLE 的 ref_fingerprint）
-  //  import  → 本地选图 → PUT MEDIA_API ref_index 条目 status=ready
-  toast(`stub · 操作「${act}」（真机接 ${act === "batch" ? "MEDIA_API /imggen 批量出 ref" : "ref_index / 实体抽取"}）`);
+/* 需要项目的操作前置校验 */
+function requireProject() {
+  if (!PROJECT_DIR) { toast("请先在首页选择项目（缺少 ?project=）。"); return false; }
+  return true;
+}
+
+/* POST JSON 小工具：失败抛带 detail 的错误 */
+async function postJSON(path, body) {
+  const r = await fetch(MEDIA_API + path, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    let detail = "HTTP " + r.status;
+    try { const j = await r.json(); detail = j.detail || j.message || detail; } catch (_) {}
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+/* ===== toolbar 动作 ===== */
+async function onToolbar(act) {
+  if (act === "extract") {
+    if (!requireProject()) return;
+    const lbl = REF_DATA[activeTab] ? REF_DATA[activeTab].label : "实体";
+    toast(`正在从剧本提取${lbl}…`);
+    try {
+      const j = await postJSON("/assets/refs/extract", { project: PROJECT_DIR });
+      // 端点返回 {added, refs}——直接用 refs 刷新本地三类
+      if (j.refs) {
+        ["characters", "scenes", "props"].forEach((k) => {
+          const refs = (j.refs[k] && Array.isArray(j.refs[k].refs)) ? j.refs[k].refs : [];
+          REF_DATA[k].entries = refs.map((e) => ({
+            name: e.name || "", path: e.path || "", source: e.source || "", status: e.status || "pending",
+          }));
+        });
+        refsLoaded = true;
+      } else { await loadRefs(); return; }
+      const added = j.added || {};
+      const n = (added.characters || 0) + (added.scenes || 0) + (added.props || 0);
+      renderAll();
+      toast(n ? `已提取，新增 ${n} 项实体。` : "提取完成，无新增实体。");
+    } catch (e) {
+      toast("提取失败：" + e.message);
+    }
+    return;
+  }
+  if (act === "batch") {
+    // 批量生成当前类缺图：逐条调单条生成端点
+    if (!requireProject()) return;
+    const def = REF_DATA[activeTab];
+    const targets = (def ? def.entries : []).filter((e) => uiStatus(e) === "empty");
+    if (!targets.length) { toast("当前没有缺图条目。"); return; }
+    toast(`批量生成 ${targets.length} 张缺图…`);
+    let ok = 0, fail = 0;
+    for (const e of targets) {
+      try { await genOne(activeTab, e.name, { silent: true }); ok++; }
+      catch (_) { fail++; }
+    }
+    toast(`批量生成完成：成功 ${ok}${fail ? ` · 失败 ${fail}` : ""}。`);
+    return;
+  }
+  if (act === "import") {
+    // 手动导入：选本地图，写回该条 path/source=custom/status=ready（这里整类批量导入语义不清晰，落到单条 add 流程）
+    toast("请在具体条目上点「导入」以指定本地图路径。");
+    return;
+  }
+  if (act === "add") { addEntry(activeTab); return; }
+  // genre-import / style-import：题材/风格自定义（后端暂无写端点）
+  toast("自定义模板：暂未开放写入。");
+}
+
+/* 单条生成 ref 图：乐观置 generating → POST /assets/refs/generate → 用返回 entry 更新 */
+async function genOne(kind, name, opts) {
+  opts = opts || {};
+  if (!requireProject()) return;
+  const def = REF_DATA[kind];
+  const entry = def && def.entries.find((x) => x.name === name);
+  const prevStatus = entry ? entry.status : null;
+  if (entry) { entry.status = "generating"; renderGrid(); }
+  if (!opts.silent) toast(`生成中：${name}…`);
+  try {
+    const j = await postJSON("/assets/refs/generate", { project: PROJECT_DIR, kind, entity_id: name });
+    const r = j.entry || {};
+    if (entry) {
+      entry.path = r.path || entry.path;
+      entry.source = r.source || "ai-generated";
+      entry.status = r.status || "ready";
+    }
+    renderAll();
+    if (!opts.silent) toast(`已生成：${name}`);
+  } catch (e) {
+    if (entry) entry.status = prevStatus;   // 回滚乐观态
+    renderAll();
+    if (!opts.silent) toast(`生成失败：${e.message}`);
+    if (opts.silent) throw e;               // 批量模式向上累计失败
+  }
+}
+
+/* 手动导入本地图：输入路径 → /assets/refs/update 写 path+status=ready+source=custom */
+async function importOne(kind, name) {
+  if (!requireProject()) return;
+  const path = prompt(`输入「${name}」的参考图本地路径（可相对项目目录）：`, "");
+  if (path === null) return;
+  const p = path.trim();
+  if (!p) { toast("路径为空，已取消。"); return; }
+  try {
+    const j = await postJSON("/assets/refs/update", {
+      project: PROJECT_DIR, kind, entity_id: name, path: p, source: "custom", status: "ready",
+    });
+    const r = j.entry || {};
+    const def = REF_DATA[kind];
+    let entry = def && def.entries.find((x) => x.name === name);
+    if (entry) { entry.path = r.path || p; entry.source = r.source || "custom"; entry.status = r.status || "ready"; }
+    renderAll();
+    toast(`已导入：${name}`);
+  } catch (e) {
+    toast("导入失败：" + e.message);
+  }
+}
+
+/* 手动新增条目：输入名字 → /assets/refs/update 登记空条目（status=pending） */
+async function addEntry(kind) {
+  if (!requireProject()) return;
+  const def = REF_DATA[kind];
+  const nm = prompt(`新增${def ? def.label : "条目"}名称：`, "");
+  if (nm === null) return;
+  const name = nm.trim();
+  if (!name) { toast("名称为空，已取消。"); return; }
+  if (def && def.entries.some((x) => x.name === name)) { toast("已存在同名条目。"); return; }
+  try {
+    const j = await postJSON("/assets/refs/update", {
+      project: PROJECT_DIR, kind, entity_id: name, status: "pending",
+    });
+    const r = j.entry || {};
+    if (def) def.entries.push({ name: r.name || name, path: r.path || "", source: r.source || "", status: r.status || "pending" });
+    renderAll();
+    toast(`已新增：${name}`);
+  } catch (e) {
+    toast("新增失败：" + e.message);
+  }
 }
 
 function wireGrid() {
@@ -448,11 +622,22 @@ function wireGrid() {
       const act = el.getAttribute("data-act");
       const name = el.getAttribute("data-name");
       const id = el.getAttribute("data-id");
-      if (act === "load-genre") { loadedGenre = id; renderGrid(); toast(`已加载题材：${id}（真机：写入立意/剧本生成上下文）`); return; }
-      if (act === "load-style") { loadedStyle = id; renderGrid(); toast(`已加载风格圣经：${id}（真机：锁 ref_fingerprint 保一致性）`); return; }
-      // ref 卡动作：view/regen/gen/import/cancel/add → 占位
-      // 真机：gen/regen → POST MEDIA_API /imggen（单条 ref）；view → 打开 ref 大图
-      toast(`stub · ${act}${name ? " · " + name : ""}`);
+      const card = el.closest(".rcard");
+      const kind = card ? card.getAttribute("data-kind") : activeTab;
+      if (act === "load-genre") { loadedGenre = id; renderGrid(); toast(`已加载题材：${id}（写入立意/剧本生成上下文）`); return; }
+      if (act === "load-style") { loadedStyle = id; renderGrid(); toast(`已加载风格圣经：${id}（锁 ref_fingerprint 保一致性）`); return; }
+      if (act === "gen" || act === "regen") { genOne(kind || activeTab, name); return; }
+      if (act === "import") { importOne(kind || activeTab, name); return; }
+      if (act === "add") { addEntry(activeTab); return; }
+      if (act === "view") {
+        const def = REF_DATA[kind || activeTab];
+        const entry = def && def.entries.find((x) => x.name === name);
+        const src = entry ? refImgSrc(entry.path) : "";
+        if (src) window.open(src, "_blank"); else toast("暂无可查看的参考图。");
+        return;
+      }
+      if (act === "cancel") { toast("生成中无法中断（后端为同步生成）。"); return; }
+      toast(`${act}${name ? " · " + name : ""}`);
     });
   });
 }
@@ -475,16 +660,10 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.style.opacity = "0"; }, 2200);
 }
 
-/* ===== 真机联调入口（占位，主控接）=====
-async function loadRefIndex(kind) {
-  // GET MEDIA_API /asset/ref_index?kind=characters|scenes|props
-  // const r = await fetch(`${MEDIA_API}/asset/ref_index?kind=${kind}`);
-  // REF_DATA[kind].entries = (await r.json()).refs.map(...); renderAll();
-}
-*/
-
 function renderAll() { renderTabs(); renderToolbar(); renderGrid(); renderGate(); }
 renderAll();
+/* 资源库三类 ref 实拉（GET MEDIA_API /assets/refs?project=…），无项目/失败 → 占位+提示 */
+loadRefs();
 /* 域W3：题材模板/风格圣经实拉（GET MEDIA_API /assets/genres、/assets/styles），失败回退占位 */
 loadAssetLibraries();
 </script>

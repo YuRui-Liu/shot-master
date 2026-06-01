@@ -207,14 +207,14 @@
   <!-- 顶部 -->
   <div class="head">
     <h1>⑥ 视频后期 · 配乐混音 DAW</h1>
-    <span class="style-pill" id="stylePill">整体风格：冷色调 · 悬疑紧张</span>
+    <span class="style-pill" id="stylePill">整体风格：（未加载）</span>
     <span class="spacer"></span>
-    <select class="task-select" id="taskSelect">
-      <option>第 1 集 · 废品场对峙（成片 mp4）</option>
-      <option>第 2 集 · 雨夜天台</option>
-      <option>第 3 集 · 审讯室反转</option>
-    </select>
-    <button class="ghost" id="btnScore">✦ 自动配乐</button>
+    <button class="ghost" id="btnAccentDetect" title="POST /soundtrack/accent/detect 光流爆点检测">⚡ 检测卡点</button>
+    <button class="ghost" id="btnAccentMix" title="POST /soundtrack/accent/mix 卡点泵感试听">⚡ 卡点混音</button>
+    <button class="ghost" id="btnSfxDetect" title="POST /soundtrack/sfx/detect 镜头+LLM 规划 SFX">🔊 SFX 检测</button>
+    <button class="ghost" id="btnSfxGen" title="POST /soundtrack/sfx/generate 批量生成 SFX">🔊 SFX 生成</button>
+    <button class="ghost" id="btnScore" title="POST /soundtrack/advance 推进配乐管线">✦ 自动配乐</button>
+    <button class="ghost" id="btnMixdown" title="POST /soundtrack/mixdown 多轨下混出片">⬇ 出片</button>
   </div>
 
   <!-- 走带控制 -->
@@ -223,8 +223,8 @@
     <button class="tbtn play" id="btnPlay" title="播放/暂停">►</button>
     <button class="tbtn" id="btnStop" title="停止">■</button>
     <button class="tbtn rec" title="（占位）">●</button>
-    <span class="timecode"><span id="tcCur">00:00.0</span> <span class="total">/ 00:24.0</span></span>
-    <span class="meta">爆点对齐 <b>真·卡点</b> · BPM <b>98</b> · 候选 <b>2/段</b></span>
+    <span class="timecode"><span id="tcCur">00:00.0</span> <span class="total" id="tcTotal">/ 00:00.0</span></span>
+    <span class="meta" id="transportMeta">未加载会话 · POST /soundtrack/advance 推进管线</span>
     <span class="spacer"></span>
     <div class="master">
       <span>主输出</span>
@@ -263,64 +263,83 @@
     <span class="legend"><span class="sw" style="background:var(--done);border-radius:50%;"></span>大爆点</span>
     <span class="legend"><span class="sw" style="background:var(--mauve);border-radius:50%;"></span>普通卡点</span>
     <span class="spacer"></span>
-    <span class="note">wavesurfer.js 真实波形 · 播放头接 media_agent（WS）</span>
-    <span class="api">POST /soundtrack · ws://…/soundtrack/ws 播放头</span>
+    <span class="note" id="footNote">wavesurfer.js 真实波形 · 播放头本地驱动（后端无 WS）</span>
+    <span class="api">POST /soundtrack/{advance,mixdown,accent,sfx,overlay}</span>
   </div>
 </div>
 
 <script>
-/* 可配 API base（真机联调由主控做） */
+/* ===== 接活：后端约定（照视频/配音样板） =====
+   MEDIA_API：media_agent，默认 18450；?media= 覆盖。本页全部走 /soundtrack/* 路由。
+   PROJECT_DIR：壳把 ?project= 转发进来；配乐会话以 work_dir 为锚（facade 读写 work_dir/session.json）。
+     约定 work_dir = PROJECT_DIR + '/soundtrack'（与图生视频 PROJECT_DIR+'/video' 同套路；可由 ?workdir= 覆盖）。
+   VIDEO：成片 mp4 路径（accent/detect、sfx/detect、首次 advance 新建会话需要）；?video= 传入。
+   真实端点契约（见 media_agent/routes/soundtrack.py）：
+     POST /soundtrack/advance  {work_dir, video?, global_style?, workflow_id, seeds_count, stop_after}
+       → {stop_after, output, segments:[{index,t_start,t_end,duration,status,music_prompt,
+            n_candidates,chosen_candidate,chosen_path,volume,emotion}], accents:[{t,intensity,confirmed}], global_style}
+     POST /soundtrack/mixdown  {work_dir,...} → {output: 成片 mp4}
+     POST /soundtrack/accent/detect {video, work_dir?} → {accents:[{t,intensity,confirmed}]}
+     POST /soundtrack/accent/mix    {work_dir,...}     → {preview: bgm wav}
+     POST /soundtrack/sfx/detect    {video, work_dir}  → {source_mp4, sfx_planned, shots:[{shot_index,t_start,t_end,...,chosen_path}]}
+     POST /soundtrack/sfx/generate  {work_dir}         → 同上 view（含 chosen_path）
+     POST /soundtrack/overlay/{generate,list,remove}   → {segment}/{segments}
+   后端无 WS / 无服务端播放头（见 soundtrack.py docstring）：播放头本地定时器驱动。
+   后端只产出本地音频/会话静态产物；media_agent 仅 /ui 静态托管 web/，无通用文件服务端点，
+   故波形/回放统一用 file://（与 dub-mode2 / video-mode2 / asset-library 同约定）。 */
 const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450';
-const SW_API    = new URLSearchParams(location.search).get('sw')    || 'http://127.0.0.1:18430';
-/* media_agent 端点：/imaging /imggen /transition /soundtrack（本页用 /soundtrack）
-   后端 WS（播放头位置）：ws://127.0.0.1:18450/soundtrack/ws —— 无连接时本地定时器演示 */
+const PROJECT_DIR = new URLSearchParams(location.search).get('project') || '';
+const WORK_DIR = new URLSearchParams(location.search).get('workdir')
+  || (PROJECT_DIR ? PROJECT_DIR.replace(/[\\/]+$/, '') + '/soundtrack' : '');
+const VIDEO = new URLSearchParams(location.search).get('video') || '';
 
-const TOTAL = 24.0;          // 成片总时长（秒）—— stub
+/* 本地路径 → 可在壳内播放/取波形的 src（file://，同 dub-mode2/asset-library 约定） */
+function fileSrc(p) {
+  if (!p) return '';
+  if (/^(file|https?):/i.test(p)) return p;
+  return 'file:///' + String(p).replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
+async function postJSON(path, body) {
+  const resp = await fetch(MEDIA_API + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  let data = null;
+  try { data = await resp.json(); } catch (e) {}
+  if (!resp.ok) {
+    const msg = (data && (data.detail || (data.error && (data.error.hint || data.error.message)))) || ('HTTP ' + resp.status);
+    throw new Error(msg);
+  }
+  return data;
+}
+
+/* 时间线：总时长来自会话（段末或成片）；无会话时给一个占位时长仅用于画空标尺。 */
+let TOTAL = 24.0;            // 成片总时长（秒）——由 setTotal() 按真实会话覆盖
 const PX_PER_SEC = 58;       // 时间线缩放
-const TL_WIDTH = TOTAL * PX_PER_SEC;
+let TL_WIDTH = TOTAL * PX_PER_SEC;
 
-/* 示例音源（CDN 公开样例，仅用于离线演示真实波形渲染；
-   真机由 media_agent 成片/BGM/SFX 输出经 setTrackSrc(track,url) 注入，覆盖此默认）。
-   离线无网时设为 null → 显示静态占位，不渲染波形。 */
-const DEMO_SRC = {
-  orig: 'https://cdn.jsdelivr.net/gh/wavesurfer-js/wavesurfer.js@7/examples/audio/audio.wav',
-  bgm:  'https://cdn.jsdelivr.net/gh/wavesurfer-js/wavesurfer.js@7/examples/audio/demo.wav',
-  sfx:  'https://cdn.jsdelivr.net/gh/wavesurfer-js/wavesurfer.js@7/examples/audio/nasa.mp3',
-  dlg:  null   // 对白只读：混在原声内，无独立音源
-};
+/* 真机由 setTrackSrc(trackId, url) 注入各轨音源（成片/BGM/SFX 输出）；
+   无后端会话时为空 → 各轨显示静态占位，不渲染波形（不再用 CDN demo 假音源）。 */
+const TRACK_SRC = { orig: null, bgm: null, sfx: null, dlg: null };
 
-/* 轨道定义（取自确认稿：原声/BGM/SFX 三轨 + 对白只读占位）
-   color 用于波形与 clip 块；readonly 轨无 M/S/音量。 */
+/* 轨道定义（取自确认稿：原声/BGM/SFX 三轨 + 对白只读占位）。
+   clips 初始为空，由真实会话 segments / sfx shots / overlay 填充。 */
 const TRACKS = [
-  { id: 'orig', name: '视频原声', kind: 'AUDIO', color: '#3a5a8a', vol: 100, mute: false, solo: false,
-    clips: [{ s: 0, e: 24, lab: '原声轨', sub: '成片内置' }] },
-  { id: 'bgm',  name: 'BGM',     kind: 'MUSIC', color: '#4ec98f', vol: 80,  mute: false, solo: true,
-    clips: [
-      { s: 0,  e: 9,  lab: 'BGM·Intro',  sub: '段1 · 悬疑' },
-      { s: 9,  e: 17, lab: 'BGM·Theme',  sub: '段2 · 紧张' },
-      { s: 17, e: 24, lab: 'BGM·Outro',  sub: '段3 · 收束' }
-    ] },
-  { id: 'sfx',  name: 'SFX',     kind: 'FX',    color: '#c2884c', vol: 100, mute: true,  solo: false,
-    clips: [
-      { s: 6.2, e: 7.0,  lab: '金属撞击', sub: '' },
-      { s: 15.5, e: 16.1, lab: '玻璃碎', sub: '' }
-    ] },
-  { id: 'dlg',  name: '对白',    kind: '只读',  color: '#8a5aa8', readonly: true,
-    clips: [
-      { s: 2.0, e: 5.5,  lab: '「你以为我会认？」', sub: '' },
-      { s: 11.0, e: 14.0, lab: '「……你想多了」', sub: '' }
-    ] }
+  { id: 'orig', name: '视频原声', kind: 'AUDIO', color: '#3a5a8a', vol: 100, mute: false, solo: false, clips: [] },
+  { id: 'bgm',  name: 'BGM',     kind: 'MUSIC', color: '#4ec98f', vol: 80,  mute: false, solo: false, clips: [] },
+  { id: 'sfx',  name: 'SFX',     kind: 'FX',    color: '#c2884c', vol: 100, mute: false, solo: false, clips: [] },
+  { id: 'dlg',  name: '对白',    kind: '只读',  color: '#8a5aa8', readonly: true, clips: [] }
 ];
 
-/* 卡点（accent points）—— 光流爆点检测产物；big = 参与真·卡点对齐 */
-const ACCENTS = [
-  { t: 3.1, big: false }, { t: 6.5, big: true }, { t: 9.0, big: true },
-  { t: 12.4, big: false }, { t: 15.7, big: true }, { t: 20.2, big: false }
-];
+/* 卡点（accent points）—— 由 /accent/detect 或 advance 返回填充；big = 高强度 */
+let ACCENTS = [];
 
 /* ---------- 渲染：轨道头列（方案 A） ---------- */
 function renderHeads() {
   const root = document.getElementById('heads');
+  root.querySelectorAll('.thead').forEach(n => n.remove());   // 保留 .heads-top，清旧轨头
   TRACKS.forEach((t, i) => {
     const el = document.createElement('div');
     el.className = 'thead' + (t.readonly ? ' readonly' : '');
@@ -385,28 +404,35 @@ function makeWave(track, hostEl, phEl) {
   ws.on('ready', () => {
     wsReady[track.id] = true;
     if (phEl) phEl.style.display = 'none';   // 隐藏静态占位
-    ws.setMuted(true);                       // 真机由「主输出」统一出声；此处仅做波形+静音从动
-    ws.setVolume((track.vol || 100) / 100);
+    // 音量 = 主输出 × 本轨音量；静音/独奏状态由 applyMuteSolo 接管
+    const master = (parseInt(document.getElementById('masterVol').value, 10) || 100) / 100;
+    try { ws.setVolume(Math.min(1, master * ((track.vol || 100) / 100))); } catch (e) {}
+    if (playing) { try { ws.play(); ws.seekTo(Math.max(0, Math.min(1, cur / (ws.getDuration() || TOTAL)))); } catch (e) {} }
+    applyMuteSolo();
   });
-  ws.on('error', () => { if (phEl) phEl.textContent = '（波形加载失败，离线时改本地音源）'; });
+  ws.on('error', () => { if (phEl) phEl.textContent = '（波形加载失败：路径不可达 / 非音频）'; });
   return ws;
 }
 
-/* 对外接口：把 media_agent 成片/BGM/SFX 输出 url 接到某条轨。
-   真机：setTrackSrc('orig', `${MEDIA_API}/soundtrack/output/ep1/master.wav`) 等。 */
-function setTrackSrc(trackId, url) {
+/* 对外接口：把 media_agent 成片/BGM/SFX 输出本地路径接到某条轨（自动 file:// 化）。
+   真机：setTrackSrc('orig', sess.output) / setTrackSrc('bgm', accentPreviewWav) 等。 */
+function setTrackSrc(trackId, path) {
+  TRACK_SRC[trackId] = path || null;
   const ws = WS[trackId];
   const phEl = document.getElementById('waveph-' + trackId);
-  if (!ws || !url) { if (phEl) phEl.style.display = ''; return; }
+  if (!ws || !path) { if (phEl) { phEl.style.display = ''; } wsReady[trackId] = false; return; }
   wsReady[trackId] = false;
   if (phEl) { phEl.style.display = ''; phEl.textContent = '加载波形…'; }
-  ws.load(url);
+  try { ws.load(fileSrc(path)); } catch (e) { if (phEl) phEl.textContent = '（波形加载失败）'; }
 }
 window.setTrackSrc = setTrackSrc;   // 暴露给主控/壳调用
 
-/* ---------- 渲染：波形轨（wavesurfer 容器）+ clip 块 ---------- */
+/* ---------- 渲染：波形轨（wavesurfer 容器）+ clip 块 ----------
+   可重复调用：先销毁旧 WaveSurfer 实例 + 清空 lanes，再按当前 TRACKS/TRACK_SRC 重建。 */
 function renderLanes() {
   const lanes = document.getElementById('lanes');
+  Object.keys(WS).forEach(id => { try { WS[id].destroy(); } catch (e) {} delete WS[id]; delete wsReady[id]; });
+  lanes.innerHTML = '';
   document.getElementById('tlInner').style.width = TL_WIDTH + 'px';
   TRACKS.forEach((t) => {
     const trk = document.createElement('div');
@@ -422,7 +448,8 @@ function renderLanes() {
     const ph = document.createElement('div');
     ph.className = 'wave-ph';
     ph.id = 'waveph-' + t.id;
-    ph.textContent = t.readonly ? '对白混在原声内 · 无独立波形' : '示例波形（真机接 media_agent 输出）';
+    ph.textContent = t.readonly ? '对白混在原声内 · 无独立波形'
+      : (TRACK_SRC[t.id] ? '加载波形…' : '无音源 · 推进配乐管线 / 出片后注入');
     trk.appendChild(ph);
 
     // clip 块（叠在波形上）
@@ -430,21 +457,22 @@ function renderLanes() {
       const clip = document.createElement('div');
       clip.className = 'clip';
       clip.style.left = (c.s * PX_PER_SEC) + 'px';
-      clip.style.width = ((c.e - c.s) * PX_PER_SEC - 2) + 'px';
+      clip.style.width = Math.max(8, (c.e - c.s) * PX_PER_SEC - 2) + 'px';
       clip.style.background = rgba(t.color, 0.32);
       clip.style.borderColor = rgba(t.color, 0.5);
       clip.innerHTML = `<span class="lab">${c.lab}</span>${c.sub ? `<span class="sub">${c.sub}</span>` : ''}`;
+      if (c.title) clip.title = c.title;
       trk.appendChild(clip);
     });
 
     lanes.appendChild(trk);
 
-    // 建 WaveSurfer 实例并加载示例音源（无音源的只读轨跳过）
+    // 建 WaveSurfer 实例并加载真实音源（无音源的只读轨/未注入轨仅显示占位）
     const ws = makeWave(t, host, ph);
     if (ws) {
       WS[t.id] = ws;
-      const src = DEMO_SRC[t.id];
-      if (src) { ph.textContent = '加载波形…'; ws.load(src); }
+      const src = TRACK_SRC[t.id];
+      if (src) { try { ws.load(fileSrc(src)); } catch (e) { ph.textContent = '（波形加载失败）'; } }
     }
   });
 }
@@ -475,28 +503,32 @@ function drawRuler() {
   }
 }
 
-/* ---------- 渲染：卡点标记带（贯穿所有轨高度） ---------- */
+/* ---------- 渲染：卡点标记带（贯穿所有轨高度） ----------
+   ACCENTS 来自 /accent/detect 或 advance：{t, intensity, confirmed}。
+   big = intensity ≥ 阈值（高强度爆点，参与真·卡点对齐）。可重复调用。 */
+const ACCENT_BIG_THRESHOLD = 0.7;   // 与后端 mixdown/accent 默认 big_threshold 一致
 function renderAccents() {
   const root = document.getElementById('accents');
+  root.innerHTML = '';
   const fullH = TRACKS.length * 84;
   root.style.height = fullH + 'px';
   ACCENTS.forEach(a => {
+    const big = (typeof a.intensity === 'number') ? a.intensity >= ACCENT_BIG_THRESHOLD : !!a.big;
     const el = document.createElement('div');
-    el.className = 'accent' + (a.big ? ' big' : '');
+    el.className = 'accent' + (big ? ' big' : '');
     el.style.left = (a.t * PX_PER_SEC) + 'px';
     el.innerHTML = '<span class="dot"></span>';
-    el.title = `卡点 ${a.t.toFixed(1)}s${a.big ? ' · 大爆点（真·卡点对齐）' : ''}`;
+    const inten = (typeof a.intensity === 'number') ? ` · 强度 ${a.intensity.toFixed(2)}` : '';
+    el.title = `卡点 ${a.t.toFixed(1)}s${inten}${big ? ' · 大爆点（真·卡点对齐）' : ''}${a.confirmed ? ' · 已确认' : ''}`;
     root.appendChild(el);
   });
 }
 
 /* ---------- 走带 / 播放头 ----------
-   播放头位置来源（双通道）：
-   ① 后端 WS：ws://MEDIA/soundtrack/ws 推 { t: 秒 }（真机权威播放头，由 media_agent 驱动）
-   ② 本地定时器：无 WS 连接时本地 requestAnimationFrame 演示推进
+   播放头位置：本地 requestAnimationFrame 驱动（后端无 WS / 无服务端播放时钟，
+   见 media_agent/routes/soundtrack.py docstring —— 播放/走带是纯前端职责）。
    transport 播放/暂停联动各 wavesurfer 实例（波形 progress 同步走）。 */
 let playing = false, cur = 0, raf = null, last = 0;
-let wsLink = null, wsConnected = false;    // 后端播放头 WS
 const playhead = document.getElementById('playhead');
 const tcCur = document.getElementById('tcCur');
 function fmt(t) {
@@ -525,19 +557,19 @@ function wavesPlay(on) {
   });
 }
 
-/* 本地定时器推进（仅在未连后端 WS 时启用） */
+/* 本地定时器推进（TODO：后端若日后提供服务端播放头/走带 API，可在此切换为权威时钟驱动） */
 function tick(ts) {
   if (!playing) return;
   if (!last) last = ts;
   cur += (ts - last) / 1000; last = ts;
   if (cur >= TOTAL) { cur = TOTAL; setPlay(false); }
   updateHead();
-  if (playing && !wsConnected) raf = requestAnimationFrame(tick);
+  if (playing) raf = requestAnimationFrame(tick);
 }
 function setPlay(on) {
   playing = on; last = 0;
   document.getElementById('btnPlay').textContent = on ? '❚❚' : '►';
-  if (on) { syncWaves(true); wavesPlay(true); if (!wsConnected) raf = requestAnimationFrame(tick); }
+  if (on) { syncWaves(true); wavesPlay(true); raf = requestAnimationFrame(tick); }
   else { cancelAnimationFrame(raf); wavesPlay(false); }
 }
 
@@ -548,32 +580,18 @@ function seekTo(t) {
   syncWaves(true);
 }
 
-/* 后端播放头 WS stub：连 ws://MEDIA/soundtrack/ws；
-   收到 { t } 即用后端权威位置驱动播放头（停掉本地定时器）。
-   连不上（离线/无后端）时静默回退本地定时器演示。 */
-function connectPlayheadWS() {
-  let wsUrl;
-  try {
-    const u = new URL(MEDIA_API);
-    wsUrl = (u.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + u.host + '/soundtrack/ws';
-  } catch (e) { wsUrl = 'ws://127.0.0.1:18450/soundtrack/ws'; }
-  try {
-    wsLink = new WebSocket(wsUrl);
-  } catch (e) { return; }   // 回退本地定时器
-  wsLink.addEventListener('open', () => { wsConnected = true; });
-  wsLink.addEventListener('message', (ev) => {
-    // 后端约定推 JSON { t: 秒, playing?: bool }；非 JSON 时容错忽略
-    let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
-    if (typeof d.t === 'number') { cur = Math.max(0, Math.min(TOTAL, d.t)); updateHead(); syncWaves(true); }
-    if (typeof d.playing === 'boolean' && d.playing !== playing) setPlay(d.playing);
-  });
-  wsLink.addEventListener('close', () => { wsConnected = false; });
-  wsLink.addEventListener('error', () => { wsConnected = false; });
+/* 重设时间线总时长（来自真实会话 segments 末段 / 成片时长）并重画标尺+卡点带。 */
+function setTotal(sec) {
+  if (!(sec > 0)) return;
+  TOTAL = sec;
+  TL_WIDTH = TOTAL * PX_PER_SEC;
+  document.getElementById('tlInner').style.width = TL_WIDTH + 'px';
+  document.getElementById('tcTotal').textContent = '/ ' + fmt(TOTAL);
+  drawRuler();
+  renderAccents();
 }
 
-/* M/S 状态 → 各轨 wavesurfer 静音：有任一 Solo 亮时只放亮 S 的轨；否则放未 Mute 的轨。
-   注：示例中各轨默认 setMuted(true)（统一从主输出出声），此处仍按混音逻辑维护 muted 状态，
-   真机切到「各轨独立出声」时即生效。 */
+/* M/S 状态 → 各轨 wavesurfer 静音：有任一 Solo 亮时只放亮 S 的轨；否则放未 Mute 的轨。 */
 function applyMuteSolo() {
   const soloAny = TRACKS.some((t, i) => !t.readonly && document.querySelector(`.ms.s[data-trk="${i}"]`)?.classList.contains('on'));
   TRACKS.forEach((t, i) => {
@@ -586,7 +604,183 @@ function applyMuteSolo() {
   });
 }
 
-/* ---------- 交互绑定（stub：仅占位，真机由主控接 /soundtrack） ---------- */
+/* ---------- 顶栏状态/提示 ---------- */
+function setMeta(text) { document.getElementById('transportMeta').textContent = text; }
+function setStyle(s) {
+  document.getElementById('stylePill').textContent = '整体风格：' + (s && s.trim() ? s : '（未设置）');
+}
+function flashBtn(btn, busyText, ms) {
+  const old = btn.dataset.label || btn.textContent;
+  btn.dataset.label = old; btn.disabled = true; btn.textContent = busyText;
+  return () => { btn.disabled = false; btn.textContent = old; };
+}
+
+/* ---------- 由真实会话视图更新轨道/卡点/时间线 ----------
+   segments：advance 返回的 _session_segment_view（含 chosen_path / music_prompt / 区间）。 */
+function applyAdvanceResult(res) {
+  if (!res) return;
+  if (typeof res.global_style === 'string') setStyle(res.global_style);
+
+  const segs = Array.isArray(res.segments) ? res.segments : [];
+  // 时间线总时长 = 末段 t_end（无则保持）；成片 output 在则以其驱动原声轨波形。
+  if (segs.length) {
+    const end = Math.max(...segs.map(s => s.t_end || 0));
+    if (end > 0) setTotal(end);
+  }
+  // BGM 轨 clips：每段一个块（标 段号 / 状态 / 选中候选）。
+  const bgm = TRACKS.find(t => t.id === 'bgm');
+  bgm.clips = segs.map(s => ({
+    s: s.t_start, e: s.t_end,
+    lab: 'BGM·段' + ((s.index ?? 0) + 1),
+    sub: (s.status || '') + (s.n_candidates ? ` · ${s.chosen_candidate != null ? (s.chosen_candidate + 1) + '/' : ''}${s.n_candidates}候选` : ''),
+    title: (s.music_prompt || '').slice(0, 200),
+  }));
+  // 卡点
+  if (Array.isArray(res.accents)) ACCENTS = res.accents;
+  // 成片（含混好的多轨）→ 原声轨波形 + 回放
+  if (res.output) setTrackSrc('orig', res.output);
+
+  renderLanes();
+  renderAccents();
+}
+
+/* SFX 视图 → SFX 轨 clips（每个 planned 镜头一个块）。 */
+function applySfxResult(view) {
+  if (!view || !Array.isArray(view.shots)) return;
+  const sfx = TRACKS.find(t => t.id === 'sfx');
+  sfx.clips = view.shots.map(s => ({
+    s: s.t_start, e: s.t_end,
+    lab: (s.prompt_short || 'SFX').slice(0, 18),
+    sub: s.status || '',
+    title: (s.prompt_short || '') + (s.chosen_path ? '\n' + s.chosen_path : ''),
+  }));
+  renderLanes();
+}
+
+/* overlay 列表 → 按 kind 并入 bgm/sfx 轨（叠加子轨片段，标 [叠加]）。 */
+function applyOverlayList(segments) {
+  if (!Array.isArray(segments)) return;
+  ['bgm', 'sfx'].forEach(kind => {
+    const trk = TRACKS.find(t => t.id === kind);
+    if (!trk) return;
+    const base = trk.clips.filter(c => !c._overlay);
+    const ov = segments.filter(s => s.kind === kind).map(s => ({
+      s: s.t_start, e: s.t_end, lab: '[叠加] ' + (s.prompt || '').slice(0, 14),
+      sub: s.status || '', title: (s.prompt || '') + (s.audio_path ? '\n' + s.audio_path : ''), _overlay: true,
+    }));
+    trk.clips = base.concat(ov);
+  });
+  renderLanes();
+}
+
+/* ---------- 后端动作 ---------- */
+async function doAdvance(btn) {
+  if (!WORK_DIR) { setMeta('未选择项目（缺 ?project=/?workdir=），无法推进管线'); return; }
+  const done = flashBtn(btn, '配乐中…');
+  setMeta('POST /soundtrack/advance 推进中…（同步阻塞，耗时较长）');
+  try {
+    const res = await postJSON('/soundtrack/advance', {
+      work_dir: WORK_DIR, video: VIDEO || undefined,
+      global_style: undefined,        // 已有 session 时后端忽略；首次新建需 video+global_style（由壳/设置注入）
+      workflow_id: '', seeds_count: 2, stop_after: 'mix',
+    });
+    applyAdvanceResult(res);
+    setMeta('管线已推进至 ' + (res.stop_after || 'mix') + (res.output ? ' · 已出成片' : ''));
+  } catch (e) {
+    setMeta('配乐失败：' + e.message);
+  } finally { done(); }
+}
+
+async function doMixdown(btn) {
+  if (!WORK_DIR) { setMeta('未选择项目，无法出片'); return; }
+  const done = flashBtn(btn, '混音中…');
+  setMeta('POST /soundtrack/mixdown 多轨下混中…');
+  try {
+    const res = await postJSON('/soundtrack/mixdown', { work_dir: WORK_DIR });
+    if (res.output) { setTrackSrc('orig', res.output); renderLanes(); }
+    setMeta('出片完成：' + (res.output || ''));
+  } catch (e) {
+    setMeta('出片失败：' + e.message);
+  } finally { done(); }
+}
+
+async function doAccentDetect(btn) {
+  if (!VIDEO) { setMeta('缺成片 ?video=，无法检测卡点'); return; }
+  const done = flashBtn(btn, '检测中…');
+  setMeta('POST /soundtrack/accent/detect 光流爆点检测中…');
+  try {
+    const res = await postJSON('/soundtrack/accent/detect', {
+      video: VIDEO, work_dir: WORK_DIR || undefined,
+    });
+    ACCENTS = Array.isArray(res.accents) ? res.accents : [];
+    renderAccents();
+    setMeta('检测到 ' + ACCENTS.length + ' 个卡点');
+  } catch (e) {
+    setMeta('卡点检测失败：' + e.message);
+  } finally { done(); }
+}
+
+async function doAccentMix(btn) {
+  if (!WORK_DIR) { setMeta('未选择项目，无法卡点混音'); return; }
+  const done = flashBtn(btn, '试听生成中…');
+  setMeta('POST /soundtrack/accent/mix 段拼接+对齐+泵感…');
+  try {
+    const res = await postJSON('/soundtrack/accent/mix', { work_dir: WORK_DIR });
+    if (res.preview) { setTrackSrc('bgm', res.preview); renderLanes(); }
+    setMeta('卡点泵感试听已就绪：' + (res.preview || ''));
+  } catch (e) {
+    setMeta('卡点混音失败：' + e.message);
+  } finally { done(); }
+}
+
+async function doSfxDetect(btn) {
+  if (!VIDEO || !WORK_DIR) { setMeta('缺 ?video= 或 work_dir，无法 SFX 检测'); return; }
+  const done = flashBtn(btn, '检测中…');
+  setMeta('POST /soundtrack/sfx/detect 镜头检测 + LLM 规划…');
+  try {
+    const view = await postJSON('/soundtrack/sfx/detect', { video: VIDEO, work_dir: WORK_DIR });
+    applySfxResult(view);
+    setMeta('SFX 规划：' + (view.shots ? view.shots.length : 0) + ' 个镜头');
+  } catch (e) {
+    setMeta('SFX 检测失败：' + e.message);
+  } finally { done(); }
+}
+
+async function doSfxGenerate(btn) {
+  if (!WORK_DIR) { setMeta('未选择项目，无法生成 SFX'); return; }
+  const done = flashBtn(btn, '生成中…');
+  setMeta('POST /soundtrack/sfx/generate 批量生成 SFX 候选…');
+  try {
+    const view = await postJSON('/soundtrack/sfx/generate', { work_dir: WORK_DIR });
+    applySfxResult(view);
+    setMeta('SFX 生成完成');
+  } catch (e) {
+    setMeta('SFX 生成失败：' + e.message);
+  } finally { done(); }
+}
+
+/* overlay/generate（框选生成叠加子轨）：DAW 暂无框选 UI（属 3a/3b 框选交互范畴），
+   端点已就绪。此处仅在加载时拉一次 overlay/list 把已有叠加子轨并入波形轨。
+   TODO：补框选交互后调 /soundtrack/overlay/generate 提交 {kind,prompt,t_start,t_end}。 */
+async function loadOverlayList() {
+  if (!WORK_DIR) return;
+  try {
+    const res = await postJSON('/soundtrack/overlay/list', { work_dir: WORK_DIR });
+    applyOverlayList(res.segments || []);
+  } catch (e) { /* 无 overlay.json 时静默 */ }
+}
+
+/* 加载时只做真正只读的拉取：overlay/list（纯读 overlay.json，不触发管线）。
+   后端无"只读会话状态"端点（advance 会真正推进阶段、跑重依赖），故不在 init 自动 advance，
+   避免开页即跑豆包/cv2/生成。会话段落/卡点/成片波形在用户点「自动配乐 / 检测卡点」后填充。
+   TODO：后端如补 GET /soundtrack/session（只读 segment view）可在此预加载段落与已有成片。 */
+async function loadSession() {
+  if (!WORK_DIR) { setMeta('未选择项目 · 用 ?project=/?workdir= 指定配乐工作目录'); return; }
+  setMeta('就绪 · 点「自动配乐」推进管线 / 「检测卡点」分析成片');
+  await loadOverlayList();
+}
+
+/* ---------- 交互绑定 ---------- */
 function wire() {
   document.getElementById('btnPlay').addEventListener('click', () => setPlay(!playing));
   document.getElementById('btnStop').addEventListener('click', () => { setPlay(false); seekTo(0); });
@@ -601,47 +795,52 @@ function wire() {
     seekTo(x / PX_PER_SEC);
   });
 
-  // M / S 切换 —— 联动对应轨 wavesurfer 静音/独奏
-  document.querySelectorAll('.ms').forEach(b => {
-    b.addEventListener('click', () => { b.classList.toggle('on'); applyMuteSolo(); });
-  });
-
-  // 轨道音量条点击设值 —— 联动对应轨 wavesurfer 音量
-  document.querySelectorAll('.vol').forEach(v => {
-    v.addEventListener('click', (e) => {
+  // M / S / 音量 —— 事件委托到 #heads（轨头会随会话重渲染，委托后无需重绑）
+  const heads = document.getElementById('heads');
+  heads.addEventListener('click', (e) => {
+    const ms = e.target.closest('.ms');
+    if (ms) { ms.classList.toggle('on'); applyMuteSolo(); return; }
+    const v = e.target.closest('.vol');
+    if (v) {
       const rect = v.getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       v.querySelector('.fill').style.width = (ratio * 100) + '%';
       v.querySelector('.knob').style.left = (ratio * 100) + '%';
       const i = v.getAttribute('data-trk');
       const pct = Math.round(ratio * 150);
-      document.getElementById('pct-' + i).textContent = pct + '%';
+      const pctEl = document.getElementById('pct-' + i); if (pctEl) pctEl.textContent = pct + '%';
       const tk = TRACKS[i];
       if (tk) { tk.vol = pct; const ws = WS[tk.id]; if (ws) { try { ws.setVolume(Math.min(1, pct / 100)); } catch (e2) {} } }
-    });
+    }
   });
 
-  // 主输出音量
+  // 主输出音量（前端混音预览：缩放所有非静音轨）
   const mv = document.getElementById('masterVol'), mp = document.getElementById('masterPct');
-  mv.addEventListener('input', () => { mp.textContent = mv.value + '%'; });
-
-  // 自动配乐（stub）：真机 POST /soundtrack（SSE 进度）
-  document.getElementById('btnScore').addEventListener('click', (e) => {
-    e.target.textContent = '配乐中…';
-    setTimeout(() => (e.target.textContent = '✦ 自动配乐'), 1400);
-    // 真机：fetch(`${MEDIA_API}/soundtrack`, { method:'POST', body: ... }) 读 SSE 进度
+  mv.addEventListener('input', () => {
+    mp.textContent = mv.value + '%';
+    const g = Math.min(1, mv.value / 100);
+    Object.keys(WS).forEach(id => { try { WS[id].setVolume(g * ((TRACKS.find(t => t.id === id)?.vol || 100) / 100)); } catch (e) {} });
   });
+
+  // 真实后端动作
+  document.getElementById('btnScore').addEventListener('click', (e) => doAdvance(e.currentTarget));
+  document.getElementById('btnMixdown').addEventListener('click', (e) => doMixdown(e.currentTarget));
+  document.getElementById('btnAccentDetect').addEventListener('click', (e) => doAccentDetect(e.currentTarget));
+  document.getElementById('btnAccentMix').addEventListener('click', (e) => doAccentMix(e.currentTarget));
+  document.getElementById('btnSfxDetect').addEventListener('click', (e) => doSfxDetect(e.currentTarget));
+  document.getElementById('btnSfxGen').addEventListener('click', (e) => doSfxGenerate(e.currentTarget));
 }
 
 /* ---------- 启动 ---------- */
 function init() {
   renderHeads();
-  renderLanes();      // 内部为每轨建 WaveSurfer 实例并加载示例音源（真实波形）
+  renderLanes();      // 各轨建 WaveSurfer 实例（音源由后端会话注入，无则显占位）
   drawRuler();
   renderAccents();
   updateHead();
+  document.getElementById('tcTotal').textContent = '/ ' + fmt(TOTAL);
   wire();
-  connectPlayheadWS();  // 连后端播放头 WS，连不上静默回退本地定时器
+  loadSession();      // 拉真实会话（含成片波形/段落/卡点）+ overlay 列表；无则留空提示
 }
 window.addEventListener('DOMContentLoaded', init);
 </script>
