@@ -45,6 +45,29 @@ def list_genres_route():
     return {"genres": genre_templates.list_genres()}
 
 
+@router.get("/genres/detail")
+def list_genres_detail_route():
+    """题材卡片明细：对每个 id 取 display_name + 一句话定位 + 爽点权重。
+
+    用于题材弹窗卡片展示。单个模板加载/解析失败则跳过该条（容错不崩）。
+    返回 {genres:[{genre_id, display_name, one_liner, satisfaction_weights}]}。
+    """
+    out: list[dict] = []
+    for gid in genre_templates.list_genres():
+        try:
+            t = genre_templates.load_genre(gid)
+        except Exception:  # noqa: BLE001 单个加载失败跳过不崩
+            continue
+        identity = t.get("identity") or {}
+        out.append({
+            "genre_id": t.get("genre_id", gid),
+            "display_name": t.get("display_name", gid),
+            "one_liner": (identity.get("one_liner") if isinstance(identity, dict) else "") or "",
+            "satisfaction_weights": t.get("satisfaction_weights") or {},
+        })
+    return {"genres": out}
+
+
 @router.get("/genre")
 def genre_detail_route(id: str):
     """单题材模板（yaml -> dict 原结构）。未知 id → 404、空 id → 400。"""

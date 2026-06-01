@@ -105,6 +105,59 @@ def _st(state: str) -> str:
     return _STATE_TO_ST.get(state, "lock")
 
 
+# ---------- /project/clips ----------
+
+# 转场页列目录用：视频 + 图片扩展名（小写匹配）
+_VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv"}
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+@router.get("/project/clips")
+def project_clips(project: str, sub: str = ""):
+    """列出项目目录（或 project/sub 子目录）下的视频与图片片段。
+
+    转场页用：返回 {clips:[{name,path(posix),kind,size}]}，按文件名排序。
+    project 空 → 400；目录不存在 → 空列表（不报错）。
+    """
+    proj = (project or "").strip()
+    if not proj:
+        raise HTTPException(status_code=400, detail="project 不能为空")
+    base = Path(proj)
+    sub_clean = (sub or "").strip()
+    target = base / sub_clean if sub_clean else base
+
+    clips: list[dict] = []
+    if not target.is_dir():
+        return {"clips": clips}
+
+    try:
+        entries = sorted(target.iterdir(), key=lambda p: p.name.lower())
+    except OSError:
+        return {"clips": clips}
+
+    for p in entries:
+        if not p.is_file():
+            continue
+        ext = p.suffix.lower()
+        if ext in _VIDEO_EXTS:
+            kind = "video"
+        elif ext in _IMAGE_EXTS:
+            kind = "image"
+        else:
+            continue
+        try:
+            size = p.stat().st_size
+        except OSError:
+            size = 0
+        clips.append({
+            "name": p.name,
+            "path": p.as_posix(),
+            "kind": kind,
+            "size": size,
+        })
+    return {"clips": clips}
+
+
 @router.get("/project/overview")
 def project_overview(project: str):
     """读项目 manifest + 目录统计，聚合概览。project=项目目录。"""

@@ -53,6 +53,37 @@
   .placeholder[hidden] { display: none; }   /* hidden 属性需显式覆盖 display:grid */
   .placeholder .big { font-size: 18px; color: var(--fg2); }
   .placeholder .badge { margin: 0 auto; }
+
+  /* 任务中心抽屉（前端聚合：localStorage 各页任务态 + /project/overview，无后端 job 注册表） */
+  .tb-act { cursor: pointer; }
+  .tb-act:hover { border-color: var(--mauve); color: var(--fg2); }
+  .tb-act .cnt { background: var(--blue); color: #06122a; font-weight: 700; border-radius: 9px;
+    padding: 0 6px; font-size: 10.5px; min-width: 16px; text-align: center; display: none; }
+  .tb-act .cnt.on { display: inline-block; }
+  .tc-mask { position: fixed; inset: 0; background: rgba(6,8,18,.5); z-index: 40; display: none; }
+  .tc-mask.on { display: block; }
+  .tc-drawer { position: fixed; top: 0; right: 0; width: 380px; max-width: 92vw; height: 100vh;
+    background: var(--navy); border-left: 1px solid var(--border); z-index: 41;
+    transform: translateX(100%); transition: transform .2s ease; display: flex; flex-direction: column; }
+  .tc-drawer.on { transform: translateX(0); }
+  .tc-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border-lo); }
+  .tc-head .t { font-size: 14px; font-weight: 700; color: var(--fg);
+    background: linear-gradient(135deg, var(--blue), var(--mauve)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tc-head .sp { flex: 1; }
+  .tc-head .x { cursor: pointer; color: var(--muted); font-size: 16px; padding: 2px 8px; border-radius: 6px; }
+  .tc-head .x:hover { background: var(--panel2); color: #fff; }
+  .tc-body { flex: 1; overflow: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 14px; }
+  .tc-sect .st { font-size: 11px; color: var(--periw); font-weight: 600; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 8px; }
+  .tc-item { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; margin-bottom: 7px; cursor: pointer; }
+  .tc-item:hover { border-color: var(--mauve); }
+  .tc-item .row1 { display: flex; align-items: center; gap: 8px; }
+  .tc-item .nm { font-size: 12.5px; color: var(--fg2); font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tc-item .badge2 { font-size: 9.5px; padding: 1px 8px; border-radius: 8px; }
+  .tc-item .b-done { background: rgba(78,201,143,.16); color: var(--done); border: 1px solid #2c5a44; }
+  .tc-item .b-run { background: rgba(74,158,255,.14); color: var(--blue); border: 1px solid var(--blue-dim); }
+  .tc-item .b-idle { background: var(--panel2); color: var(--muted); border: 1px solid var(--border); }
+  .tc-item .sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .tc-empty { color: var(--faint); font-size: 12px; text-align: center; padding: 30px 10px; }
 </style>
 </head>
 <body>
@@ -61,9 +92,16 @@
     <div class="brand"><span class="logo"></span><span class="nm">糯米 AI</span></div>
     <div class="crumb">项目 / <b id="proj">测试剧本_废铁场之夜</b></div>
     <div class="tb-sp"></div>
-    <div class="tb-act"><span class="dot ok"></span>任务中心</div>
+    <div class="tb-act" id="tcBtn"><span class="dot ok"></span>任务中心<span class="cnt" id="tcCnt">0</span></div>
     <div class="winctl"><span data-win="min">—</span><span data-win="max">□</span><span data-win="close">✕</span></div>
   </div>
+
+  <!-- 任务中心抽屉：聚合各页 localStorage 任务态 + 项目阶段进度 -->
+  <div class="tc-mask" id="tcMask"></div>
+  <aside class="tc-drawer" id="tcDrawer" aria-hidden="true">
+    <div class="tc-head"><span class="t">任务中心</span><span class="sp"></span><span class="x" id="tcClose">✕</span></div>
+    <div class="tc-body" id="tcBody"></div>
+  </aside>
 
   <div class="main">
     <nav class="nav" id="nav">
@@ -218,6 +256,131 @@
     if (e.target.closest('.winctl') || e.target.closest('.tb-act')) return;
     wc('startMove');   // 无边框时系统拖动窗口
   });
+
+  /* ===== 任务中心（前端聚合：扫 localStorage 各页任务态 + /project/overview 阶段进度） =====
+     后端无 job 注册表，故不臆造服务端任务流；这里把各页已持久化的工作状态汇总展示。 */
+  const MEDIA = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450';
+  const tcMask = document.getElementById('tcMask');
+  const tcDrawer = document.getElementById('tcDrawer');
+  const tcBody = document.getElementById('tcBody');
+  const tcCnt = document.getElementById('tcCnt');
+
+  // 各页 localStorage 前缀 → 任务摘要解析器（返回 {nm, status, sub} | null）
+  const TC_SOURCES = [
+    { prefix: 'nuomi.ideate.state.', label: '立意', parse: (s) => {
+        const n = (s.candidates || []).length;
+        return n ? { nm: '立意候选', status: s.selectedId ? 'done' : 'idle',
+          sub: n + ' 个候选' + (s.selectedId ? ' · 已选定' : ' · 未选定') } : null; } },
+    { prefix: 'nuomi.script.state.', label: '剧本', parse: (s) => {
+        const eps = (s.episodes || []).length; if (!eps) return null;
+        const done = Object.values(s.status || {}).filter(v => v === 'done').length;
+        return { nm: '剧本分集', status: done >= eps ? 'done' : (done ? 'run' : 'idle'),
+          sub: done + '/' + eps + ' 集已生成' }; } },
+    { prefix: 'nuomi.storyboardScript.', label: '分镜', parse: (s) => {
+        const arr = s.episodes || s.shots || s.list || [];
+        const n = Array.isArray(arr) ? arr.length : 0;
+        return n ? { nm: '分镜脚本', status: 'idle', sub: n + ' 项' } : null; } },
+    { prefix: 'nuomi.imggenTasks.', label: '出图', parse: (s) => {
+        const tasks = Array.isArray(s) ? s : (s.tasks || []);
+        if (!tasks.length) return null;
+        const done = tasks.filter(t => t.status === 'done').length;
+        return { nm: '出图任务', status: done >= tasks.length ? 'done' : 'run',
+          sub: done + '/' + tasks.length + ' 完成' }; } },
+    { prefix: 'nuomi.director.', label: '视频', parse: (s) => {
+        const segs = (s.segments || s.timeline || []).length;
+        return segs ? { nm: '导演台时间轴', status: 'idle', sub: segs + ' 段' } : null; } },
+  ];
+
+  function tcParseVal(raw) { try { return JSON.parse(raw); } catch { return null; } }
+
+  function tcCollectLocal() {
+    const items = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      const src = TC_SOURCES.find(x => key.startsWith(x.prefix));
+      if (!src) continue;
+      // 仅当前项目：key 尾缀含 PROJECT（或无项目时全收）
+      const suffix = key.slice(src.prefix.length);
+      if (PROJECT && suffix && suffix !== PROJECT && suffix !== 'noproj' && suffix !== '_none') {
+        if (!PROJECT.endsWith(suffix) && !suffix.endsWith(PROJECT.split(/[\\/]/).pop() || '')) continue;
+      }
+      const val = tcParseVal(localStorage.getItem(key));
+      if (val == null) continue;
+      const info = src.parse(val);
+      if (info) items.push({ stage: src.label, ...info });
+    }
+    return items;
+  }
+
+  async function tcFetchStages() {
+    if (!PROJECT) return null;
+    try {
+      const r = await fetch(MEDIA + '/project/overview?project=' + encodeURIComponent(PROJECT));
+      if (!r.ok) return null;
+      const j = await r.json();
+      return Array.isArray(j.stages) ? j.stages : null;
+    } catch { return null; }
+  }
+
+  function tcBadge(status) {
+    const m = { done: ['b-done', '已完成'], run: ['b-run', '进行中'], cur: ['b-run', '进行中'] };
+    const [cls, txt] = m[status] || ['b-idle', '待处理'];
+    return '<span class="badge2 ' + cls + '">' + txt + '</span>';
+  }
+
+  async function tcRender() {
+    const local = tcCollectLocal();
+    const active = local.filter(x => x.status === 'run' || x.status === 'cur').length;
+    tcCnt.textContent = local.length;
+    tcCnt.classList.toggle('on', local.length > 0);
+
+    let html = '';
+    html += '<div class="tc-sect"><div class="st">本地任务（各阶段工作态）</div>';
+    if (local.length) {
+      local.forEach(it => {
+        html += '<div class="tc-item" data-stage="' + esc2(it.stage) + '"><div class="row1">'
+          + '<span class="nm">' + esc2(it.stage) + ' · ' + esc2(it.nm) + '</span>' + tcBadge(it.status)
+          + '</div><div class="sub">' + esc2(it.sub) + '</div></div>';
+      });
+    } else {
+      html += '<div class="tc-empty">暂无进行中的任务<br>在各创作阶段生成内容后将在此汇总</div>';
+    }
+    html += '</div>';
+
+    const stages = await tcFetchStages();
+    if (stages && stages.length) {
+      html += '<div class="tc-sect"><div class="st">项目阶段进度（manifest）</div>';
+      stages.forEach(s => {
+        const pct = (s.total ? Math.round(100 * (s.done || 0) / s.total) : (s.status === 'done' ? 100 : 0));
+        html += '<div class="tc-item"><div class="row1"><span class="nm">' + esc2(s.label || s.key) + '</span>'
+          + tcBadge(s.status) + '</div><div class="sub">' + (s.meta ? esc2(s.meta) + ' · ' : '') + pct + '%</div></div>';
+      });
+      html += '</div>';
+    }
+    tcBody.innerHTML = html;
+    // 任务项点击 → 跳到对应阶段导航
+    const STAGE_NAV = { '立意': 'screenwriter', '剧本': 'screenwriter', '分镜': 'screenwriter',
+      '出图': 'storyboard', '视频': 'video_gen' };
+    tcBody.querySelectorAll('.tc-item[data-stage]').forEach(el => {
+      el.addEventListener('click', () => {
+        const key = STAGE_NAV[el.dataset.stage];
+        if (key && links.some(x => x.dataset.key === key)) { go(key); tcToggle(false); }
+      });
+    });
+  }
+  function esc2(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+  function tcToggle(open) {
+    tcMask.classList.toggle('on', open);
+    tcDrawer.classList.toggle('on', open);
+    tcDrawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (open) tcRender();
+  }
+  document.getElementById('tcBtn').addEventListener('click', () => tcToggle(true));
+  document.getElementById('tcClose').addEventListener('click', () => tcToggle(false));
+  tcMask.addEventListener('click', () => tcToggle(false));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') tcToggle(false); });
+  tcRender();   // 启动算一次角标计数
 </script>
 </body>
 </html>

@@ -81,6 +81,15 @@
   .clip .meta { padding: 5px 7px; background: rgba(13,13,30,.85); }
   .clip .c-name { font-size: 11px; font-weight: 600; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .clip .c-dur { font-size: 9px; color: var(--faint); margin-top: 1px; }
+  .clip .thumb-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .clip .trimmed {
+    position: absolute; bottom: 34px; right: 6px; font-size: 8.5px; color: var(--warn);
+    background: rgba(224,168,90,.16); border: 1px solid #6b5520; border-radius: 3px; padding: 1px 5px;
+  }
+  .clip .kindbadge {
+    position: absolute; top: 6px; left: 30px; font-size: 8.5px; color: var(--mauve);
+    background: rgba(138,127,217,.16); border: 1px solid #4a3d6e; border-radius: 3px; padding: 0 5px; line-height: 16px;
+  }
   .clip.add { border-style: dashed; background: transparent; }
   .clip.add .thumb { background: none; display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 26px; }
 
@@ -196,6 +205,8 @@
       <option>预告片</option>
     </select>
     <span class="head-spacer"></span>
+    <input id="subDir" class="ep-select" style="min-width:120px;max-width:160px"
+           placeholder="子目录(如 video)" title="GET /project/clips 的 sub 参数（生成视频子目录）">
     <button class="btn-soft" data-act="listdir">⟳ 列出生成目录</button>
     <button class="btn-soft" data-act="addclip">＋ 添加片段</button>
     <!-- 主 CTA：智能转场=CV 分析触发（不直接出片） -->
@@ -223,7 +234,14 @@
           <div class="play">▶</div>
         </div>
         <div class="trim">
-          <div class="tl-row"><span>0:00</span><span id="trimInfo">入点 0:01.6 — 出点 0:09.1（保留 7.5s）</span><span>0:11.0</span></div>
+          <div class="tl-row">
+            <span>0:00</span>
+            <span id="trimInfo">入点 0:01.6 — 出点 0:09.1（保留 7.5s）</span>
+            <span style="display:flex;gap:10px;align-items:center">
+              <span id="trimDurEnd">0:11.0</span>
+              <button class="btn-soft" style="padding:3px 10px;font-size:11px" data-act="trim">✂ 裁剪</button>
+            </span>
+          </div>
           <div class="scrub">
             <div class="keepzone"></div>
             <div class="handle l"></div>
@@ -261,6 +279,68 @@ const PROJECT   = new URLSearchParams(location.search).get('project') || '';    
      POST {MEDIA_API}/transition/render {composition, out_path} → {output}（成片路径）。
    失败：FastAPI 抛 {detail} 或统一 {error:{code,message,hint}}，均显 hint/detail。 */
 
+/* ===== 列生成目录契约（后端待实现）=====
+   GET {MEDIA_API}/project/clips?project=<dir>&sub=<可选子目录>
+     → {clips:[{name,path,kind:'video'|'image',size}]}
+   该端点当前 media_agent 尚未实现（projects.py 只有 list/open/create，
+   projectx.py 只有 /project/overview）。本页按契约请求：
+     - 命中(200) → 用真实片段替换硬编码；
+     - 404/连接失败 → 保留内置 stub 片段 + TODO 提示，绝不假装成功。
+   sub 默认空（项目根）；常用如 "video" 指生成视频子目录。 */
+const CLIPS_SUB_DEFAULT = "video";   // 视频成片常落在 <project>/video（可在输入框改）
+let clipsSub = CLIPS_SUB_DEFAULT;
+let clipsLoaded = false;             // 是否已从后端成功拉到真实片段
+
+/* 本地路径 → 壳内可显示 file:// src（与 asset-library.html refImgSrc 一致）。
+   后端 path 相对项目目录 → 先拼 PROJECT 再转 file://；已是绝对/协议则原样。 */
+function fileSrc(path) {
+  if (!path) return "";
+  let p = String(path).replace(/\\/g, "/");
+  const isAbs = /^[A-Za-z]:/.test(p) || p.startsWith("/") || /^(file|https?):/i.test(p);
+  if (/^(file|https?):/i.test(p)) return p;
+  if (!isAbs && PROJECT) {
+    p = String(PROJECT).replace(/\\/g, "/").replace(/\/+$/, "") + "/" + p.replace(/^\/+/, "");
+  }
+  return "file:///" + p.replace(/^\/+/, "");
+}
+
+/* 视频片段缩略图：无现成抽帧端点 → 若存在同名图(.jpg/.png/.webp)用首帧图；
+   否则返回空（renderStrip 退化为「文件名卡片」，不造假抽帧）。 */
+const _THUMB_EXT = ["jpg", "jpeg", "png", "webp"];
+function videoThumbSrc(cl) {
+  if (!cl) return "";
+  if (cl.kind === "image") return fileSrc(cl.path);
+  // 视频：尝试同名图（约定 <stem>.<ext> 与视频同目录）
+  if (cl.thumb) return fileSrc(cl.thumb);           // 后端若给了 thumb 字段优先
+  const p = String(cl.path || "").replace(/\\/g, "/");
+  const dot = p.lastIndexOf(".");
+  if (dot < 0) return "";
+  const stem = p.slice(0, dot);
+  // 只能给 <img> 一个候选 + onerror 兜底（浏览器无法探测多扩展名存在性）
+  return fileSrc(stem + "." + _THUMB_EXT[0]);
+}
+
+/* 统一 GET JSON：解析 FastAPI {detail} 或统一 {error:{hint}}；区分 404 便于降级。 */
+async function getJSON(url) {
+  let resp;
+  try {
+    resp = await fetch(url);
+  } catch (e) {
+    const err = new Error("无法连接 media_agent（请确认服务已启动）");
+    err.status = 0;
+    throw err;
+  }
+  let data = null;
+  try { data = await resp.json(); } catch (e) { /* ignore */ }
+  if (!resp.ok) {
+    const hint = (data && ((data.error && (data.error.hint || data.error.message)) || data.detail)) || `HTTP ${resp.status}`;
+    const err = new Error(hint);
+    err.status = resp.status;
+    throw err;
+  }
+  return data || {};
+}
+
 /* ===== 转场效果 ↔ 中文标签映射（与后端 transition_analyzer / ffmpeg xfade 名一致） ===== */
 const FX_LABEL = {
   dissolve: "叠化 (dissolve)", smoothleft: "推左 (smoothleft)", smoothright: "推右 (smoothright)",
@@ -274,13 +354,15 @@ function catFor(total) {
   return "低匹配 → 创意/硬切";
 }
 
-/* ===== stub 数据：片段 + 切口（cut 在两片段之间） ===== */
-const clips = [
-  { id: 1, name: "片段 01", dur: "0:08.4", durSec: 8.4,  shots: "3 镜", cls: "",   kept: true, path: "clip01.mp4" },
-  { id: 2, name: "片段 02", dur: "0:11.0 ✂", durSec: 11.0, shots: "2 镜", cls: "c2", kept: true, path: "clip02.mp4" },
-  { id: 3, name: "片段 03", dur: "0:06.2", durSec: 6.2,  shots: "1 镜", cls: "c3", kept: true, path: "clip03.mp4" },
-  { id: 4, name: "片段 04", dur: "0:09.1", durSec: 9.1,  shots: "—",   cls: "c4", kept: false, path: "clip04.mp4" },
-  { id: 5, name: "片段 05", dur: "0:07.8", durSec: 7.8,  shots: "2 镜", cls: "",   kept: true, path: "clip05.mp4" },
+/* ===== stub 数据：片段 + 切口（cut 在两片段之间）=====
+   clips 用 let：列出生成目录(GET /project/clips)命中后整表替换为真实片段。
+   每片段含 trimIn/trimOut（秒，null=未裁）→ 渲染时 ffmpeg -ss/-to 实裁。 */
+let clips = [
+  { id: 1, name: "片段 01", dur: "0:08.4", durSec: 8.4,  shots: "3 镜", cls: "",   kept: true, path: "clip01.mp4", kind: "video", trimIn: null, trimOut: null },
+  { id: 2, name: "片段 02", dur: "0:11.0 ✂", durSec: 11.0, shots: "2 镜", cls: "c2", kept: true, path: "clip02.mp4", kind: "video", trimIn: 1.6, trimOut: 9.1 },
+  { id: 3, name: "片段 03", dur: "0:06.2", durSec: 6.2,  shots: "1 镜", cls: "c3", kept: true, path: "clip03.mp4", kind: "video", trimIn: null, trimOut: null },
+  { id: 4, name: "片段 04", dur: "0:09.1", durSec: 9.1,  shots: "—",   cls: "c4", kept: false, path: "clip04.mp4", kind: "video", trimIn: null, trimOut: null },
+  { id: 5, name: "片段 05", dur: "0:07.8", durSec: 7.8,  shots: "2 镜", cls: "",   kept: true, path: "clip05.mp4", kind: "video", trimIn: null, trimOut: null },
 ];
 /* 切口状态：ai | analyzing | manual | locked | cut；含 CV 评分拆解（hist 直方图 / sift 结构 / flow 光流）。 */
 const cuts = [
@@ -306,6 +388,10 @@ function buildComposition() {
       keep: !!cl.kept,
       duration: cl.durSec || 0,
     };
+    // trim 实裁：把入/出点交给后端，render 时 ffmpeg -ss/-to 真实裁切
+    // （CompositionModel.trimmed_duration / transition_render 已支持 in_point/out_point）
+    if (cl.trimIn != null) rc.in_point = cl.trimIn;
+    if (cl.trimOut != null) rc.out_point = cl.trimOut;
     if (cut) {
       const isCut = cut.fx === "cut";
       rc.locked = cut.status === "locked";
@@ -392,23 +478,37 @@ function renderStrip() {
     // 片段卡
     const card = document.createElement("div");
     card.className = "clip " + cl.cls + (cl.kept ? "" : " dropped") + (cl.id === selClip ? " sel" : "");
+    card.setAttribute("draggable", "true");
+    card.dataset.clipId = String(cl.id);
+    // 缩略图：图片片段=自身首帧；视频=同名图(若有)否则退化为纯文件名卡片(不造假抽帧)
+    const thumbSrc = videoThumbSrc(cl);
+    const trimmed = (cl.trimIn != null || cl.trimOut != null);
+    const thumbImg = thumbSrc
+      ? `<img class="thumb-img" src="${esc(thumbSrc)}" alt="${esc(cl.name)}"
+             onerror="this.style.display='none'">`
+      : "";
     card.innerHTML = `
       <div class="thumb">
+        ${thumbImg}
         <div class="keep" data-keep="${cl.id}">${cl.kept ? "✓" : ""}</div>
-        <div class="grip">⠿</div>
-        ${cl.shots !== "—" ? `<div class="shots">${cl.shots}</div>` : ""}
+        <div class="grip" title="拖拽排序">⠿</div>
+        ${cl.shots && cl.shots !== "—" ? `<div class="shots">${esc(cl.shots)}</div>` : ""}
+        ${trimmed ? `<div class="trimmed">✂ 已裁</div>` : ""}
+        ${cl.kind === "image" ? `<div class="kindbadge">图</div>` : ""}
       </div>
-      <div class="meta"><div class="c-name">${cl.name}</div><div class="c-dur">${cl.dur}</div></div>`;
+      <div class="meta"><div class="c-name">${esc(cl.name)}</div><div class="c-dur">${esc(cl.dur)}</div></div>`;
     card.addEventListener("click", (e) => {
       if (e.target.dataset.keep) {
         cl.kept = !cl.kept;            // 勾选保留/剔除
         renderStrip();
         return;
       }
-      selClip = cl.id;                 // 点卡片预览
+      selClip = cl.id;                 // 点卡片预览 → 同步 trim 条
       document.getElementById("pvTag").textContent = `预览：${cl.name}（也可切「整片预览」）`;
       renderStrip();
+      renderTrim();
     });
+    wireDrag(card, cl);
     root.appendChild(card);
 
     // 卡间切口圆点
@@ -428,12 +528,91 @@ function renderStrip() {
       }
     }
   });
-  // 末尾「添加片段」占位
+  // 末尾「添加片段」占位 → 列生成目录
   const add = document.createElement("div");
   add.className = "clip add";
   add.innerHTML = `<div class="thumb">＋</div><div class="meta"><div class="c-name" style="color:var(--faint)">添加片段</div></div>`;
-  add.addEventListener("click", () => toast("stub · 添加片段（真机：列出 media_agent 生成目录后追加）"));
+  add.addEventListener("click", () => loadClips());
   root.appendChild(add);
+}
+
+/* HTML 转义（与 ideate/asset-library 的 esc 一致）。 */
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+/* ===== 拖拽排序：HTML5 DnD，drop 时按落点位置重排 clips ===== */
+let dragId = null;
+function wireDrag(card, cl) {
+  card.addEventListener("dragstart", (e) => {
+    dragId = cl.id;
+    card.style.opacity = "0.4";
+    try { e.dataTransfer.setData("text/plain", String(cl.id)); e.dataTransfer.effectAllowed = "move"; } catch (_) {}
+  });
+  card.addEventListener("dragend", () => { card.style.opacity = ""; dragId = null; });
+  card.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; });
+  card.addEventListener("drop", (e) => {
+    e.preventDefault();
+    if (dragId == null || dragId === cl.id) return;
+    const from = clips.findIndex((c) => c.id === dragId);
+    const to = clips.findIndex((c) => c.id === cl.id);
+    if (from < 0 || to < 0) return;
+    const [moved] = clips.splice(from, 1);
+    clips.splice(to, 0, moved);
+    rebuildCutsFromOrder();        // 顺序变了 → 重建切口 a/b（标记需重新分析）
+    renderStrip();
+    renderInspector();
+    toast("已重排片段顺序 · 切口需重新「一键智能转场」");
+  });
+}
+
+/* 顺序变化后，按相邻 kept 片段重建切口序列（保留锁定切口的 fx/dur，其余回 manual 待分析）。 */
+function rebuildCutsFromOrder() {
+  const seq = clips;             // 按当前显示顺序（含已剔除，但切口只连相邻显示项，与原逻辑一致）
+  const old = {};
+  cuts.forEach((c) => { old[c.a + "_" + c.b] = c; });
+  const next = [];
+  for (let i = 0; i < seq.length - 1; i++) {
+    const a = seq[i].id, b = seq[i + 1].id;
+    const prev = old[a + "_" + b];
+    if (prev) { next.push(prev); continue; }
+    // 新相邻关系 → 新建 manual 占位切口（等用户重跑分析回填 CV）
+    next.push({
+      id: "c" + a + "_" + b, a, b, status: "manual",
+      effect: "叠化 (dissolve)", fx: "dissolve", dur: 0.5,
+      scores: { hist: 0, sift: 0, flow: 0 }, total: 0, cat: catFor(0),
+    });
+  }
+  cuts.length = 0;
+  next.forEach((c) => cuts.push(c));
+  if (!cuts.find((c) => c.id === selCut)) selCut = cuts.length ? cuts[0].id : null;
+}
+
+/* ===== trim 条：反映/编辑选中片段的入/出点（图片可实裁；视频靠 render 时 ffmpeg） ===== */
+function fmtT(sec) {
+  sec = Math.max(0, sec || 0);
+  const m = Math.floor(sec / 60), s = (sec - m * 60);
+  return m + ":" + (s < 10 ? "0" : "") + s.toFixed(1);
+}
+function renderTrim() {
+  const cl = clips.find((c) => c.id === selClip);
+  const info = document.getElementById("trimInfo");
+  const endEl = document.getElementById("trimDurEnd");
+  if (!cl || !info) return;
+  const dur = cl.durSec || 0;
+  const tin = cl.trimIn != null ? cl.trimIn : 0;
+  const tout = cl.trimOut != null ? cl.trimOut : dur;
+  const keep = Math.max(0, tout - tin);
+  info.textContent = `入点 ${fmtT(tin)} — 出点 ${fmtT(tout)}（保留 ${keep.toFixed(1)}s）`;
+  if (endEl) endEl.textContent = fmtT(dur);
+  // 可视 keepzone 宽度
+  const kz = document.querySelector(".scrub .keepzone");
+  const hL = document.querySelector(".scrub .handle.l");
+  const hR = document.querySelector(".scrub .handle.r");
+  if (kz && dur > 0) {
+    const lp = (tin / dur * 100), rp = (100 - tout / dur * 100);
+    kz.style.left = lp + "%"; kz.style.right = rp + "%";
+    if (hL) hL.style.left = lp + "%";
+    if (hR) hR.style.right = rp + "%";
+  }
 }
 
 /* ===== 渲染转场检查器（选中切口的 CV 评分拆解 + 效果/时长/来源/锁定） ===== */
@@ -508,6 +687,90 @@ function wireInspector(c) {
   });
 }
 
+/* ===== 列生成目录 → 用真实片段替换硬编码 =====
+   GET {MEDIA_API}/project/clips?project=&sub=（后端待实现）。
+   命中 → 整表替换；404/未实现/连接失败 → 保留 stub + TODO 提示，绝不假成功。 */
+function durLabel(sec) { return sec ? fmtT(sec) : "—"; }
+async function loadClips() {
+  if (!PROJECT) { toast("请先在首页选择项目"); return; }
+  const subEl = document.getElementById("subDir");
+  clipsSub = (subEl && subEl.value.trim()) || "";
+  const qs = new URLSearchParams({ project: PROJECT });
+  if (clipsSub) qs.set("sub", clipsSub);
+  toast("列出生成目录中…");
+  try {
+    const data = await getJSON(`${MEDIA_API}/project/clips?${qs.toString()}`);
+    const list = (data && data.clips) || [];
+    if (!list.length) { toast("该目录下没有可用片段"); return; }
+    clips = list.map((c, i) => {
+      const sec = (typeof c.duration === "number") ? c.duration : 0;  // 后端若给 duration
+      return {
+        id: i + 1,
+        name: c.name || `片段 ${String(i + 1).padStart(2, "0")}`,
+        dur: durLabel(sec),
+        durSec: sec,
+        shots: c.shots || "—",
+        cls: ["", "c2", "c3", "c4"][i % 4],
+        kept: true,
+        path: c.path || c.name,
+        kind: c.kind === "image" ? "image" : "video",
+        thumb: c.thumb || "",
+        trimIn: null, trimOut: null,
+      };
+    });
+    clipsLoaded = true;
+    selClip = clips.length ? clips[0].id : null;
+    rebuildCutsFromOrder();
+    renderStrip(); renderInspector(); renderTrim();
+    document.getElementById("anaState").textContent =
+      `已列出 ${clips.length} 个片段${clipsSub ? "（" + clipsSub + "）" : ""} · 点「一键智能转场」跑 CV`;
+    toast(`已列出 ${clips.length} 个片段`);
+  } catch (e) {
+    if (e.status === 404) {
+      // TODO(backend): media_agent 尚未实现 GET /project/clips；落地后此分支自动转成功。
+      toast("后端暂未提供「列生成目录」端点(GET /project/clips · 404)，保留示例片段");
+      document.getElementById("anaState").textContent =
+        "TODO · 后端 /project/clips 待实现，当前为示例片段（不影响分析/渲染真机片段路径）";
+    } else {
+      toast("列目录失败：" + e.message);
+    }
+  }
+}
+
+/* ===== trim 实裁 =====
+   图片片段：POST /imaging/trim 去白边(真实裁切并落盘新文件，回填 path)。
+   视频片段：无独立 ffmpeg trim 端点 → 仅存入/出点(in_point/out_point)，
+             由「生成成片」的 /transition/render(已含 ffmpeg) 用 -ss/-to 实裁。
+   不对视频假裁切成功。 */
+async function trimSelected() {
+  const cl = clips.find((c) => c.id === selClip);
+  if (!cl) { toast("请先选中一个片段"); return; }
+  if (cl.kind === "image") {
+    if (!PROJECT) { toast("请先在首页选择项目"); return; }
+    const src = cl.path;
+    const outRel = (clipsSub ? clipsSub + "/" : "") + "trim_" + (cl.name || "img");
+    const out_path = String(PROJECT).replace(/\\/g, "/").replace(/\/+$/, "") + "/" + outRel;
+    toast("裁切图片中…");
+    try {
+      const res = await postJSON(`${MEDIA_API}/imaging/trim`, { src_path: src, out_path, fmt: "PNG" });
+      cl.path = res.output || out_path;
+      renderStrip();
+      toast("图片已去白边裁切：" + (res.output || out_path));
+    } catch (e) {
+      toast("裁切失败：" + e.message);
+    }
+  } else {
+    // 视频：标注入/出点（render 时实裁）。stub 默认裁掉头尾各 ~10%/15% 作演示锚点。
+    const dur = cl.durSec || 0;
+    if (cl.trimIn == null && cl.trimOut == null && dur > 0) {
+      cl.trimIn = +(dur * 0.1).toFixed(1);
+      cl.trimOut = +(dur * 0.85).toFixed(1);
+    }
+    renderStrip(); renderTrim();
+    toast("已标注视频入/出点 · 生成成片时 ffmpeg 实裁（无独立视频 trim 端点）");
+  }
+}
+
 /* ===== 一键智能转场 = CV 分析（真机：POST /transition/analyze，锁定项后端跳过不覆盖） ===== */
 async function analyze() {
   if (!PROJECT) { toast("请先在首页选择项目"); return; }
@@ -577,9 +840,10 @@ function wireToolbar() {
       switch (el.dataset.act) {
         case "analyze":  analyze(); break;
         case "render":   render();  break;
-        case "listdir":  toast("stub · 列出生成目录（真机 GET " + MEDIA_API + " 媒资目录）"); break;
-        case "addclip":  toast("stub · 添加片段"); break;
-        case "play":     toast("stub · 播放预览（真机串流片段/整片）"); break;
+        case "listdir":  loadClips(); break;
+        case "addclip":  loadClips(); break;
+        case "trim":     trimSelected(); break;
+        case "play":     toast("stub · 播放预览（真机串流片段/整片，暂无串流端点）"); break;
         case "tosound": {
           const output = el.dataset.output;
           if (!output) { toast("请先「生成成片」再送去配乐"); break; }
@@ -599,8 +863,11 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove("show"), 2400);
 }
 
+const _subEl = document.getElementById("subDir");
+if (_subEl) _subEl.value = CLIPS_SUB_DEFAULT;   // 默认生成视频子目录，可改
 renderStrip();
 renderInspector();
+renderTrim();
 wireToolbar();
 </script>
 </body>

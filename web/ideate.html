@@ -139,6 +139,112 @@
   .followup .fu-msg { font-size: 11px; line-height: 1.5; padding: 5px 9px; border-radius: 8px; }
   .followup .fu-msg.u { background: rgba(74,158,255,.1); color: var(--fg2); align-self: flex-end; max-width: 88%; }
   .followup .fu-msg.a { background: var(--navy); color: var(--muted); align-self: flex-start; max-width: 88%; }
+
+  /* ===== 模态选择器（题材 / 风格库，蓝紫风，自建无外部依赖） ===== */
+  .modal-mask {
+    position: fixed; inset: 0; z-index: 1000; display: none;
+    background: rgba(10,12,24,.62); backdrop-filter: blur(3px);
+    align-items: center; justify-content: center; padding: 28px;
+  }
+  .modal-mask.on { display: flex; }
+  .modal {
+    width: 100%; max-width: 920px; max-height: 88vh; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 24px 70px rgba(0,0,0,.55); overflow: hidden;
+  }
+  .modal-head {
+    display: flex; align-items: center; gap: 12px; padding: 16px 20px 13px;
+    border-bottom: 1px solid var(--border-lo);
+  }
+  .modal-head .mt {
+    font-size: 15px; font-weight: 700; letter-spacing: .5px;
+    background: linear-gradient(135deg, var(--blue), var(--mauve));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .modal-head .mhint { font-size: 11px; color: var(--muted); }
+  .modal-head .mcur { margin-left: auto; font-size: 11.5px; color: var(--periw); white-space: nowrap; }
+  .modal-head .mcur b { color: var(--fg); }
+  .modal-head .mx {
+    cursor: pointer; color: var(--faint); font-size: 18px; line-height: 1; padding: 2px 6px;
+    border-radius: 6px; user-select: none;
+  }
+  .modal-head .mx:hover { color: var(--fg); background: var(--panel2); }
+
+  /* tab + 筛选条共用工具栏 */
+  .modal-bar { display: flex; align-items: center; gap: 8px; padding: 12px 20px 0; flex-wrap: wrap; }
+  .mtab {
+    font-size: 12px; color: var(--muted); padding: 5px 4px; cursor: pointer;
+    border-bottom: 2px solid transparent; user-select: none;
+  }
+  .mtab:hover { color: var(--fg2); }
+  .mtab.on { color: var(--fg); border-bottom-color: var(--blue); font-weight: 600; }
+  .mtab.dis { color: var(--faint); cursor: default; }
+  .mtab.dis:hover { color: var(--faint); }
+  .mbar-sep { flex: 1; }
+
+  .chip-row { display: flex; gap: 8px; padding: 12px 20px 4px; flex-wrap: wrap; }
+  .fchip {
+    font-size: 11.5px; color: var(--fg2); background: var(--field);
+    border: 1px solid var(--border); border-radius: 14px; padding: 5px 14px; cursor: pointer;
+    transition: all .12s; user-select: none;
+  }
+  .fchip:hover { border-color: var(--mauve); }
+  .fchip.on { color: #06122a; background: linear-gradient(135deg, var(--blue), var(--periw)); border-color: transparent; font-weight: 600; }
+
+  .modal-body { overflow: auto; padding: 14px 20px 18px; flex: 1; }
+  .mgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .mempty { color: var(--faint); font-size: 12.5px; text-align: center; padding: 40px 12px; }
+  .mph {
+    color: var(--faint); font-size: 12.5px; text-align: center; padding: 48px 16px;
+    border: 1px dashed var(--border); border-radius: var(--radius-sm);
+  }
+
+  /* 题材卡 */
+  .gcard {
+    background: var(--navy); border: 2px solid var(--border); border-radius: 12px;
+    padding: 13px 14px 12px; cursor: pointer; transition: all .14s; position: relative;
+    display: flex; flex-direction: column; min-height: 118px;
+  }
+  .gcard:hover { border-color: var(--mauve); }
+  .gcard.primary { border-color: var(--blue); background: rgba(74,158,255,.12); }
+  .gcard.sub { border-color: var(--periw); background: rgba(138,127,217,.13); }
+  .gcard .gname { font-size: 14px; font-weight: 600; color: var(--fg); margin-bottom: 5px; }
+  .gcard .gone { font-size: 11.5px; color: var(--muted); line-height: 1.5; flex: 1; }
+  .gcard .gbadge {
+    align-self: flex-end; margin-top: 8px; font-size: 10.5px; font-weight: 600;
+    padding: 2px 9px; border-radius: 9px; border: 1px solid var(--border);
+    color: var(--fg2); background: var(--panel2); cursor: pointer; user-select: none;
+  }
+  .gcard .gbadge:hover { border-color: var(--periw); color: var(--mauve); }
+  .gcard.primary .gbadge { background: var(--blue); color: #06122a; border-color: var(--blue); }
+  .gcard.sub .gbadge { background: var(--periw); color: #06122a; border-color: var(--periw); }
+
+  /* 风格卡（无预览图 → 分类色占位渐变块） */
+  .scard {
+    background: var(--navy); border: 2px solid var(--border); border-radius: 10px;
+    overflow: hidden; cursor: pointer; transition: all .14s; display: flex; flex-direction: column;
+  }
+  .scard:hover { border-color: var(--mauve); }
+  .scard.on { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+  .scard .sthumb {
+    height: 78px; position: relative; display: flex; align-items: flex-start; padding: 7px 9px;
+  }
+  .scard .scat {
+    font-size: 9.5px; font-weight: 700; color: #fff; padding: 2px 8px; border-radius: 7px;
+    background: rgba(0,0,0,.35); backdrop-filter: blur(2px);
+  }
+  .scard .sbody { padding: 9px 11px 11px; }
+  .scard .sname { font-size: 12.5px; font-weight: 600; color: var(--fg); margin-bottom: 4px; }
+  .scard .ssuf { font-size: 10.5px; color: var(--muted); line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .modal-foot {
+    display: flex; align-items: center; gap: 10px; padding: 13px 20px;
+    border-top: 1px solid var(--border-lo);
+  }
+  .modal-foot .fstatus { font-size: 11.5px; color: var(--muted); flex: 1; }
+  .modal-foot .mcancel { background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); }
+  .modal-foot .mcancel:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
 </style>
 </head>
 <body>
@@ -268,6 +374,57 @@
   </div>
 </div>
 
+<!-- ===== 题材选择器模态 ===== -->
+<div class="modal-mask" id="genreMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="选择题材">
+    <div class="modal-head">
+      <span class="mt">选择题材 · GENRE</span>
+      <span class="mhint">点卡片选主题材；点「副 +」叠加副题材（主 + 副 ≤ 3）</span>
+      <span class="mcur" id="genreCur">未选</span>
+      <span class="mx" id="genreClose" title="关闭">✕</span>
+    </div>
+    <div class="modal-body">
+      <div class="mgrid" id="genreGrid"><div class="mempty">加载题材库…</div></div>
+    </div>
+    <div class="modal-foot">
+      <span class="fstatus" id="genreStatus">已用 0 / 3</span>
+      <button class="mcancel" id="genreCancel">取消</button>
+      <button id="genreOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 风格库选择器模态 ===== -->
+<div class="modal-mask" id="styleMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="风格库">
+    <div class="modal-head">
+      <span class="mt">风格库 · STYLE BIBLE</span>
+      <span class="mcur" id="styleCur">当前：未选</span>
+      <span class="mx" id="styleClose" title="关闭">✕</span>
+    </div>
+    <div class="modal-bar" id="styleTabs">
+      <span class="mtab on" data-tab="template">风格库模板</span>
+      <span class="mtab dis" data-tab="custom">自定义</span>
+      <span class="mtab dis" data-tab="ai">AI 生成</span>
+    </div>
+    <div class="chip-row" id="styleCats">
+      <span class="fchip on" data-cat="all">全部</span>
+      <span class="fchip" data-cat="real">真人</span>
+      <span class="fchip" data-cat="2D">2D</span>
+      <span class="fchip" data-cat="3D">3D</span>
+    </div>
+    <div class="modal-body">
+      <div class="mgrid" id="styleGrid"><div class="mempty">加载风格库…</div></div>
+      <div class="mph" id="stylePh" style="display:none">该功能后续支持（自定义 / AI 生成风格）</div>
+    </div>
+    <div class="modal-foot">
+      <span class="fstatus" id="styleStatus">未选风格</span>
+      <button class="mcancel" id="styleCancel">取消</button>
+      <button id="styleOk">确定</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ===== 后端：screenwriter_agent（默认 18430），/ideate/chat 为 SSE ===== */
 const SW_API = new URLSearchParams(location.search).get("sw") || "http://127.0.0.1:18430";
@@ -353,84 +510,240 @@ document.querySelectorAll("#arRow .arb").forEach((b) =>
 document.querySelectorAll(".adv .tog").forEach((t) =>
   t.addEventListener("click", () => $(t.getAttribute("data-adv")).classList.toggle("open")));
 
-/* —— 题材/风格模板选择 ——
-   实拉模板库（域W3）：题材 GET {MEDIA_API}/assets/genres、风格 GET {MEDIA_API}/assets/styles
-   （后端由 F1 域并行建）。读不到 / fetch 失败时回退占位，仅 console 提示，不报错阻断。
-   点「选模板」→ 首次拉库并缓存，之后循环填入下一项。 */
+/* —— 题材/风格模板选择（模态选择器，对齐 PySide6 GenrePickerDialog / StyleBibleDialog） ——
+   契约（固定）：
+     题材 GET {MEDIA_API}/assets/genres/detail → {genres:[{genre_id, display_name, one_liner, satisfaction_weights}]}
+     风格 GET {MEDIA_API}/assets/styles → {default_style_id, styles:[{style_id, category(real|2D|3D), name_cn, prompt_suffix,...}]}
+   读不到 / fetch 失败时回退占位，仅 console 提示，不报错阻断。 */
 
-/* 回退占位（后端就绪后被实拉数据覆盖；保证离线也有可用结构） */
+const STACK_MAX = 3;   // 题材主+副上限（对齐 genre_templates.STACK_MAX）
+
+/* 回退占位（后端就绪后被实拉数据覆盖；保证离线也有可用结构，不造假预览图） */
 const GENRE_FALLBACK = [
-  { id: "short_revenge", name: "短剧", sub: ["逆袭爽"], meta: "爽点：打脸40·逆袭30 / 节奏：每分钟4爆点（占位）" },
-  { id: "short_sweet", name: "短剧", sub: ["甜宠"], meta: "爽点：心动30·宠溺40 / 节奏：每集1高甜钩（占位）" },
-  { id: "ancient", name: "古风", sub: ["权谋"], meta: "爽点：算计·反转 / 节奏：步步为营（占位）" },
+  { genre_id: "short-drama", display_name: "短剧", one_liner: "强冲突 + 高频反转的竖屏爽剧（占位）" },
+  { genre_id: "ad", display_name: "商业广告", one_liner: "卖点前置、情绪驱动的短广告（占位）" },
+  { genre_id: "vlog", display_name: "Vlog", one_liner: "第一人称生活记录与叙事（占位）" },
+  { genre_id: "mv", display_name: "MV", one_liner: "音乐节奏驱动的视觉表达（占位）" },
 ];
 const STYLE_FALLBACK = [
-  { ref: "real/cinematic-warm-v1", name: "真人 · 电影感暖调", meta: "real/cinematic-warm-v1 · 浅景深胶片颗粒（占位）" },
-  { ref: "real/cinematic-cool-v1", name: "真人 · 冷峻夜景", meta: "real/cinematic-cool-v1 · 高对比霓虹（占位）" },
-  { ref: "2d/anime-soft-v1", name: "2D · 日系柔光", meta: "2d/anime-soft-v1 · 干净线条柔光（占位）" },
+  { style_id: "real/cinematic-warm-v1", category: "real", name_cn: "真人 · 电影感暖调", prompt_suffix: "浅景深, 胶片颗粒, 暖调（占位）" },
+  { style_id: "2d/anime-soft-v1", category: "2D", name_cn: "2D · 日系柔光", prompt_suffix: "干净线条, 柔光, 高饱和（占位）" },
+  { style_id: "3d/pixar-v1", category: "3D", name_cn: "3D · 高品质渲染", prompt_suffix: "次表面散射, 影视级渲染（占位）" },
 ];
 
-/* 把后端 genre 记录归一为本地 chip 结构（容忍多种字段名） */
-function normGenre(g) {
-  const id = g.id || g.genre_id || g.genre || "";
-  const name = g.name || g.display_name || g.title || id || "未命名题材";
-  let sub = g.sub || g.subgenre || g.subgenres || g.tags || [];
-  if (typeof sub === "string") sub = sub.split(/[,，·]/).map((s) => s.trim()).filter(Boolean);
-  if (!Array.isArray(sub)) sub = [];
-  const meta = g.meta || g.summary || g.desc || g.description ||
-    [g.beats || g.beat_matrix, g.pace || g.rhythm].filter(Boolean).join(" / ") || "";
-  return { id, name, sub, meta };
-}
-/* 把后端 style 记录归一为本地 chip 结构 */
-function normStyle(s) {
-  const ref = s.ref || s.style_id || s.id || "";
-  const name = s.name || s.name_cn || s.display_name || ref || "未命名风格";
-  const meta = s.meta || s.summary || s.desc || s.suffix || s.prompt_suffix ||
-    [ref, s.category].filter(Boolean).join(" · ") || ref;
-  return { ref, name, meta };
-}
+/* 分类徽标配色（无预览图字段 → 用分类色占位渐变块，绝不造假图） */
+const CAT_LABEL = { real: "真人", "2D": "2D", "3D": "3D" };
+const CAT_GRAD = {
+  real: "linear-gradient(135deg,#3a4a7a,#5a6fb0)",
+  "2D": "linear-gradient(135deg,#7a4a8a,#b06cc0)",
+  "3D": "linear-gradient(135deg,#2f6a6a,#4ec98f)",
+  _default: "linear-gradient(135deg,var(--blue),var(--periw))",
+};
 
 /* 模板库缓存 + 实拉（失败回退占位） */
 const lib = { genres: null, styles: null };
-async function loadLib(kind) {
-  if (lib[kind]) return lib[kind];
-  const fallback = kind === "genres" ? GENRE_FALLBACK : STYLE_FALLBACK;
-  const norm = kind === "genres" ? normGenre : normStyle;
+async function loadGenres() {
+  if (lib.genres) return lib.genres;
   try {
-    const r = await fetch(MEDIA_API + "/assets/" + kind);
+    const r = await fetch(MEDIA_API + "/assets/genres/detail");
     if (!r.ok) throw new Error("HTTP " + r.status);
     const j = await r.json();
-    /* 容忍 {genres:[...]}/{styles:[...]}/{items:[...]} 或裸数组 */
-    const arr = Array.isArray(j) ? j : (j[kind] || j.items || j.data || []);
-    const mapped = (Array.isArray(arr) ? arr : []).map(norm).filter((x) => x.name);
-    lib[kind] = mapped.length ? mapped : fallback;
+    const arr = Array.isArray(j) ? j : (j.genres || j.items || j.data || []);
+    const mapped = (Array.isArray(arr) ? arr : []).map((g) => ({
+      genre_id: g.genre_id || g.id || g.genre || "",
+      display_name: g.display_name || g.name || g.title || g.genre_id || "未命名题材",
+      one_liner: g.one_liner || (g.identity && g.identity.one_liner) || g.summary || g.desc || "",
+    })).filter((g) => g.genre_id);
+    lib.genres = mapped.length ? mapped : GENRE_FALLBACK;
   } catch (e) {
-    console.warn("[ideate] 模板库 /assets/" + kind + " 不可用，回退占位：", e.message);
-    lib[kind] = fallback;
+    console.warn("[ideate] /assets/genres/detail 不可用，回退占位：", e.message);
+    lib.genres = GENRE_FALLBACK;
   }
-  return lib[kind];
+  return lib.genres;
+}
+async function loadStyles() {
+  if (lib.styles) return lib.styles;
+  try {
+    const r = await fetch(MEDIA_API + "/assets/styles");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    const arr = Array.isArray(j) ? j : (j.styles || j.items || j.data || []);
+    const mapped = (Array.isArray(arr) ? arr : []).map((s) => ({
+      style_id: s.style_id || s.ref || s.id || "",
+      category: s.category || "",
+      name_cn: s.name_cn || s.name || s.display_name || s.style_id || "未命名风格",
+      prompt_suffix: (s.prompt_suffix || s.suffix || "").trim(),
+    })).filter((s) => s.style_id);
+    lib.styles = mapped.length ? mapped : STYLE_FALLBACK;
+  } catch (e) {
+    console.warn("[ideate] /assets/styles 不可用，回退占位：", e.message);
+    lib.styles = STYLE_FALLBACK;
+  }
+  return lib.styles;
 }
 
-let _gp = 0, _sp = 0;
+/* —— 模态通用：遮罩点击关闭 / Esc 关闭 —— */
+let _activeModal = null;
+function openModal(maskEl) {
+  _activeModal = maskEl;
+  maskEl.classList.add("on");
+}
+function closeModal(maskEl) {
+  maskEl.classList.remove("on");
+  if (_activeModal === maskEl) _activeModal = null;
+}
+function bindMask(maskEl) {
+  maskEl.addEventListener("click", (e) => { if (e.target === maskEl) closeModal(maskEl); });
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && _activeModal) closeModal(_activeModal); });
+bindMask($("genreMask"));
+bindMask($("styleMask"));
+
+/* ============== 题材选择器（主 1 + 副 ≤2，主+副 ≤ STACK_MAX；主不可同时为副） ============== */
+const gpick = { primary: "", subs: [], list: [] };
+
+function gUsed() { return (gpick.primary ? 1 : 0) + gpick.subs.length; }
+
+function renderGenreGrid() {
+  const grid = $("genreGrid");
+  if (!gpick.list.length) { grid.innerHTML = `<div class="mempty">题材库为空</div>`; return; }
+  grid.innerHTML = "";
+  gpick.list.forEach((g) => {
+    const isPrimary = g.genre_id === gpick.primary;
+    const isSub = gpick.subs.includes(g.genre_id);
+    const el = document.createElement("div");
+    el.className = "gcard" + (isPrimary ? " primary" : isSub ? " sub" : "");
+    el.innerHTML = `
+      <div class="gname">${esc(g.display_name)}</div>
+      <div class="gone">${esc(g.one_liner)}</div>
+      <span class="gbadge" data-g="${esc(g.genre_id)}">${isPrimary ? "主题材" : isSub ? "副 ✓" : "副 +"}</span>`;
+    /* 卡片主区 → 设为主题材 */
+    el.addEventListener("click", () => gSetPrimary(g.genre_id));
+    /* 右下角徽标 → 切换副题材（阻止冒泡到主区） */
+    el.querySelector(".gbadge").addEventListener("click", (ev) => { ev.stopPropagation(); gToggleSub(g.genre_id); });
+    grid.appendChild(el);
+  });
+  const pName = (gpick.list.find((x) => x.genre_id === gpick.primary) || {}).display_name || "未选";
+  $("genreCur").innerHTML = `主：<b>${esc(pName)}</b>${gpick.subs.length ? " +" + gpick.subs.length : ""}`;
+  $("genreStatus").textContent = `主题材：${gpick.primary ? esc(pName) : "未选"}　副题材：${gpick.subs.length} 个　（已用 ${gUsed()} / ${STACK_MAX}）`;
+}
+function gSetPrimary(id) {
+  gpick.primary = id;
+  gpick.subs = gpick.subs.filter((s) => s !== id);   // 主不可同时为副
+  renderGenreGrid();
+}
+function gToggleSub(id) {
+  if (id === gpick.primary) return;                  // 主不可作副
+  const i = gpick.subs.indexOf(id);
+  if (i >= 0) { gpick.subs.splice(i, 1); renderGenreGrid(); return; }
+  if (gUsed() >= STACK_MAX) return;                  // 超限拒绝
+  gpick.subs.push(id);
+  renderGenreGrid();
+}
+
 $("pickGenreBtn").addEventListener("click", async () => {
-  const list = await loadLib("genres");
-  if (!list.length) return;
-  const g = list[_gp++ % list.length];
-  state.genre = { id: g.id, name: g.name, sub: [...g.sub], meta: g.meta };
-  $("genreChip").textContent = g.name;
-  const sub = $("genreSubChip");
-  if (g.sub.length) { sub.textContent = "+" + g.sub.join("·"); sub.style.display = ""; }
-  else sub.style.display = "none";
-  $("genreMeta").textContent = g.meta || `已选 ${g.name}`;
+  /* 用已选状态初始化弹窗 */
+  gpick.list = await loadGenres();
+  gpick.primary = state.genre.id || "";
+  /* sub 存的是 display_name（chip 展示），回填时映射回 genre_id */
+  const nameToId = {};
+  gpick.list.forEach((g) => { nameToId[g.display_name] = g.genre_id; });
+  gpick.subs = (state.genre.sub || []).map((n) => nameToId[n] || n).filter((id) => id !== gpick.primary && gpick.list.some((g) => g.genre_id === id));
+  renderGenreGrid();
+  openModal($("genreMask"));
+});
+$("genreClose").addEventListener("click", () => closeModal($("genreMask")));
+$("genreCancel").addEventListener("click", () => closeModal($("genreMask")));
+$("genreOk").addEventListener("click", () => {
+  const p = gpick.list.find((g) => g.genre_id === gpick.primary);
+  if (!p) { closeModal($("genreMask")); return; }   // 未选主 → 不写，直接关
+  const subNames = gpick.subs.map((id) => (gpick.list.find((g) => g.genre_id === id) || {}).display_name).filter(Boolean);
+  state.genre = {
+    id: p.genre_id,
+    name: p.display_name,
+    sub: subNames,
+    meta: p.one_liner || `已选 ${p.display_name}`,
+  };
+  /* 刷新左栏 chip */
+  $("genreChip").textContent = p.display_name;
+  const subChip = $("genreSubChip");
+  if (subNames.length) { subChip.textContent = "+" + subNames.join("·"); subChip.style.display = ""; }
+  else subChip.style.display = "none";
+  $("genreMeta").textContent = state.genre.meta;
+  closeModal($("genreMask"));
   refreshInjection(); saveState();
 });
+
+/* ============== 风格库选择器（tab + 分类筛选 + 卡片单选） ============== */
+const spick = { selected: "", category: "all", list: [] };
+
+function renderStyleGrid() {
+  const grid = $("styleGrid");
+  const filtered = spick.category === "all" ? spick.list : spick.list.filter((s) => s.category === spick.category);
+  if (!filtered.length) { grid.innerHTML = `<div class="mempty">该分类暂无风格</div>`; return; }
+  grid.innerHTML = "";
+  filtered.forEach((s) => {
+    const grad = CAT_GRAD[s.category] || CAT_GRAD._default;
+    const el = document.createElement("div");
+    el.className = "scard" + (s.style_id === spick.selected ? " on" : "");
+    el.innerHTML = `
+      <div class="sthumb" style="background:${grad}"><span class="scat">${esc(CAT_LABEL[s.category] || s.category || "风格")}</span></div>
+      <div class="sbody">
+        <div class="sname">${esc(s.name_cn)}</div>
+        <div class="ssuf">${esc(s.prompt_suffix || s.style_id)}</div>
+      </div>`;
+    el.addEventListener("click", () => { spick.selected = s.style_id; renderStyleGrid(); });
+    grid.appendChild(el);
+  });
+  const cur = spick.list.find((x) => x.style_id === spick.selected);
+  $("styleCur").innerHTML = "当前：" + (cur ? `<b>${esc(cur.name_cn)}</b>` : "未选");
+  $("styleStatus").textContent = cur ? `已选：${esc(cur.name_cn)}（${esc(cur.style_id)}）` : "未选风格";
+}
+
+/* tab 切换：模板（实）/ 自定义·AI（占位） */
+$("styleTabs").querySelectorAll(".mtab").forEach((t) => {
+  t.addEventListener("click", () => {
+    const tab = t.getAttribute("data-tab");
+    $("styleTabs").querySelectorAll(".mtab").forEach((x) => x.classList.toggle("on", x === t));
+    const isTemplate = tab === "template";
+    $("styleGrid").style.display = isTemplate ? "" : "none";
+    $("styleCats").style.display = isTemplate ? "" : "none";
+    $("stylePh").style.display = isTemplate ? "none" : "";
+  });
+});
+/* 分类筛选 chip */
+$("styleCats").querySelectorAll(".fchip").forEach((c) => {
+  c.addEventListener("click", () => {
+    spick.category = c.getAttribute("data-cat");
+    $("styleCats").querySelectorAll(".fchip").forEach((x) => x.classList.toggle("on", x === c));
+    renderStyleGrid();
+  });
+});
+
 $("pickStyleBtn").addEventListener("click", async () => {
-  const list = await loadLib("styles");
-  if (!list.length) return;
-  const s = list[_sp++ % list.length];
-  state.style = { ref: s.ref, name: s.name, meta: s.meta };
-  $("styleChip").textContent = s.name;
-  $("styleMeta").textContent = s.meta || `已选 ${s.name}`;
+  spick.list = await loadStyles();
+  spick.selected = state.style.ref || "";
+  /* 默认回到「全部」分类 + 模板 tab */
+  spick.category = "all";
+  $("styleCats").querySelectorAll(".fchip").forEach((x) => x.classList.toggle("on", x.getAttribute("data-cat") === "all"));
+  $("styleTabs").querySelectorAll(".mtab").forEach((x) => x.classList.toggle("on", x.getAttribute("data-tab") === "template"));
+  $("styleGrid").style.display = ""; $("styleCats").style.display = ""; $("stylePh").style.display = "none";
+  renderStyleGrid();
+  openModal($("styleMask"));
+});
+$("styleClose").addEventListener("click", () => closeModal($("styleMask")));
+$("styleCancel").addEventListener("click", () => closeModal($("styleMask")));
+$("styleOk").addEventListener("click", () => {
+  const s = spick.list.find((x) => x.style_id === spick.selected);
+  if (!s) { closeModal($("styleMask")); return; }   // 未选 → 不写
+  state.style = {
+    ref: s.style_id,
+    name: s.name_cn,
+    meta: [s.style_id, CAT_LABEL[s.category] || s.category, s.prompt_suffix].filter(Boolean).join(" · "),
+  };
+  $("styleChip").textContent = s.name_cn;
+  $("styleMeta").textContent = state.style.meta;
+  closeModal($("styleMask"));
   refreshInjection(); saveState();
 });
 
