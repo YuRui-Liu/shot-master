@@ -27,6 +27,12 @@ from pydantic import BaseModel
 from drama_shot_master.core import tts_profiles as P
 from drama_shot_master.providers import tts_builder as B
 from drama_shot_master.providers import tts_submit
+from drama_shot_master.providers.runninghub import (
+    RunningHubInvalidSpec,
+    RunningHubTaskFailed,
+    RunningHubUnavailable,
+    RunningHubUploadError,
+)
 
 router = APIRouter(prefix="/tts")
 
@@ -140,8 +146,13 @@ def synthesize(req: SynthesizeRequest):
         raise HTTPException(status_code=400, detail="out_dir 不能为空")
     try:
         return {"output": _do_synthesize(req, Path(req.out_dir))}
-    except ValueError as e:
+    except (ValueError, RunningHubInvalidSpec) as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except (RunningHubUnavailable, RunningHubUploadError,
+            RunningHubTaskFailed) as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/preview")
@@ -150,5 +161,10 @@ def preview(req: SynthesizeRequest):
     tmp = Path(tempfile.mkdtemp(prefix="tts_preview_"))
     try:
         return {"output": _do_synthesize(req, tmp)}
-    except ValueError as e:
+    except (ValueError, RunningHubInvalidSpec) as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except (RunningHubUnavailable, RunningHubUploadError,
+            RunningHubTaskFailed) as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))

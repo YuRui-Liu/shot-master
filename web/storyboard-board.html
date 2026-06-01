@@ -167,6 +167,12 @@
     padding: 2px 9px; border-radius: 9px; font-size: 11px; font-weight: 600;
     background: rgba(78,201,143,.18); color: var(--done); border: 1px solid #2f6b50;
   }
+  .preview .badge-recover {
+    position: absolute; top: 30px; left: 8px;
+    padding: 2px 9px; border-radius: 9px; font-size: 11px; font-weight: 600;
+    background: rgba(255,180,0,.14); color: var(--warn); border: 1px solid #6e5a3a;
+    z-index: 2; pointer-events: none;
+  }
   .preview .ph {
     margin-top: 46%; color: var(--faint); font-size: 12px; text-align: center; line-height: 1.7;
   }
@@ -1319,7 +1325,8 @@
      自由模式（批处理工具集）—— 纯前端切换 + 占位交互
      真机联调由主控做：出图/去白边/拼图/拆图 接 MEDIA_API（默认 18450）
      ============================================================ */
-  const qs = new URLSearchParams(location.search);
+  const SB_MODE_KEY = "nuomi.sbMode." + (PROJECT || "default");
+const qs = new URLSearchParams(location.search);
   const MEDIA_API = qs.get("media") || "http://127.0.0.1:18450";   // media_agent /imggen /imaging
   const SW_API = qs.get("sw") || "http://127.0.0.1:18430";          // screenwriter_agent
   void SW_API; // 自由模式批处理走 MEDIA_API；SW_API 预留
@@ -1328,13 +1335,26 @@
   const modeSeg = $("modeSeg");
   modeSeg.addEventListener("click", (e) => {
     const b = e.target.closest(".mode-btn"); if (!b) return;
+    const mode = b.dataset.mode;
     modeSeg.querySelectorAll(".mode-btn").forEach(x => x.classList.toggle("active", x === b));
-    const free = b.dataset.mode === "free";
+    const free = mode === "free";
     $("storyboardView").hidden = free;
     $("freeView").hidden = !free;
     // 分镜视角专属工具栏（选镜/一键分镜/拆分镜）仅在分镜视角显示
     $("sbViewTools").style.display = free ? "none" : "";
+    try { localStorage.setItem(SB_MODE_KEY, mode); } catch (_) {}
   });
+  // 初始化时从 localStorage 恢复模式（默认 storyboard）
+  (function () {
+    let saved = null;
+    try { saved = localStorage.getItem(SB_MODE_KEY); } catch (_) {}
+    if (saved === "free") {
+      modeSeg.querySelectorAll(".mode-btn").forEach(x => x.classList.toggle("active", x.dataset.mode === "free"));
+      $("storyboardView").hidden = true;
+      $("freeView").hidden = false;
+      $("sbViewTools").style.display = "none";
+    }
+  })();
 
   // ---- 批处理：工具定义（参数面板随工具切换；选择态 multi / order）----
   const TOOLS = {
@@ -2364,6 +2384,43 @@
 
   loadTasks();
   renderTasks();
+
+  // 后台任务韧性：发现 running 任务 → 自动扫描产物，预览区显示恢复指示器
+  (function recoverRunningTasks() {
+    const running = tasks.filter(t => t.status === "running");
+    if (!running.length) return;
+
+    // 取最新 running 任务尝试应用到当前编辑器
+    const latest = running.reduce((a, b) => (a.updatedAt || 0) > (b.updatedAt || 0) ? a : b);
+    if (latest) {
+      applyTaskToEditor(latest);
+      activeTaskId = latest.id;
+      renderTasks();
+    }
+
+    // 在当前镜头预览区显示恢复指示器
+    const pv = $("preview");
+    if (pv) {
+      const badge = document.createElement("span");
+      badge.className = "badge-recover";
+      badge.textContent = running.length > 1 ? ("恢复 " + running.length + " 任务") : "恢复中…";
+      badge.id = "badgeRecover";
+      pv.appendChild(badge);
+    }
+
+    // 触发重载预览以发现已完成产物
+    reloadShotPreview().then(() => {
+      // 产物已显现，将 running 转为 done（若图已显示）
+      const pv2 = $("preview");
+      const hasImg = pv2 && pv2.querySelector("img._out");
+      running.forEach(t => {
+        if (hasImg) setTaskStatus(t.id, "done");
+        else setTaskStatus(t.id, "draft"); // 无产物回退草稿
+      });
+      const badge = $("badgeRecover");
+      if (badge) badge.remove();
+    });
+  })();
 </script>
 </body>
 </html>

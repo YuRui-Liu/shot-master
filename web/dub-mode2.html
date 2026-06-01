@@ -405,6 +405,7 @@
         <div class="m1-task-switch">
           <span class="lbl">并行任务</span>
           <select id="m1TaskSelect"></select>
+          <button class="add" id="m1DelTask" title="删除当前任务" style="color:var(--err);">✕ 删除</button>
           <button class="add" id="m1AddTask" title="新增并行配音任务（最多 5 个）">＋ 新任务</button>
           <span class="pcount" id="m1TaskCount">1/5</span>
         </div>
@@ -512,6 +513,7 @@
     <div class="taskbar">
       <span class="lbl">⛁ 并行任务</span>
       <select class="task-select" id="taskSelect"></select>
+      <button id="taskDelBtn" title="删除当前任务" style="background:transparent;color:var(--err);border:1px solid var(--err);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px;">✕</button>
       <span class="cap">最多 <b>5</b> 个并行任务 · 切换即聚焦该任务上下文</span>
     </div>
 
@@ -658,7 +660,7 @@ const CLONE_LANGUAGE = "中文";
 const ttsState = {};
 
 /* ===== 并行任务（最多 5 个；切换当前任务） ===== */
-const PARALLEL_TASKS = [
+let PARALLEL_TASKS = [
   { id: "t1", name: "任务A · 都市悬疑《废铁》", ep: "第1集", shots: 3 },
   { id: "t2", name: "任务B · 古风《长安雨》", ep: "第2集", shots: 4 },
   { id: "t3", name: "任务C · 校园《晚自习》", ep: "第1集", shots: 2 }
@@ -705,6 +707,9 @@ function renderTasks() {
   sel.innerHTML = PARALLEL_TASKS
     .map((t, i) => `<option value="${t.id}" ${i === 0 ? "selected" : ""}>${t.name} · ${t.ep} · ${t.shots} 镜</option>`)
     .join("");
+  // 更新删除按钮状态
+  const delBtn = document.getElementById("taskDelBtn");
+  if (delBtn) delBtn.style.display = PARALLEL_TASKS.length <= 1 ? "none" : "";
 }
 
 function renderShots() {
@@ -1216,12 +1221,20 @@ function applyMode(mode) {
     const el = document.getElementById(id);
     if (el) el.style.display = isM1 ? "none" : "";
   });
+  try { localStorage.setItem(DM_LS_KEY, mode); } catch (_) {}
 }
 function wireModes() {
   const m1 = document.getElementById("m1");
   const m2 = document.getElementById("m2");
   m1.addEventListener("click", () => { m1.classList.add("on"); m2.classList.remove("on"); applyMode("m1"); });
   m2.addEventListener("click", () => { m2.classList.add("on"); m1.classList.remove("on"); applyMode("m2"); });
+  // 初始化时从 localStorage 恢复模式（默认 m2）
+  (function () {
+    let saved = null;
+    try { saved = localStorage.getItem(DM_LS_KEY); } catch (_) {}
+    if (saved === "m1") { m1.classList.add("on"); m2.classList.remove("on"); applyMode("m1"); }
+    else { m2.classList.add("on"); m1.classList.remove("on"); applyMode("m2"); }
+  })();
 }
 
 /* ===================================================================== *
@@ -1230,6 +1243,7 @@ function wireModes() {
  * - 试听 → POST {MEDIA_API}/tts/preview；合成 → /tts/synthesize（out_dir=保存路径或 PROJECT/dub，base_name=前缀）。
  * - clone 入参对齐 media_agent/routes/tts.py SynthesizeRequest。
  * ===================================================================== */
+const DM_LS_KEY = "nuomi.dubMode." + (PROJECT_DIR || "default");
 const M1_MAX_TASKS = 5;
 function m1NewTask(i) {
   return {
@@ -1459,6 +1473,15 @@ function wireMode1() {
     if (idx >= 0 && idx < m1Tasks.length) { m1Cur = idx; m1Load(); m1RenderTaskSelect(); }
   });
 
+  // 删除当前任务（至少保留1个）
+  m1El("m1DelTask").addEventListener("click", () => {
+    if (m1Tasks.length <= 1) return;
+    if (!confirm("确定删除任务「" + ((m1Tasks[m1Cur] && m1Tasks[m1Cur].name) || ("任务 " + (m1Cur + 1))) + "」？")) return;
+    m1Tasks.splice(m1Cur, 1);
+    if (m1Cur >= m1Tasks.length) m1Cur = m1Tasks.length - 1;
+    m1RenderTaskSelect(); m1Load();
+  });
+
   // 新任务（≤5）
   m1El("m1AddTask").addEventListener("click", () => {
     if (m1Tasks.length >= M1_MAX_TASKS) return;
@@ -1681,13 +1704,24 @@ function wirePreview() {
 renderTasks();
 renderShots();
 wirePreview();
+
+// 模式2 删除并行任务
+document.getElementById("taskDelBtn").addEventListener("click", () => {
+  if (PARALLEL_TASKS.length <= 1) return;
+  const sel = document.getElementById("taskSelect");
+  const curId = sel.value;
+  const idx = PARALLEL_TASKS.findIndex(t => t.id === curId);
+  if (idx < 0) return;
+  if (!confirm("确定删除任务「" + PARALLEL_TASKS[idx].name + "」？")) return;
+  PARALLEL_TASKS.splice(idx, 1);
+  renderTasks();
+});
 wireExamples();
 wireCloneControls();
 wireActions();
 wireModes();
 wireMode1();
 wireOneClick();
-applyMode("m2");   // 默认模式2（与 #m2.on 一致）
 /* 切集失效集级音色设计缓存（下次「生成」重新拉取该集 audio_prompt） */
 document.getElementById("epSelect").addEventListener("change", () => {
   _audioPromptCache = { ep: null, voices: null, sfx: null, inflight: null };

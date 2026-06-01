@@ -860,7 +860,14 @@ function wireModes() {
     m1.classList.toggle("on", one); m2.classList.toggle("on", !one);
     p1.classList.toggle("show", one); p2.classList.toggle("show", !one);
     if (note) note.style.visibility = one ? "hidden" : "visible";
+    try { localStorage.setItem(VM_LS_KEY, n === 1 ? "m1" : "m2"); } catch (_) {}
   }
+  // 初始化时从 localStorage 恢复模式（默认 m1）
+  (function () {
+    let saved = null;
+    try { saved = localStorage.getItem(VM_LS_KEY); } catch (_) {}
+    if (saved === "m2") setMode(2);
+  })();
   m1.addEventListener("click", () => setMode(1));
   m2.addEventListener("click", () => setMode(2));
 }
@@ -870,6 +877,7 @@ function wireModes() {
    状态持久化到 localStorage(key nuomi.director.<project>)。
    段内部长度 = 秒（duration），提交时按 fps 换算为帧。 ================ */
 let TIME_SCALE = 80;                 // 像素/秒，ctrl+滚轮缩放
+const VM_LS_KEY = "nuomi.videoMode." + (PROJECT_DIR || "default");
 const SNAP_THRESHOLD = 6;
 const DIR_LS_KEY = "nuomi.director." + (PROJECT_DIR || "default");
 
@@ -893,6 +901,7 @@ const dirState = {
   epsilon: 0.5,
   workflow_key: "director",          // director | hd_director
   timeUnit: "sec",                   // sec | frame
+  pending: [],                       // [{id, slotId, startedAt}] background task resilience
 };
 
 /* ---------- 持久化 ---------- */
@@ -905,7 +914,7 @@ function dirSave() {
     custom_width: dirState.custom_width, custom_height: dirState.custom_height,
     noise_seed: dirState.noise_seed, filename_prefix: dirState.filename_prefix,
     epsilon: dirState.epsilon, workflow_key: dirState.workflow_key, timeUnit: dirState.timeUnit,
-    selectedClipId: dirState.selectedClipId,
+    selectedClipId: dirState.selectedClipId, pending: dirState.pending,
   })); } catch (e) {}
 }
 function dirLoad() {
@@ -930,6 +939,7 @@ function dirLoad() {
     workflow_key: d.workflow_key === "hd_director" ? "hd_director" : "director",
     timeUnit: d.timeUnit === "frame" ? "frame" : "sec",
     selectedClipId: d.selectedClipId != null ? d.selectedClipId : null,
+    pending: Array.isArray(d.pending) ? d.pending : [],
   });
 }
 
@@ -1404,6 +1414,9 @@ function translatePlaceholder(target, kind) {
 function wireDirector() {
   dirLoad();
 
+  // 后台任务韧性：检查未完成的 pending 记录，扫描产物恢复
+  if (dirState.pending.length) recoverPendingTasks();
+
   // 工作流下拉
   const wf = document.getElementById("workflowSelect");
   wf.value = modeToWf(dirState.workflow_key);
@@ -1552,6 +1565,39 @@ function setStatus(kind, text) {
   el.textContent = text;
 }
 
+/* 后台任务韧性：扫描 video/ 目录发现已完成产物，清除已恢复的 pending */
+async function recoverPendingTasks() {
+  const pending = dirState.pending.filter(p => p.kind === "dirGenerateAll");
+  if (!pending.length) { dirState.pending = []; dirSave(); return; }
+
+  setStatus("busy", "恢复未完成的任务…");
+  try {
+    const qp = new URLSearchParams({ project: PROJECT_DIR, sub: "video", ext: "mp4" });
+    const r = await fetch(MEDIA_API + "/project/clips?" + qp.toString());
+    const j = (r && r.ok) ? await r.json().catch(() => null) : null;
+    const files = (j && Array.isArray(j.files)) ? j.files : [];
+
+    if (files.length) {
+      const latest = files.sort((a, b) => {
+        const na = (a && a.mtime) || (a && a.name) || "";
+        const nb = (b && b.mtime) || (b && b.name) || "";
+        return String(nb).localeCompare(String(na));
+      })[0];
+      const slot = document.getElementById("dirResult");
+      renderVideoOk(slot, { output: latest.path || latest });
+      setStatus("idle", "已恢复：上次生成产物可见");
+    }
+  } catch (_) {}
+
+  dirState.pending = dirState.pending.filter(p => p.kind !== "dirGenerateAll");
+  dirSave();
+  if (dirState.pending.length) setStatus("idle", "空闲");
+  else {
+    const el = document.getElementById("statusText");
+    if (el && el.classList.contains("busy")) { el.className = "status idle"; el.textContent = "空闲"; }
+  }
+}
+
 async function dirGenerateAll() {
   const btn = document.getElementById("btnSubmit");
   const slot = document.getElementById("dirResult");
@@ -1562,6 +1608,12 @@ async function dirGenerateAll() {
   const orig = btn.textContent;
   btn.textContent = "⏳ 生成中…"; setStatus("busy", "生成中…（整条时间轴，耗时较长）");
   slot.innerHTML = "";
+
+  // 后台任务韧性：写入 pending 记录，页面重载后可扫描产物恢复
+  const pendId = genId();
+  dirState.pending.push({ id: pendId, kind: "dirGenerateAll", startedAt: performance.now() });
+  dirSave();
+
   try {
     const res = await runVideoLtx({ __timeline: true, body: dirBuildBody() });
     renderVideoOk(slot, res);
@@ -1570,6 +1622,10 @@ async function dirGenerateAll() {
     renderVideoErr(slot, err);
     btn.textContent = "⚠ 生成失败"; setStatus("err", (err && (err.hint || err.message)) || "生成失败");
   }
+
+  dirState.pending = dirState.pending.filter(p => p.id !== pendId);
+  dirSave();
+
   setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.dataset.busy = ""; setStatus("idle", "空闲"); }, 2000);
 }
 
@@ -1904,14 +1960,24 @@ function wireMode2Extract() {
 const MAX_TASKS = 5;
 const taskState = { tasks: [{ id: 1, name: "任务1" }], current: 1, nextId: 2 };
 
+function removeTask(id) {
+  if (taskState.tasks.length <= 1) return;
+  taskState.tasks = taskState.tasks.filter(t => t.id !== id);
+  if (id === taskState.current) taskState.current = taskState.tasks[0].id;
+  refreshTaskHeader(); renderTaskMenu();
+}
 function renderTaskMenu() {
   const menu = document.getElementById("taskMenu");
   const atMax = taskState.tasks.length >= MAX_TASKS;
+  const onlyOne = taskState.tasks.length <= 1;
   const opts = taskState.tasks.map((t) => {
     const on = t.id === taskState.current;
+    const delBtn = (!on && !onlyOne)
+      ? `<span style="margin-left:auto;color:var(--err);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;" data-del="${t.id}" title="删除任务">✕</span>`
+      : "";
     return `<div class="opt${on ? " active" : ""}" data-task="${t.id}">
       <span class="tick">${on ? "✓" : ""}</span><span>${t.name}</span>
-      <span class="sub">${on ? "当前" : "切换"}</span></div>`;
+      <span class="sub">${on ? "当前" : "切换"}</span>${delBtn}</div>`;
   }).join("");
   menu.innerHTML = `${opts}
     <div class="sep-line"></div>
@@ -1919,7 +1985,19 @@ function renderTaskMenu() {
       <span class="tick">＋</span><span>新建并行任务</span></div>
     <div class="hint">已达上限：最多 ${MAX_TASKS} 个并行任务</div>`;
   menu.querySelectorAll(".opt[data-task]").forEach((el) => {
-    el.addEventListener("click", () => { switchTask(parseInt(el.getAttribute("data-task"), 10)); closeTaskMenu(); });
+    el.addEventListener("click", (e) => {
+      // 如果点击的是删除按钮，不执行切换
+      if (e.target.closest("[data-del]")) return;
+      switchTask(parseInt(el.getAttribute("data-task"), 10)); closeTaskMenu();
+    });
+  });
+  // 绑定删除按钮
+  menu.querySelectorAll("[data-del]").forEach((del) => {
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeTask(parseInt(del.getAttribute("data-del"), 10));
+      closeTaskMenu();
+    });
   });
   const addBtn = document.getElementById("taskAdd");
   if (!atMax) addBtn.addEventListener("click", addTask);
