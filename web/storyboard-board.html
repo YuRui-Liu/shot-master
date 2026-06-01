@@ -294,6 +294,75 @@
   .btnrow .br-sp { flex: 1; }
   .vhint { font-size: 11.5px; color: var(--warn); }
   .vhint.ok { color: var(--done); }
+
+  /* ===== 出图参考图区（图生图 / @标签）===== */
+  .refimg-row { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .refimg-card {
+    position: relative; width: 78px; flex: none;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--field); padding: 5px; cursor: pointer;
+  }
+  .refimg-card:hover { border-color: var(--blue-dim); }
+  .refimg-card .thumb {
+    width: 100%; aspect-ratio: 1/1; border-radius: 4px; overflow: hidden;
+    background: linear-gradient(135deg, #243a5a, #3a2746) center/cover no-repeat;
+  }
+  .refimg-card .tag {
+    display: block; margin-top: 4px; font-size: 11px; color: var(--blue);
+    text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .refimg-card .ops {
+    position: absolute; top: 2px; right: 2px; display: flex; gap: 3px; opacity: 0; transition: opacity .12s;
+  }
+  .refimg-card:hover .ops { opacity: 1; }
+  .refimg-card .op {
+    width: 18px; height: 18px; border-radius: 4px; font-size: 11px; line-height: 18px;
+    text-align: center; background: rgba(8,9,16,.78); color: var(--fg2); border: 1px solid var(--border);
+  }
+  .refimg-card .op:hover { color: var(--blue); border-color: var(--blue-dim); }
+  .refimg-add {
+    width: 78px; aspect-ratio: 1 / 1.18; flex: none;
+    border: 1px dashed var(--border); border-radius: var(--radius-sm);
+    background: var(--field); color: var(--muted); font-size: 11px; line-height: 1.4;
+    display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer;
+  }
+  .refimg-add:hover { border-color: var(--blue-dim); color: var(--blue); }
+  .refimg-mode {
+    font-size: 11px; color: var(--periw); border: 1px solid #443c66;
+    background: rgba(139,127,217,.12); border-radius: 9px; padding: 2px 10px; white-space: nowrap;
+  }
+
+  /* ===== 出图任务管理 ===== */
+  .tasks-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tasks-tools .t-sp { flex: 1; }
+  .tk-btn { font-size: 12px; padding: 6px 12px; }
+  .task-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .task-table th {
+    text-align: left; color: var(--muted); font-weight: 600; font-size: 11px;
+    padding: 6px 10px; border-bottom: 1px solid var(--border-lo); white-space: nowrap;
+  }
+  .task-table td { padding: 7px 10px; border-bottom: 1px solid var(--border-lo); color: var(--fg2); vertical-align: middle; }
+  .task-table tr { cursor: pointer; }
+  .task-table tr:hover td { background: rgba(74,158,255,.05); }
+  .task-table tr.active td { background: rgba(167,139,250,.10); }
+  .task-table tr.active td:first-child { box-shadow: inset 2px 0 0 var(--mauve); }
+  .task-prompt { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tk-status {
+    display: inline-block; padding: 1px 9px; border-radius: 9px; font-size: 11px; white-space: nowrap;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .tk-status.draft   { color: var(--muted);  border-color: var(--border); }
+  .tk-status.running { color: var(--blue);   border-color: var(--blue-dim); background: rgba(74,158,255,.10); }
+  .tk-status.done    { color: var(--done);   border-color: #2f6b50; background: rgba(78,201,143,.10); }
+  .tk-status.failed  { color: var(--err);    border-color: #6e3a45; background: rgba(224,90,90,.10); }
+  .task-table .row-ops { display: flex; gap: 6px; }
+  .task-table .row-op {
+    font-size: 11px; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 5px; padding: 2px 8px; background: transparent;
+  }
+  .task-table .row-op:hover { color: var(--blue); border-color: var(--blue-dim); }
+  .task-table .row-op.del:hover { color: var(--err); border-color: #6e3a45; }
+  .tasks-empty { color: var(--faint); font-size: 12px; padding: 14px 4px; text-align: center; }
 </style>
 </head>
 <body>
@@ -492,6 +561,17 @@
           </div>
         </div>
 
+        <!-- 出图参考图（图生图 / @标签）-->
+        <div class="sub">
+          <div class="sub-label">
+            参考图 <span class="hint">（添加即图生图 · 点卡片把 @标签插入提示词）</span>
+            <span class="refimg-mode" id="genMode">文生图</span>
+          </div>
+          <div class="refimg-row" id="refImgRow">
+            <div class="refimg-add" id="addRefImg">＋ 添加<br>参考图</div>
+          </div>
+        </div>
+
         <!-- 提示词 -->
         <div class="sub">
           <div class="sub-label">分镜文生图提示词</div>
@@ -550,6 +630,38 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ===== 出图任务管理（localStorage 持久化） ===== -->
+  <div class="panel" id="tasksPanel" style="margin-top:16px;">
+    <div class="panel-head" id="tkHead">
+      <span class="ttl">出图任务</span>
+      <span class="meta" id="tkMeta">（0 个任务）</span>
+      <span class="toggle" id="tkToggle">收起 ▲</span>
+    </div>
+    <div class="panel-body">
+      <div class="tasks-tools">
+        <button class="ghost tk-btn" id="tkNew">＋ 新建任务</button>
+        <button class="ghost tk-btn" id="tkSaveCur">保存当前为任务</button>
+        <span class="t-sp"></span>
+        <span class="faint" id="tkHint">点任务行载入到上方编辑器；生成时回写状态。</span>
+      </div>
+      <table class="task-table" id="taskTable">
+        <thead>
+          <tr>
+            <th style="width:30px;">#</th>
+            <th>提示词</th>
+            <th style="width:64px;">参考图</th>
+            <th style="width:58px;">画幅</th>
+            <th style="width:44px;">张数</th>
+            <th style="width:72px;">状态</th>
+            <th style="width:130px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="taskBody"></tbody>
+      </table>
+      <div class="tasks-empty" id="tasksEmpty" hidden>暂无任务。点「＋ 新建任务」或「保存当前为任务」创建。</div>
     </div>
   </div>
 
@@ -714,11 +826,101 @@
     return "HTTP " + resp.status;
   }
 
+  // ===========================================================
+  // 出图参考图区（图生图 / @标签）—— refs: [{path,label}]
+  // 有参考图 = 图生图；references 真实传进 /imggen/generate。
+  // ===========================================================
+  let refs = [];
+
+  function refMode() {
+    const hasRef = refs.length > 0;
+    const hasTxt = (($("prompt") && $("prompt").value) || "").trim().length > 0;
+    return hasRef && hasTxt ? "图文生图" : hasRef ? "图生图" : "文生图";
+  }
+  function refPaths() { return refs.map(r => r.path); }
+  function updateRefMode() {
+    const el = $("genMode");
+    if (el) el.textContent = refMode() + "（自动）";
+  }
+  function nextRefLabel() {
+    // 默认标签 图1/图2…，避开已用标签
+    const used = new Set(refs.map(r => r.label));
+    let i = 1; while (used.has("图" + i)) i++;
+    return "图" + i;
+  }
+  function renderRefs() {
+    const row = $("refImgRow");
+    if (!row) return;
+    row.querySelectorAll(".refimg-card").forEach(x => x.remove());
+    const addBtn = $("addRefImg");
+    refs.forEach((r, idx) => {
+      const card = document.createElement("div");
+      card.className = "refimg-card";
+      card.title = "点击把 @" + r.label + " 插入提示词\n" + r.path;
+      const thumb = document.createElement("div");
+      thumb.className = "thumb";
+      thumb.style.backgroundImage = "url('" + fileSrc(r.path) + "')";
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = "@" + r.label;
+      const ops = document.createElement("div");
+      ops.className = "ops";
+      ops.innerHTML = '<span class="op rn" title="改名">✎</span><span class="op rm" title="删除">✕</span>';
+      card.appendChild(thumb); card.appendChild(tag); card.appendChild(ops);
+      // 点卡片（非操作按钮）→ 插入 @标签
+      card.addEventListener("click", (e) => {
+        if (e.target.closest(".op")) return;
+        insertAtPrompt("@" + r.label + " ");
+      });
+      ops.querySelector(".rn").addEventListener("click", () => renameRef(idx));
+      ops.querySelector(".rm").addEventListener("click", () => removeRef(idx));
+      row.insertBefore(card, addBtn);
+    });
+    updateRefMode();
+  }
+  function insertAtPrompt(text) {
+    const ta = $("prompt"); if (!ta) return;
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    if (s != null) {
+      ta.value = ta.value.slice(0, s) + text + ta.value.slice(e);
+      ta.selectionStart = ta.selectionEnd = s + text.length;
+    } else { ta.value += text; }
+    ta.focus();
+    updateRefMode();
+  }
+  function addRefImgs() {
+    const raw = prompt("粘贴参考图绝对路径（每行一个，或用 ; 分隔）：", "");
+    if (raw == null) return;
+    const paths = raw.split(/[\n;]+/).map(s => s.trim()).filter(Boolean);
+    let added = 0;
+    paths.forEach(p => {
+      const norm = p.replace(/\\/g, "/");
+      refs.push({ path: norm, label: nextRefLabel() });
+      added++;
+    });
+    if (added) { renderRefs(); toast("已添加 " + added + " 张参考图（图生图）。", "ok"); }
+  }
+  function renameRef(idx) {
+    const cur = refs[idx]; if (!cur) return;
+    const v = prompt("参考图 @标签（供提示词引用）：", cur.label);
+    if (v == null) return;
+    const name = v.trim().replace(/^@/, "");
+    if (!name) return;
+    cur.label = name; renderRefs();
+  }
+  function removeRef(idx) { refs.splice(idx, 1); renderRefs(); }
+
+  const _addRefBtn = $("addRefImg");
+  if (_addRefBtn) _addRefBtn.addEventListener("click", addRefImgs);
+  const _promptTa = $("prompt");
+  if (_promptTa) _promptTa.addEventListener("input", updateRefMode);
+  renderRefs();
+
   // ---- 生成分镜图（单图 HD）：POST {MEDIA}/imggen/generate ----
   $("genImgBtn").addEventListener("click", async () => {
     if (!PROJECT) { toast("请先在首页选择项目后再生成分镜图。"); return; }
     const prompt = ($("prompt").value || "").trim();
-    if (!prompt) { toast("文生图提示词为空，请先填写提示词。"); return; }
+    if (!prompt && refs.length === 0) { toast("提示词为空，且无参考图——请先填写提示词或添加参考图。"); return; }
 
     const btn = $("genImgBtn");
     const oldText = btn.textContent;
@@ -726,6 +928,8 @@
     btn.textContent = "⏳ 生成中…";
     const ph = $("previewPh");
     if (ph) ph.innerHTML = "生成中…<br><span class=\"faint\">单图 HD</span>";
+    // 有当前任务则置 running 并回写本次出图参数
+    if (activeTaskId) syncTaskFromEditor(activeTaskId, "running");
 
     try {
       const resp = await fetch(MEDIA + "/imggen/generate", {
@@ -733,7 +937,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: prompt,
-          references: [],
+          references: refPaths(),     // 非空 = 图生图（由 provider 自动判定）
           size: curSize(),
           n: 1,
           out_dir: PROJECT + "/storyboard",
@@ -741,10 +945,16 @@
           ext: "png",
         }),
       });
-      if (!resp.ok) { toast("生成失败：" + (await errHint(resp))); return; }
+      if (!resp.ok) {
+        if (activeTaskId) setTaskStatus(activeTaskId, "failed");
+        toast("生成失败：" + (await errHint(resp))); return;
+      }
       const data = await resp.json();
       const outputs = (data && data.outputs) || [];
-      if (!outputs.length) { toast("生成失败：未返回图片。"); return; }
+      if (!outputs.length) {
+        if (activeTaskId) setTaskStatus(activeTaskId, "failed");
+        toast("生成失败：未返回图片。"); return;
+      }
       // 首张显到右栏预览
       const pv = $("preview");
       pv.querySelectorAll("img._out").forEach(x => x.remove());
@@ -755,8 +965,10 @@
       img.alt = "分镜图";
       pv.appendChild(img);
       if (ph) ph.style.display = "none";
+      if (activeTaskId) setTaskStatus(activeTaskId, "done");
       toast("已生成分镜图：" + outputs[0], "ok");
     } catch (e) {
+      if (activeTaskId) setTaskStatus(activeTaskId, "failed");
       toast("生成失败：" + (e && e.message ? e.message : e));
     } finally {
       btn.disabled = false;
@@ -1395,6 +1607,143 @@
 
   // 初始渲染默认工具
   renderTool("imggen");
+
+  /* ============================================================
+     出图任务管理 —— localStorage 持久化
+     key: nuomi.imggenTasks.<project>
+     每个任务记录 prompt / refs(参考图) / aspect(画幅) / count(张数) / status
+     ============================================================ */
+  const TK_KEY = "nuomi.imggenTasks." + (PROJECT || "_none");
+  let tasks = [];
+  let activeTaskId = null;
+
+  function loadTasks() {
+    try {
+      const raw = localStorage.getItem(TK_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      tasks = Array.isArray(arr) ? arr : [];
+    } catch (_) { tasks = []; }
+  }
+  function saveTasks() {
+    try { localStorage.setItem(TK_KEY, JSON.stringify(tasks)); }
+    catch (e) { toast("任务保存失败（localStorage）：" + (e && e.message ? e.message : e)); }
+  }
+  function newTaskId() { return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  // 当前编辑器（提示词 / 参考图 / 画幅 / 张数）→ 任务快照
+  function editorSnapshot() {
+    return {
+      prompt: ($("prompt") && $("prompt").value || "").trim(),
+      refs: refs.map(r => ({ path: r.path, label: r.label })),
+      aspect: curWide ? "16:9" : "9:16",
+      count: 1,   // 分镜视角单图 HD 主路径，固定 1（批量在自由模式）
+    };
+  }
+  // 任务 → 编辑器（提示词 / 参考图 / 画幅）
+  function applyTaskToEditor(t) {
+    if ($("prompt")) $("prompt").value = t.prompt || "";
+    refs = (t.refs || []).map(r => ({ path: r.path, label: r.label }));
+    renderRefs();
+    // 画幅同步右栏切换
+    const wantWide = t.aspect === "16:9";
+    if (wantWide !== curWide) {
+      const arBtn = document.querySelector('.ar-btn[data-ar="' + (wantWide ? "wide" : "vertical") + '"]');
+      if (arBtn) arBtn.click();
+    }
+  }
+
+  function statusLabel(s) {
+    return s === "running" ? "生成中" : s === "done" ? "已生成" : s === "failed" ? "失败" : "草稿";
+  }
+  function setTaskStatus(id, status) {
+    const t = tasks.find(x => x.id === id); if (!t) return;
+    t.status = status; t.updatedAt = Date.now();
+    saveTasks(); renderTasks();
+  }
+  // 把编辑器内容回写到任务（生成前快照 + 状态）
+  function syncTaskFromEditor(id, status) {
+    const t = tasks.find(x => x.id === id); if (!t) return;
+    Object.assign(t, editorSnapshot());
+    if (status) t.status = status;
+    t.updatedAt = Date.now();
+    saveTasks(); renderTasks();
+  }
+
+  function renderTasks() {
+    const body = $("taskBody");
+    if (!body) return;
+    body.innerHTML = "";
+    $("tkMeta").textContent = "（" + tasks.length + " 个任务）";
+    $("tasksEmpty").hidden = tasks.length > 0;
+    tasks.forEach((t, i) => {
+      const tr = document.createElement("tr");
+      if (t.id === activeTaskId) tr.classList.add("active");
+      tr.dataset.id = t.id;
+      const st = t.status || "draft";
+      const refN = (t.refs || []).length;
+      tr.innerHTML =
+        '<td>' + (i + 1) + '</td>' +
+        '<td class="task-prompt"></td>' +
+        '<td>' + (refN ? refN + " 张" : "—") + '</td>' +
+        '<td>' + (t.aspect || "9:16") + '</td>' +
+        '<td>' + (t.count || 1) + '</td>' +
+        '<td><span class="tk-status ' + st + '">' + statusLabel(st) + '</span></td>' +
+        '<td><div class="row-ops">' +
+          '<button class="row-op load">载入</button>' +
+          '<button class="row-op dup">复制</button>' +
+          '<button class="row-op del">删除</button>' +
+        '</div></td>';
+      tr.querySelector(".task-prompt").textContent = t.prompt || "（空提示词）";
+      tr.querySelector(".task-prompt").title = t.prompt || "";
+      // 行点击 / 载入 → 设为当前并应用到编辑器
+      const loadFn = () => { activeTaskId = t.id; applyTaskToEditor(t); renderTasks(); toast("已载入任务 #" + (i + 1), "ok"); };
+      tr.addEventListener("click", (e) => { if (e.target.closest(".row-op")) return; loadFn(); });
+      tr.querySelector(".load").addEventListener("click", loadFn);
+      tr.querySelector(".dup").addEventListener("click", () => {
+        const copy = Object.assign({}, t, { id: newTaskId(), status: "draft", updatedAt: Date.now(),
+          refs: (t.refs || []).map(r => ({ path: r.path, label: r.label })) });
+        const idx = tasks.indexOf(t);
+        tasks.splice(idx + 1, 0, copy);
+        saveTasks(); renderTasks(); toast("已复制任务", "ok");
+      });
+      tr.querySelector(".del").addEventListener("click", () => {
+        tasks = tasks.filter(x => x.id !== t.id);
+        if (activeTaskId === t.id) activeTaskId = null;
+        saveTasks(); renderTasks();
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  // 新建任务（用当前编辑器快照）
+  function createTask() {
+    const t = Object.assign({ id: newTaskId(), status: "draft", createdAt: Date.now(), updatedAt: Date.now() }, editorSnapshot());
+    tasks.push(t);
+    activeTaskId = t.id;
+    saveTasks(); renderTasks();
+    toast("已新建任务（取当前编辑器内容）", "ok");
+  }
+  // 保存当前为任务：有 active 则回写，否则新建
+  function saveCurrentAsTask() {
+    if (activeTaskId && tasks.some(x => x.id === activeTaskId)) {
+      syncTaskFromEditor(activeTaskId);
+      toast("已保存到当前任务", "ok");
+    } else {
+      createTask();
+    }
+  }
+
+  if ($("tkNew")) $("tkNew").addEventListener("click", createTask);
+  if ($("tkSaveCur")) $("tkSaveCur").addEventListener("click", saveCurrentAsTask);
+  // 任务面板收起/展开
+  if ($("tkHead")) $("tkHead").addEventListener("click", () => {
+    const p = $("tasksPanel");
+    const collapsed = p.classList.toggle("collapsed");
+    $("tkToggle").textContent = collapsed ? "展开 ▼" : "收起 ▲";
+  });
+
+  loadTasks();
+  renderTasks();
 </script>
 </body>
 </html>

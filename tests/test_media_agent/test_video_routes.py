@@ -186,3 +186,141 @@ def test_ltx_missing_prompt_and_segments_400(tmp_path, monkeypatch):
     r = client.post("/video/ltx", json={
         "mode": "director", "out_dir": str(tmp_path)})
     assert r.status_code == 400
+
+
+# ---------- 完整契约：全字段 ----------
+
+def test_ltx_full_contract_assembly(tmp_path, monkeypatch):
+    """全契约字段一次性组装进 LTXDirectorSpec。"""
+    cfg = _FakeCfg(workflow_ids={"director": "wf-dir"})
+    cap: dict = {}
+    _patch(monkeypatch, cfg, cap)
+    r = client.post("/video/ltx", json={
+        "mode": "director",
+        "global_prompt": "cinematic city night",
+        "use_global": True,
+        "frame_rate": 30,
+        "resolution": "1920x1080",
+        "noise_seed": 12345,
+        "epsilon": 0.7,
+        "filename_prefix": "myclip",
+        "use_custom_audio": True,
+        "out_dir": str(tmp_path),
+        "segments": [
+            {"prompt": "wide establishing", "duration_frames": 60,
+             "ref_image_path": "/tmp/ref.png", "guide": 0.8},
+            {"prompt": "close up", "duration_sec": 2.0, "text": True},
+        ],
+        "audio_segments": [
+            {"path": "/tmp/bgm.wav", "start": 0},
+            {"path": "/tmp/sfx.wav", "start": 60, "length_frames": 30},
+        ],
+    })
+    assert r.status_code == 200, r.text
+    spec = cap["spec"]
+    assert spec.global_prompt == "cinematic city night"
+    assert spec.use_global_prompt is True
+    assert spec.frame_rate == 30
+    assert spec.resolution_preset == "1920x1080"
+    assert spec.noise_seed == 12345
+    assert spec.epsilon == 0.7
+    assert spec.filename_prefix == "myclip"
+    assert spec.use_custom_audio is True
+    # segments
+    assert len(spec.segments) == 2
+    assert spec.segments[0].length == 60                     # duration_frames
+    assert spec.segments[0].guide_strength == 0.8
+    assert str(spec.segments[0].image_path).endswith("ref.png")
+    assert spec.segments[0].segment_type == "image"
+    assert spec.segments[1].length == 60                     # 2.0s * 30fps
+    assert spec.segments[1].segment_type == "text"
+    assert spec.segments[1].image_path is None
+    # audio
+    assert len(spec.audio_segments) == 2
+    assert str(spec.audio_segments[0].audio_path).endswith("bgm.wav")
+    assert spec.audio_segments[1].start_frame == 60
+    assert spec.audio_segments[1].length_frames == 30
+
+
+def test_ltx_duration_sec_to_frames(tmp_path, monkeypatch):
+    """段级 duration_sec 按 frame_rate 换算为帧。"""
+    cfg = _FakeCfg(workflow_ids={"director": "wf-dir"})
+    cap: dict = {}
+    _patch(monkeypatch, cfg, cap)
+    r = client.post("/video/ltx", json={
+        "mode": "director", "frame_rate": 24, "out_dir": str(tmp_path),
+        "segments": [{"prompt": "s", "duration_sec": 3.0}],
+    })
+    assert r.status_code == 200, r.text
+    assert cap["spec"].segments[0].length == 72              # 3.0 * 24
+
+
+def test_ltx_custom_resolution_wh(tmp_path, monkeypatch):
+    """custom_w/custom_h → use_custom_resolution + 宽高。"""
+    cfg = _FakeCfg(workflow_ids={"director": "wf-dir"})
+    cap: dict = {}
+    _patch(monkeypatch, cfg, cap)
+    r = client.post("/video/ltx", json={
+        "mode": "director", "prompt": "p", "duration": 1.0,
+        "custom_w": 800, "custom_h": 600, "out_dir": str(tmp_path),
+    })
+    assert r.status_code == 200, r.text
+    spec = cap["spec"]
+    assert spec.use_custom_resolution is True
+    assert spec.custom_width == 800 and spec.custom_height == 600
+
+
+def test_ltx_hd_director_full_contract_profile(tmp_path, monkeypatch):
+    """hd_director 全契约下仍映射 director_v3 + wf-hd（核心 bug 回归）。"""
+    cfg = _FakeCfg(workflow_ids={"director": "wf-dir",
+                                 "director_v3": "wf-hd"})
+    cap: dict = {}
+    _patch(monkeypatch, cfg, cap)
+    r = client.post("/video/ltx", json={
+        "mode": "hd_director",
+        "global_prompt": "hd shot",
+        "frame_rate": 24,
+        "out_dir": str(tmp_path),
+        "segments": [{"prompt": "seg", "duration_frames": 48}],
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["profile"] == "director_v3"
+    assert body["workflow_id"] == "wf-hd"
+    assert cap["profile"] == "director_v3"
+    assert "ltx_director_v3_api" in cap["template"]
+
+
+def test_ltx_use_global_default_from_prompt(tmp_path, monkeypatch):
+    """未给 use_global 时由是否有提示词推断。"""
+    cfg = _FakeCfg(workflow_ids={"director": "wf-dir"})
+    cap: dict = {}
+    _patch(monkeypatch, cfg, cap)
+    # 有 global_prompt 但只用 segments，use_global 应自动 True
+    r = client.post("/video/ltx", json={
+        "mode": "director", "global_prompt": "g", "out_dir": str(tmp_path),
+        "segments": [{"prompt": "s", "duration_frames": 10}],
+    })
+    assert r.status_code == 200, r.text
+    assert cap["spec"].use_global_prompt is True
+
+
+def test_ltx_backward_compat_old_fields(tmp_path, monkeypatch):
+    """旧窄 body（prompt/fps/aspect/base_name/segments.local_prompt）仍可跑。"""
+    cfg = _FakeCfg(workflow_ids={"director": "wf-dir"})
+    cap: dict = {}
+    _patch(monkeypatch, cfg, cap)
+    r = client.post("/video/ltx", json={
+        "mode": "director", "fps": 24, "aspect": "1280x720",
+        "base_name": "legacy", "out_dir": str(tmp_path),
+        "segments": [{"local_prompt": "old", "length": 25,
+                      "image_path": "/tmp/o.png"}],
+    })
+    assert r.status_code == 200, r.text
+    spec = cap["spec"]
+    assert spec.frame_rate == 24
+    assert spec.resolution_preset == "1280x720"
+    assert spec.filename_prefix == "legacy"
+    assert spec.segments[0].length == 25
+    assert spec.segments[0].local_prompt == "old"
+    assert str(spec.segments[0].image_path).endswith("o.png")
