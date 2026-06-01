@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>配音·模式1 自由模式 布局确认稿</title>
+<link rel="stylesheet" href="../../web/tokens.css">
+<style>
+  /* 确认稿：配音 模式1「自由模式」——参考原 PySide dub_panel.py + 配音栏.png(任务表:名称/模式/状态)。
+     与模式2(剧集分镜对齐,每镜头一句)不同:模式1 是自由的「配音任务列表」,每个任务独立选 音色设计/声音克隆 + 文本 + 参数,自由试听/合成。 */
+  body { margin: 0; background: var(--bg); color: var(--fg); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+  .note { background: rgba(74,158,255,.08); border-bottom: 1px solid var(--blue-dim); padding: 9px 20px; font-size: 12px; color: var(--periw); flex-shrink: 0; }
+  .note b { color: var(--blue); }
+  .head { display: flex; align-items: center; gap: 14px; padding: 14px 22px 10px; }
+  .head h1 { margin: 0; font-size: 18px; background: linear-gradient(135deg, var(--blue), var(--mauve)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .mode-seg { display: flex; background: #0f1120; border: 1px solid var(--border-lo); border-radius: 9px; padding: 3px; }
+  .mode-seg button { background: transparent; color: var(--muted); border: none; padding: 6px 14px; border-radius: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .mode-seg button.on { background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; font-weight: 700; }
+
+  .body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 0 22px 18px; }
+  /* 左：配音任务表 */
+  .tasks { width: 320px; flex-shrink: 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; }
+  .tasks .th { display: flex; align-items: center; padding: 11px 14px; border-bottom: 1px solid var(--border-lo); }
+  .tasks .th .t { font-size: 12.5px; font-weight: 600; flex: 1; }
+  .tasks .th .add { font-size: 11.5px; color: var(--blue); border: 1px solid var(--blue-dim); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .tasks .tbl-head, .task-row { display: grid; grid-template-columns: 24px 1fr 76px 18px; gap: 8px; align-items: center; padding: 8px 14px; }
+  .tasks .tbl-head { font-size: 10.5px; color: var(--muted); border-bottom: 1px solid var(--border-lo); }
+  .tasks .list { flex: 1; overflow: auto; }
+  .task-row { font-size: 12.5px; cursor: pointer; border-bottom: 1px solid var(--border-lo); }
+  .task-row:hover { background: rgba(255,255,255,.03); }
+  .task-row.on { background: rgba(74,158,255,.1); box-shadow: inset 2px 0 0 var(--blue); }
+  .task-row .idx { color: var(--mauve); font-weight: 700; }
+  .task-row .nm { color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .task-row .md { font-size: 10.5px; color: var(--periw); }
+  .task-row .md.clone { color: #9bd6a4; }
+  .task-row .st { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); }
+  .task-row .st.ok { background: var(--done); box-shadow: 0 0 5px var(--done); }
+
+  /* 右：当前任务编辑器 */
+  .editor { flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden; }
+  .ed-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border-lo); }
+  .ed-head input.nm { flex: 1; max-width: 260px; }
+  .ed-body { flex: 1; overflow: auto; padding: 16px; }
+  .mrow { display: flex; gap: 10px; margin-bottom: 14px; }
+  .mbtn { flex: 1; text-align: center; padding: 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--field); color: var(--fg2); cursor: pointer; font-size: 13px; }
+  .mbtn.on { border-color: var(--blue); background: rgba(74,158,255,.12); color: var(--fg); font-weight: 600; box-shadow: 0 0 0 1px var(--blue); }
+  .grp { background: var(--navy); border: 1px solid var(--border-lo); border-radius: 9px; padding: 13px 14px; margin-bottom: 13px; }
+  .grp .glab { font-size: 11px; color: var(--periw); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 11px; }
+  .frow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .frow:last-child { margin-bottom: 0; }
+  .frow > label { font-size: 12px; color: var(--fg2); width: 96px; flex-shrink: 0; }
+  .frow input[type=text], .frow select, .frow textarea { flex: 1; }
+  .frow textarea { min-height: 64px; resize: vertical; font: inherit; background: var(--field); border: 1px solid var(--border); border-radius: 7px; color: var(--fg); padding: 8px 10px; }
+  .frow input[type=range] { flex: 1; accent-color: var(--blue); }
+  .frow .pick { font-size: 11.5px; color: var(--blue); border: 1px solid var(--blue-dim); border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+  /* 文本(台词)大编辑区 = 视觉重点 */
+  .text-hero { width: 100%; box-sizing: border-box; min-height: 92px; resize: vertical; font: inherit; font-size: 13.5px; line-height: 1.6; background: var(--field); border: 1.5px solid var(--blue-dim); border-radius: 10px; color: var(--fg); padding: 11px 13px; }
+  /* 4 情感子模式段控(声音克隆) */
+  .emo-seg { display: flex; gap: 6px; flex-wrap: wrap; }
+  .emo-seg .e { font-size: 11.5px; color: var(--fg2); border: 1px solid var(--border); border-radius: 14px; padding: 5px 12px; cursor: pointer; }
+  .emo-seg .e.on { background: rgba(138,127,217,.18); border-color: var(--mauve); color: var(--mauve); font-weight: 600; }
+  .emo-extra { margin-top: 10px; }
+  .vec { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .vec .vc { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .vec .vc input { width: 100%; }
+  /* 底部动作 */
+  .ed-foot { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-top: 1px solid var(--border-lo); background: var(--navy); }
+  .ed-foot .grow { flex: 1; }
+  .ed-foot button { font: inherit; font-size: 13px; padding: 8px 18px; border-radius: 8px; cursor: pointer; }
+  .btn-sec { background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); }
+  .btn-listen { background: rgba(74,158,255,.14); color: var(--blue); border: 1px solid var(--blue-dim); }
+  .btn-gen { background: linear-gradient(135deg, var(--done), #3aa978); color: #06231a; font-weight: 700; border: none; }
+  .waveph { height: 30px; background: repeating-linear-gradient(90deg, var(--border) 0 2px, transparent 2px 6px); border-radius: 5px; opacity: .5; flex: 1; max-width: 220px; }
+</style>
+</head>
+<body>
+<div class="note"><b>配音 · 模式1 自由模式 布局确认稿</b> —— 参考原 PySide 配音(任务表 名称/模式/状态 + 音色设计/声音克隆 表单)。与模式2(剧集分镜对齐,逐镜头)<b>不同</b>：模式1 是自由「配音任务列表」，每任务独立选模式+台词+参数，自由试听/合成。请浏览器确认。</div>
+
+<div class="head">
+  <h1>配音 · 自由模式</h1>
+  <div class="mode-seg"><button class="on">模式1 · 自由配音</button><button>模式2 · 剧集分镜对齐</button></div>
+</div>
+
+<div class="body">
+  <!-- 左：任务表 -->
+  <div class="tasks">
+    <div class="th"><span class="t">配音任务</span><span class="add">＋ 新建任务</span></div>
+    <div class="tbl-head"><span>#</span><span>名称</span><span>模式</span><span></span></div>
+    <div class="list">
+      <div class="task-row on"><span class="idx">1</span><span class="nm">测试</span><span class="md">音色设计</span><span class="st ok"></span></div>
+      <div class="task-row"><span class="idx">2</span><span class="nm">赛博</span><span class="md">音色设计</span><span class="st"></span></div>
+      <div class="task-row"><span class="idx">3</span><span class="nm">机械音</span><span class="md clone">声音克隆</span><span class="st ok"></span></div>
+      <div class="task-row"><span class="idx">4</span><span class="nm">女职工</span><span class="md">音色设计</span><span class="st"></span></div>
+      <div class="task-row"><span class="idx">5</span><span class="nm">liveT</span><span class="md clone">声音克隆</span><span class="st"></span></div>
+    </div>
+  </div>
+
+  <!-- 右：当前任务编辑器 -->
+  <div class="editor">
+    <div class="ed-head"><input class="nm" type="text" value="机械音"> <span style="font-size:11.5px;color:var(--muted)">任务 3</span></div>
+    <div class="ed-body">
+      <div class="mrow"><div class="mbtn">音色设计</div><div class="mbtn on">声音克隆</div></div>
+
+      <div class="grp">
+        <div class="glab">台词文本</div>
+        <textarea class="text-hero">你以为……我会认？……你想多了。</textarea>
+      </div>
+
+      <!-- 声音克隆 表单(原 dub_panel clone form) -->
+      <div class="grp">
+        <div class="glab">声音克隆参数</div>
+        <div class="frow"><label>说话人参考音频</label><input type="text" value="E:\refs\voice_male.wav" readonly><span class="pick">选参考音频</span></div>
+        <div class="frow"><label>情感强度 α</label><input type="range" min="0" max="2" step="0.05" value="1.0"><span style="color:var(--blue);font-size:12px;min-width:30px">1.00</span></div>
+        <div class="frow"><label>情感模式</label>
+          <div class="emo-seg">
+            <span class="e on">默认(随参考音频)</span><span class="e">文本情绪</span><span class="e">语音情绪模仿</span><span class="e">情感向量</span>
+          </div>
+        </div>
+        <!-- 情感子模式额外字段(按选中显隐;此处示意 情感向量 8维) -->
+        <div class="emo-extra" style="display:none">
+          <div class="vec">
+            <span class="vc">喜<input type="number" value="0" step="0.1"></span><span class="vc">怒<input type="number" value="0" step="0.1"></span>
+            <span class="vc">哀<input type="number" value="0" step="0.1"></span><span class="vc">惧<input type="number" value="0" step="0.1"></span>
+            <span class="vc">厌<input type="number" value="0" step="0.1"></span><span class="vc">低<input type="number" value="0" step="0.1"></span>
+            <span class="vc">惊<input type="number" value="0" step="0.1"></span><span class="vc">静<input type="number" value="0" step="0.1"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="glab">采样参数</div>
+        <div class="frow"><label>语速</label><input type="range" min="0.5" max="2" step="0.05" value="1.0"><span style="color:var(--blue);font-size:12px">1.0x</span></div>
+        <div class="frow"><label>temperature</label><input type="text" value="0.8" style="max-width:80px"><label style="width:auto">top_p</label><input type="text" value="0.8" style="max-width:80px"><label style="width:auto">top_k</label><input type="text" value="30" style="max-width:80px"></div>
+      </div>
+    </div>
+    <div class="ed-foot">
+      <div class="waveph"></div>
+      <span class="grow"></span>
+      <button class="btn-listen">▷ 试听</button>
+      <button class="btn-sec">保存</button>
+      <button class="btn-gen">✦ 合成配音</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
