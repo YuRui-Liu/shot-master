@@ -116,7 +116,10 @@ class ScreenwriterLifecycle:
                     if "SCREENWRITER_LLM_API_KEY" in env and "SCREENWRITER_LLM_BASE_URL" in env:
                         break
             # 每个 stage 的 per-stage 注入（provider + model + api_key + base_url）
-            for stage in ("ideate", "script", "storyboard", "prompts"):
+            # 注意必须含 video_prompt/audio_prompt，否则这两阶段 SCREENWRITER_*_MODEL 未注入
+            # → model=None 发给 LLM → deepseek 400 "model: invalid type: null"（模式2 报错根因）。
+            for stage in ("ideate", "script", "storyboard", "prompts",
+                          "video_prompt", "audio_prompt"):
                 assign = stage_assigns.get(stage) or {}
                 pname = assign.get("provider") or ""
                 model = assign.get("model") or ""

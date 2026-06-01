@@ -44,6 +44,7 @@ async def audio_prompt(req: AudioPromptReq, request: Request):
     cfg = request.app.state.cfg
     model = (req.model
              or os.environ.get("SCREENWRITER_AUDIO_PROMPT_MODEL")
+             or os.environ.get("SCREENWRITER_IDEATE_MODEL")   # 兜底:复用已配置阶段模型，绝不发 None
              or cfg.default_models.get("audio_prompt"))
     creds = req.creds or None
     body_key = creds.api_key if creds else None
