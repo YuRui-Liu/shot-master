@@ -57,6 +57,89 @@
   }
   .align-note .badge { background: rgba(78,201,143,.16); color: var(--done); border-color: #2f6b4f; }
 
+  /* ===== 视频预览窗口（配音时对画面对口型/卡点） =====
+     占位：HTML5 <video> + 传输条（播放/暂停 · 时间码 · 进度）。
+     预览源后续接 media_agent 成片/分镜视频（见 JS 注释）。 */
+  .preview {
+    max-width: 1180px; display: flex; gap: 16px; margin-bottom: 16px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px;
+  }
+  /* 左：视频画面区（保持 16:9，配音预览以成片/分镜动态为主） */
+  .preview .screen {
+    position: relative; width: 360px; flex-shrink: 0;
+    aspect-ratio: 16 / 9; border-radius: var(--radius-sm); overflow: hidden;
+    background: #000; border: 1px solid var(--border-lo);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .preview .screen video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+  /* 无源时的占位提示（覆盖在画面区上） */
+  .preview .screen .ph {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px;
+    color: var(--faint); font-size: 12.5px; text-align: center; padding: 0 18px;
+    background: linear-gradient(160deg, #1a1d30, #0d0f1c); pointer-events: none;
+  }
+  .preview .screen .ph .ic { font-size: 26px; opacity: .7; }
+  .preview .screen .badge-live {
+    position: absolute; left: 9px; top: 9px; z-index: 2;
+    font-size: 10.5px; color: var(--mauve);
+    background: rgba(138,127,217,.18); border: 1px solid #4a3d6e;
+    padding: 2px 8px; border-radius: 9px;
+  }
+  /* 右：预览侧栏（当前对齐的镜/集 + 传输控制） */
+  .preview .side-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .preview .pv-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .preview .pv-head .pv-title { font-size: 13.5px; font-weight: 600; color: var(--fg); }
+  .preview .pv-head .pv-sub { color: var(--muted); font-size: 12px; }
+  .preview .pv-now {
+    color: var(--fg2); font-size: 12.5px; line-height: 1.6;
+    background: var(--field); border: 1px solid var(--border-lo);
+    border-left: 3px solid var(--periw); border-radius: var(--radius-sm);
+    padding: 8px 11px; margin-bottom: 10px;
+  }
+  .preview .pv-now .role { color: var(--periw); font-weight: 600; }
+  .preview .pv-now .sep { color: var(--faint); margin: 0 6px; }
+  .preview .pv-now .dur { color: var(--blue); font-weight: 600; }
+  .preview .pv-spacer { flex: 1; }
+
+  /* 传输条：播放/暂停 + 时间码 + 进度条 + 镜头跳转 */
+  .transport { display: flex; flex-direction: column; gap: 8px; }
+  .transport .row { display: flex; align-items: center; gap: 10px; }
+  .transport .play {
+    width: 38px; height: 38px; flex-shrink: 0; padding: 0;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a;
+  }
+  .transport .tc {
+    font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--fg2);
+    white-space: nowrap; min-width: 92px;
+  }
+  .transport .tc b { color: var(--blue); }
+  /* 进度条（点击/拖动 seek，stub 联动 <video>） */
+  .transport .progress {
+    flex: 1; height: 7px; border-radius: 4px; cursor: pointer;
+    background: var(--field); border: 1px solid var(--border-lo); position: relative;
+  }
+  .transport .progress .fill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+    border-radius: 4px; background: linear-gradient(90deg, var(--blue), var(--periw));
+  }
+  .transport .progress .knob {
+    position: absolute; top: 50%; left: 0%; width: 12px; height: 12px;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    background: var(--fg); border: 2px solid var(--periw);
+  }
+  /* 镜头卡点跳转（点击定位到该 SHOT 的预览时间，对口型用） */
+  .transport .jumps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .transport .jumps .lab { color: var(--muted); font-size: 11.5px; margin-right: 2px; }
+  .transport .jump {
+    background: var(--panel2); color: var(--fg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 3px 10px; font-size: 11.5px; cursor: pointer;
+  }
+  .transport .jump:hover { border-color: var(--mauve); color: var(--fg); filter: none; }
+  .transport .jump.active { background: rgba(138,127,217,.18); border-color: var(--mauve); color: var(--mauve); font-weight: 600; }
+
   /* SHOT/台词卡列表 */
   .shots { max-width: 1180px; display: flex; flex-direction: column; gap: 16px; }
   .shot {
@@ -184,14 +267,58 @@
       </div>
     </div>
 
+    <!-- 视频预览窗口：配音时对着画面对口型/卡点（成片/分镜动态预览） -->
+    <div class="preview" id="preview">
+      <div class="screen">
+        <span class="badge-live">预览 · 成片/分镜动态</span>
+        <!-- 真实接线：src 由 media_agent 成片/分镜视频地址注入（见 JS PREVIEW_SRC 注释） -->
+        <video id="pvVideo" preload="metadata" playsinline></video>
+        <div class="ph" id="pvPlaceholder">
+          <span class="ic">▣</span>
+          <span>暂无预览源 · 成片/分镜动态视频生成后在此播放</span>
+          <span class="faint">对着画面对口型 / 卡点配音</span>
+        </div>
+      </div>
+      <div class="side-panel">
+        <div class="pv-head">
+          <span class="pv-title">视频预览</span>
+          <span class="pv-sub" id="pvSub">第 1 集 · 跟随下方镜头</span>
+        </div>
+        <div class="pv-now" id="pvNow"><!-- 当前镜头台词信息，由 JS 渲染 --></div>
+        <div class="pv-spacer"></div>
+
+        <!-- 传输条：播放/暂停 · 时间码 · 进度 · 镜头卡点跳转 -->
+        <div class="transport">
+          <div class="row">
+            <button class="play" id="pvPlay" title="播放/暂停">▶</button>
+            <span class="tc"><b id="pvCur">00:00</b> / <span id="pvDur">00:09</span></span>
+            <div class="progress" id="pvProgress">
+              <div class="fill" id="pvFill"></div>
+              <div class="knob" id="pvKnob"></div>
+            </div>
+          </div>
+          <div class="row jumps" id="pvJumps">
+            <span class="lab">镜头卡点：</span><!-- 由 JS 按 SHOT 时长累加渲染 -->
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- SHOT/台词卡列表（由 JS 渲染） -->
     <div class="shots" id="shots"></div>
   </main>
 </div>
 
 <script>
-/* ===== 后端 API base（可由壳通过 ?sw= 注入；默认 screenwriter_agent 本地端口） ===== */
-const SW_API = new URLSearchParams(location.search).get('sw') || 'http://127.0.0.1:18430';
+/* ===== 后端 API base（可由壳通过 ?sw= / ?media= 注入） ===== */
+const _qs = new URLSearchParams(location.search);
+const SW_API = _qs.get('sw') || 'http://127.0.0.1:18430';        // screenwriter_agent
+const MEDIA_API = _qs.get('media') || 'http://127.0.0.1:18450';  // media_agent（成片/分镜视频 + TTS）
+
+/* 视频预览源：留空＝占位；后续由壳/主控接 media_agent 成片或分镜动态视频地址。
+   真实接线示例：GET {MEDIA_API}/preview?ep=1（或当前任务/集的成片 mp4）。
+   const PREVIEW_SRC = `${MEDIA_API}/preview?ep=1`; 然后 setPreviewSrc(PREVIEW_SRC)。 */
+const PREVIEW_SRC = "";
 
 /* ===== 配音提示词范例模板 =====
    对应不同 TTS / 情绪表达「模式」，chip 点击填入对应 textarea。 */
@@ -411,8 +538,131 @@ function wireOneClick() {
   });
 }
 
+/* ===== 视频预览窗口（占位交互；真机预览源由 media_agent 接入） =====
+   - 无源时显示占位提示；setPreviewSrc(url) 接入真实 <video> 源后自动隐藏占位。
+   - 传输条：播放/暂停、时间码、进度（点击 seek）；镜头卡点按 SHOT 时长累加，
+     点击跳转到该镜头起点，便于对着画面对口型/卡点配音。
+   - 当无真实视频源时，用一个虚拟时间轴（总时长＝各 SHOT 时长之和）驱动 UI，
+     保证占位状态下也能演示播放/进度/卡点跳转。 */
+function parseDur(meta) {                       // 从 meta 末项 "4s" 解析秒数
+  const last = meta[meta.length - 1] || "";
+  const m = /([\d.]+)\s*s/i.exec(last);
+  return m ? parseFloat(m[1]) : 3;
+}
+const SHOT_DURS = SHOTS.map((s) => parseDur(s.meta));
+const TOTAL_DUR = SHOT_DURS.reduce((a, b) => a + b, 0);
+const SHOT_STARTS = SHOT_DURS.reduce((acc, d, i) => {           // 各镜头在时间轴上的起点
+  acc.push(i === 0 ? 0 : acc[i - 1] + SHOT_DURS[i - 1]);
+  return acc;
+}, []);
+
+const pv = {
+  video: null, playing: false, t: 0, total: TOTAL_DUR, timer: null, hasSrc: false,
+};
+
+function fmtTC(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+  const ss = String(sec % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
+}
+
+/* 真机接线用：注入成片/分镜视频地址 */
+function setPreviewSrc(url) {
+  const v = document.getElementById("pvVideo");
+  const ph = document.getElementById("pvPlaceholder");
+  if (!url) { pv.hasSrc = false; ph.style.display = "flex"; return; }
+  v.src = url; pv.hasSrc = true; ph.style.display = "none";
+  v.addEventListener("loadedmetadata", () => {
+    pv.total = v.duration || TOTAL_DUR;
+    document.getElementById("pvDur").textContent = fmtTC(pv.total);
+  });
+  v.addEventListener("timeupdate", () => { pv.t = v.currentTime; paintTransport(); });
+}
+
+function renderJumps() {
+  const wrap = document.getElementById("pvJumps");
+  const chips = SHOTS.map((s, i) =>
+    `<span class="jump" data-jump="${i}" title="跳到 SHOT ${s.n}（${fmtTC(SHOT_STARTS[i])}）">SHOT ${s.n}</span>`
+  ).join("");
+  wrap.innerHTML = `<span class="lab">镜头卡点：</span>${chips}`;
+  wrap.querySelectorAll(".jump").forEach((el) => {
+    el.addEventListener("click", () => seekTo(SHOT_STARTS[parseInt(el.getAttribute("data-jump"), 10)]));
+  });
+}
+
+function currentShotIdx() {                     // 当前播放头落在哪个镜头
+  let idx = 0;
+  for (let i = 0; i < SHOT_STARTS.length; i++) if (pv.t >= SHOT_STARTS[i]) idx = i;
+  return idx;
+}
+
+function paintTransport() {
+  const pct = pv.total ? Math.min(100, (pv.t / pv.total) * 100) : 0;
+  document.getElementById("pvFill").style.width = pct + "%";
+  document.getElementById("pvKnob").style.left = pct + "%";
+  document.getElementById("pvCur").textContent = fmtTC(pv.t);
+  document.getElementById("pvDur").textContent = fmtTC(pv.total);
+  // 当前镜头台词信息 + 卡点高亮
+  const idx = currentShotIdx();
+  const s = SHOTS[idx];
+  document.getElementById("pvNow").innerHTML = s
+    ? `<span class="role">${s.role}</span><span class="sep">·</span>SHOT ${s.n}` +
+      `<span class="sep">·</span><span class="dur">${s.meta[s.meta.length - 1]}</span><br>${s.line}`
+    : "";
+  document.querySelectorAll("#pvJumps .jump").forEach((el, i) =>
+    el.classList.toggle("active", i === idx));
+}
+
+function stopTick() { if (pv.timer) { clearInterval(pv.timer); pv.timer = null; } }
+function setPlayBtn() { document.getElementById("pvPlay").textContent = pv.playing ? "❚❚" : "▶"; }
+
+function playPause() {
+  pv.playing = !pv.playing;
+  setPlayBtn();
+  if (pv.hasSrc) {                               // 有真实源：直接驱动 <video>
+    const v = document.getElementById("pvVideo");
+    pv.playing ? v.play() : v.pause();
+    return;
+  }
+  // 占位：虚拟时间轴推进（演示用）
+  stopTick();
+  if (pv.playing) {
+    pv.timer = setInterval(() => {
+      pv.t += 0.1;
+      if (pv.t >= pv.total) { pv.t = pv.total; pv.playing = false; setPlayBtn(); stopTick(); }
+      paintTransport();
+    }, 100);
+  }
+}
+
+function seekTo(sec) {
+  pv.t = Math.max(0, Math.min(pv.total, sec));
+  if (pv.hasSrc) document.getElementById("pvVideo").currentTime = pv.t;
+  paintTransport();
+}
+
+function wirePreview() {
+  document.getElementById("pvPlay").addEventListener("click", playPause);
+  // 进度条点击 seek
+  const bar = document.getElementById("pvProgress");
+  bar.addEventListener("click", (e) => {
+    const r = bar.getBoundingClientRect();
+    seekTo(((e.clientX - r.left) / r.width) * pv.total);
+  });
+  renderJumps();
+  setPreviewSrc(PREVIEW_SRC);   // 占位（PREVIEW_SRC 为空时显示占位提示）
+  paintTransport();
+  // 预览侧栏副标题跟随集数选择
+  const ep = document.getElementById("epSelect");
+  const sub = document.getElementById("pvSub");
+  const syncSub = () => { sub.textContent = `${ep.value} · 跟随下方镜头`; };
+  ep.addEventListener("change", syncSub); syncSub();
+}
+
 renderTasks();
 renderShots();
+wirePreview();
 wireExamples();
 wireActions();
 wireModes();

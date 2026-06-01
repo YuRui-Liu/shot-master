@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · 视频后期 · 智能转场/成片</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* 作为壳内容页：自带标题栏/侧栏由 web/app.html 壳(糯米 AI)统一提供，本页不重复。 */
+  body { overflow-x: hidden; }
+
+  /* 工作区 */
+  .work { padding: 24px 28px 36px; }
+  .work-head {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 14px;
+    max-width: 1280px; flex-wrap: wrap;
+  }
+  .work-head h1 { margin: 0; font-size: 22px; }
+  .ep-select { min-width: 170px; }
+  .head-spacer { flex: 1; }
+
+  /* 工具栏按钮：分析(主CTA) / 渲染 拆开（一主CTA原则） */
+  .btn-analyze {
+    background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a;
+    font-weight: 700; white-space: nowrap; box-shadow: 0 0 18px rgba(74,158,255,.28);
+  }
+  .btn-render {
+    background: rgba(74,158,255,.08); color: var(--blue);
+    border: 1px solid var(--blue-dim); font-weight: 600; white-space: nowrap;
+  }
+  .btn-render:hover { filter: none; background: rgba(74,158,255,.16); }
+  .btn-soft {
+    background: var(--panel2); color: var(--fg2); border: 1px solid var(--border);
+    font-weight: 500; white-space: nowrap;
+  }
+  .btn-soft:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
+
+  /* 主体卡：走马灯 + (预览 / 检查器) + 渲染条 */
+  .compose { max-width: 1280px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ===== 片段走马灯 ClipStrip ===== */
+  .strip-card { padding: 14px 16px 12px; }
+  .strip-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .strip-hd .h { font-size: 12.5px; color: var(--fg2); font-weight: 600; }
+  .strip-hd .cnt { font-size: 11.5px; color: var(--faint); }
+  .strip-hd .ana {
+    margin-left: auto; font-size: 11px; color: var(--mauve);
+    background: rgba(138,127,217,.14); border: 1px solid #4a3d6e;
+    border-radius: 10px; padding: 2px 10px;
+  }
+  .strip { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 8px; }
+
+  /* 片段卡 */
+  .clip {
+    width: 122px; flex-shrink: 0; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--field); overflow: hidden;
+    cursor: pointer; position: relative; transition: border-color .14s, box-shadow .14s;
+  }
+  .clip.sel { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue), 0 0 18px rgba(74,158,255,.2); }
+  .clip.dropped { opacity: .42; }
+  .clip.dropped .thumb::after {
+    content: "已剔除"; position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+    background: rgba(8,8,18,.55); color: var(--err); font-size: 12px; font-weight: 700;
+  }
+  .clip .thumb { height: 142px; position: relative; background: linear-gradient(135deg, #1a3060, #2a1850); }
+  .clip.c2 .thumb { background: linear-gradient(135deg, #281020, #1a1030); }
+  .clip.c3 .thumb { background: linear-gradient(135deg, #102820, #1a2028); }
+  .clip.c4 .thumb { background: linear-gradient(135deg, #201a10, #281818); }
+  .clip .keep {
+    position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 5px;
+    background: rgba(8,8,18,.6); border: 1px solid var(--blue);
+    display: flex; align-items: center; justify-content: center; color: var(--blue); font-size: 12px;
+  }
+  .clip.dropped .keep { border-color: var(--faint); color: var(--faint); }
+  .clip .grip { position: absolute; top: 6px; right: 6px; color: var(--muted); font-size: 13px; opacity: .7; }
+  .clip .shots {
+    position: absolute; bottom: 34px; left: 6px; font-size: 9px; color: var(--blue);
+    background: rgba(74,158,255,.18); border: 1px solid var(--blue-dim); border-radius: 3px; padding: 1px 5px;
+  }
+  .clip .meta { padding: 5px 7px; background: rgba(13,13,30,.85); }
+  .clip .c-name { font-size: 11px; font-weight: 600; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .clip .c-dur { font-size: 9px; color: var(--faint); margin-top: 1px; }
+  .clip.add { border-style: dashed; background: transparent; }
+  .clip.add .thumb { background: none; display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 26px; }
+
+  /* 切口连接器 conn = 转场切口 */
+  .conn {
+    width: 70px; flex-shrink: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 3px; cursor: pointer; align-self: center; position: relative;
+  }
+  .conn .node {
+    width: 30px; height: 30px; border-radius: 50%; border: 1px dashed var(--faint);
+    background: var(--navy); display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 13px; transition: border-color .14s, color .14s;
+  }
+  .conn .lbl { font-size: 9px; color: var(--muted); white-space: nowrap; }
+  .conn .score { font-size: 8.5px; color: var(--faint); }
+  .conn .tagb { font-size: 8px; border-radius: 3px; padding: 0 4px; line-height: 1.4; }
+  /* 状态：AI 推荐(紫) / 分析中(脉冲) / 手动(灰) / 锁定(橙) / 硬切(实线方块) / 选中(蓝) */
+  .conn.ai .node { border-style: solid; border-color: var(--mauve); color: var(--mauve); }
+  .conn.ai .lbl { color: var(--mauve); }
+  .conn.ai .tagb { color: var(--mauve); border: 1px solid #4a3d6e; background: rgba(138,127,217,.16); }
+  .conn.analyzing .node { border-style: solid; border-color: var(--mauve); color: var(--mauve); animation: pulse 1s infinite; }
+  .conn.manual .node { border-style: solid; border-color: var(--faint); color: var(--fg2); }
+  .conn.manual .tagb { color: var(--fg2); border: 1px solid var(--border); background: var(--panel2); }
+  .conn.locked .node { border-style: solid; border-color: var(--warn); color: var(--warn); }
+  .conn.locked .lbl { color: var(--warn); }
+  .conn.locked .tagb { color: var(--warn); border: 1px solid #6b5520; background: rgba(224,168,90,.14); }
+  .conn.locked .lock { position: absolute; top: -3px; right: 16px; font-size: 9px; color: var(--warn); }
+  .conn.cut .node { border-style: solid; }
+  .conn.sel .node { box-shadow: 0 0 0 2px var(--blue), 0 0 12px rgba(74,158,255,.45); }
+  @keyframes pulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
+
+  /* ===== 下部：预览 + 检查器 ===== */
+  .lower { display: flex; gap: 14px; align-items: stretch; }
+  .preview { flex: 1; min-width: 0; padding: 14px 16px; display: flex; flex-direction: column; }
+  .player {
+    flex: 1; min-height: 220px; background: #000; border: 1px solid var(--border-lo);
+    border-radius: var(--radius-sm); position: relative;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .player .pv-tag { position: absolute; top: 8px; left: 10px; font-size: 10.5px; color: var(--muted); }
+  .player .play {
+    width: 48px; height: 48px; border-radius: 50%; background: rgba(74,158,255,.18);
+    border: 1px solid var(--blue); display: flex; align-items: center; justify-content: center;
+    color: var(--blue); font-size: 18px;
+  }
+  /* trim 裁切条 */
+  .trim { margin-top: 12px; }
+  .trim .tl-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--faint); margin-bottom: 5px; }
+  .scrub {
+    height: 38px; border-radius: var(--radius-sm); position: relative; overflow: hidden;
+    background: repeating-linear-gradient(90deg, #1a2848 0 24px, #22305a 24px 48px);
+    border: 1px solid var(--border);
+  }
+  .scrub .keepzone { position: absolute; top: 0; bottom: 0; left: 14%; right: 18%; background: rgba(74,158,255,.12); border-left: 2px solid var(--blue); border-right: 2px solid var(--blue); }
+  .scrub .handle { position: absolute; top: 0; bottom: 0; width: 8px; background: var(--blue); cursor: ew-resize; }
+  .scrub .handle.l { left: 14%; border-radius: 3px 0 0 3px; }
+  .scrub .handle.r { right: 18%; border-radius: 0 3px 3px 0; }
+  .trim .hint { font-size: 10.5px; color: var(--faint); margin-top: 6px; }
+
+  /* 检查器 inspector */
+  .inspector { width: 280px; flex-shrink: 0; padding: 14px 16px; display: flex; flex-direction: column; gap: 13px; }
+  .insp-hd { font-size: 13.5px; font-weight: 700; color: var(--fg); display: flex; align-items: center; gap: 8px; }
+  .field label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 6px; }
+  .field .select {
+    background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 8px 11px; color: var(--fg); font-size: 12.5px; display: flex; justify-content: space-between; cursor: pointer;
+  }
+  .field .select:hover { border-color: var(--mauve); }
+  .field input[type="number"] { width: 100%; }
+
+  /* CV 评分拆解卡 */
+  .scorecard { background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; }
+  .scorecard .row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .scorecard .k { font-size: 10.5px; color: var(--muted); width: 46px; }
+  .scorecard .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--border); position: relative; overflow: hidden; }
+  .scorecard .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, var(--blue), var(--periw)); }
+  .scorecard .v { font-size: 10.5px; color: var(--fg2); width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
+  .scorecard .total { font-size: 11px; color: var(--mauve); margin-top: 3px; }
+
+  .chiprow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    font-size: 11.5px; color: var(--fg2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 5px 10px; cursor: pointer; background: var(--panel2);
+  }
+  .chip:hover { border-color: var(--mauve); color: var(--fg); }
+  .chip.on { border-color: var(--blue); color: var(--blue); background: rgba(74,158,255,.1); }
+  .lock-toggle { font-size: 11.5px; color: var(--fg2); display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  .insp-foot { margin-top: auto; }
+
+  /* 渲染条 */
+  .renderbar { display: flex; align-items: center; gap: 12px; padding: 11px 16px; }
+  .progress { flex: 1; height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+  .progress .pf { height: 100%; width: 0%; background: linear-gradient(90deg, var(--blue), var(--periw)); transition: width .3s; }
+  .renderbar .st { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .renderbar .st.act { color: var(--mauve); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
+    background: var(--panel); border: 1px solid var(--mauve); color: var(--fg);
+    padding: 10px 18px; border-radius: var(--radius); font-size: 13px; opacity: 0;
+    transition: opacity .2s, transform .2s; z-index: 80; box-shadow: 0 10px 28px rgba(0,0,0,.5);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="work">
+  <div class="work-head">
+    <h1>视频后期 · 智能转场/成片</h1>
+    <select class="ep-select">
+      <option>第一集 · 成片</option>
+      <option>第二集 · 成片</option>
+      <option>预告片</option>
+    </select>
+    <span class="head-spacer"></span>
+    <button class="btn-soft" data-act="listdir">⟳ 列出生成目录</button>
+    <button class="btn-soft" data-act="addclip">＋ 添加片段</button>
+    <!-- 主 CTA：智能转场=CV 分析触发（不直接出片） -->
+    <button class="btn-analyze" data-act="analyze">✦ 一键智能转场</button>
+    <!-- 拆出的渲染：分析→审阅→再生成 -->
+    <button class="btn-render" data-act="render">⬇ 生成成片</button>
+  </div>
+
+  <div class="compose">
+    <!-- ClipStrip：片段走马灯 -->
+    <section class="card strip-card">
+      <div class="strip-hd">
+        <span class="h">片段走马灯 · ClipStrip</span>
+        <span class="cnt">拖拽排序 · 点缩略图预览 · 点圆点编辑转场切口</span>
+        <span class="ana" id="anaState">未分析 · 点「一键智能转场」跑 CV 推荐</span>
+      </div>
+      <div class="strip" id="strip"><!-- JS 渲染 --></div>
+    </section>
+
+    <!-- 下部：预览 + 检查器 -->
+    <div class="lower">
+      <section class="card preview">
+        <div class="player" data-act="play">
+          <span class="pv-tag" id="pvTag">预览：片段 02（也可切「整片预览」）</span>
+          <div class="play">▶</div>
+        </div>
+        <div class="trim">
+          <div class="tl-row"><span>0:00</span><span id="trimInfo">入点 0:01.6 — 出点 0:09.1（保留 7.5s）</span><span>0:11.0</span></div>
+          <div class="scrub">
+            <div class="keepzone"></div>
+            <div class="handle l"></div>
+            <div class="handle r"></div>
+          </div>
+          <div class="hint">拖动蓝色手柄裁掉片段头尾瑕疵帧（仅存入/出点，渲染时 ffmpeg -ss/-to 实裁）</div>
+        </div>
+      </section>
+
+      <!-- 转场检查器 -->
+      <section class="card inspector" id="inspector"><!-- JS 渲染选中切口 --></section>
+    </div>
+
+    <!-- 渲染条 -->
+    <section class="card renderbar">
+      <span class="st act" id="renderSt">就绪 · 先分析切口，再生成成片</span>
+      <div class="progress"><div class="pf" id="renderPf"></div></div>
+      <span class="st">归一化 1080p/30fps · 保留原音(acrossfade)</span>
+      <button class="btn-soft" data-act="tosound">送去配乐 ›</button>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== 壳内容页：API 基址从 URLSearchParams 读，默认 18430/18450 ===== */
+const SW_API    = new URLSearchParams(location.search).get('sw')    || 'http://127.0.0.1:18430'; // screenwriter_agent
+const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450'; // media_agent
+/* 转场接 media_agent /transition：
+     POST {MEDIA_API}/transition  body{mode:'analyze', clips:[...] }  → 逐切口 CV 评分(直方图/SIFT/光流)+AI推荐效果/时长（SSE 进度 N/总）
+     POST {MEDIA_API}/transition  body{mode:'render',  clips:[...], cuts:[...]} → ffmpeg xfade/acrossfade 渲染成片（SSE 进度） */
+
+/* ===== stub 数据：片段 + 切口（cut 在两片段之间） ===== */
+const clips = [
+  { id: 1, name: "片段 01", dur: "0:08.4", shots: "3 镜", cls: "",   kept: true },
+  { id: 2, name: "片段 02", dur: "0:11.0 ✂", shots: "2 镜", cls: "c2", kept: true },
+  { id: 3, name: "片段 03", dur: "0:06.2", shots: "1 镜", cls: "c3", kept: true },
+  { id: 4, name: "片段 04", dur: "0:09.1", shots: "—",   cls: "c4", kept: false },
+  { id: 5, name: "片段 05", dur: "0:07.8", shots: "2 镜", cls: "",   kept: true },
+];
+/* 切口状态：ai | analyzing | manual | locked | cut；含 CV 评分拆解（hist 直方图 / sift 结构 / flow 光流）。 */
+const cuts = [
+  { id: "c12", a: 1, b: 2, status: "ai",     effect: "叠化 (dissolve)",    fx: "dissolve",   dur: 0.5, scores: { hist: 0.78, sift: 0.88, flow: 0.50 }, total: 0.82, cat: "高匹配 → 万能类（叠化）" },
+  { id: "c23", a: 2, b: 3, status: "manual", effect: "推进 (smoothleft)",  fx: "smoothleft", dur: 0.6, scores: { hist: 0.42, sift: 0.55, flow: 0.71 }, total: 0.61, cat: "中匹配+运动 → 方向类（推进）" },
+  { id: "c34", a: 3, b: 4, status: "cut",    effect: "硬切 (cut)",         fx: "cut",        dur: 0.0, scores: { hist: 0.30, sift: 0.28, flow: 0.20 }, total: 0.26, cat: "低匹配 → 创意/硬切" },
+  { id: "c45", a: 4, b: 5, status: "locked", effect: "圆开 (circleopen)",  fx: "circleopen", dur: 0.7, scores: { hist: 0.60, sift: 0.64, flow: 0.40 }, total: 0.55, cat: "锁定（重跑不覆盖）" },
+];
+
+let selClip = 2;     // 当前预览片段
+let selCut  = "c12"; // 当前检查器切口
+const EFFECTS = ["叠化 (dissolve)", "推进 (smoothleft)", "圆开 (circleopen)", "淡入黑 (fadeblack)", "硬切 (cut)"];
+
+const NODE_ICON = { ai: "⤬", analyzing: "◌", manual: "▷", locked: "◐", cut: "▭" };
+const TAG_TXT   = { ai: "AI", analyzing: "分析", manual: "手动", locked: "锁定", cut: "硬切" };
+
+function shortEffect(c) { return c.fx === "cut" ? "硬切" : c.effect.split(" ")[0] + " " + c.dur + "s"; }
+
+/* ===== 渲染 ClipStrip（片段卡 + 卡间切口圆点） ===== */
+function renderStrip() {
+  const root = document.getElementById("strip");
+  root.innerHTML = "";
+  clips.forEach((cl, i) => {
+    // 片段卡
+    const card = document.createElement("div");
+    card.className = "clip " + cl.cls + (cl.kept ? "" : " dropped") + (cl.id === selClip ? " sel" : "");
+    card.innerHTML = `
+      <div class="thumb">
+        <div class="keep" data-keep="${cl.id}">${cl.kept ? "✓" : ""}</div>
+        <div class="grip">⠿</div>
+        ${cl.shots !== "—" ? `<div class="shots">${cl.shots}</div>` : ""}
+      </div>
+      <div class="meta"><div class="c-name">${cl.name}</div><div class="c-dur">${cl.dur}</div></div>`;
+    card.addEventListener("click", (e) => {
+      if (e.target.dataset.keep) {
+        cl.kept = !cl.kept;            // 勾选保留/剔除
+        renderStrip();
+        return;
+      }
+      selClip = cl.id;                 // 点卡片预览
+      document.getElementById("pvTag").textContent = `预览：${cl.name}（也可切「整片预览」）`;
+      renderStrip();
+    });
+    root.appendChild(card);
+
+    // 卡间切口圆点
+    if (i < clips.length - 1) {
+      const cut = cuts.find((c) => c.a === cl.id && c.b === clips[i + 1].id);
+      if (cut) {
+        const conn = document.createElement("div");
+        conn.className = "conn " + cut.status + (cut.id === selCut ? " sel" : "");
+        conn.innerHTML = `
+          ${cut.status === "locked" ? `<span class="lock">🔒</span>` : ""}
+          <div class="node">${NODE_ICON[cut.status]}</div>
+          ${cut.status !== "cut" ? `<span class="tagb">${TAG_TXT[cut.status]}</span>` : ""}
+          <span class="lbl">${cut.status === "analyzing" ? "分析中…" : shortEffect(cut)}</span>
+          <span class="score">${cut.status === "analyzing" ? "" : "匹配 " + cut.total.toFixed(2)}</span>`;
+        conn.addEventListener("click", () => { selCut = cut.id; renderInspector(); renderStrip(); });
+        root.appendChild(conn);
+      }
+    }
+  });
+  // 末尾「添加片段」占位
+  const add = document.createElement("div");
+  add.className = "clip add";
+  add.innerHTML = `<div class="thumb">＋</div><div class="meta"><div class="c-name" style="color:var(--faint)">添加片段</div></div>`;
+  add.addEventListener("click", () => toast("stub · 添加片段（真机：列出 media_agent 生成目录后追加）"));
+  root.appendChild(add);
+}
+
+/* ===== 渲染转场检查器（选中切口的 CV 评分拆解 + 效果/时长/来源/锁定） ===== */
+function renderInspector() {
+  const c = cuts.find((x) => x.id === selCut);
+  const insp = document.getElementById("inspector");
+  if (!c) { insp.innerHTML = `<div class="insp-hd">未选中切口</div>`; return; }
+  const badge = { ai: "AI 推荐", analyzing: "分析中", manual: "手动覆盖", locked: "锁定", cut: "硬切" }[c.status];
+  const s = c.scores;
+  insp.innerHTML = `
+    <div class="insp-hd">转场：${c.a} → ${c.b} <span class="badge">${badge}</span></div>
+
+    <div class="field">
+      <label>转场效果</label>
+      <div class="select" data-act="pickfx"><span>${c.effect}</span><span style="color:var(--mauve)">▾</span></div>
+    </div>
+    <div class="field">
+      <label>时长（0.3 – 2.0s）</label>
+      <input type="number" min="0.3" max="2.0" step="0.1" value="${c.dur.toFixed(1)}" data-act="dur">
+    </div>
+
+    <div class="field">
+      <label>CV 评分拆解（直方图 / SIFT / 光流）</label>
+      <div class="scorecard">
+        <div class="row"><span class="k">直方图</span><div class="bar"><i style="width:${s.hist*100}%"></i></div><span class="v">${s.hist.toFixed(2)}</span></div>
+        <div class="row"><span class="k">SIFT</span><div class="bar"><i style="width:${s.sift*100}%"></i></div><span class="v">${s.sift.toFixed(2)}</span></div>
+        <div class="row"><span class="k">光流</span><div class="bar"><i style="width:${s.flow*100}%"></i></div><span class="v">${s.flow.toFixed(2)}</span></div>
+        <div class="total">综合匹配 ${c.total.toFixed(2)} → ${c.cat}</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>来源</label>
+      <div class="chiprow">
+        <span class="chip ${c.status === "ai" ? "on" : ""}" data-src="ai">AI 自动</span>
+        <span class="chip ${c.status === "manual" ? "on" : ""}" data-src="manual">手动覆盖</span>
+      </div>
+    </div>
+
+    <div class="lock-toggle" data-act="lock">${c.status === "locked" ? "☑" : "☐"} 锁定此切口（重跑「一键智能转场」不覆盖）</div>
+
+    <div class="insp-foot chiprow">
+      <span class="chip" data-act="reset">↺ 重置为 AI</span>
+      <span class="chip" data-act="applyall">应用到全部</span>
+    </div>`;
+  wireInspector(c);
+}
+
+function wireInspector(c) {
+  const insp = document.getElementById("inspector");
+  insp.querySelector('[data-act="pickfx"]').addEventListener("click", () => {
+    const i = EFFECTS.indexOf(c.effect);
+    c.effect = EFFECTS[(i + 1) % EFFECTS.length];      // stub：循环切换效果
+    c.fx = c.effect.match(/\((\w+)\)/)[1];
+    if (c.fx === "cut") c.dur = 0.0;
+    renderInspector(); renderStrip();
+  });
+  const durEl = insp.querySelector('[data-act="dur"]');
+  if (durEl) durEl.addEventListener("change", () => { c.dur = parseFloat(durEl.value) || 0.5; renderStrip(); });
+  insp.querySelectorAll("[data-src]").forEach((el) => el.addEventListener("click", () => {
+    c.status = el.dataset.src; renderInspector(); renderStrip();
+  }));
+  insp.querySelector('[data-act="lock"]').addEventListener("click", () => {
+    c.status = c.status === "locked" ? "manual" : "locked"; renderInspector(); renderStrip();
+  });
+  insp.querySelector('[data-act="reset"]').addEventListener("click", () => {
+    c.status = "ai"; renderInspector(); renderStrip(); toast("已重置为 AI 推荐");
+  });
+  insp.querySelector('[data-act="applyall"]').addEventListener("click", () => {
+    cuts.forEach((x) => { if (x.status !== "locked" && x.fx !== "cut") { x.effect = c.effect; x.fx = c.fx; x.dur = c.dur; } });
+    renderInspector(); renderStrip(); toast(`已把「${c.effect}」应用到全部未锁定切口`);
+  });
+}
+
+/* ===== 一键智能转场 = CV 分析（占位：逐切口脉冲→填 AI 推荐，锁定项不覆盖） ===== */
+function analyze() {
+  const targets = cuts.filter((c) => c.status !== "locked");
+  if (!targets.length) { toast("全部切口已锁定，无需分析"); return; }
+  let i = 0;
+  document.getElementById("anaState").textContent = "✦ CV 分析中…（锁定项不覆盖）";
+  targets.forEach((c) => (c.status = "analyzing"));
+  renderStrip();
+  const tick = setInterval(() => {
+    if (i >= targets.length) {
+      clearInterval(tick);
+      document.getElementById("anaState").textContent = `✦ CV 分析完成 · ${targets.length} 切口已推荐（锁定项保留）`;
+      renderInspector();
+      // 真机：POST {MEDIA_API}/transition {mode:'analyze'} 读 SSE 逐切口回填 scores+effect+dur
+      return;
+    }
+    const c = targets[i++];
+    c.status = "ai";                              // stub：填 AI 推荐
+    document.getElementById("anaState").textContent = `✦ CV 分析中 ${i}/${targets.length} 切口…`;
+    renderStrip();
+  }, 600);
+}
+
+/* ===== 生成成片（占位进度条；真机接 media_agent /transition mode:'render'） ===== */
+function render() {
+  const pf = document.getElementById("renderPf");
+  const st = document.getElementById("renderSt");
+  let p = 0;
+  st.classList.add("act");
+  const tick = setInterval(() => {
+    p += 8 + Math.random() * 10;
+    if (p >= 100) {
+      p = 100; clearInterval(tick);
+      st.textContent = "✓ 成片已生成（保留原音 acrossfade）· 可送去配乐";
+    } else {
+      st.textContent = `渲染中 ${Math.floor(p)}% · xfade/acrossfade 归一化 1080p/30fps`;
+    }
+    pf.style.width = p + "%";
+    // 真机：POST {MEDIA_API}/transition {mode:'render', clips, cuts} 读 SSE 进度
+  }, 380);
+}
+
+/* ===== 工具栏 / 预览 stub 接线 ===== */
+function wireToolbar() {
+  document.querySelectorAll("[data-act]").forEach((el) => {
+    if (el.closest("#inspector")) return; // 检查器自管
+    el.addEventListener("click", () => {
+      switch (el.dataset.act) {
+        case "analyze":  analyze(); break;
+        case "render":   render();  break;
+        case "listdir":  toast("stub · 列出生成目录（真机 GET " + MEDIA_API + " 媒资目录）"); break;
+        case "addclip":  toast("stub · 添加片段"); break;
+        case "play":     toast("stub · 播放预览（真机串流片段/整片）"); break;
+        case "tosound":  toast("stub · 送去配乐（切到配乐工作区，接 " + SW_API + "/audio_prompt + media_agent /soundtrack）"); break;
+      }
+    });
+  });
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+renderStrip();
+renderInspector();
+wireToolbar();
+</script>
+</body>
+</html>

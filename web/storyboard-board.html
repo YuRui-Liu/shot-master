@@ -171,6 +171,117 @@
     margin-top: 46%; color: var(--faint); font-size: 12px; text-align: center; line-height: 1.7;
   }
   .side-meta { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.7; }
+
+  /* ===== 工作模式切换 seg ===== */
+  .mode-seg {
+    display: inline-flex; background: var(--field); border: 1px solid var(--border);
+    border-radius: 9px; padding: 3px; gap: 3px;
+  }
+  .mode-btn {
+    font: inherit; font-size: 12.5px; color: var(--muted); background: transparent;
+    border: none; padding: 6px 16px; border-radius: 7px; cursor: pointer;
+  }
+  .mode-btn:hover { color: var(--fg2); }
+  .mode-btn.active {
+    color: #06122a; font-weight: 700;
+    background: linear-gradient(135deg, var(--blue), var(--periw));
+  }
+  .sbview-tools { display: inline-flex; align-items: center; gap: 14px; }
+
+  /* ===== 自由模式：批处理工具集 ===== */
+  .batch-win {
+    border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+    background: var(--bg); display: flex; flex-direction: column; height: 640px;
+  }
+  .batch-toolbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px; background: var(--navy); border-bottom: 1px solid var(--border-lo);
+  }
+  .btabs { display: flex; gap: 6px; background: var(--field); border: 1px solid var(--border-lo); border-radius: 9px; padding: 3px; }
+  .btab { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); padding: 7px 16px; border-radius: 7px; cursor: pointer; border: 1px solid transparent; }
+  .btab .ico { width: 16px; height: 16px; opacity: .85; }
+  .btab:hover { color: var(--fg2); }
+  .btab.act { color: #06122a; font-weight: 700; background: linear-gradient(135deg, var(--blue), var(--periw)); }
+  .btab.act .ico { opacity: 1; }
+  .btbsp { flex: 1; }
+  .outdir { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--muted); }
+  .outdir .path { background: var(--field); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; color: var(--fg2); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .outdir .pick { color: var(--blue); border: 1px solid var(--blue-dim); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .outdir .pick:hover { background: rgba(74,158,255,.12); }
+
+  .batch-body { flex: 1; display: flex; min-height: 0; }
+
+  /* 中栏：缩略图网格 */
+  .grid-col { flex: 1; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border-lo); }
+  .gridhead { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border-lo); }
+  .gridhead .t { font-size: 12.5px; font-weight: 600; }
+  .gridhead .bmode { font-size: 9.5px; color: #cdbcf5; border: 1px solid #4a3d6e; border-radius: 9px; padding: 1px 9px; }
+  .gridhead .gh-sp { flex: 1; }
+  .gridhead .mini { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+  .gridhead .mini:hover { color: var(--fg2); border-color: var(--blue-dim); }
+  .gridwrap { flex: 1; overflow: auto; padding: 14px 16px; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 12px; }
+  .th { position: relative; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--border); background: #10131f; cursor: pointer; aspect-ratio: 1/1; }
+  .th .img { width: 100%; height: 100%; background: linear-gradient(135deg, #243a5a, #3a2746); }
+  .th:nth-child(3n) .img { background: linear-gradient(135deg, #1f3a4d, #332a52); }
+  .th:nth-child(3n+1) .img { background: linear-gradient(135deg, #2a3560, #4a2f4a); }
+  .th .name { position: absolute; left: 0; right: 0; bottom: 0; font-size: 9.5px; color: #cfd3e0; background: linear-gradient(transparent, rgba(8,9,16,.85)); padding: 12px 7px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .th.sel { border-color: var(--mauve); box-shadow: 0 0 0 1px rgba(167,139,250,.35); }
+  .th .check { position: absolute; top: 6px; left: 6px; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid rgba(255,255,255,.5); background: rgba(8,9,16,.4); display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; }
+  .th.sel .check { background: var(--mauve); border-color: var(--mauve); color: #1a1230; font-weight: 700; }
+  /* order 顺序角标（拼图） */
+  .th .ord { position: absolute; top: 6px; left: 6px; min-width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; font-weight: 800; font-size: 11px; display: none; align-items: center; justify-content: center; padding: 0 5px; }
+  .batch-win.order-mode .th .check { display: none; }
+  .batch-win.order-mode .th.sel .ord { display: flex; }
+
+  /* 右栏：参数面板 */
+  .panel-col { width: 360px; flex: 0 0 360px; display: flex; flex-direction: column; background: var(--bg); }
+  .panelhead { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--border-lo); }
+  .panelhead .t { font-size: 13px; font-weight: 600; }
+  .panelhead .ph-sp { flex: 1; }
+  .panelhead .ptag { font-size: 9.5px; color: var(--muted); border: 1px solid var(--border); border-radius: 9px; padding: 1px 9px; }
+  .panelbody { flex: 1; overflow: auto; padding: 14px 16px; }
+
+  .pgroup { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 12px 13px; margin-bottom: 13px; }
+  .pgroup .glab { font-size: 11px; color: var(--periw); font-weight: 600; letter-spacing: .4px; margin-bottom: 11px; text-transform: uppercase; }
+  .prow { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+  .prow:last-child { margin-bottom: 0; }
+  .prow .k { font-size: 12px; color: var(--fg2); width: 108px; flex: 0 0 108px; }
+  .prow .k.sm { width: 64px; flex: 0 0 64px; }
+  .prow input, .prow select { flex: 1; font-size: 12px; padding: 6px 9px; }
+  .pgrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; }
+  .pgrid2 .prow { margin: 0; }
+  .quad .qcell { display: flex; align-items: center; gap: 7px; }
+  .quad .qcell .ql { font-size: 11.5px; color: var(--muted); width: 14px; }
+  .quad .qcell input { flex: 1; width: 100%; font-size: 12px; padding: 6px 9px; }
+  .detbtns { display: flex; gap: 8px; margin-top: 11px; }
+  .detbtn { flex: 1; text-align: center; font-size: 11.5px; color: var(--blue); border: 1px solid var(--blue-dim); border-radius: 6px; padding: 7px 0; cursor: pointer; background: rgba(74,158,255,.06); }
+  .detbtn:hover { background: rgba(74,158,255,.14); }
+  .ghead-sw { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; }
+  .ghead-sw .glab { margin-bottom: 0; flex: 1; }
+  .sw { width: 34px; height: 18px; border-radius: 10px; background: linear-gradient(135deg, var(--blue), var(--periw)); position: relative; flex: 0 0 34px; cursor: pointer; }
+  .sw .dot { position: absolute; top: 2px; right: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .sw.off { background: #2a2e44; }
+  .sw.off .dot { left: 2px; right: auto; background: #6b7088; }
+  .phint { font-size: 10.5px; color: var(--faint); line-height: 1.5; margin-top: 9px; }
+  .phint b { color: var(--muted); }
+  .pta { width: 100%; min-height: 88px; resize: vertical; background: var(--field); border: 1px solid var(--border); border-radius: 6px; color: var(--fg); font: inherit; font-size: 12px; line-height: 1.55; padding: 8px 10px; outline: none; }
+  .pta:focus { border-color: var(--mauve); }
+
+  /* 底部执行栏 */
+  .execbar { border-top: 1px solid var(--border-lo); background: var(--navy); padding: 11px 16px; }
+  .prog-line { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .prog-line .pl { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .prog-line .pl b { color: var(--done); }
+  .bar { flex: 1; height: 7px; border-radius: 5px; background: var(--field); border: 1px solid var(--border-lo); overflow: hidden; }
+  .bar .fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--blue), var(--periw)); border-radius: 5px; transition: width .3s; }
+  .btnrow { display: flex; align-items: center; gap: 10px; }
+  .bbtn { font: inherit; border: 1px solid var(--border); color: var(--fg2); border-radius: 8px; padding: 9px 18px; font-size: 12.5px; cursor: pointer; background: transparent; }
+  .bbtn:hover { border-color: var(--blue-dim); color: var(--fg); }
+  .bbtn.exec { background: linear-gradient(90deg, var(--blue), var(--periw)); color: #06122a; font-weight: 700; border: none; padding: 9px 26px; }
+  .btnrow .br-sp { flex: 1; }
+  .vhint { font-size: 11.5px; color: var(--warn); }
+  .vhint.ok { color: var(--done); }
 </style>
 </head>
 <body>
@@ -179,15 +290,26 @@
   <!-- ===== 顶部栏 ===== -->
   <div class="topbar">
     <h1>③ 分镜板 · STORYBOARD</h1>
+    <!-- 工作模式切换：分镜视角（默认）/ 自由模式 -->
+    <span class="mode-seg" id="modeSeg">
+      <button class="mode-btn active" data-mode="storyboard">分镜视角</button>
+      <button class="mode-btn" data-mode="free">自由模式</button>
+    </span>
     <div class="spacer"></div>
-    <select class="shot-select" id="shotSel">
-      <option>1-1 城郊废品回收站</option>
-      <option>1-2 油桶后的对峙</option>
-      <option>2-1 雨夜追逐</option>
-    </select>
-    <button class="btn-split-auto" id="autoBtn">⚡ 一键分镜 ▾</button>
-    <button class="btn-go" id="splitBtn">拆分镜</button>
+    <!-- 分镜视角工具：选镜 / 一键分镜 / 拆分镜 -->
+    <span class="sbview-tools" id="sbViewTools">
+      <select class="shot-select" id="shotSel">
+        <option>1-1 城郊废品回收站</option>
+        <option>1-2 油桶后的对峙</option>
+        <option>2-1 雨夜追逐</option>
+      </select>
+      <button class="btn-split-auto" id="autoBtn">⚡ 一键分镜 ▾</button>
+      <button class="btn-go" id="splitBtn">拆分镜</button>
+    </span>
   </div>
+
+  <!-- ===== 分镜视角内容区（默认显示） ===== -->
+  <div id="storyboardView">
 
   <!-- ===== 拆解表面板（可收起） ===== -->
   <div class="panel" id="breakdown">
@@ -419,6 +541,97 @@
     </div>
   </div>
 
+  </div><!-- /#storyboardView -->
+
+  <!-- ===== 自由模式：批处理工具集（默认隐藏） ===== -->
+  <div id="freeView" hidden>
+    <div class="batch-win">
+
+      <!-- 顶部工具 Tab + 输出目录 -->
+      <div class="batch-toolbar">
+        <div class="btabs" id="btabs">
+          <div class="btab act" data-tool="imggen">
+            <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><circle cx="5.5" cy="6" r="1.4"/><path d="M2 12l3.5-3.5 2.5 2.5 3-3 3.5 3.5"/></svg>
+            出图
+          </div>
+          <div class="btab" data-tool="split">
+            <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="1.5" width="13" height="13" rx="1.5"/><line x1="8" y1="1.5" x2="8" y2="14.5"/><line x1="1.5" y1="8" x2="14.5" y2="8"/></svg>
+            拆图
+          </div>
+          <div class="btab" data-tool="trim">
+            <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="3" width="10" height="10" rx="1" opacity=".55"/><path d="M3 1v3M3 12v3M1 3h3M12 3h3"/></svg>
+            去白边
+          </div>
+          <div class="btab" data-tool="combine">
+            <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1"/><rect x="9" y="9" width="5.5" height="5.5" rx="1"/></svg>
+            拼图
+          </div>
+        </div>
+        <div class="btbsp"></div>
+        <div class="outdir">
+          <span>输出目录</span>
+          <span class="path" id="outDir">D:/works/ep01/tiles_out</span>
+          <span class="pick" id="pickDir">选择…</span>
+        </div>
+      </div>
+
+      <div class="batch-body">
+        <!-- 中栏：缩略图网格 -->
+        <div class="grid-col">
+          <div class="gridhead">
+            <span class="t" id="gridTitle">源图</span>
+            <span class="bmode" id="gridMode">多选 · 已选 3 张</span>
+            <span class="gh-sp"></span>
+            <span class="mini" id="openDir">打开目录…</span>
+            <span class="mini" id="selAll">全选</span>
+            <span class="mini" id="selClear">清空</span>
+          </div>
+          <div class="gridwrap">
+            <div class="thumbs" id="thumbs">
+              <div class="th sel"><div class="img"></div><div class="check">✓</div><div class="ord"></div><div class="name">grid_001.png</div></div>
+              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_002.png</div></div>
+              <div class="th sel"><div class="img"></div><div class="check">✓</div><div class="ord"></div><div class="name">grid_003.png</div></div>
+              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_004.png</div></div>
+              <div class="th sel"><div class="img"></div><div class="check">✓</div><div class="ord"></div><div class="name">grid_005.png</div></div>
+              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_006.png</div></div>
+              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_007.png</div></div>
+              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_008.png</div></div>
+              <div class="th"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_009.png</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右栏：参数面板（随工具切换） -->
+        <div class="panel-col">
+          <div class="panelhead">
+            <span class="t" id="panelTitle">出图参数</span>
+            <span class="ph-sp"></span>
+            <span class="ptag" id="panelTag">批量队列</span>
+          </div>
+          <div class="panelbody" id="panelBody">
+            <!-- 由 JS 按当前工具渲染 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部执行栏 -->
+      <div class="execbar">
+        <div class="prog-line">
+          <span class="pl">批量进度</span>
+          <div class="bar"><div class="fill" id="progFill"></div></div>
+          <span class="pl" id="progText"><b>0</b> / 0 · 待执行</span>
+        </div>
+        <div class="btnrow">
+          <button class="bbtn" id="previewBtn">预览</button>
+          <button class="bbtn exec" id="execBtn">执行</button>
+          <span class="br-sp"></span>
+          <span class="vhint ok" id="vhint">✓ 校验通过</span>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /#freeView -->
+
 </div>
 
 <script>
@@ -452,6 +665,268 @@
     $("sideMeta").innerHTML = (wide ? "画幅 16:9 · 横屏" : "画幅 9:16 · 短剧竖屏") +
       "<br>单图 HD · 视频基底帧";
   });
+
+  /* ============================================================
+     自由模式（批处理工具集）—— 纯前端切换 + 占位交互
+     真机联调由主控做：出图/去白边/拼图/拆图 接 MEDIA_API（默认 18450）
+     ============================================================ */
+  const qs = new URLSearchParams(location.search);
+  const MEDIA_API = qs.get("media") || "http://127.0.0.1:18450";   // media_agent /imggen /imaging
+  const SW_API = qs.get("sw") || "http://127.0.0.1:18430";          // screenwriter_agent
+  void SW_API; // 自由模式批处理走 MEDIA_API；SW_API 预留
+
+  // ---- 工作模式切换：分镜视角 / 自由模式 ----
+  const modeSeg = $("modeSeg");
+  modeSeg.addEventListener("click", (e) => {
+    const b = e.target.closest(".mode-btn"); if (!b) return;
+    modeSeg.querySelectorAll(".mode-btn").forEach(x => x.classList.toggle("active", x === b));
+    const free = b.dataset.mode === "free";
+    $("storyboardView").hidden = free;
+    $("freeView").hidden = !free;
+    // 分镜视角专属工具栏（选镜/一键分镜/拆分镜）仅在分镜视角显示
+    $("sbViewTools").style.display = free ? "none" : "";
+  });
+
+  // ---- 批处理：工具定义（参数面板随工具切换；选择态 multi / order）----
+  const TOOLS = {
+    imggen: {
+      title: "出图参数", tag: "批量队列", grid: "提示词条目", mode: "multi",
+      exec: "执行出图", preview: "预览首条",
+      api: "POST " + MEDIA_API + "/imggen（批量队列 · SSE 进度）",
+      body: `
+        <div class="pgroup">
+          <div class="glab">提示词</div>
+          <div class="prow" style="display:block;margin:0">
+            <textarea class="pta" placeholder="每行一条提示词，批量出图…">暴雨夜 城郊废品回收站 俯拍全景 电影级 HD
+雨夜追逐 手持跟拍 霓虹反光 电影级 HD</textarea>
+          </div>
+          <div class="phint">每行一条 → 批量入队；可套用当前 <b>STYLE BIBLE</b> 的 ref_fingerprint。</div>
+        </div>
+        <div class="pgroup">
+          <div class="glab">画幅 / 数量</div>
+          <div class="pgrid2">
+            <div class="prow"><span class="k sm">画幅</span><select><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></div>
+            <div class="prow"><span class="k sm">每条张数</span><input type="number" value="1"></div>
+          </div>
+        </div>
+        <div class="pgroup">
+          <div class="ghead-sw"><span class="glab">HD 高清</span><span class="sw"><span class="dot"></span></span></div>
+          <div class="phint">开启后单图拉到 HD 质量，作为视频基底帧。</div>
+        </div>
+        <div class="pgroup">
+          <div class="glab">输出</div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><select><option>PNG</option><option>JPG</option><option>WEBP</option></select></div>
+        </div>`
+    },
+    split: {
+      title: "拆图参数", tag: "支持预览叠加", grid: "源图", mode: "multi",
+      exec: "执行拆图", preview: "预览（叠加网格 / 白边）",
+      api: "POST " + MEDIA_API + "/imaging?op=split（拆图）",
+      body: `
+        <div class="pgroup">
+          <div class="glab">网格</div>
+          <div class="pgrid2">
+            <div class="prow"><span class="k sm">源图 行</span><input type="number" value="2"></div>
+            <div class="prow"><span class="k sm">源图 列</span><input type="number" value="2"></div>
+            <div class="prow"><span class="k sm">子图 行</span><input type="number" value="1"></div>
+            <div class="prow"><span class="k sm">子图 列</span><input type="number" value="1"></div>
+          </div>
+          <div class="phint">子图行列须能 <b>整除</b> 源图行列。当前 2×2 → 拆出 4 张/图。</div>
+        </div>
+        <div class="pgroup">
+          <div class="glab">白边 / 间距</div>
+          <div class="pgrid2 quad">
+            <div class="qcell"><span class="ql">上</span><input type="number" value="12"></div>
+            <div class="qcell"><span class="ql">右</span><input type="number" value="12"></div>
+            <div class="qcell"><span class="ql">下</span><input type="number" value="12"></div>
+            <div class="qcell"><span class="ql">左</span><input type="number" value="12"></div>
+          </div>
+          <div class="prow" style="margin-top:9px;margin-bottom:0"><span class="k">间距</span><input type="number" value="6"></div>
+          <div class="detbtns">
+            <span class="detbtn" data-det="white">检测白边</span>
+            <span class="detbtn" data-det="grid">推断网格</span>
+          </div>
+        </div>
+        <div class="pgroup">
+          <div class="ghead-sw"><span class="glab">重采样（缩放 / 超分）</span><span class="sw off"><span class="dot"></span></span></div>
+          <div class="prow"><span class="k">算法</span><select><option>AI 超分（ComfyUI）</option><option>LANCZOS</option></select></div>
+          <div class="prow"><span class="k">目标比例</span><select><option>9:16</option><option>16:9</option><option>1:1</option></select></div>
+          <div class="phint">超分失败将自动回退 <b>LANCZOS</b>，并在完成提示中统计回退数量。</div>
+        </div>
+        <div class="pgroup">
+          <div class="glab">输出</div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><select><option>PNG</option><option>JPG</option></select></div>
+        </div>`
+    },
+    trim: {
+      title: "去白边参数", tag: "支持预览叠加", grid: "源图", mode: "multi",
+      exec: "执行去白边", preview: "预览（叠加裁切框）",
+      api: "POST " + MEDIA_API + "/imaging?op=trim（去白边）",
+      body: `
+        <div class="pgroup">
+          <div class="glab">检测</div>
+          <div class="prow"><span class="k">背景色</span><select><option>自动（采样四角）</option><option>白色</option><option>黑色</option></select></div>
+          <div class="prow" style="margin:0"><span class="k">容差</span><input type="number" value="10"></div>
+          <div class="phint">容差越大，越接近背景色的像素越会被当作白边裁掉。</div>
+        </div>
+        <div class="pgroup">
+          <div class="glab">保留边距</div>
+          <div class="pgrid2 quad">
+            <div class="qcell"><span class="ql">上</span><input type="number" value="0"></div>
+            <div class="qcell"><span class="ql">右</span><input type="number" value="0"></div>
+            <div class="qcell"><span class="ql">下</span><input type="number" value="0"></div>
+            <div class="qcell"><span class="ql">左</span><input type="number" value="0"></div>
+          </div>
+          <div class="detbtns"><span class="detbtn" data-det="white">检测白边</span></div>
+        </div>
+        <div class="pgroup">
+          <div class="glab">输出</div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><select><option>PNG</option><option>JPG</option></select></div>
+        </div>`
+    },
+    combine: {
+      title: "拼图参数", tag: "顺序拼接", grid: "待拼图（按点击顺序）", mode: "order",
+      exec: "执行拼图", preview: "预览拼接",
+      api: "POST " + MEDIA_API + "/imaging?op=combine（拼图）",
+      body: `
+        <div class="pgroup">
+          <div class="glab">布局</div>
+          <div class="pgrid2">
+            <div class="prow"><span class="k sm">行</span><input type="number" value="2"></div>
+            <div class="prow"><span class="k sm">列</span><input type="number" value="2"></div>
+          </div>
+          <div class="phint">需按顺序选满 <b>行×列</b> 张；缩略图角标 1·2·3… 即拼接顺序。</div>
+        </div>
+        <div class="pgroup">
+          <div class="glab">间距 / 背景</div>
+          <div class="prow"><span class="k">间距(px)</span><input type="number" value="6"></div>
+          <div class="prow" style="margin:0"><span class="k">背景色</span><select><option>透明</option><option>白色</option><option>黑色</option></select></div>
+        </div>
+        <div class="pgroup">
+          <div class="glab">输出</div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><select><option>PNG</option><option>JPG</option></select></div>
+        </div>`
+    }
+  };
+
+  const win = document.querySelector(".batch-win");
+  let curTool = "imggen";
+
+  function renderTool(tool) {
+    curTool = tool;
+    const t = TOOLS[tool];
+    $("panelTitle").textContent = t.title;
+    $("panelTag").textContent = t.tag;
+    $("gridTitle").textContent = t.grid;
+    $("panelBody").innerHTML = t.body;
+    $("execBtn").textContent = t.exec;
+    $("previewBtn").textContent = t.preview;
+    // 选择态：order（拼图）用顺序角标，其余 multi 勾选
+    win.classList.toggle("order-mode", t.mode === "order");
+    // 切工具清空选择，重置进度
+    resetSelection();
+    $("progFill").style.width = "0";
+    $("progText").innerHTML = "<b>0</b> / 0 · 待执行";
+    // 面板内开关交互
+    $("panelBody").querySelectorAll(".sw").forEach(sw =>
+      sw.addEventListener("click", () => sw.classList.toggle("off")));
+    $("panelBody").querySelectorAll(".detbtn").forEach(b =>
+      b.addEventListener("click", () => alert("检测「" + b.textContent + "」：占位，真机走 " + MEDIA_API + " 检测端点。")));
+    updateValidity();
+  }
+
+  function resetSelection() {
+    $("thumbs").querySelectorAll(".th").forEach(th => { th.classList.remove("sel"); th.querySelector(".ord").textContent = ""; });
+    refreshGridMode();
+  }
+  function selectedThumbs() { return [...$("thumbs").querySelectorAll(".th.sel")]; }
+
+  function refreshGridMode() {
+    const n = selectedThumbs().length;
+    const m = TOOLS[curTool].mode;
+    $("gridMode").textContent = (m === "order" ? "顺序选择 · 已排 " : "多选 · 已选 ") + n + " 张";
+  }
+
+  // 缩略图点击：multi 勾选 / order 排序
+  $("thumbs").addEventListener("click", (e) => {
+    const th = e.target.closest(".th"); if (!th) return;
+    const m = TOOLS[curTool].mode;
+    if (m === "order") {
+      if (th.classList.contains("sel")) {
+        th.classList.remove("sel"); th.querySelector(".ord").textContent = "";
+        renumberOrder();
+      } else {
+        th.classList.add("sel");
+        th.querySelector(".ord").textContent = selectedThumbs().length;
+      }
+    } else {
+      th.classList.toggle("sel");
+    }
+    refreshGridMode();
+    updateValidity();
+  });
+  function renumberOrder() {
+    // 顺序模式下重排角标（按当前 DOM 中的选中先后近似处理）
+    let i = 0;
+    $("thumbs").querySelectorAll(".th.sel").forEach(th => { th.querySelector(".ord").textContent = ++i; });
+  }
+
+  $("selAll").addEventListener("click", () => {
+    if (TOOLS[curTool].mode === "order") { alert("拼图为顺序选择，请按拼接顺序逐张点击。"); return; }
+    $("thumbs").querySelectorAll(".th").forEach(th => th.classList.add("sel"));
+    refreshGridMode(); updateValidity();
+  });
+  $("selClear").addEventListener("click", () => resetSelection() || updateValidity());
+
+  // 工具 Tab 切换
+  $("btabs").addEventListener("click", (e) => {
+    const tab = e.target.closest(".btab"); if (!tab) return;
+    $("btabs").querySelectorAll(".btab").forEach(x => x.classList.toggle("act", x === tab));
+    renderTool(tab.dataset.tool);
+  });
+
+  // 校验提示
+  function updateValidity() {
+    const n = selectedThumbs().length;
+    const v = $("vhint");
+    if (curTool === "combine") {
+      // 简单校验：是否凑满某个 行×列（这里仅按已选数提示）
+      v.classList.toggle("ok", n > 0);
+      v.textContent = n > 0 ? ("✓ 已排 " + n + " 张 · 按 行×列 拼接") : "⚠ 请按顺序选图凑满 行×列";
+    } else if (curTool === "imggen") {
+      v.classList.add("ok"); v.textContent = "✓ 批量队列就绪";
+    } else {
+      v.classList.toggle("ok", n > 0);
+      v.textContent = n > 0 ? ("✓ 校验通过 · 共 " + n + " 张") : "⚠ 请至少选 1 张源图";
+    }
+  }
+
+  // 输出目录 / 打开目录（占位）
+  $("pickDir").addEventListener("click", () => alert("选择输出目录：占位（真机弹系统目录选择）。"));
+  $("openDir").addEventListener("click", () => alert("打开源图目录：占位（真机弹系统目录选择并加载缩略图）。"));
+
+  // 预览 / 执行（占位 + 假进度条）
+  $("previewBtn").addEventListener("click", () =>
+    alert(TOOLS[curTool].preview + "：占位预览。真机叠加渲染。"));
+  $("execBtn").addEventListener("click", () => {
+    const t = TOOLS[curTool];
+    const total = curTool === "imggen" ? 2 : Math.max(1, selectedThumbs().length);
+    let done = 0;
+    $("progFill").style.width = "0";
+    $("progText").innerHTML = "<b>0</b> / " + total + " · 执行中…";
+    const timer = setInterval(() => {
+      done++;
+      $("progFill").style.width = Math.round(done / total * 100) + "%";
+      $("progText").innerHTML = "<b>" + done + "</b> / " + total + (done >= total ? " · 完成 ✓" : " · 执行中…");
+      if (done >= total) {
+        clearInterval(timer);
+        alert(t.exec + "：占位完成。真机 → " + t.api);
+      }
+    }, 420);
+  });
+
+  // 初始渲染默认工具
+  renderTool("imggen");
 </script>
 </body>
 </html>
