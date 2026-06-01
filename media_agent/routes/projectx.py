@@ -12,7 +12,9 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from drama_shot_master.core.compass.manifest import load_manifest
+import json
+
+from drama_shot_master.core.compass.manifest import load_manifest, save_manifest
 from drama_shot_master.core.recent_projects import RecentProjectsManager
 
 router = APIRouter()
@@ -103,6 +105,154 @@ def _count_images(proj_dir: Path) -> int:
 
 def _st(state: str) -> str:
     return _STATE_TO_ST.get(state, "lock")
+
+
+# ---------- /project/overview 磁盘扫描（真实产物判定，不信僵尸 manifest） ----------
+
+# 创意阶段产物名（与 screenwriter_agent/core/paths.py 一致，含旧名兼容）
+_IDEA_NAMES = ("创意.json", "idea.json")
+
+
+def _read_idea(proj_dir: Path) -> dict | None:
+    """读 创意.json（优先新名，兜底旧名）→ dict；缺失/坏 JSON → None。"""
+    for name in _IDEA_NAMES:
+        p = proj_dir / name
+        if p.is_file():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError, ValueError):
+                return {}
+            return data if isinstance(data, dict) else {}
+    return None
+
+
+def _glob_count(proj_dir: Path, *patterns: str) -> int:
+    """统计项目根下匹配任一 glob 的文件数（非递归）。"""
+    n = 0
+    for pat in patterns:
+        try:
+            n += sum(1 for p in proj_dir.glob(pat) if p.is_file())
+        except OSError:
+            pass
+    return n
+
+
+def _dir_nonempty(proj_dir: Path, sub: str) -> bool:
+    """子目录存在且含至少一个文件/子目录。"""
+    d = proj_dir / sub
+    try:
+        return d.is_dir() and any(d.iterdir())
+    except OSError:
+        return False
+
+
+def _scan_stage_states(proj_dir: Path, idea: dict | None) -> dict[str, str]:
+    """扫描磁盘真实产物 → 各阶段 done/cur/lock。
+
+    ideate    : 创意.json 存在且 selected_id 非空 → done；存在未选 → cur；无 → lock
+    script    : 有 剧本_E*.md 或 剧本.md → done
+    storyboard: 有 分镜_E*.json 或 分镜.json → done
+    imggen    : prompts/ 目录非空 → done
+    video     : video/ 目录有文件 → done
+    后四格（imggen/video/audio/final）= production 大阶段，audio/final 暂随 video。
+    """
+    # ideate
+    if idea is None:
+        ideate = "lock"
+    elif str(idea.get("selected_id") or "").strip():
+        ideate = "done"
+    else:
+        ideate = "cur"
+
+    script_done = _glob_count(proj_dir, "剧本_E*.md", "剧本.md") > 0
+    sb_done = _glob_count(proj_dir, "分镜_E*.json", "分镜.json") > 0
+    prompts_done = _dir_nonempty(proj_dir, "prompts")
+    video_done = _dir_nonempty(proj_dir, "video")
+
+    return {
+        "ideate": ideate,
+        "script": "done" if script_done else "lock",
+        "storyboard": "done" if sb_done else "lock",
+        "imggen": "done" if prompts_done else "lock",
+        "video": "done" if video_done else "lock",
+        "audio": "done" if video_done else "lock",
+        "final": "done" if video_done else "lock",
+    }
+
+
+def _episode_count(proj_dir: Path, idea: dict | None) -> int:
+    """集数推断：剧本_E*.md 文件数优先；回退创意.json candidate_count/episodes。"""
+    n = _glob_count(proj_dir, "剧本_E*.md")
+    if n:
+        return n
+    if (proj_dir / "剧本.md").is_file():
+        return 1
+    if isinstance(idea, dict):
+        inp = idea.get("input") or {}
+        if isinstance(inp, dict):
+            for key in ("episodes", "episode_count"):
+                try:
+                    v = int(inp.get(key) or 0)
+                except (TypeError, ValueError):
+                    v = 0
+                if v:
+                    return v
+    return 0
+
+
+def _genre_from_idea(idea: dict | None) -> str:
+    """从 创意.json input 取 genre：genre / genre_context / genre_tags(join)。"""
+    if not isinstance(idea, dict):
+        return ""
+    inp = idea.get("input") or {}
+    if not isinstance(inp, dict):
+        return ""
+    g = inp.get("genre")
+    if isinstance(g, str) and g.strip():
+        return g.strip()
+    gc = inp.get("genre_context")
+    if isinstance(gc, str) and gc.strip():
+        return gc.strip()
+    tags = inp.get("genre_tags")
+    if isinstance(tags, list) and tags:
+        return " / ".join(str(t) for t in tags if t)
+    return ""
+
+
+def _bible_from_idea(idea: dict | None):
+    """从 创意.json input 取 style_bible：style_bible / style_context / visual_style。
+
+    返回 dict 或字符串（overview.html bibleText 两者都吃）。
+    """
+    if not isinstance(idea, dict):
+        return {}
+    inp = idea.get("input") or {}
+    if not isinstance(inp, dict):
+        return {}
+    sb = inp.get("style_bible")
+    if isinstance(sb, dict) and sb:
+        return sb
+    if isinstance(sb, str) and sb.strip():
+        return sb
+    for key in ("style_context", "visual_style"):
+        v = inp.get(key)
+        if isinstance(v, str) and v.strip():
+            return v
+    return {}
+
+
+def _aspect_from(proj_dir: Path, m, idea: dict | None) -> str:
+    """画幅：manifest.params.aspect/aspect_ratio 优先，回退 创意.json input.aspect_ratio。"""
+    a = m.params.get("aspect") or m.params.get("aspect_ratio")
+    if a:
+        return str(a)
+    if isinstance(idea, dict):
+        inp = idea.get("input") or {}
+        if isinstance(inp, dict):
+            a = inp.get("aspect_ratio") or inp.get("aspect")
+            if a:
+                return str(a)
+    return "16:9"
 
 
 # ---------- /project/clips ----------
@@ -206,9 +356,28 @@ def project_files(project: str, sub: str = "", ext: str = ""):
     return {"files": files}
 
 
+# next_action：阶段 key → 人类可读下一步建议
+_NEXT_ACTION_TEXT = {
+    "ideate": "确定题材与立意（创意立意）",
+    "script": "生成剧本（剧本创作）",
+    "storyboard": "拆解分镜（分镜脚本）",
+    "imggen": "按镜出图（图像生成）",
+    "video": "图生视频（视频生成）",
+    "audio": "配音 / 配乐",
+    "final": "合成导出成片",
+}
+
+# stages 顺序（next_action 取首个非 done）
+_STAGE_ORDER = ("ideate", "script", "storyboard", "imggen", "video", "audio", "final")
+
+
 @router.get("/project/overview")
 def project_overview(project: str):
-    """读项目 manifest + 目录统计，聚合概览。project=项目目录。"""
+    """扫描磁盘真实产物 + manifest 元信息，聚合概览。project=项目目录。
+
+    阶段 status 由磁盘产物判定（不信僵尸 manifest pipeline）；
+    genre/style_bible/title 优先 manifest（PUT 后权威），回退 创意.json input。
+    """
     proj = (project or "").strip()
     if not proj:
         raise HTTPException(status_code=400, detail="project 不能为空")
@@ -217,51 +386,56 @@ def project_overview(project: str):
         raise HTTPException(status_code=404, detail=f"项目路径不存在: {proj}")
 
     m = load_manifest(proj_dir)
+    idea = _read_idea(proj_dir)
 
-    # 集数：episodes 数；缺则看 params.episodes
-    episode_count = len(m.episodes) or int(m.params.get("episodes") or 0)
-    # 分镜数：episodes.shots_done 累计（去重已在 manifest 内保证）
-    shots_done_total = sum(len(e.shots_done) for e in m.episodes.values())
+    states = _scan_stage_states(proj_dir, idea)
+    episode_count = _episode_count(proj_dir, idea)
+    sb_total = _glob_count(proj_dir, "分镜_E*.json", "分镜.json")
     images_done = _count_images(proj_dir)
-    aspect = str(m.params.get("aspect") or m.params.get("aspect_ratio") or "16:9")
 
-    sw_state = m.stage_state("screenwriter")
-    assets_state = m.stage_state("assets")
-    storyboard_state = m.stage_state("storyboard")
-    prod_state = m.stage_state("production")
+    aspect = _aspect_from(proj_dir, m, idea)
+    # genre/style_bible/title：manifest 权威（PUT 后），回退 创意.json input
+    genre = m.genre or _genre_from_idea(idea)
+    bible = m.style_bible if m.style_bible else _bible_from_idea(idea)
+    project_name = m.project_name or proj_dir.name
 
+    ideate_done = states["ideate"] == "done"
     stages = [
         {"key": "ideate", "label": _STAGE_LABELS["ideate"],
-         "status": _st(sw_state),
-         "done": 1 if sw_state == "completed" else 0, "total": 1,
-         "meta": "题材/风格" + ("已定" if sw_state == "completed" else "待定")},
+         "status": states["ideate"],
+         "done": 1 if ideate_done else 0, "total": 1,
+         "meta": "题材/风格" + ("已定" if ideate_done else "待定")},
         {"key": "script", "label": _STAGE_LABELS["script"],
-         "status": _st(sw_state),
-         "done": episode_count if sw_state == "completed" else 0,
+         "status": states["script"],
+         "done": episode_count if states["script"] == "done" else 0,
          "total": episode_count,
-         "meta": f"{episode_count} 集"},
+         "meta": f"{episode_count} 集" if episode_count else "等待立意完成"},
         {"key": "storyboard", "label": _STAGE_LABELS["storyboard"],
-         "status": _st(storyboard_state),
-         "done": shots_done_total, "total": shots_done_total,
+         "status": states["storyboard"],
+         "done": sb_total, "total": sb_total or episode_count,
          "meta": "分镜脚本"},
         {"key": "imggen", "label": _STAGE_LABELS["imggen"],
-         "status": _st(prod_state),
-         "done": images_done, "total": shots_done_total,
-         "meta": f"{images_done}/{shots_done_total} 已出图"},
+         "status": states["imggen"],
+         "done": images_done, "total": images_done,
+         "meta": f"{images_done} 张已出图" if images_done else "按镜出图"},
         {"key": "video", "label": _STAGE_LABELS["video"],
-         "status": _st(prod_state),
-         "done": sum(1 for e in m.episodes.values() if e.video_done),
-         "total": episode_count, "meta": "图生视频 · 按镜"},
+         "status": states["video"],
+         "done": _glob_count(proj_dir, "video/*"), "total": episode_count,
+         "meta": "图生视频 · 按镜"},
         {"key": "audio", "label": _STAGE_LABELS["audio"],
-         "status": _st(prod_state),
+         "status": states["audio"],
          "done": 0, "total": episode_count, "meta": "配音 / 配乐"},
         {"key": "final", "label": _STAGE_LABELS["final"],
-         "status": _st(prod_state),
+         "status": states["final"],
          "done": 0, "total": episode_count, "meta": "合成导出"},
     ]
 
-    # next_action：取第一个非 completed 阶段的 next_action（manifest 显式优先）
+    # next_action：首个非 done 阶段（manifest 显式 next_action 优先）
     next_action = ""
+    for key in _STAGE_ORDER:
+        if states[key] != "done":
+            next_action = _NEXT_ACTION_TEXT.get(key, "")
+            break
     for nm in ("screenwriter", "assets", "storyboard", "production"):
         sst = m.pipeline.get(nm)
         if sst is not None and sst.state != "completed" and sst.next_action:
@@ -271,18 +445,60 @@ def project_overview(project: str):
     return {
         "project": {
             "project_id": m.project_id,
-            "project_name": m.project_name,
+            "project_name": project_name,
             "path": str(proj_dir),
-            "genre": m.genre,
+            "genre": genre,
             "aspect": aspect,
             "episode_count": episode_count,
-            "shots_total": shots_done_total,
+            "shots_total": sb_total,
             "images_done": images_done,
             "status": m.status,
             "last_modified": m.last_modified,
         },
         "stages": stages,
         "next_action": next_action,
-        "bible": m.style_bible,
-        "genre": m.genre,
+        "bible": bible,
+        "genre": genre,
     }
+
+
+# ---------- PUT /project/meta ----------
+
+class ProjectMetaBody(BaseModel):
+    project: str
+    genre: str | None = None
+    style_bible: dict | str | None = None
+    params: dict | None = None
+
+
+@router.put("/project/meta")
+def project_meta(body: ProjectMetaBody):
+    """更新项目 manifest 元信息：load → 按 body 改 genre/style_bible/params → save。
+
+    - project 空 → 400；目录不存在 → 404。
+    - style_bible 可为 {ref,name} dict 或字符串（字符串包成 {"description": ...}）。
+    - params 浅合并到既有 params。
+    """
+    proj = (body.project or "").strip()
+    if not proj:
+        raise HTTPException(status_code=400, detail="project 不能为空")
+    proj_dir = Path(proj)
+    if not proj_dir.exists():
+        raise HTTPException(status_code=404, detail=f"项目路径不存在: {proj}")
+
+    m = load_manifest(proj_dir)
+
+    if body.genre is not None:
+        m.genre = body.genre
+    if body.style_bible is not None:
+        if isinstance(body.style_bible, str):
+            m.style_bible = {"description": body.style_bible}
+        else:
+            m.style_bible = dict(body.style_bible)
+    if body.params is not None:
+        merged = dict(m.params)
+        merged.update(body.params)
+        m.params = merged
+
+    save_manifest(m, proj_dir)
+    return {"ok": True}

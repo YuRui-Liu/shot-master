@@ -529,6 +529,23 @@ document.querySelectorAll(".adv .tog").forEach((t) =>
 
 const STACK_MAX = 3;   // 题材主+副上限（对齐 genre_templates.STACK_MAX）
 
+/* —— 题材/风格落盘到 manifest（PUT {MEDIA_API}/project/meta）——
+   根因修复：原先选题材/风格只写 state+localStorage，从不进后端，概览(读 manifest)读不到
+   已设的题材/风格。现在「确定」后调本接口持久化。fire-and-forget + 全容错：
+   无项目 / 接口失败仅 console.warn，绝不阻断用户的选择流程。
+   契约：PUT {MEDIA_API}/project/meta {project, genre?, style_bible?, params?} → {ok:true}。 */
+function persistMeta(patch) {
+  if (!PROJECT_DIR) { console.warn("[ideate] 无 project，跳过 meta 落盘"); return; }
+  const body = Object.assign({ project: PROJECT_DIR }, patch);
+  fetch(MEDIA_API + "/project/meta", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then((r) => {
+    if (!r.ok) console.warn("[ideate] /project/meta 落盘非2xx：HTTP " + r.status);
+  }).catch((e) => console.warn("[ideate] /project/meta 落盘失败（不阻断选择）：", e.message));
+}
+
 /* 回退占位（后端就绪后被实拉数据覆盖；保证离线也有可用结构，不造假预览图） */
 const GENRE_FALLBACK = [
   { genre_id: "short-drama", display_name: "短剧", one_liner: "强冲突 + 高频反转的竖屏爽剧（占位）" },
@@ -684,6 +701,8 @@ $("genreOk").addEventListener("click", () => {
   $("genreMeta").textContent = state.genre.meta;
   closeModal($("genreMask"));
   refreshInjection(); saveState();
+  /* 落盘题材到 manifest（概览读 manifest 才能显示已设题材） */
+  persistMeta({ genre: state.genre.id });
 });
 
 /* ============== 风格库选择器（tab + 分类筛选 + 卡片单选） ============== */
@@ -763,6 +782,8 @@ $("styleOk").addEventListener("click", () => {
   $("styleMeta").textContent = state.style.meta;
   closeModal($("styleMask"));
   refreshInjection(); saveState();
+  /* 落盘风格圣经到 manifest（概览读 manifest 才能显示已设风格） */
+  persistMeta({ style_bible: { ref: state.style.ref, name: state.style.name } });
 });
 
 /* —— 注入预览 + 规格 —— */
@@ -1042,24 +1063,49 @@ function selectedCandidate() {
   return state.candidates.find((c, i) => (c.id || ("c" + (i + 1))) === state.selectedId) || null;
 }
 
-/* 选定推进：存选定立意到 sessionStorage（剧本页读取）+ 调 /ideate/select + 通知壳切「剧本」 */
+/* 选定推进：存选定立意到 sessionStorage（剧本页读取）+ 调 /ideate/select + 通知壳切「剧本」
+   ★ 根因修复：原先 /ideate/select 用 `try{...}catch{}` 吞错后仍 postMessage 推进——选定没真正
+   落盘(创意.json selected_id)概览仍判 ideate 未 done，却已跳到剧本，造成「静默推进」。
+   现改为：必须确认 resp.ok(2xx) 才存 sessionStorage + postMessage；任何失败(网络异常/非2xx)
+   都 alert 明确报错且 **不推进**，让选定真正落盘后再跳转。 */
 $("advanceBtn").addEventListener("click", async () => {
   if (!state.selectedId) return;
   const cand = selectedCandidate();
+  const btn = $("advanceBtn");
+  const oldLabel = btn.textContent;
+  btn.disabled = true; btn.textContent = "选定落盘中…";
   try {
-    sessionStorage.setItem("nuomi.selectedIdea." + (PROJECT_DIR || "noproj"),
-      JSON.stringify({ id: state.selectedId, candidate: cand, context: collectContext() }));
-  } catch {}
-  try {
-    await fetch(SW_API + "/ideate/select", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project_dir: PROJECT_DIR, selected_id: state.selectedId }),
-    });
-  } catch {}
-  saveState();
-  /* 通知壳推进到「剧本」阶段（壳监听此事件做路由） */
-  window.parent && window.parent.postMessage(
-    { type: "ideate.advance", stage: "script", selected_id: state.selectedId }, "*");
+    let resp;
+    try {
+      resp = await fetch(SW_API + "/ideate/select", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_dir: PROJECT_DIR, selected_id: state.selectedId }),
+      });
+    } catch (netErr) {
+      throw new Error("无法连接编剧后端（" + (netErr.message || "网络错误") + "）");
+    }
+    if (!resp.ok) {
+      let detail = "";
+      try { detail = (await resp.text()).slice(0, 200); } catch {}
+      throw new Error("HTTP " + resp.status + (detail ? "：" + detail : ""));
+    }
+    /* —— 落盘成功才存 sessionStorage + 推进 —— */
+    try {
+      sessionStorage.setItem("nuomi.selectedIdea." + (PROJECT_DIR || "noproj"),
+        JSON.stringify({ id: state.selectedId, candidate: cand, context: collectContext() }));
+    } catch {}
+    saveState();
+    /* 通知壳推进到「剧本」阶段（壳监听此事件做路由） */
+    window.parent && window.parent.postMessage(
+      { type: "ideate.advance", stage: "script", selected_id: state.selectedId }, "*");
+  } catch (e) {
+    alert("选定立意未能落盘，已停止推进。\n\n" + (e.message || e) +
+      "\n\n请检查编剧后端是否运行 / 是否已选择项目，修复后重试。");
+    console.warn("[ideate] /ideate/select 失败，不推进：", e);
+  } finally {
+    btn.textContent = oldLabel;
+    btn.disabled = !state.selectedId;
+  }
 });
 
 /* ============== BUG D：二次打开优先从后端读回 创意.json ==============
