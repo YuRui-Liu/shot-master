@@ -179,6 +179,66 @@
   }
   .line .ltag { color: var(--muted); font-size: 11px; letter-spacing: .5px; display: block; margin-bottom: 3px; }
 
+  /* TTS 模式切换（音色设计 / 声音克隆）—— 卡内小段 */
+  .ttsmode { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .ttsmode .lbl { color: var(--muted); font-size: 11.5px; }
+  .ttsmode .seg { display: flex; background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
+  .ttsmode .seg button {
+    background: transparent; color: var(--fg2); padding: 5px 13px;
+    border-radius: 5px; font-weight: 500; font-size: 12px;
+  }
+  .ttsmode .seg button.on {
+    background: linear-gradient(135deg, var(--blue), var(--periw));
+    color: #06122a; font-weight: 600;
+  }
+  .ttsmode .seg button:hover:not(.on) { filter: none; background: rgba(255,255,255,.04); }
+  .ttsmode .hint { color: var(--faint); font-size: 11px; }
+
+  /* 声音克隆参数面板（mode=clone 时显示） */
+  .clone-panel {
+    border: 1px solid var(--border); border-left: 3px solid var(--blue);
+    border-radius: var(--radius-sm); background: var(--field);
+    padding: 12px 13px; margin-bottom: 12px; display: none;
+  }
+  .clone-panel.show { display: block; }
+  .clone-panel .cp-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 11px; align-items: flex-end; }
+  .clone-panel .cp-row:last-child { margin-bottom: 0; }
+  .clone-panel .cp-grp { display: flex; flex-direction: column; gap: 4px; min-width: 160px; flex: 1; }
+  .clone-panel label { font-size: 11.5px; color: var(--muted); }
+  .clone-panel input[type="text"], .clone-panel input[type="number"] {
+    width: 100%; font: inherit; background: var(--panel2);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--fg); padding: 8px 11px; outline: none;
+  }
+  .clone-panel input[type="text"]:focus, .clone-panel input[type="number"]:focus { border-color: var(--mauve); }
+  .clone-panel input::placeholder { color: var(--faint); }
+  /* 情感子模式 seg */
+  .clone-panel .emoseg { display: flex; background: var(--panel2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; flex-wrap: wrap; }
+  .clone-panel .emoseg button {
+    background: transparent; color: var(--fg2); padding: 5px 11px;
+    border-radius: 5px; font-weight: 500; font-size: 12px;
+  }
+  .clone-panel .emoseg button.on {
+    background: rgba(138,127,217,.22); color: var(--mauve); font-weight: 600; border: 1px solid #4a3d6e;
+  }
+  .clone-panel .emoseg button:hover:not(.on) { filter: none; background: rgba(255,255,255,.04); }
+  /* 情感强度滑块 */
+  .clone-panel .alpha-grp { min-width: 200px; }
+  .clone-panel .alpha-row { display: flex; align-items: center; gap: 10px; }
+  .clone-panel input[type="range"] { flex: 1; accent-color: var(--periw); }
+  .clone-panel .alpha-val { font-variant-numeric: tabular-nums; color: var(--blue); font-weight: 600; font-size: 12.5px; min-width: 34px; text-align: right; }
+  /* 情感子区块（按 emo_mode 切换显隐） */
+  .clone-panel .emo-sub { display: none; margin-top: 11px; }
+  .clone-panel .emo-sub.show { display: block; }
+  .clone-panel .emo-sub textarea {
+    min-height: 60px; margin-bottom: 0;
+  }
+  /* 情感向量 8 维 */
+  .clone-panel .vec-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+  .clone-panel .vec-cell { display: flex; flex-direction: column; gap: 3px; }
+  .clone-panel .vec-cell label { font-size: 11px; color: var(--periw); }
+  .clone-panel .cp-tip { color: var(--faint); font-size: 11px; margin-top: 8px; }
+
   /* 配音参数行：音色 / 情绪 / 语速 */
   .params { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
   .params .field-grp { display: flex; flex-direction: column; gap: 4px; min-width: 150px; flex: 1; }
@@ -385,6 +445,28 @@ const VOICE_LIBRARY = [
 const EMOTIONS = ["自动（按提示词）", "平静", "压抑", "愤怒", "哽咽", "喜悦", "冷峻", "急促"];
 const SPEEDS = ["0.8× 慢", "0.9×", "1.0× 正常", "1.1×", "1.25× 快"];
 
+/* ===== 声音克隆：4 情感子模式（对齐后端 core/tts_profiles.py CLONE_MODES）=====
+   emo_mode → /tts/* 请求 emo_mode 字段：
+     1 默认（仅参考音频 + 情感强度 emo_alpha）
+     2 情感文本（emo_text 描述目标情感）
+     3 情感音频（emo_audio_file 参考情感音频，单独上传）
+     4 情感向量（emo_vector 8 维，顺序固定 = EMO_VECTOR_LABELS）
+   注：speaker_file / emo_audio_file 走后端本地路径（后端先 upload 到 RunningHub）。 */
+const CLONE_EMO_MODES = [
+  { id: 1, name: "① 默认", title: "仅用参考音频复刻，情感强度可调" },
+  { id: 2, name: "② 情感文本", title: "用一句话描述目标情感" },
+  { id: 3, name: "③ 情感音频", title: "另传一段参考情感音频" },
+  { id: 4, name: "④ 情感向量", title: "8 维情感向量精细控制" },
+];
+/* 8 维情感向量标签（与后端 EMO_VECTOR_LABELS 顺序一致） */
+const EMO_VECTOR_LABELS = ["Happy", "Angry", "Sad", "Fear", "Hate", "Low", "Surprise", "Neutral"];
+const EMO_VECTOR_CN = ["喜", "怒", "哀", "惧", "厌", "低落", "惊", "中性"];
+/* 克隆模式语言（后端默认 "中文"，design 仍沿用页内 "zh"） */
+const CLONE_LANGUAGE = "中文";
+
+/* 每卡 TTS 模式状态：shotN → { mode:"design"|"clone", emo:1..4 }（默认 design） */
+const ttsState = {};
+
 /* ===== 并行任务（最多 5 个；切换当前任务） ===== */
 const PARALLEL_TASKS = [
   { id: "t1", name: "任务A · 都市悬疑《废铁》", ep: "第 1 集", shots: 3 },
@@ -456,6 +538,75 @@ function renderShots() {
       <div class="body">
         <div class="meta">${meta}</div>
         <div class="line"><span class="ltag">台词</span>${s.line}</div>
+
+        <!-- TTS 模式切换：音色设计 / 声音克隆 -->
+        <div class="ttsmode" data-shot="${s.n}">
+          <span class="lbl">TTS 模式</span>
+          <div class="seg">
+            <button class="tts-mode-btn on" data-mode="design" data-shot="${s.n}">音色设计</button>
+            <button class="tts-mode-btn" data-mode="clone" data-shot="${s.n}">声音克隆</button>
+          </div>
+          <span class="hint">设计＝按描述生成音色；克隆＝复刻参考音频音色</span>
+        </div>
+
+        <!-- 声音克隆参数面板（mode=clone 时显示） -->
+        <div class="clone-panel" data-shot="${s.n}">
+          <div class="cp-row">
+            <div class="cp-grp" style="flex:2;">
+              <label>参考音频路径（说话人，本地路径）</label>
+              <input type="text" data-clone="speaker" data-shot="${s.n}"
+                     placeholder="如 E:/voices/qinlie_ref.wav（后端读取并上传）">
+            </div>
+            <div class="cp-grp alpha-grp">
+              <label>情感强度 emo_alpha</label>
+              <div class="alpha-row">
+                <input type="range" min="0" max="2" step="0.05" value="1"
+                       data-clone="alpha" data-shot="${s.n}">
+                <span class="alpha-val" data-clone="alphaval" data-shot="${s.n}">1.00</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cp-row">
+            <div class="cp-grp">
+              <label>情感子模式</label>
+              <div class="emoseg" data-shot="${s.n}">
+                ${CLONE_EMO_MODES.map((m, i) =>
+                  `<button class="emo-mode-btn ${i === 0 ? "on" : ""}" data-emo="${m.id}" data-shot="${s.n}" title="${m.title}">${m.name}</button>`
+                ).join("")}
+              </div>
+            </div>
+          </div>
+
+          <!-- 情感文本（mode 2） -->
+          <div class="emo-sub" data-emosub="2" data-shot="${s.n}">
+            <label>情感文本描述（emo_text）</label>
+            <textarea data-clone="emotext" data-shot="${s.n}"
+                      placeholder="用一句话描述目标情感，如「压抑克制、强忍怒意，尾音下沉」"></textarea>
+          </div>
+
+          <!-- 情感音频（mode 3） -->
+          <div class="emo-sub" data-emosub="3" data-shot="${s.n}">
+            <label>情感参考音频路径（emo_audio，本地路径）</label>
+            <input type="text" data-clone="emoaudio" data-shot="${s.n}"
+                   placeholder="如 E:/voices/emo_angry.wav（仅情感参考，与说话人不同）">
+          </div>
+
+          <!-- 情感向量（mode 4） -->
+          <div class="emo-sub" data-emosub="4" data-shot="${s.n}">
+            <label>情感向量（8 维，0~1.2）</label>
+            <div class="vec-grid">
+              ${EMO_VECTOR_LABELS.map((lab, i) =>
+                `<div class="vec-cell">
+                   <label>${EMO_VECTOR_CN[i]} · ${lab}</label>
+                   <input type="number" min="0" max="1.2" step="0.05" value="0"
+                          data-clone="vec" data-vecidx="${i}" data-shot="${s.n}">
+                 </div>`
+              ).join("")}
+            </div>
+            <div class="cp-tip">顺序固定，对应后端 EMO_VECTOR_LABELS；默认全 0（中性）。</div>
+          </div>
+        </div>
 
         <div class="params">
           <div class="field-grp voice-grp">
@@ -662,6 +813,95 @@ function toast(msg) {
   el._t = setTimeout(() => { el.style.opacity = "0"; }, 4000);
 }
 
+/* ===== 声音克隆 UI 接线 =====
+   - TTS 模式切换（design/clone）：切按钮高亮 + 显隐本卡 clone-panel，写 ttsState。
+   - 情感子模式 1..4：切高亮 + 显隐对应 emo-sub（文本/音频/向量）。
+   - 情感强度滑块：实时回显数值。 */
+function emoModeOf(n) { return (ttsState[n] && ttsState[n].emo) || 1; }
+function ttsModeOf(n) { return (ttsState[n] && ttsState[n].mode) || "design"; }
+
+function applyEmoSub(n) {
+  const emo = emoModeOf(n);
+  document.querySelectorAll(`.emo-sub[data-shot="${n}"]`).forEach((el) => {
+    el.classList.toggle("show", String(el.getAttribute("data-emosub")) === String(emo));
+  });
+}
+
+function wireCloneControls() {
+  SHOTS.forEach((s) => {
+    const n = String(s.n);
+    ttsState[n] = ttsState[n] || { mode: "design", emo: 1 };
+
+    // 模式切换 design / clone
+    document.querySelectorAll(`.tts-mode-btn[data-shot="${n}"]`).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const mode = btn.getAttribute("data-mode");
+        ttsState[n].mode = mode;
+        document.querySelectorAll(`.tts-mode-btn[data-shot="${n}"]`)
+          .forEach(b => b.classList.toggle("on", b === btn));
+        const panel = document.querySelector(`.clone-panel[data-shot="${n}"]`);
+        if (panel) panel.classList.toggle("show", mode === "clone");
+        if (mode === "clone") applyEmoSub(n);
+      });
+    });
+
+    // 情感子模式 1..4
+    document.querySelectorAll(`.emo-mode-btn[data-shot="${n}"]`).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        ttsState[n].emo = parseInt(btn.getAttribute("data-emo"), 10) || 1;
+        document.querySelectorAll(`.emo-mode-btn[data-shot="${n}"]`)
+          .forEach(b => b.classList.toggle("on", b === btn));
+        applyEmoSub(n);
+      });
+    });
+
+    // 情感强度滑块回显
+    const slider = document.querySelector(`input[data-clone="alpha"][data-shot="${n}"]`);
+    const val = document.querySelector(`[data-clone="alphaval"][data-shot="${n}"]`);
+    if (slider && val) {
+      const sync = () => { val.textContent = parseFloat(slider.value).toFixed(2); };
+      slider.addEventListener("input", sync); sync();
+    }
+    applyEmoSub(n);
+  });
+}
+
+/* 收集本卡克隆参数 → /tts/* 请求体（含校验，返回 {ok,body|err}）。
+   text 为台词；clone 入参对齐后端 SynthesizeRequest（mode='clone'）。 */
+function buildCloneBody(n, text, speed) {
+  const get = (sel) => document.querySelector(`${sel}[data-shot="${n}"]`);
+  const emo = emoModeOf(n);
+  const speaker = (get(`input[data-clone="speaker"]`) || {}).value || "";
+  if (!speaker.trim()) return { err: "声音克隆需要「参考音频路径」（说话人）。" };
+  const alpha = parseFloat((get(`input[data-clone="alpha"]`) || {}).value || "1");
+  const body = {
+    text, mode: "clone", language: CLONE_LANGUAGE,
+    speaker_file: speaker.trim(),
+    emo_mode: emo,
+    emo_alpha: Number.isFinite(alpha) ? alpha : 1.0,
+    speed,
+  };
+  if (emo === 2) {
+    const t = (get(`textarea[data-clone="emotext"]`) || {}).value || "";
+    if (!t.trim()) return { err: "情感文本模式需要填写「情感文本描述」。" };
+    body.emo_text = t.trim();
+  } else if (emo === 3) {
+    const a = (get(`input[data-clone="emoaudio"]`) || {}).value || "";
+    if (!a.trim()) return { err: "情感音频模式需要「情感参考音频路径」。" };
+    body.emo_audio_file = a.trim();
+  } else if (emo === 4) {
+    const cells = document.querySelectorAll(`input[data-clone="vec"][data-shot="${n}"]`);
+    const vec = new Array(EMO_VECTOR_LABELS.length).fill(0);
+    cells.forEach((c) => {
+      const idx = parseInt(c.getAttribute("data-vecidx"), 10);
+      const v = parseFloat(c.value);
+      if (idx >= 0 && idx < vec.length && Number.isFinite(v)) vec[idx] = v;
+    });
+    body.emo_vector = vec;
+  }
+  return { ok: true, body };
+}
+
 function wireActions() {
   document.querySelectorAll("button[data-act]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -706,12 +946,21 @@ function wireActions() {
         const orig = isListen ? "▷ 试听" : "✦ 生成配音";
         const text = (shot && shot.line ? shot.line : "").trim();
         if (!text) { alert("该镜头没有台词文本。"); return; }
-        // 音色取本卡「音色」下拉（design 模式音色设计描述）；语速取本卡「语速」下拉
-        const voiceSel = document.querySelector(`select[data-fld="voice"][data-shot="${n}"]`);
         const speedSel = document.querySelector(`select[data-fld="speed"][data-shot="${n}"]`);
-        const style = voiceSel ? (voiceSel.value || "").trim() : "";
         const speed = parseSpeed(speedSel ? speedSel.value : "");
-        const body = { text, mode: "design", language: "zh", style, speed };
+
+        // 据本卡 TTS 模式组请求体：design（音色设计描述）/ clone（参考音频复刻）
+        let body;
+        if (ttsModeOf(n) === "clone") {
+          const built = buildCloneBody(n, text, speed);
+          if (built.err) { alert(built.err); return; }
+          body = built.body;
+        } else {
+          // design：音色取本卡「音色」下拉作为音色设计风格描述
+          const voiceSel = document.querySelector(`select[data-fld="voice"][data-shot="${n}"]`);
+          const style = voiceSel ? (voiceSel.value || "").trim() : "";
+          body = { text, mode: "design", language: "zh", style, speed };
+        }
 
         if (!isListen) {
           if (!PROJECT_DIR) { alert("请先在首页选择项目（缺少 ?project=）。"); return; }
@@ -921,6 +1170,7 @@ renderTasks();
 renderShots();
 wirePreview();
 wireExamples();
+wireCloneControls();
 wireActions();
 wireModes();
 wireOneClick();

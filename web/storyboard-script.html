@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · ③ 分镜脚本 · STORYBOARD</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* 壳内容页：无自带标题栏/侧栏（由 web/app.html 糯米 AI 壳统一提供）；
+     编剧视角的「按集生成分镜脚本」页，铺满工作区。 */
+  body { overflow: hidden; }
+  .work { height: 100vh; overflow: hidden; display: flex; flex-direction: column; padding: 18px 26px 0; }
+
+  /* 顶部标题 + 健康 */
+  .work-head { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; flex-shrink: 0; }
+  .work-head h1 {
+    margin: 0; font-size: 21px; letter-spacing: .5px;
+    background: linear-gradient(135deg, var(--blue), var(--mauve));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .work-head .pj { color: var(--muted); font-size: 12.5px; }
+  .work-head .pj b { color: var(--fg2); }
+  .work-head .status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+
+  /* 向导步骤条（立意/剧本/分镜▸/出图prompt） */
+  .stepper { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-shrink: 0; flex-wrap: wrap; }
+  .step { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); padding: 5px 12px; border-radius: 18px; cursor: default; }
+  .step .n { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; border: 1px solid var(--border); }
+  .step.active { background: linear-gradient(90deg, rgba(74,158,255,.2), rgba(74,158,255,.05)); color: var(--fg); font-weight: 600; }
+  .step.active .n { background: var(--blue); color: #06122a; border-color: var(--blue); }
+  .step.done .n { background: var(--done); color: #06220f; border-color: var(--done); }
+  .step.clk { cursor: pointer; }
+  .step.clk:hover { color: var(--fg); }
+  .chev { color: var(--faint); font-size: 12px; }
+
+  /* 参数条 */
+  .parambar {
+    display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 16px; margin-bottom: 12px;
+  }
+  .parambar .grp { display: flex; align-items: center; gap: 7px; }
+  .parambar .grp label { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .parambar input[type="number"] { width: 60px; }
+  .parambar .inject {
+    font-size: 11px; color: var(--muted); background: #10131f;
+    border: 1px solid #21243a; border-radius: var(--radius-sm); padding: 6px 10px;
+  }
+  .parambar .inject b { color: #9cc7ff; }
+  .parambar .grow { flex: 1; }
+
+  /* 主从分栏 */
+  .split { flex: 1; display: flex; gap: 16px; min-height: 0; padding-bottom: 18px; }
+
+  /* 左：集列表 + 流式预览 + 一键全集 */
+  .left {
+    width: 340px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; min-height: 0;
+    transition: width .18s ease, opacity .12s;
+  }
+  .left.collapsed { width: 0; opacity: 0; overflow: hidden; pointer-events: none; }
+
+  .panel-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); display: flex; flex-direction: column; min-height: 0;
+  }
+  .panel-card .ph {
+    display: flex; align-items: center; gap: 8px; padding: 11px 14px;
+    border-bottom: 1px solid var(--border-lo); flex-shrink: 0;
+  }
+  .panel-card .ph .t { font-size: 12.5px; font-weight: 600; }
+  .panel-card .ph .sp { flex: 1; }
+  .panel-card .pbody { overflow: auto; padding: 10px 12px; flex: 1; min-height: 0; }
+
+  .eplist { flex: 1; }
+  .ep-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--field); margin-bottom: 8px; cursor: pointer; transition: all .14s;
+  }
+  .ep-item:hover { border-color: var(--mauve); }
+  .ep-item.active { border-color: var(--blue); background: rgba(74,158,255,.08); }
+  .ep-item .idx {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;
+    background: var(--panel2); color: var(--mauve); border: 1px solid #4a3d6e;
+  }
+  .ep-item.active .idx { background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; border: none; }
+  .ep-item .info { flex: 1; min-width: 0; }
+  .ep-item .info .name { font-size: 13px; color: var(--fg); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ep-item .info .sum { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ep-item .st { flex-shrink: 0; }
+  .ep-empty { color: var(--faint); font-size: 12.5px; text-align: center; padding: 24px 10px; line-height: 1.7; }
+
+  .preview { max-height: 230px; }
+  .preview .pbody { white-space: pre-wrap; font-size: 11.5px; line-height: 1.65; color: var(--fg2); font-family: var(--mono, ui-monospace, monospace); }
+  .preview .pbody .dim { color: var(--faint); font-family: inherit; }
+
+  .leftfoot { flex-shrink: 0; }
+  .btn-all { width: 100%; }
+  .btn-all:disabled { filter: grayscale(.6) brightness(.7); }
+
+  /* 右：折叠钮 + 集标题 + 分镜展示（全局头 + 角色行 + 镜头表 + warnings + 原始JSON） */
+  .right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .rhead { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-shrink: 0; }
+  .collapse-btn {
+    background: var(--panel2); color: var(--fg2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 7px 11px; font-size: 13px; line-height: 1;
+  }
+  .collapse-btn:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
+  .rhead .ep-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+  .rhead .ep-title .badge { margin-left: 8px; vertical-align: middle; }
+  .rhead .sp { flex: 1; }
+  .rhead .streaming { font-size: 11.5px; color: var(--blue); display: none; align-items: center; gap: 6px; }
+  .rhead .streaming.on { display: flex; }
+  .rhead .streaming .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+
+  .sb-scroll { flex: 1; overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding-bottom: 4px; }
+
+  /* 全局头卡片：标题/比例/总时长/globalStyle */
+  .ghead { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 15px; }
+  .gh-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 9px; }
+  .gh-row .f { display: flex; align-items: center; gap: 7px; }
+  .gh-row .f label { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .gh-row .f .v { font-size: 13px; color: var(--fg); font-weight: 600; }
+  .gh-row .ttl-in { flex: 1; min-width: 160px; }
+  .gh-style label { font-size: 11px; color: var(--periw); font-weight: 600; display: block; margin-bottom: 5px; }
+  .gh-style textarea {
+    width: 100%; resize: vertical; min-height: 44px; font: inherit; line-height: 1.6;
+    background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--fg2); padding: 8px 10px; outline: none;
+  }
+  .gh-style textarea:focus { border-color: var(--mauve); }
+
+  /* 角色行 */
+  .chars .ch-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .chars .ch-head .t { font-size: 11px; color: var(--periw); font-weight: 600; }
+  .chars .ch-head .sp { flex: 1; }
+  .ch-row { display: flex; gap: 8px; margin-bottom: 7px; align-items: center; }
+  .ch-row .name { width: 130px; flex-shrink: 0; }
+  .ch-row .appr { flex: 1; }
+  .ch-row .del { background: var(--panel2); color: var(--muted); border: 1px solid var(--border); padding: 6px 10px; border-radius: var(--radius-sm); }
+  .ch-row .del:hover { filter: none; color: var(--warn); border-color: var(--warn); }
+  .chars .ch-empty { font-size: 11.5px; color: var(--faint); padding: 4px 0; }
+
+  /* 镜头表 */
+  .shots-card .ph { padding: 10px 14px; }
+  .shots-wrap { overflow: auto; }
+  table.shots { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.shots th, table.shots td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border-lo); vertical-align: top; }
+  table.shots th { color: var(--muted); font-weight: 600; font-size: 11px; position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  table.shots td .ed { width: 100%; background: var(--field); border: 1px solid transparent; border-radius: 6px; color: var(--fg); font: inherit; padding: 5px 7px; outline: none; resize: vertical; min-height: 30px; }
+  table.shots td .ed:focus { border-color: var(--mauve); }
+  table.shots td.id-col { color: var(--mauve); font-weight: 700; white-space: nowrap; }
+  table.shots td .num { width: 64px; }
+  .shots-empty { color: var(--faint); font-size: 12.5px; text-align: center; padding: 26px 12px; }
+
+  /* warnings 横幅 */
+  .warns { background: rgba(214,164,74,.1); border: 1px solid #5a4a2c; border-radius: var(--radius-sm); padding: 10px 14px; display: none; }
+  .warns.on { display: block; }
+  .warns .wt { font-size: 11px; color: var(--warn); font-weight: 600; margin-bottom: 6px; }
+  .warns ul { margin: 0; padding-left: 18px; }
+  .warns li { font-size: 11.5px; color: var(--fg2); line-height: 1.6; }
+  .warns li .path { color: #9cc7ff; }
+
+  .placeholder { color: var(--faint); font-size: 13px; text-align: center; padding: 60px 20px; border: 1px dashed var(--border); border-radius: var(--radius); line-height: 1.8; }
+
+  /* 右下动作条 */
+  .ract { display: flex; gap: 10px; margin-top: 12px; flex-shrink: 0; }
+  .btn-secondary { background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); }
+  .btn-secondary:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
+  .ract .grow { flex: 1; }
+  .ract button:disabled { filter: grayscale(.6) brightness(.7); }
+
+  /* 状态点 */
+  .dot-sm { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); display: inline-block; }
+  .dot-sm.ok { background: var(--done); box-shadow: 0 0 6px var(--done); }
+  .dot-sm.run { background: var(--blue); animation: blink 1s infinite; }
+
+  /* 原始 JSON 抽屉 */
+  .json-drawer { display: none; }
+  .json-drawer.on { display: block; }
+  .json-drawer pre { background: #0c0f1a; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 11px; line-height: 1.55; color: var(--fg2); white-space: pre-wrap; max-height: 280px; overflow: auto; }
+  .json-bad { color: var(--warn); }
+  .json-ok { color: var(--done); }
+</style>
+</head>
+<body>
+<main class="work">
+  <div class="work-head">
+    <h1>③ 分镜脚本 · STORYBOARD</h1>
+    <span class="pj">项目：<b id="pjName">（未指定 project_dir）</b></span>
+    <div class="status"><span class="dot" id="apiDot"></span><span id="apiText">检测后端…</span></div>
+  </div>
+
+  <!-- 向导步骤条 -->
+  <div class="stepper" id="stepper">
+    <div class="step done"><span class="n">1</span>立意</div><span class="chev">›</span>
+    <div class="step done"><span class="n">2</span>剧本</div><span class="chev">›</span>
+    <div class="step active"><span class="n">3</span>分镜</div><span class="chev">›</span>
+    <div class="step clk" id="stepPrompts"><span class="n">4</span>出图 prompt</div>
+  </div>
+
+  <!-- 参数条 -->
+  <div class="parambar">
+    <div class="grp"><label>比例</label>
+      <select id="aspect">
+        <option value="9:16">9:16</option>
+        <option value="16:9" selected>16:9</option>
+        <option value="1:1">1:1</option>
+        <option value="4:5">4:5</option>
+      </select>
+    </div>
+    <div class="grp"><label>fps</label><input type="number" id="fps" value="24" min="12" max="60"></div>
+    <div class="grp"><label>时长范围</label>
+      <input type="number" id="durMin" value="4" min="0.5" max="30" step="0.5"><label>–</label>
+      <input type="number" id="durMax" value="10" min="0.5" max="30" step="0.5"><label>s</label>
+    </div>
+    <div class="grp"><label>密度</label>
+      <select id="density">
+        <option value="稀疏">稀疏</option>
+        <option value="常规" selected>常规</option>
+        <option value="紧凑">紧凑</option>
+      </select>
+    </div>
+    <span class="inject">▸ 题材/风格 <b id="genreTag">继承自立意页</b></span>
+    <span class="grow"></span>
+  </div>
+
+  <!-- 主从分栏 -->
+  <div class="split">
+    <!-- 左 -->
+    <div class="left" id="leftPane">
+      <div class="panel-card eplist">
+        <div class="ph"><span class="t">分集</span><span class="sp"></span><span class="faint" id="epCountLabel"></span></div>
+        <div class="pbody" id="epList">
+          <div class="ep-empty">尚无分集。<br>继承自「剧本」页的分集大纲<br>（localStorage nuomi.script.state）。</div>
+        </div>
+      </div>
+      <div class="panel-card preview">
+        <div class="ph"><span class="t">流式原始输出（只读）</span></div>
+        <div class="pbody" id="rawPreview"><span class="dim">点某一集「✦ 生成本集分镜」时，LLM 原始 JSON 在此流式显示…</span></div>
+      </div>
+      <div class="leftfoot">
+        <button class="btn-all" id="btnAll" disabled>⚡ 一键生成全集分镜</button>
+      </div>
+    </div>
+
+    <!-- 右 -->
+    <div class="right">
+      <div class="rhead">
+        <button class="collapse-btn" id="btnCollapse" title="折叠/展开左栏">◧</button>
+        <span class="ep-title" id="epTitle">选择左侧某一集生成分镜脚本 <span class="badge" id="epBadge" style="display:none"></span></span>
+        <span class="sp"></span>
+        <span class="streaming" id="epStreaming"><span class="dot"></span>生成中…</span>
+      </div>
+
+      <div class="sb-scroll" id="sbScroll">
+        <div class="placeholder" id="sbPlaceholder">
+          选左侧某一集，点「✦ 生成本集分镜」由 AI 流式生成分镜脚本。<br>
+          完成后此处显示：全局头（标题/比例/总时长/全局风格）· 角色行 · 镜头表 · 校验警告。
+        </div>
+
+        <!-- 全局头 -->
+        <div class="ghead" id="ghead" style="display:none">
+          <div class="gh-row">
+            <div class="f ttl-in"><label>标题</label><input type="text" id="sbTitle" placeholder="本集标题"></div>
+            <div class="f"><label>比例</label><span class="v" id="sbAspect">—</span></div>
+            <div class="f"><label>总时长</label><span class="v" id="sbTotalDur">0</span><span class="faint" style="font-size:11px">s</span></div>
+          </div>
+          <div class="gh-style">
+            <label>globalStyle 全局风格</label>
+            <textarea id="sbGlobalStyle" placeholder="全局视觉风格（镜头语言 / 色调 / 护栏）"></textarea>
+          </div>
+        </div>
+
+        <!-- 角色行 -->
+        <div class="panel-card chars" id="charsCard" style="display:none">
+          <div class="ph"><span class="t">角色（Character Lock 来源）</span><span class="sp"></span><button class="btn-secondary" id="btnAddChar" style="padding:5px 11px;font-size:12px">+ 加角色</button></div>
+          <div class="pbody" id="charsBody"></div>
+        </div>
+
+        <!-- 镜头表 -->
+        <div class="panel-card shots-card" id="shotsCard" style="display:none">
+          <div class="ph"><span class="t">镜头表</span><span class="sp"></span><span class="faint" id="shotCountLabel"></span></div>
+          <div class="pbody shots-wrap" id="shotsBody"></div>
+        </div>
+
+        <!-- warnings -->
+        <div class="warns" id="warns">
+          <div class="wt">⚠ 校验警告（已自动兜底，可手动修正后保存）</div>
+          <ul id="warnsList"></ul>
+        </div>
+
+        <!-- 原始 JSON -->
+        <div class="json-drawer" id="jsonDrawer">
+          <div style="font-size:11px;color:var(--periw);font-weight:600;margin-bottom:6px">原始 JSON <span id="jsonValid"></span></div>
+          <pre id="jsonText"></pre>
+        </div>
+      </div>
+
+      <div class="ract">
+        <button id="btnGen" disabled>✦ 生成本集分镜</button>
+        <button class="btn-secondary" id="btnSave" disabled>保存修改</button>
+        <button class="btn-secondary" id="btnJson" disabled>{ } 看原始 JSON</button>
+        <span class="grow"></span>
+        <button class="btn-secondary" id="btnRegen" disabled>↻ 重生成（清下游）</button>
+        <button id="btnAdvance" disabled>推进到出图 prompt →</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ===== 可配 API base：壳通过 ?sw= / ?media= / ?project= 传入 =====
+   后端 screenwriter_agent 默认 18430；本页调 POST /storyboard（SSE，按集）。
+   契约（读自 screenwriter_agent/routes/storyboard.py + models/requests.py）：
+     请求体 StoryboardReq：{ project_dir, episode_id:"E\d+", options:StoryboardOptions, reasoning_effort }
+       StoryboardOptions：{ aspect_ratio, fps, shot_duration_default, shot_duration_min,
+                            shot_duration_max, density, genre_context, style_context }
+     SSE 事件（同 script.html 同构）：
+       event:status data:{phase: thinking|streaming|validating|saving}
+       event:delta  data:{text}                       （原始 JSON 流）
+       event:done   data:{saved, episode_id, result, warnings:[{...}]}
+         result = 校验后 storyboard：{title, aspectRatio?, fps?, totalDuration, globalStyle,
+                                      characters:[{name,appearance}], shots:[{shotId,duration,composition,description,stylePrompt}]}
+       event:error  data:{code, message, hint, details?}
+   重生：?purge_downstream=true 清下游（分镜.json / prompts/）。 */
+const qs = new URLSearchParams(location.search);
+const SW_API = qs.get("sw") || "http://127.0.0.1:18430";
+const MEDIA_API = qs.get("media") || "http://127.0.0.1:18450";
+const PROJECT_DIR = qs.get("project") || qs.get("project_dir") || "";
+
+const $ = (id) => document.getElementById(id);
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+/* 镜头表列（对齐原 _shots_table_model._COLS） */
+const SHOT_COLS = [
+  { key: "shotId", label: "ID", id: true },
+  { key: "duration", label: "时长(s)", num: true },
+  { key: "composition", label: "构图" },
+  { key: "description", label: "描述" },
+  { key: "stylePrompt", label: "stylePrompt" },
+];
+
+/* ---------- 状态 ---------- */
+let EPISODES = [];          // [{id:"E1", title, summary}]（继承自剧本页）
+let activeEp = null;        // 当前选中集 id
+const epStatus = {};        // {E1:"idle"|"running"|"done"}
+const epSB = {};            // {E1: storyboard dict} 各集分镜（持久化）
+const epWarns = {};         // {E1: [warnings]}
+let busy = false;
+let dirty = false;
+
+/* ---------- 项目级持久化 ---------- */
+const LS_SB = "nuomi.storyboardScript." + (PROJECT_DIR || "noproj");
+const LS_SCRIPT = "nuomi.script.state." + (PROJECT_DIR || "noproj");   // 剧本页同源 key（继承分集）
+function saveLocal() {
+  try {
+    localStorage.setItem(LS_SB, JSON.stringify({
+      episodes: EPISODES, status: epStatus, sb: epSB, warns: epWarns, active: activeEp,
+      aspect: $("aspect").value, fps: $("fps").value, durMin: $("durMin").value,
+      durMax: $("durMax").value, density: $("density").value,
+    }));
+  } catch {}
+}
+function restoreLocal() {
+  let s; try { s = JSON.parse(localStorage.getItem(LS_SB) || "null"); } catch {}
+  if (s) {
+    if (s.aspect) $("aspect").value = s.aspect;
+    if (s.fps) $("fps").value = s.fps;
+    if (s.durMin) $("durMin").value = s.durMin;
+    if (s.durMax) $("durMax").value = s.durMax;
+    if (s.density) $("density").value = s.density;
+    EPISODES = Array.isArray(s.episodes) ? s.episodes : [];
+    Object.assign(epStatus, s.status || {});
+    Object.assign(epSB, s.sb || {});
+    Object.assign(epWarns, s.warns || {});
+  }
+  // 若本页无分集，则继承剧本页的分集大纲（同源 localStorage）
+  if (!EPISODES.length) inheritEpisodesFromScript();
+  renderEpList();
+  $("btnAll").disabled = EPISODES.length === 0;
+  if (s && s.active && EPISODES.some((e) => e.id === s.active)) selectEp(s.active);
+}
+
+/* 继承剧本页分集（key nuomi.script.state.<project>，见 web/script.html saveLocal） */
+function inheritEpisodesFromScript() {
+  try {
+    const sc = JSON.parse(localStorage.getItem(LS_SCRIPT) || "null");
+    if (sc && Array.isArray(sc.episodes) && sc.episodes.length) {
+      EPISODES = sc.episodes.map((e, i) => ({ id: e.id || ("E" + (i + 1)), title: e.title || "", summary: e.summary || "" }));
+    }
+  } catch {}
+}
+
+/* 立意页继承上下文显示（题材/风格 chip） */
+function readInheritedContext() {
+  try {
+    const raw = sessionStorage.getItem("nuomi.selectedIdea." + (PROJECT_DIR || "noproj"));
+    if (!raw) return;
+    const sel = JSON.parse(raw);
+    const t = sel && sel.candidate && (sel.candidate.title || sel.candidate.desc);
+    if (t) {
+      const tag = $("genreTag");
+      tag.textContent = "立意：" + String(t).slice(0, 24) + (String(t).length > 24 ? "…" : "");
+      tag.title = (sel.candidate.desc || "") + "（选自立意页）";
+    }
+  } catch {}
+}
+
+/* ---------- 健康检测 ---------- */
+async function checkHealth() {
+  $("pjName").textContent = PROJECT_DIR || "（未指定 project_dir）";
+  try {
+    const r = await fetch(SW_API + "/health");
+    if (!r.ok) throw new Error(r.status);
+    const b = await r.json().catch(() => ({}));
+    $("apiDot").className = "dot ok";
+    $("apiText").textContent = "后端已连接" + (b.version ? " · v" + b.version : "");
+  } catch (e) {
+    $("apiDot").className = "dot err";
+    $("apiText").textContent = "后端未连接（" + SW_API + "）";
+  }
+}
+
+/* ---------- 通用 SSE（照搬 script.html streamSSE） ---------- */
+async function streamSSE(path, body, onEvent, params) {
+  let url = SW_API + path;
+  if (params) url += (url.includes("?") ? "&" : "?") + new URLSearchParams(params).toString();
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok || !resp.body) {
+    let msg = resp.status + "";
+    try { const j = await resp.json(); msg = (j.error && (j.error.message || j.error.hint)) || msg; } catch (_) {}
+    onEvent("error", { code: "HTTP", message: msg });
+    return;
+  }
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buf = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      const block = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      let evName = "message", dataLines = [];
+      block.split("\n").forEach((line) => {
+        if (line.startsWith("event:")) evName = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+      });
+      let data = {};
+      if (dataLines.length) { try { data = JSON.parse(dataLines.join("\n")); } catch (_) { data = { text: dataLines.join("\n") }; } }
+      onEvent(evName, data);
+    }
+  }
+}
+
+/* ---------- 集列表 ---------- */
+function renderEpList() {
+  const root = $("epList");
+  if (!EPISODES.length) {
+    root.innerHTML = '<div class="ep-empty">尚无分集。<br>请先在「剧本」页生成分集大纲，<br>本页将自动继承。</div>';
+    $("epCountLabel").textContent = "";
+    return;
+  }
+  $("epCountLabel").textContent = EPISODES.length + " 集";
+  root.innerHTML = "";
+  EPISODES.forEach((ep, i) => {
+    const item = document.createElement("div");
+    item.className = "ep-item" + (ep.id === activeEp ? " active" : "");
+    const stCls = epStatus[ep.id] === "done" ? "ok" : (epStatus[ep.id] === "running" ? "run" : "");
+    item.innerHTML =
+      '<div class="idx">' + esc(ep.id) + '</div>' +
+      '<div class="info"><div class="name">' + esc(ep.title || ("第 " + (i + 1) + " 集")) + '</div>' +
+      '<div class="sum">' + esc(ep.summary || "—") + '</div></div>' +
+      '<span class="st"><span class="dot-sm ' + stCls + '"></span></span>';
+    item.addEventListener("click", () => selectEp(ep.id));
+    root.appendChild(item);
+  });
+}
+
+function selectEp(id) {
+  if (dirty && !confirmDiscard()) return;
+  activeEp = id;
+  const ep = EPISODES.find((e) => e.id === id);
+  $("epBadge").style.display = "inline-block";
+  $("epBadge").textContent = id;
+  $("epTitle").firstChild.textContent = (ep && ep.title) ? ep.title + " " : id + " ";
+  renderSB(epSB[id] || null);
+  $("btnGen").disabled = false;
+  $("btnRegen").disabled = !(epStatus[id] === "done");
+  $("btnJson").disabled = !epSB[id];
+  $("btnAdvance").disabled = !(epStatus[id] === "done");
+  $("btnSave").disabled = true;
+  dirty = false;
+  renderEpList();
+}
+
+function confirmDiscard() {
+  return confirm("当前集分镜有未保存改动，切换将丢弃。继续？");
+}
+
+/* ---------- 选项打包（对齐 StoryboardOptions） ---------- */
+function options() {
+  return {
+    aspect_ratio: $("aspect").value,
+    fps: parseInt($("fps").value, 10) || 24,
+    shot_duration_min: parseFloat($("durMin").value) || 4,
+    shot_duration_max: parseFloat($("durMax").value) || 10,
+    density: $("density").value,
+    genre_context: "",   // TODO: 真机由壳/立意页注入纯文本（架构 A 客户端组装）
+    style_context: "",
+  };
+}
+
+function guardProject() {
+  if (!PROJECT_DIR) { alert("未指定 project_dir（壳应通过 ?project=... 传入）。"); return false; }
+  return true;
+}
+
+/* ---------- 渲染分镜（全局头 + 角色 + 镜头表 + warnings + JSON） ---------- */
+function renderSB(sb) {
+  const has = sb && typeof sb === "object";
+  $("sbPlaceholder").style.display = has ? "none" : "";
+  ["ghead", "charsCard", "shotsCard"].forEach((id) => ($(id).style.display = has ? "" : "none"));
+  if (!has) { $("warns").classList.remove("on"); $("jsonDrawer").classList.remove("on"); return; }
+
+  $("sbTitle").value = sb.title || "";
+  $("sbAspect").textContent = sb.aspectRatio || sb.aspect_ratio || $("aspect").value;
+  $("sbTotalDur").textContent = sb.totalDuration != null ? sb.totalDuration : computeTotalDur(sb);
+  $("sbGlobalStyle").value = sb.globalStyle || "";
+
+  renderChars(sb.characters || []);
+  renderShots(sb.shots || []);
+  renderWarns(epWarns[activeEp] || []);
+
+  // 原始 JSON 抽屉文本（校验：能 stringify 即 ok）
+  try {
+    $("jsonText").textContent = JSON.stringify(sb, null, 2);
+    $("jsonValid").innerHTML = '<span class="json-ok">· JSON 合法</span>';
+  } catch (e) {
+    $("jsonText").textContent = "(无法序列化)";
+    $("jsonValid").innerHTML = '<span class="json-bad">· JSON 异常</span>';
+  }
+}
+
+function computeTotalDur(sb) {
+  return (sb.shots || []).reduce((a, s) => a + (parseFloat(s.duration) || 0), 0);
+}
+
+function renderChars(chars) {
+  const body = $("charsBody");
+  body.innerHTML = "";
+  if (!chars.length) { body.innerHTML = '<div class="ch-empty">（本集无角色，可「+ 加角色」）</div>'; return; }
+  chars.forEach((ch, i) => body.appendChild(charRow(ch.name || "", ch.appearance || "", i)));
+}
+
+function charRow(name, appearance, idx) {
+  const row = document.createElement("div");
+  row.className = "ch-row";
+  const nameIn = document.createElement("input");
+  nameIn.type = "text"; nameIn.className = "name"; nameIn.value = name; nameIn.placeholder = "角色名";
+  const apprIn = document.createElement("input");
+  apprIn.type = "text"; apprIn.className = "appr"; apprIn.value = appearance; apprIn.placeholder = "外观描述";
+  const del = document.createElement("button");
+  del.className = "del"; del.textContent = "✕";
+  nameIn.addEventListener("input", () => { syncCharFromUI(); markDirty(); });
+  apprIn.addEventListener("input", () => { syncCharFromUI(); markDirty(); });
+  del.addEventListener("click", () => { removeChar(idx); });
+  row.appendChild(nameIn); row.appendChild(apprIn); row.appendChild(del);
+  return row;
+}
+
+function syncCharFromUI() {
+  const sb = epSB[activeEp]; if (!sb) return;
+  const rows = $("charsBody").querySelectorAll(".ch-row");
+  sb.characters = [...rows].map((r) => ({
+    name: r.querySelector(".name").value, appearance: r.querySelector(".appr").value,
+  }));
+}
+function removeChar(idx) {
+  const sb = epSB[activeEp]; if (!sb || !sb.characters) return;
+  sb.characters.splice(idx, 1);
+  renderChars(sb.characters);
+  markDirty();
+}
+$("btnAddChar").addEventListener("click", () => {
+  let sb = epSB[activeEp];
+  if (!sb) { sb = epSB[activeEp] = { title: "", globalStyle: "", characters: [], shots: [] }; renderSB(sb); }
+  sb.characters = sb.characters || [];
+  sb.characters.push({ name: "", appearance: "" });
+  renderChars(sb.characters);
+  markDirty();
+});
+
+function renderShots(shots) {
+  $("shotCountLabel").textContent = shots.length + " 个镜头";
+  if (!shots.length) { $("shotsBody").innerHTML = '<div class="shots-empty">（无镜头）</div>'; return; }
+  const thead = "<tr>" + SHOT_COLS.map((c) => "<th>" + c.label + "</th>").join("") + "</tr>";
+  const rows = shots.map((s, ri) => {
+    const tds = SHOT_COLS.map((c) => {
+      const val = s[c.key] != null ? s[c.key] : "";
+      if (c.id) return '<td class="id-col">' + esc(val) + "</td>";
+      if (c.num) return '<td><input class="ed num" type="number" step="0.5" data-r="' + ri + '" data-k="' + c.key + '" value="' + esc(val) + '"></td>';
+      return '<td><textarea class="ed" rows="1" data-r="' + ri + '" data-k="' + c.key + '">' + esc(val) + "</textarea></td>";
+    }).join("");
+    return "<tr>" + tds + "</tr>";
+  }).join("");
+  $("shotsBody").innerHTML = '<table class="shots"><thead>' + thead + "</thead><tbody>" + rows + "</tbody></table>";
+  $("shotsBody").querySelectorAll(".ed").forEach((el) => {
+    el.addEventListener("input", () => {
+      const sb = epSB[activeEp]; if (!sb) return;
+      const ri = +el.dataset.r, k = el.dataset.k;
+      let v = el.value;
+      if (k === "duration") v = parseFloat(v) || 0;
+      if (sb.shots[ri]) sb.shots[ri][k] = v;
+      if (k === "duration") $("sbTotalDur").textContent = computeTotalDur(sb);
+      markDirty();
+    });
+  });
+}
+
+function renderWarns(warns) {
+  const box = $("warns"), list = $("warnsList");
+  if (!warns || !warns.length) { box.classList.remove("on"); return; }
+  box.classList.add("on");
+  list.innerHTML = warns.map((w) => {
+    const path = w.path || w.field || "";
+    const msg = w.message || w.msg || w.hint || (typeof w === "string" ? w : JSON.stringify(w));
+    return "<li>" + (path ? '<span class="path">' + esc(path) + "</span>：" : "") + esc(msg) + "</li>";
+  }).join("");
+}
+
+function markDirty() {
+  dirty = true;
+  $("btnSave").disabled = false;
+  $("btnAdvance").disabled = true;
+}
+
+/* 保存：吸回标题/globalStyle/角色（镜头/角色已实时写入），持久化 localStorage。
+   注：真正落盘项目 分镜_E{id}.json 由后端 /storyboard done 时完成；本页编辑后回写需后端
+   POST /storyboard/save（TODO，原 PySide6 直接 atomic_write，Web 端待补该路由）。 */
+function saveSB() {
+  const sb = epSB[activeEp]; if (!sb) return;
+  sb.title = $("sbTitle").value.trim();
+  sb.globalStyle = $("sbGlobalStyle").value.trim();
+  syncCharFromUI();
+  sb.totalDuration = computeTotalDur(sb);
+  $("sbTotalDur").textContent = sb.totalDuration;
+  dirty = false;
+  $("btnSave").disabled = true;
+  $("btnAdvance").disabled = !(epStatus[activeEp] === "done");
+  saveLocal();
+  const btn = $("btnSave"); const old = "保存修改";
+  btn.textContent = "已保存 ✓"; setTimeout(() => (btn.textContent = old), 1200);
+  try {
+    $("jsonText").textContent = JSON.stringify(sb, null, 2);
+  } catch {}
+}
+
+/* ---------- 生成单集分镜 ---------- */
+async function genEpisode(epId, regen) {
+  if (busy || !guardProject()) return;
+  if (!epId) { alert("先在左侧选择一集。"); return; }
+  busy = true;
+  epStatus[epId] = "running"; renderEpList();
+  $("epStreaming").classList.add("on");
+  ["btnGen", "btnRegen", "btnAll", "btnSave", "btnAdvance"].forEach((b) => ($(b).disabled = true));
+  const prev = $("rawPreview");
+  prev.textContent = ""; prev.classList.remove("dim");
+  let acc = "";
+  const body = {
+    project_dir: PROJECT_DIR,
+    episode_id: epId,
+    options: options(),
+    reasoning_effort: "max",
+  };
+  const params = regen ? { purge_downstream: "true" } : null;
+  try {
+    await streamSSE("/storyboard", body, (name, data) => {
+      if (name === "delta") {
+        acc += (data.text || "");
+        if (activeEp === epId) { prev.textContent = acc; prev.scrollTop = prev.scrollHeight; }
+      } else if (name === "status") {
+        /* phase: thinking|streaming|validating|saving（仅左栏 dot 动画体现，不额外渲染） */
+      } else if (name === "done") {
+        epStatus[epId] = "done";
+        if (data.result) { epSB[epId] = data.result; epWarns[epId] = data.warnings || []; }
+        saveLocal();
+        if (activeEp === epId) { renderSB(epSB[epId]); refreshButtonsForActive(); }
+      } else if (name === "error") {
+        epStatus[epId] = "idle";
+        if (activeEp === epId) prev.textContent = acc + "\n\n[错误] " + (data.hint || data.message || data.code || "");
+        else console.warn("[storyboard]", epId, data);
+      }
+    }, params);
+  } catch (e) {
+    epStatus[epId] = "idle";
+    if (activeEp === epId) prev.textContent = acc + "\n\n[网络错误] " + e.message;
+  } finally {
+    busy = false;
+    $("epStreaming").classList.remove("on");
+    $("btnAll").disabled = EPISODES.length === 0;
+    if (activeEp === epId) refreshButtonsForActive();
+    renderEpList();
+  }
+}
+
+function refreshButtonsForActive() {
+  const done = epStatus[activeEp] === "done";
+  $("btnGen").disabled = false;
+  $("btnRegen").disabled = !done;
+  $("btnJson").disabled = !epSB[activeEp];
+  $("btnAdvance").disabled = !done;
+}
+
+/* ---------- 一键全集（串行） ---------- */
+async function genAll() {
+  if (busy || !guardProject() || !EPISODES.length) return;
+  for (const ep of EPISODES) {
+    selectEp(ep.id);
+    await genEpisode(ep.id, false);
+  }
+}
+
+/* ---------- 折叠左栏 ---------- */
+$("btnCollapse").addEventListener("click", () => $("leftPane").classList.toggle("collapsed"));
+
+/* ---------- JSON 抽屉 ---------- */
+$("btnJson").addEventListener("click", () => $("jsonDrawer").classList.toggle("on"));
+
+/* ---------- 推进到出图 prompt（postMessage 通知壳；壳 subnav label「出图 Prompt」） ---------- */
+function advance() {
+  if (!activeEp || epStatus[activeEp] !== "done") return;
+  if (dirty) saveSB();
+  saveLocal();
+  /* TODO: 壳 app.html 目前仅监听 ideate.advance；建议壳新增对 storyboard.advance 的处理：
+     selectSub('出图 Prompt')。此处先发出，向后兼容。 */
+  window.parent && window.parent.postMessage(
+    { type: "storyboard.advance", stage: "prompts", episode_id: activeEp }, "*");
+}
+$("stepPrompts").addEventListener("click", advance);
+$("btnAdvance").addEventListener("click", advance);
+
+/* ---------- 绑定 ---------- */
+$("btnGen").addEventListener("click", () => genEpisode(activeEp, false));
+$("btnRegen").addEventListener("click", () => {
+  if (!activeEp) return;
+  if (!confirm("重新生成会覆盖本集 分镜.json，并删除下游 prompts/。继续？")) return;
+  genEpisode(activeEp, true);
+});
+$("btnSave").addEventListener("click", saveSB);
+$("btnAll").addEventListener("click", genAll);
+["sbTitle", "sbGlobalStyle"].forEach((id) => $(id).addEventListener("input", markDirty));
+["aspect", "fps", "durMin", "durMax", "density"].forEach((id) => $(id).addEventListener("change", saveLocal));
+
+/* ---------- 启动 ---------- */
+checkHealth();
+restoreLocal();
+readInheritedContext();
+</script>
+</body>
+</html>

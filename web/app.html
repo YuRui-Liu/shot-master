@@ -110,8 +110,8 @@
     screenwriter: [
       { label: '立意', page: 'ideate.html' },
       { label: '剧本', page: 'script.html' },
-      { label: '分镜', page: '' },
-      { label: '出图 Prompt', page: '' },
+      { label: '分镜', page: 'storyboard-script.html' },
+      { label: '出图 Prompt', page: 'prompts.html' },
     ],
     video_post: [
       { label: '智能转场', page: 'compose.html' },
@@ -174,14 +174,23 @@
     SUBNAV.hidden = true;
     go('overview');
   }
+  // 内容页 → 壳：切剧本创作子向导某阶段（必要时先切到剧本创作导航）。
+  function gotoSwStage(label) {
+    const sw = links.find(x => x.dataset.key === 'screenwriter');
+    if (sw && !sw.classList.contains('active')) go('screenwriter');
+    selectSub(label);
+  }
   window.addEventListener('message', (e) => {
     const d = e.data || {};
     if (d.type === 'project.open' && d.path) openProject(d.path);
-    // 立意「选定→推进剧本」：切到剧本创作子向导的「剧本」阶段(选定立意经 sessionStorage 传递)。
-    else if (d.type === 'ideate.advance') {
-      const sw = links.find(x => x.dataset.key === 'screenwriter');
-      if (sw && !sw.classList.contains('active')) go('screenwriter');
-      selectSub('剧本');
+    // 编剧链阶段推进/回退（立意→剧本→分镜→出图prompt→视频生成）
+    else if (d.type === 'ideate.advance') gotoSwStage('剧本');
+    else if (d.type === 'storyboard.advance') gotoSwStage('出图 Prompt');
+    else if (d.type === 'prompts.back') gotoSwStage('分镜');
+    else if (d.type === 'prompts.advance') go('video_gen');   // 出图prompt 完成 → 视频生成
+    // 概览/其它页通用导航：{type:'nav', key:<左栏 data-key>}
+    else if (d.type === 'nav' && d.key) {
+      if (links.some(x => x.dataset.key === d.key)) go(d.key);
     }
   });
 

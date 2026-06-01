@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · ④ 出图 Prompt · PROMPTS</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* 壳内容页：无自带标题栏/侧栏（由 web/app.html 糯米 AI 壳统一提供）；
+     出图 prompt 阶段页 —— 调 SW /prompts SSE 按宫格分组生成提示词，产物树 + 单组/全量。 */
+  body { overflow: hidden; }
+  .work { height: 100vh; overflow: hidden; display: flex; flex-direction: column; padding: 18px 26px 0; }
+
+  .work-head { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; flex-shrink: 0; }
+  .work-head h1 {
+    margin: 0; font-size: 21px; letter-spacing: .5px;
+    background: linear-gradient(135deg, var(--blue), var(--mauve));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .work-head .pj { color: var(--muted); font-size: 12.5px; }
+  .work-head .pj b { color: var(--fg2); }
+  .work-head .status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+
+  /* 向导步骤条 */
+  .stepper { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-shrink: 0; flex-wrap: wrap; }
+  .step { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); padding: 5px 12px; border-radius: 18px; cursor: default; }
+  .step .n { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; border: 1px solid var(--border); }
+  .step.active { background: linear-gradient(90deg, rgba(74,158,255,.2), rgba(74,158,255,.05)); color: var(--fg); font-weight: 600; }
+  .step.active .n { background: var(--blue); color: #06122a; border-color: var(--blue); }
+  .step.done .n { background: var(--done); color: #06220f; border-color: var(--done); }
+  .step.clk { cursor: pointer; }
+  .step.clk:hover { color: var(--fg); }
+  .chev { color: var(--faint); font-size: 12px; }
+
+  /* 参数条 */
+  .parambar {
+    display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 16px; margin-bottom: 12px;
+  }
+  .parambar .grp { display: flex; align-items: center; gap: 7px; }
+  .parambar .grp label { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .parambar .chk { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--fg2); cursor: pointer; }
+  .parambar input[type="text"] { width: 150px; }
+  .parambar .grow { flex: 1; }
+  .parambar .stream { font-size: 11.5px; color: var(--blue); display: none; align-items: center; gap: 6px; }
+  .parambar .stream.on { display: flex; }
+  .parambar .stream .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+
+  /* 集选择行 */
+  .epbar { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-bottom: 12px; flex-wrap: wrap; }
+  .epbar .lab { font-size: 12px; color: var(--muted); }
+  .ep-pill {
+    font-size: 12px; padding: 5px 13px; border-radius: 16px; cursor: pointer;
+    background: var(--field); border: 1px solid var(--border); color: var(--fg2); display: flex; align-items: center; gap: 6px;
+  }
+  .ep-pill:hover { border-color: var(--mauve); }
+  .ep-pill.active { border-color: var(--blue); background: rgba(74,158,255,.1); color: var(--fg); font-weight: 600; }
+  .ep-pill .d { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .ep-pill .d.ok { background: var(--done); }
+  .ep-empty-inline { font-size: 12px; color: var(--faint); }
+
+  /* 上游缺失横幅 */
+  .banner { background: rgba(214,164,74,.1); border: 1px solid #5a4a2c; border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 12px; display: none; font-size: 12.5px; color: var(--warn); flex-shrink: 0; }
+  .banner.on { display: block; }
+
+  /* 主从分栏：左产物树 + 右预览编辑 */
+  .split { flex: 1; display: flex; gap: 16px; min-height: 0; padding-bottom: 18px; }
+
+  .left { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .panel-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; min-height: 0; }
+  .panel-card .ph { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--border-lo); flex-shrink: 0; }
+  .panel-card .ph .t { font-size: 12.5px; font-weight: 600; }
+  .panel-card .ph .sp { flex: 1; }
+  .panel-card .pbody { overflow: auto; padding: 8px 8px; flex: 1; min-height: 0; }
+
+  /* 产物树 */
+  .tree-group { margin-bottom: 6px; }
+  .tg-head { font-size: 12px; color: var(--periw); font-weight: 600; padding: 6px 8px; display: flex; align-items: center; gap: 6px; }
+  .tg-head .cnt { color: var(--faint); font-weight: 400; }
+  .tree-file {
+    display: flex; align-items: center; gap: 9px; padding: 7px 10px 7px 22px; border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 12px; color: var(--fg2); transition: background .12s;
+  }
+  .tree-file:hover { background: var(--field); }
+  .tree-file.sel { background: rgba(74,158,255,.1); color: var(--fg); }
+  .tree-file .gly { width: 14px; text-align: center; flex-shrink: 0; }
+  .tree-file .gly.missing { color: #9aa0a6; }
+  .tree-file .gly.streaming { color: var(--blue); animation: blink 1s infinite; }
+  .tree-file .gly.done { color: var(--done); }
+  .tree-file .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tree-file .grp-gen {
+    font-size: 10.5px; color: var(--blue); border: 1px solid var(--blue-dim); border-radius: 6px;
+    padding: 2px 8px; background: rgba(74,158,255,.06); white-space: nowrap; flex-shrink: 0;
+  }
+  .tree-file .grp-gen:hover { background: rgba(74,158,255,.16); filter: none; }
+  .tree-empty { color: var(--faint); font-size: 12px; text-align: center; padding: 26px 12px; line-height: 1.7; }
+
+  .leftfoot { flex-shrink: 0; display: flex; gap: 8px; }
+  .leftfoot .btn-all { flex: 1; }
+  .leftfoot button:disabled { filter: grayscale(.6) brightness(.7); }
+  .btn-secondary { background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); }
+  .btn-secondary:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
+
+  /* 右：预览编辑 */
+  .right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .rhead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-shrink: 0; }
+  .rhead .pv-name { font-size: 14px; font-weight: 600; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rhead .sp { flex: 1; }
+  #promptEditor {
+    flex: 1; width: 100%; resize: none; font: inherit; line-height: 1.7;
+    background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--fg); padding: 14px 16px; outline: none; min-height: 0;
+    font-family: var(--mono, ui-monospace, monospace); font-size: 12.5px;
+  }
+  #promptEditor:focus { border-color: var(--mauve); }
+  #promptEditor::placeholder { color: var(--faint); font-family: inherit; }
+  #promptEditor:disabled { opacity: .6; }
+
+  .ract { display: flex; gap: 10px; margin-top: 12px; flex-shrink: 0; }
+  .ract .grow { flex: 1; }
+  .ract button:disabled { filter: grayscale(.6) brightness(.7); }
+</style>
+</head>
+<body>
+<main class="work">
+  <div class="work-head">
+    <h1>④ 出图 Prompt · PROMPTS</h1>
+    <span class="pj">项目：<b id="pjName">（未指定 project_dir）</b></span>
+    <div class="status"><span class="dot" id="apiDot"></span><span id="apiText">检测后端…</span></div>
+  </div>
+
+  <!-- 向导步骤条 -->
+  <div class="stepper" id="stepper">
+    <div class="step done"><span class="n">1</span>立意</div><span class="chev">›</span>
+    <div class="step done"><span class="n">2</span>剧本</div><span class="chev">›</span>
+    <div class="step done clk" id="stepStoryboard"><span class="n">3</span>分镜</div><span class="chev">›</span>
+    <div class="step active"><span class="n">4</span>出图 prompt</div>
+  </div>
+
+  <!-- 参数条 -->
+  <div class="parambar">
+    <label class="chk"><input type="checkbox" id="charRefs" checked> 角色参考</label>
+    <label class="chk"><input type="checkbox" id="quality" checked> 画质增强</label>
+    <div class="grp"><label>风格补充</label><input type="text" id="styleExtra" placeholder="如：电影感/赛博朋克…"></div>
+    <div class="grp"><label>负向</label>
+      <select id="negative">
+        <option value="标准 SDXL" selected>标准 SDXL</option>
+        <option value="无">无</option>
+        <option value="禁手部">禁手部</option>
+        <option value="禁文字">禁文字</option>
+      </select>
+    </div>
+    <div class="grp"><label>宫格</label>
+      <select id="gridMode">
+        <option value="single">单图</option>
+        <option value="4" selected>四宫格</option>
+        <option value="9">九宫格</option>
+      </select>
+    </div>
+    <span class="grow"></span>
+    <span class="stream" id="streamPill"><span class="dot"></span><span id="streamMsg">流式中…</span></span>
+  </div>
+
+  <!-- 集选择 -->
+  <div class="epbar" id="epbar">
+    <span class="lab">集：</span>
+    <span class="ep-empty-inline" id="epEmpty">（无分集，请先在「分镜」页生成）</span>
+  </div>
+
+  <!-- 上游缺失 -->
+  <div class="banner" id="banner">⚠ 本集缺上游 分镜_E?.json，请先在「分镜」步生成该集。</div>
+
+  <!-- 主从分栏 -->
+  <div class="split">
+    <!-- 左：产物树 -->
+    <div class="left">
+      <div class="panel-card" style="flex:1">
+        <div class="ph"><span class="t">产物树</span><span class="sp"></span><span class="faint" id="treeCount"></span></div>
+        <div class="pbody" id="tree">
+          <div class="tree-empty">选择上方某一集后，<br>按 分镜.json 推算的产物文件树在此展示<br>（角色参考图 / N 宫格）。</div>
+        </div>
+      </div>
+      <div class="leftfoot">
+        <button class="btn-all" id="btnAll" disabled>⚡ 全量生成</button>
+        <button class="btn-secondary" id="btnRegen" disabled>↻ 重生成</button>
+      </div>
+    </div>
+
+    <!-- 右：预览编辑 -->
+    <div class="right">
+      <div class="rhead">
+        <span class="pv-name" id="pvName">预览：（点左侧文件）</span>
+        <span class="sp"></span>
+      </div>
+      <textarea id="promptEditor" placeholder="点左侧某个产物文件预览/编辑其提示词；未生成的文件点「✦ 本组」或「⚡ 全量生成」由 AI 流式产出。" disabled></textarea>
+      <div class="ract">
+        <button class="btn-secondary" id="btnSave" disabled>保存</button>
+        <button class="btn-secondary" id="btnOpenDir">📂 打开 prompts/</button>
+        <span class="grow"></span>
+        <button id="btnAdvance">推进到视频提示词 →</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ===== 可配 API base：壳通过 ?sw= / ?media= / ?project= 传入 =====
+   后端 screenwriter_agent 默认 18430；本页调 POST /prompts（SSE，按集，可单组）。
+   契约（读自 screenwriter_agent/routes/prompts.py + models/requests.py + _product_tree.py）：
+     请求体 PromptsReq：{ project_dir, episode_id:"E\d+", options:PromptsOptions, reasoning_effort }
+       PromptsOptions：{ grid_mode:"single"|"4"|"9", include_character_refs:bool, style_extra,
+                         negative_preset, quality_boost:bool, groups:[{grid_mode,shot_ids:[]}],
+                         only_group_index:int|null, genre_context, style_context, style_context_ref }
+     SSE 事件：
+       event:status  data:{phase: streaming}
+       event:partial data:{saved:<abs path>, kind:"character_ref"|"grid_prompt", episode_id}   （每落盘一文件）
+       event:done    data:{saved:[paths], episode_id, result:{character_refs, grid_sheets}, warnings:[]}
+       event:error   data:{code, message, hint}
+     产物树（_product_tree.build_from_sb）：
+       角色参考图/  = 每个 sb.characters[].name → "{name}_ref.md"
+       N宫格/       = groups 非空按组数 / 否则按 grid_mode 切 sb.shots → "S{i}.md"（1-based）
+   重生：?purge_downstream=true 清 prompts/。
+   分镜.json 来源：本页无后端「读分镜」GET 路由可用 → 复用分镜脚本页 localStorage
+     (key nuomi.storyboardScript.<project>) 里的 epSB[ep]；读不到则仅显示集列表、树空，
+     提示去「分镜」页生成。TODO：若后端加 GET /storyboard?episode_id=，可直接拉取真源。 */
+const qs = new URLSearchParams(location.search);
+const SW_API = qs.get("sw") || "http://127.0.0.1:18430";
+const MEDIA_API = qs.get("media") || "http://127.0.0.1:18450";
+const PROJECT_DIR = qs.get("project") || qs.get("project_dir") || "";
+
+const $ = (id) => document.getElementById(id);
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+const SEP = (PROJECT_DIR.indexOf("\\") >= 0 || /^[A-Za-z]:/.test(PROJECT_DIR)) ? "\\" : "/";
+function joinPath() { return [...arguments].filter((p) => p != null && p !== "").join(SEP); }
+
+/* ---------- 状态 ---------- */
+let EPISODES = [];          // [{id, title, summary}]（继承自分镜脚本页 / 剧本页）
+let activeEp = null;
+let SB = null;              // 当前集 分镜.json（来自 storyboardScript localStorage）
+const fileStatus = {};      // {<abs path>: "missing"|"streaming"|"done"} per active episode（持久化）
+const fileContent = {};     // {<abs path>: text} 已加载/已生成 文本镜像（持久化）
+let currentFile = null;     // 当前预览的 abs path
+let busy = false;
+
+/* ---------- 持久化 ---------- */
+const LS_PROMPTS = "nuomi.prompts." + (PROJECT_DIR || "noproj");
+const LS_SB = "nuomi.storyboardScript." + (PROJECT_DIR || "noproj");   // 分镜脚本页同源 key
+const LS_SCRIPT = "nuomi.script.state." + (PROJECT_DIR || "noproj");
+
+function saveLocal() {
+  try {
+    localStorage.setItem(LS_PROMPTS, JSON.stringify({
+      active: activeEp, status: fileStatus, content: fileContent,
+      charRefs: $("charRefs").checked, quality: $("quality").checked,
+      styleExtra: $("styleExtra").value, negative: $("negative").value, gridMode: $("gridMode").value,
+    }));
+  } catch {}
+}
+function restoreLocal() {
+  let s; try { s = JSON.parse(localStorage.getItem(LS_PROMPTS) || "null"); } catch {}
+  if (s) {
+    if (typeof s.charRefs === "boolean") $("charRefs").checked = s.charRefs;
+    if (typeof s.quality === "boolean") $("quality").checked = s.quality;
+    if (s.styleExtra) $("styleExtra").value = s.styleExtra;
+    if (s.negative) $("negative").value = s.negative;
+    if (s.gridMode) $("gridMode").value = s.gridMode;
+    Object.assign(fileStatus, s.status || {});
+    Object.assign(fileContent, s.content || {});
+  }
+  inheritEpisodes();
+  renderEpbar();
+  if (s && s.active && EPISODES.some((e) => e.id === s.active)) selectEp(s.active);
+  else if (EPISODES.length) selectEp(EPISODES[0].id);
+}
+
+/* 继承分集（优先分镜脚本页，回退剧本页） */
+function inheritEpisodes() {
+  try {
+    const sb = JSON.parse(localStorage.getItem(LS_SB) || "null");
+    if (sb && Array.isArray(sb.episodes) && sb.episodes.length) {
+      EPISODES = sb.episodes.map((e, i) => ({ id: e.id || ("E" + (i + 1)), title: e.title || "", summary: e.summary || "" }));
+      return;
+    }
+  } catch {}
+  try {
+    const sc = JSON.parse(localStorage.getItem(LS_SCRIPT) || "null");
+    if (sc && Array.isArray(sc.episodes) && sc.episodes.length) {
+      EPISODES = sc.episodes.map((e, i) => ({ id: e.id || ("E" + (i + 1)), title: e.title || "", summary: e.summary || "" }));
+    }
+  } catch {}
+}
+
+/* 取某集 分镜.json（来自分镜脚本页 localStorage epSB[ep]） */
+function loadSBForEp(epId) {
+  try {
+    const sb = JSON.parse(localStorage.getItem(LS_SB) || "null");
+    if (sb && sb.sb && sb.sb[epId]) return sb.sb[epId];
+  } catch {}
+  return null;
+}
+
+/* ---------- 健康检测 ---------- */
+async function checkHealth() {
+  $("pjName").textContent = PROJECT_DIR || "（未指定 project_dir）";
+  try {
+    const r = await fetch(SW_API + "/health");
+    if (!r.ok) throw new Error(r.status);
+    const b = await r.json().catch(() => ({}));
+    $("apiDot").className = "dot ok";
+    $("apiText").textContent = "后端已连接" + (b.version ? " · v" + b.version : "");
+  } catch (e) {
+    $("apiDot").className = "dot err";
+    $("apiText").textContent = "后端未连接（" + SW_API + "）";
+  }
+}
+
+/* ---------- 通用 SSE ---------- */
+async function streamSSE(path, body, onEvent, params) {
+  let url = SW_API + path;
+  if (params) url += (url.includes("?") ? "&" : "?") + new URLSearchParams(params).toString();
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok || !resp.body) {
+    let msg = resp.status + "";
+    try { const j = await resp.json(); msg = (j.error && (j.error.message || j.error.hint)) || msg; } catch (_) {}
+    onEvent("error", { code: "HTTP", message: msg });
+    return;
+  }
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buf = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      const block = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      let evName = "message", dataLines = [];
+      block.split("\n").forEach((line) => {
+        if (line.startsWith("event:")) evName = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+      });
+      let data = {};
+      if (dataLines.length) { try { data = JSON.parse(dataLines.join("\n")); } catch (_) { data = { text: dataLines.join("\n") }; } }
+      onEvent(evName, data);
+    }
+  }
+}
+
+/* ---------- 集选择条 ---------- */
+function renderEpbar() {
+  const bar = $("epbar");
+  bar.innerHTML = '<span class="lab">集：</span>';
+  if (!EPISODES.length) {
+    bar.insertAdjacentHTML("beforeend", '<span class="ep-empty-inline">（无分集，请先在「分镜」页生成）</span>');
+    return;
+  }
+  EPISODES.forEach((ep) => {
+    const pill = document.createElement("span");
+    pill.className = "ep-pill" + (ep.id === activeEp ? " active" : "");
+    const done = epHasAnyDone(ep.id);
+    pill.innerHTML = '<span class="d ' + (done ? "ok" : "") + '"></span>' + esc(ep.id);
+    pill.title = ep.title || ep.id;
+    pill.addEventListener("click", () => selectEp(ep.id));
+    bar.appendChild(pill);
+  });
+}
+
+function epHasAnyDone(epId) {
+  const dir = epDir(epId);
+  return Object.keys(fileStatus).some((p) => p.indexOf(dir) === 0 && fileStatus[p] === "done");
+}
+
+/* prompts 目录：<project>/prompts/E{id}/（对齐 episode_prompts_dir）。
+   注：真实路径以后端 partial.saved 为准；本地推算仅用于「未生成」占位树。 */
+function epDir(epId) { return joinPath(PROJECT_DIR, "prompts", epId); }
+
+function selectEp(epId) {
+  activeEp = epId;
+  SB = loadSBForEp(epId);
+  renderEpbar();
+  // 上游缺失横幅
+  if (!SB) {
+    $("banner").classList.add("on");
+    $("banner").textContent = "⚠ 本集缺上游 分镜_" + epId + ".json（分镜脚本页未生成）。请先在「分镜」步生成该集。";
+  } else {
+    $("banner").classList.remove("on");
+  }
+  // 重置预览
+  currentFile = null;
+  $("promptEditor").value = ""; $("promptEditor").disabled = true;
+  $("pvName").textContent = "预览：（点左侧文件）";
+  $("btnSave").disabled = true;
+  rebuildTree();
+  $("btnAll").disabled = !SB;
+  $("btnRegen").disabled = !SB;
+}
+
+/* ---------- 产物树（按 SB + groups 推算预期文件 → 状态点） ---------- */
+function shotIds(sb) {
+  return (sb.shots || []).map((s) => String(s.shotId || s.shot_id || s.id || "")).filter(Boolean);
+}
+
+/* 切组计划：无显式 groups → 按 grid_mode 切块（对齐后端回退逻辑）。返回 [{gi, shot_ids, grid_mode}] */
+function buildGroups(sb) {
+  const ids = shotIds(sb);
+  const gm = $("gridMode").value;
+  const size = { single: 1, "4": 4, "9": 9 }[gm] || 9;
+  const groups = [];
+  for (let i = 0, gi = 1; i < ids.length; i += size, gi++) {
+    groups.push({ grid_mode: gm, shot_ids: ids.slice(i, i + size) });
+  }
+  return groups;
+}
+
+function rebuildTree() {
+  const root = $("tree");
+  if (!SB) {
+    root.innerHTML = '<div class="tree-empty">本集无 分镜.json。<br>请先在「分镜」页生成该集分镜脚本。</div>';
+    $("treeCount").textContent = "";
+    return;
+  }
+  const dir = epDir(activeEp);
+  const includeRefs = $("charRefs").checked;
+  const groups = buildGroups(SB);
+  let html = "";
+  let total = 0;
+
+  if (includeRefs) {
+    const chars = (SB.characters || []).filter((c) => c.name);
+    html += '<div class="tree-group"><div class="tg-head">📁 角色参考图 <span class="cnt">(' + chars.length + ')</span></div>';
+    chars.forEach((ch) => {
+      const p = joinPath(dir, "角色参考图", ch.name + "_ref.md");
+      html += fileRow(p, ch.name + "_ref.md", null);
+      total++;
+    });
+    if (!chars.length) html += '<div class="tree-empty" style="padding:8px">（无角色）</div>';
+    html += "</div>";
+  }
+
+  html += '<div class="tree-group"><div class="tg-head">📁 N 宫格 <span class="cnt">(' + groups.length + ')</span></div>';
+  groups.forEach((g, i) => {
+    const gi = i + 1;
+    const p = joinPath(dir, "N宫格", "S" + gi + ".md");
+    html += fileRow(p, "S" + gi + ".md", gi);
+    total++;
+  });
+  if (!groups.length) html += '<div class="tree-empty" style="padding:8px">（无镜头）</div>';
+  html += "</div>";
+
+  root.innerHTML = html;
+  $("treeCount").textContent = total + " 个产物";
+
+  // 绑定行点击 + 单组生成
+  root.querySelectorAll(".tree-file").forEach((el) => {
+    const p = el.dataset.path;
+    el.addEventListener("click", (e) => {
+      if (e.target.classList.contains("grp-gen")) return;
+      openFile(p);
+    });
+  });
+  root.querySelectorAll(".grp-gen").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      genGroup(parseInt(btn.dataset.gi, 10));
+    });
+  });
+}
+
+function fileRow(absPath, name, groupIndex) {
+  const st = fileStatus[absPath] || "missing";
+  const sel = currentFile === absPath ? " sel" : "";
+  const glyph = st === "done" ? "✓" : (st === "streaming" ? "●" : "○");
+  const genBtn = groupIndex != null
+    ? '<span class="grp-gen" data-gi="' + groupIndex + '">✦ 本组</span>' : "";
+  return '<div class="tree-file' + sel + '" data-path="' + esc(absPath) + '">' +
+    '<span class="gly ' + st + '">' + glyph + '</span>' +
+    '<span class="nm" title="' + esc(name) + '">' + esc(name) + '</span>' + genBtn + '</div>';
+}
+
+function setFileStatus(absPath, status) {
+  fileStatus[absPath] = status;
+  const el = $("tree").querySelector('.tree-file[data-path="' + cssEsc(absPath) + '"] .gly');
+  if (el) { el.className = "gly " + status; el.textContent = status === "done" ? "✓" : (status === "streaming" ? "●" : "○"); }
+  renderEpbar();
+}
+function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
+
+/* ---------- 预览文件 ----------
+   无后端「读单文件」GET → 用 fileContent 本地镜像（partial 后由 done 不带正文，
+   故 partial 时正文未知；这里预览展示「已生成（落盘在项目目录），正文未在本页缓存」占位，
+   仅当本页本会话内生成并缓存过才有正文。TODO：后端加 GET /prompts/file?path= 可拉真源。 */
+function openFile(absPath) {
+  currentFile = absPath;
+  rebuildTreeSelOnly();
+  const name = absPath.split(/[\\/]/).pop();
+  $("pvName").textContent = "预览：" + name;
+  const st = fileStatus[absPath];
+  if (fileContent[absPath] != null) {
+    $("promptEditor").value = fileContent[absPath];
+    $("promptEditor").disabled = false;
+  } else if (st === "done") {
+    $("promptEditor").value = "（该文件已生成并落盘到项目 prompts/ 目录；本页未缓存正文。\n打开 prompts/ 目录可查看；或在本页重新生成以缓存正文。）";
+    $("promptEditor").disabled = true;
+  } else {
+    $("promptEditor").value = "（未生成。点「⚡ 全量生成」或该组「✦ 本组」由 AI 生成。）";
+    $("promptEditor").disabled = true;
+  }
+  $("btnSave").disabled = true;
+}
+
+function rebuildTreeSelOnly() {
+  $("tree").querySelectorAll(".tree-file").forEach((el) => {
+    el.classList.toggle("sel", el.dataset.path === currentFile);
+  });
+}
+
+/* ---------- 选项打包（对齐 PromptsOptions） ---------- */
+function options(groups, onlyGroupIndex) {
+  const o = {
+    grid_mode: $("gridMode").value,
+    include_character_refs: $("charRefs").checked,
+    style_extra: $("styleExtra").value.trim(),
+    negative_preset: $("negative").value,
+    quality_boost: $("quality").checked,
+    groups: groups || [],
+    genre_context: "",         // TODO: 真机由壳/立意页注入纯文本
+    style_context: "",
+    style_context_ref: "",
+  };
+  if (onlyGroupIndex != null) {
+    o.only_group_index = onlyGroupIndex;
+    o.include_character_refs = false;   // 单组只出宫格，不重出角色参考（对齐原 PySide6 _on_generate_group）
+  }
+  return o;
+}
+
+function guardProject() {
+  if (!PROJECT_DIR) { alert("未指定 project_dir（壳应通过 ?project=... 传入）。"); return false; }
+  return true;
+}
+
+/* ---------- 全量生成 ---------- */
+async function genAll(regen) {
+  if (busy || !guardProject() || !SB) { if (!SB) alert("请先在「分镜」页生成本集分镜.json。"); return; }
+  const groups = buildGroups(SB);
+  const body = {
+    project_dir: PROJECT_DIR, episode_id: activeEp,
+    options: options(groups, null), reasoning_effort: "high",
+  };
+  const params = regen ? { purge_downstream: "true" } : null;
+  if (regen) { /* 重生：本地状态清空，等 partial 再标 done */
+    Object.keys(fileStatus).forEach((p) => { if (p.indexOf(epDir(activeEp)) === 0) { delete fileStatus[p]; delete fileContent[p]; } });
+    rebuildTree();
+  }
+  await runStream(body, params, "全量生成");
+}
+
+/* ---------- 单组生成 ---------- */
+async function genGroup(groupIndex) {
+  if (busy || !guardProject() || !SB) return;
+  const groups = buildGroups(SB);
+  const body = {
+    project_dir: PROJECT_DIR, episode_id: activeEp,
+    options: options(groups, groupIndex), reasoning_effort: "high",
+  };
+  // 标该组 streaming
+  const p = joinPath(epDir(activeEp), "N宫格", "S" + groupIndex + ".md");
+  setFileStatus(p, "streaming");
+  await runStream(body, null, "第 " + groupIndex + " 组");
+}
+
+async function runStream(body, params, label) {
+  busy = true;
+  ["btnAll", "btnRegen"].forEach((b) => ($(b).disabled = true));
+  $("streamPill").classList.add("on");
+  $("streamMsg").textContent = label + " · 准备中…";
+  try {
+    await streamSSE("/prompts", body, (name, data) => {
+      if (name === "status") {
+        if (data.phase === "streaming") $("streamMsg").textContent = label + " · 生成中…";
+      } else if (name === "partial") {
+        const saved = data.saved;
+        if (saved) {
+          setFileStatus(saved, "done");
+          $("streamMsg").textContent = "已生成 " + saved.split(/[\\/]/).pop() + "（" + (data.kind || "") + "）";
+          if (currentFile === saved) openFile(saved);
+          saveLocal();
+        }
+      } else if (name === "done") {
+        $("streamMsg").textContent = "完成 ✓";
+        saveLocal();
+      } else if (name === "error") {
+        $("streamMsg").textContent = "[错误] " + (data.hint || data.message || data.code || "");
+        alert("提示词生成失败：" + (data.hint || data.message || data.code || ""));
+      }
+    }, params);
+  } catch (e) {
+    $("streamMsg").textContent = "[网络错误] " + e.message;
+    alert("提示词生成失败：" + e.message);
+  } finally {
+    busy = false;
+    $("btnAll").disabled = !SB;
+    $("btnRegen").disabled = !SB;
+    setTimeout(() => $("streamPill").classList.remove("on"), 1500);
+    rebuildTree();
+  }
+}
+
+/* ---------- 保存（编辑本页缓存正文；真正落盘需后端 POST，TODO） ---------- */
+function saveFile() {
+  if (!currentFile || $("promptEditor").disabled) return;
+  fileContent[currentFile] = $("promptEditor").value;
+  saveLocal();
+  const btn = $("btnSave");
+  btn.textContent = "已保存 ✓"; setTimeout(() => (btn.textContent = "保存"), 1200);
+  $("btnSave").disabled = true;
+  /* TODO: 后端无写文件路由；本页 save 仅落 localStorage 镜像，未回写项目 prompts/*.md。 */
+}
+
+/* ---------- 打开 prompts 目录（壳可拦此 postMessage 做本地打开） ---------- */
+$("btnOpenDir").addEventListener("click", () => {
+  if (!activeEp) return;
+  window.parent && window.parent.postMessage(
+    { type: "prompts.openDir", path: epDir(activeEp) }, "*");
+});
+
+/* ---------- 推进到视频提示词（壳 video_post 子向导）---------- */
+$("btnAdvance").addEventListener("click", () => {
+  /* TODO: 壳 app.html 目前仅监听 ideate.advance；建议新增对 prompts.advance 的处理。 */
+  window.parent && window.parent.postMessage(
+    { type: "prompts.advance", stage: "video", episode_id: activeEp }, "*");
+});
+
+/* ---------- 回分镜步 ---------- */
+$("stepStoryboard").addEventListener("click", () => {
+  window.parent && window.parent.postMessage(
+    { type: "prompts.back", stage: "storyboard", episode_id: activeEp }, "*");
+});
+
+/* ---------- 绑定 ---------- */
+$("btnAll").addEventListener("click", () => genAll(false));
+$("btnRegen").addEventListener("click", () => {
+  if (!SB) return;
+  if (!confirm("重新生成会清空本集 prompts/。继续？")) return;
+  genAll(true);
+});
+$("btnSave").addEventListener("click", saveFile);
+$("promptEditor").addEventListener("input", () => { if (!$("promptEditor").disabled && currentFile) $("btnSave").disabled = false; });
+["charRefs", "gridMode"].forEach((id) => $(id).addEventListener("change", () => { rebuildTree(); saveLocal(); }));
+["quality", "styleExtra", "negative"].forEach((id) => $(id).addEventListener("change", saveLocal));
+
+/* ---------- 启动 ---------- */
+checkHealth();
+restoreLocal();
+</script>
+</body>
+</html>

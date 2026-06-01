@@ -112,6 +112,61 @@
   /* 隐藏文件选择 input */
   #dirPicker { display: none; }
 
+  /* ===== 新建项目对话框（QWebEngine 无原生选目录 → 文本输入根目录） ===== */
+  .modal-mask {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(8,10,20,.62); backdrop-filter: blur(4px);
+  }
+  .modal-mask.show { display: flex; }
+  .modal {
+    width: 460px; max-width: calc(100vw - 48px);
+    background: linear-gradient(160deg, #1b1f38, #14172a);
+    border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(74,158,255,.08);
+    padding: 24px 24px 20px;
+  }
+  .modal h3 {
+    margin: 0 0 4px; font-size: 18px; font-weight: 700; color: var(--fg);
+    background: linear-gradient(90deg, #fff, var(--periw));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .modal .sub { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+  .modal .field { margin-bottom: 14px; }
+  .modal .field label {
+    display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--periw); font-weight: 600; margin-bottom: 6px; opacity: .9;
+  }
+  .modal .field input {
+    width: 100%; box-sizing: border-box; font-size: 13.5px; color: var(--fg);
+    background: rgba(10,12,24,.7); border: 1px solid var(--border);
+    border-radius: 9px; padding: 10px 12px; outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .modal .field input::placeholder { color: var(--faint); }
+  .modal .field input:focus {
+    border-color: var(--blue); box-shadow: 0 0 0 3px rgba(74,158,255,.15);
+  }
+  .modal .hint { font-size: 11px; color: var(--faint); margin-top: 5px; line-height: 1.5; }
+  .modal .hint code { color: var(--periw); }
+  .modal .err { font-size: 12px; color: #ff8b8b; min-height: 16px; margin: 2px 0 10px; }
+  .modal .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+  .modal .mbtn {
+    font-size: 13.5px; font-weight: 600; padding: 9px 22px; border-radius: 9px;
+    cursor: pointer; border: none; transition: filter .15s, transform .05s;
+  }
+  .modal .mbtn:active { transform: translateY(1px); }
+  .modal .mbtn.pri {
+    color: #06122a; background: linear-gradient(90deg, var(--blue), var(--periw));
+    box-shadow: 0 6px 18px rgba(74,158,255,.28);
+  }
+  .modal .mbtn.pri:hover { filter: brightness(1.08); }
+  .modal .mbtn.pri:disabled { opacity: .55; cursor: default; filter: none; }
+  .modal .mbtn.gho {
+    color: var(--fg2); background: rgba(30,32,60,.6); border: 1px solid #2a2a4a;
+  }
+  .modal .mbtn.gho:hover { border-color: var(--mauve); color: var(--fg); }
+
   /* ===== 底部「创作流程」步骤栏：01 写剧本 → 02 出资源 → 03 做分镜 → 04 生成视频 ===== */
   .flow {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
@@ -182,6 +237,34 @@
 
 <!-- 打开目录：用本地目录选择（壳/Electron 下走原生；浏览器降级为 webkitdirectory） -->
 <input type="file" id="dirPicker" webkitdirectory directory>
+
+<!-- ===== 新建项目对话框：项目名 + 项目根目录路径（QWebEngine 无原生选目录，纯文本输入） ===== -->
+<div class="modal-mask" id="newMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nmTitle">
+    <h3 id="nmTitle">新建项目</h3>
+    <div class="sub">给项目起个名字，并指定一个根目录，项目会作为子文件夹建在其中。</div>
+
+    <div class="field">
+      <label for="nmName">项目名称</label>
+      <input id="nmName" type="text" placeholder="例如：真千金归来" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="field">
+      <label for="nmRoot">项目根目录</label>
+      <input id="nmRoot" type="text" placeholder="例如：D:\\nuomi-projects 或 /Users/me/projects" autocomplete="off" spellcheck="false">
+      <div class="hint" id="nmRootHint">
+        将在此目录下创建 <code>P-NNN_项目名/</code> 子文件夹。请粘贴绝对路径。
+      </div>
+    </div>
+
+    <div class="err" id="nmErr"></div>
+
+    <div class="actions">
+      <button class="mbtn gho" id="nmCancel">取消</button>
+      <button class="mbtn pri" id="nmOk">创建并进入</button>
+    </div>
+  </div>
+</div>
 
 <script>
 /* ===== 壳内容页：API 基址从 URLSearchParams 读，默认 18450/18430（与其它内容页一致） ===== */
@@ -319,12 +402,75 @@ function tsOf(p) {
   return isNaN(t) ? 0 : t;
 }
 
-/* —— 新建项目：POST {MEDIA_API}/projects/create {name, projects_root} —— */
-async function createProject() {
-  const name = (window.prompt("新建项目名称：", "") || "").trim();
-  if (!name) return;
-  // projects_root 可由壳通过 ?root= 传入；无则交后端用默认根目录
-  const projects_root = _qs.get("root") || "";
+/* ===== 新建项目对话框 ===== */
+const newMask  = document.getElementById("newMask");
+const nmName   = document.getElementById("nmName");
+const nmRoot   = document.getElementById("nmRoot");
+const nmErr    = document.getElementById("nmErr");
+const nmOk     = document.getElementById("nmOk");
+const nmCancel = document.getElementById("nmCancel");
+
+let rootPrefillDone = false;
+
+/* 推断项目根目录：已加载项目的 path 取父目录（取出现最多的那个父目录）。
+   path 可能是 win(\) 或 posix(/)，按两种分隔符都切一刀。 */
+function inferRootFromProjects() {
+  const counts = {};
+  for (const p of projects) {
+    const path = (p && p.path) || "";
+    if (!path || path.startsWith("(demo)")) continue;
+    const idx = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+    if (idx <= 0) continue;
+    const parent = path.slice(0, idx);
+    counts[parent] = (counts[parent] || 0) + 1;
+  }
+  let best = "", bestN = 0;
+  for (const k in counts) if (counts[k] > bestN) { best = k; bestN = counts[k]; }
+  return best;
+}
+
+/* 预填项目根目录：优先 ?root= → GET {MEDIA_API}/config 的 projects_root → 从最近项目推断。 */
+async function prefillRoot() {
+  if (rootPrefillDone) return;
+  rootPrefillDone = true;
+  // 1) 壳显式传入
+  const fromQs = (_qs.get("root") || "").trim();
+  if (fromQs) { nmRoot.value = fromQs; return; }
+  // 2) /config 暴露的 projects_root
+  try {
+    const r = await fetch(MEDIA_API + "/config");
+    if (r.ok) {
+      const cfg = await r.json().catch(() => ({}));
+      const root = (cfg && (cfg.projects_root || cfg.screenwriter_project_root) || "").trim();
+      if (root) { nmRoot.value = root; return; }
+    }
+  } catch (e) { /* 后端未连接 → 继续推断 */ }
+  // 3) 从最近项目路径推断父目录
+  const inferred = inferRootFromProjects();
+  if (inferred) nmRoot.value = inferred;
+}
+
+function openNewDialog() {
+  nmErr.textContent = "";
+  nmName.value = "";
+  newMask.classList.add("show");
+  prefillRoot();                 // 异步预填根目录（不阻塞弹出）
+  setTimeout(() => nmName.focus(), 30);
+}
+
+function closeNewDialog() { newMask.classList.remove("show"); }
+
+/* —— 提交新建：POST {MEDIA_API}/projects/create {name, projects_root} —— */
+async function submitNewProject() {
+  const name = (nmName.value || "").trim();
+  const projects_root = (nmRoot.value || "").trim();
+  if (!name) { nmErr.textContent = "请填写项目名称。"; nmName.focus(); return; }
+  if (!projects_root) { nmErr.textContent = "请填写项目根目录（绝对路径）。"; nmRoot.focus(); return; }
+
+  nmErr.textContent = "";
+  nmOk.disabled = true;
+  const oldLabel = nmOk.textContent;
+  nmOk.textContent = "创建中…";
   try {
     const r = await fetch(MEDIA_API + "/projects/create", {
       method: "POST",
@@ -334,17 +480,33 @@ async function createProject() {
     if (r.ok) {
       const data = await r.json().catch(() => ({}));
       const path = data.path || data.dir || "";
-      // 新建成功 → 直接通知壳打开（壳设 project_dir 并跳到概览/剧本创作）
+      closeNewDialog();
+      // 新建成功 → 通知壳打开（壳设 project_dir 并跳到概览/剧本创作）
       openProject({ name: data.name || name, path });
       return;
     }
-    alert("新建项目失败（后端返回 " + r.status + "）。");
+    // 后端报错：尽量带出 detail
+    let detail = "";
+    try { detail = (await r.json()).detail || ""; } catch (e) { /* ignore */ }
+    nmErr.textContent = "新建失败（" + r.status + "）" + (detail ? "：" + detail : "");
   } catch (e) {
-    // 后端未连接：demo 下给出占位提示（不静默吞掉）
-    if (usingDemo) alert("当前为演示模式（后端未连接），新建项目需连上 media_agent。");
-    else alert("新建项目失败：无法连接后端 " + MEDIA_API + "。");
+    nmErr.textContent = usingDemo
+      ? "当前为演示模式（后端未连接），新建项目需连上 media_agent。"
+      : "无法连接后端 " + MEDIA_API + "。";
+  } finally {
+    nmOk.disabled = false;
+    nmOk.textContent = oldLabel;
   }
 }
+
+function createProject() { openNewDialog(); }
+
+nmOk.addEventListener("click", submitNewProject);
+nmCancel.addEventListener("click", closeNewDialog);
+// 点遮罩空白处关闭；Enter 提交、Esc 取消
+newMask.addEventListener("click", (e) => { if (e.target === newMask) closeNewDialog(); });
+nmName.addEventListener("keydown", (e) => { if (e.key === "Enter") submitNewProject(); });
+nmRoot.addEventListener("keydown", (e) => { if (e.key === "Enter") submitNewProject(); });
 
 /* —— 打开目录：壳/Electron 下应由壳弹原生目录选择；浏览器降级用 webkitdirectory 取目录名 —— */
 function openDir() {
@@ -375,8 +537,12 @@ document.getElementById("arrowR").addEventListener("click", () => {
   if (focus < projects.length - 1) { focus++; renderRecent(); }
 });
 
-// 键盘左右切焦点
+// 键盘：弹窗打开时 Esc 关闭、屏蔽左右导航；否则左右切焦点
 document.addEventListener("keydown", (e) => {
+  if (newMask.classList.contains("show")) {
+    if (e.key === "Escape") closeNewDialog();
+    return;
+  }
   if (e.key === "ArrowLeft" && focus > 0) { focus--; renderRecent(); }
   else if (e.key === "ArrowRight" && focus < projects.length - 1) { focus++; renderRecent(); }
 });

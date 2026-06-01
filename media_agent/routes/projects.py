@@ -13,6 +13,10 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from drama_shot_master.core.compass.manifest import (
+    ProjectManifest,
+    save_manifest,
+)
 from drama_shot_master.core.compass.registry import ProjectRegistry
 from drama_shot_master.core.recent_projects import RecentProjectsManager
 
@@ -94,7 +98,15 @@ def create_route(body: CreateBody):
     )
     reg.save()
 
+    # 初始化项目清单 project.json：身份 + 四阶段全 pending（manifest 默认即如此）。
+    # 「升级不推倒」——只写总线层，落盘自动补 created_at / last_modified。
+    manifest = ProjectManifest(
+        project_id=project_id,
+        project_name=name,
+    )
+    save_manifest(manifest, proj_dir)
+
     # 推进 recent 列表（push 内部会再同步一次 registry，双轨并存、降级不崩）
     _manager().push(str(proj_dir), name=name)
 
-    return {"path": str(proj_dir), "project_id": project_id}
+    return {"path": str(proj_dir), "project_id": project_id, "name": name}

@@ -197,7 +197,6 @@
   }
   .modal h3 { font-size: 15px; margin: 0 0 10px; color: var(--fg); }
   .modal .mbody { font-size: 12.5px; color: var(--fg2); line-height: 1.7; word-break: break-all; }
-  .modal .mbody .path { color: var(--muted); }
   .modal .mfoot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
 </style>
 </head>
@@ -243,52 +242,123 @@
 
 <script>
 /* ===========================================================================
-   API base：壳内可经 ?ma= / ?sw= 覆盖。本页主要触达 media_agent 静态/项目接口
-   与配置读写（最终由主控接 cfg / RecentProjectsManager），先做结构 + 占位渲染。
-   media_agent 默认 18450（/imaging /imggen /transition /soundtrack）；
-   screenwriter_agent 默认 18430（SSE 生成路由）。配置读写端点由主控约定。
+   API base：壳内可经 ?ma= / ?sw= 覆盖。配置读写 + 项目管理走 media_agent：
+     GET/PUT  {MA}/config                  读/写 settings.json（透传 update_settings）
+     GET      {MA}/projects/list           最近项目列表
+     POST     {MA}/recent/remove           仅移除显示（留文件夹）
+     POST     {MA}/recent/delete_folder    rmtree + 移除（二次确认）
+     POST     {MA}/recent/clear            清空列表（仅移除显示）
+     POST     {MA}/projects/open           置顶/登记（“打开”用）
+   media_agent 默认 18450；screenwriter_agent 默认 18430（SSE 生成路由）。
 =========================================================================== */
 const MA_API = new URLSearchParams(location.search).get('ma') || 'http://127.0.0.1:18450';
 const SW_API = new URLSearchParams(location.search).get('sw') || 'http://127.0.0.1:18430';
 
 /* ── 分类导航：1:1 对应现有 settings_sections/*.py 的 title/category ──
-   分组顺序与展示名固定；category 与代码一致（翻译归「其他」，项目管理/流程归「应用」）。*/
+   分组顺序与展示名固定；category 与代码一致。*/
 const SECTIONS = [
   // 平台核心
   { id: 'llm',        title: 'LLM 平台',    cat: '平台核心', ico: '🧠', badge: 'ok' },
   { id: 'runninghub', title: 'RunningHub',  cat: '平台核心', ico: '🎬', badge: 'ok' },
-  // 生成功能
+  // 生成功能（严格排序：编剧 → 出图 → 视频生成 → 智能转场 → 配音 → 配乐）
+  { id: 'screenwriter', title: '编剧',      cat: '生成功能', ico: '✍' },
   { id: 'imggen',     title: '出图',        cat: '生成功能', ico: '🖼' },
+  { id: 'videogen',   title: '视频生成',    cat: '生成功能', ico: '🎥' },
+  { id: 'transition', title: '智能转场',    cat: '生成功能', ico: '🎞' },
   { id: 'dub',        title: '配音',        cat: '生成功能', ico: '🎙' },
   { id: 'soundtrack', title: '配乐',        cat: '生成功能', ico: '🎵' },
-  { id: 'screenwriter', title: '编剧',      cat: '生成功能', ico: '✍' },
-  // 辅助
+  // 辅助（提示词优化 → 翻译）
   { id: 'refine',     title: '提示词优化',  cat: '辅助',     ico: '✨' },
+  { id: 'translation', title: '翻译',       cat: '辅助',     ico: '🌐', badge: 'warn' },
   // 外观
   { id: 'theme',      title: '主题',        cat: '外观',     ico: '🎨' },
-  // 其他（翻译归此）
-  { id: 'translation', title: '翻译',       cat: '其他',     ico: '🌐', badge: 'warn' },
   // 应用（项目管理 / 流程锁与调试）
   { id: 'project',    title: '项目管理',    cat: '应用',     ico: '📁' },
   { id: 'pipeline',   title: '流程 & 调试', cat: '应用',     ico: '🔒' },
 ];
-const CAT_ORDER = ['平台核心', '生成功能', '辅助', '外观', '其他', '应用'];
+const CAT_ORDER = ['平台核心', '生成功能', '辅助', '外观', '应用'];
 
-/* ── 占位数据（真机由后端/cfg 注入；这里只为结构正确 + 可视）── */
-const STATE = {
-  projects: [
-    { pid: 'P-007', name: '侯门主母',     path: 'E:/Drama/projects/P-007_侯门主母',   meta: '12 分镜 · 最后打开 今天 14:02' },
-    { pid: 'P-006', name: '重生之逆袭',   path: 'E:/Drama/projects/P-006_重生之逆袭', meta: '9 分镜 · 最后打开 昨天 21:30' },
-    { pid: 'P-004', name: '总裁的小娇妻', path: 'E:/Drama/projects/P-004_总裁的小娇妻', meta: '15 分镜 · 最后打开 3 天前' },
-  ],
-  projectsRoot: 'E:/Drama/projects',
-  pipelineLock: false,        // cfg.pipeline_lock_enabled 默认关
-  defaultGrid: 'quad',        // prompts_default_grid: single|quad|nine
-  translator: 'disabled',     // current_translator: ''|tencent|deeplx
-};
+/* ── 配置模型 ──
+   CFG     ：GET /config 回填的真实快照（落盘的 settings.json 字段）。
+   PENDING ：本次编辑的待保存改动（save → PUT {改动字段}），清空表示无脏。
+   projects：GET /projects/list 的最近项目（{name,path,last_opened,shot_count}）。
+   读单值用 getCfg(key)，改用 setCfg(key,v)（写进 PENDING 并标脏）。 */
+let CFG = {};
+let PENDING = {};
+let PROJECTS = [];
 
 let current = 'project';
 let dirty = false;
+
+/* 平台核心：LLM 平台 id ↔ 展示名/默认 base_url（与 cfg.llm_providers 的 key 对齐）。 */
+const LLM_PLATFORMS = [
+  { id: 'deepseek', label: 'DeepSeek',       base: 'https://api.deepseek.com' },
+  { id: 'doubao',   label: '豆包·火山引擎',  base: 'https://ark.cn-beijing.volces.com/api/v3' },
+  { id: 'openai',   label: '其它 OpenAI 兼容', base: 'https://api.openai.com/v1' },
+];
+/* prompts_default_grid 取值（cfg 用 single|4|9）。 */
+const GRID_OPTS = [['single', '单帧'], ['4', '四宫格'], ['9', '九宫格']];
+
+function getCfg(key, dflt) {
+  if (key in PENDING) return PENDING[key];
+  const v = CFG[key];
+  return (v === undefined || v === null) ? (dflt !== undefined ? dflt : '') : v;
+}
+function setCfg(key, val) {
+  // 与已落盘值相同则撤销该 pending；否则记入 pending 并标脏
+  const base = CFG[key];
+  if (JSON.stringify(base) === JSON.stringify(val)) {
+    delete PENDING[key];
+    if (!Object.keys(PENDING).length) clearDirty();
+  } else {
+    PENDING[key] = val;
+    markDirty();
+  }
+}
+/* 嵌套 dict 字段（llm_providers/screenwriter_models/...）的就地改写：
+   读出整体（pending 优先）→ 改子键 → setCfg 回写整体。 */
+function setCfgNested(key, subKey, subVal) {
+  const cur = JSON.parse(JSON.stringify(getCfg(key, {}) || {}));
+  if (subVal && typeof subVal === 'object' && !Array.isArray(subVal)) {
+    cur[subKey] = Object.assign({}, cur[subKey] || {}, subVal);
+  } else {
+    cur[subKey] = subVal;
+  }
+  setCfg(key, cur);
+}
+function htmlesc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function projectId(path) {
+  const m = String(path || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop().match(/^(P-\d+)/);
+  return m ? m[1] : '—';
+}
+function toast(msg, isErr) {
+  let t = document.getElementById('_toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = '_toast';
+    t.style.cssText = 'position:fixed;left:50%;bottom:64px;transform:translateX(-50%);'
+      + 'padding:9px 18px;border-radius:8px;font-size:12.5px;z-index:80;'
+      + 'box-shadow:0 8px 28px rgba(0,0,0,.5);transition:opacity .2s;';
+    document.body.appendChild(t);
+  }
+  t.style.background = isErr ? '#3a1c22' : '#16321f';
+  t.style.border = '1px solid ' + (isErr ? '#6a3434' : '#2c5a44');
+  t.style.color = isErr ? 'var(--err)' : 'var(--done)';
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._tm);
+  t._tm = setTimeout(() => { t.style.opacity = '0'; }, 2200);
+}
 
 /* ===================== 分类导航渲染 ===================== */
 function renderNav() {
@@ -343,153 +413,205 @@ function row(label, control, hint) {
 const FORMS = {
   /* ── 项目管理（读 recent_projects.json，≤8 条；仅移除显示 / 删文件夹）── */
   project(s) {
-    const rows = STATE.projects.map((p, i) => `
+    const rows = PROJECTS.map((p, i) => {
+      const meta = [];
+      if (p.shot_count) meta.push(`${p.shot_count} 分镜`);
+      if (p.last_opened) meta.push('最后打开 ' + fmtTime(p.last_opened));
+      return `
       <div class="proj" data-idx="${i}">
         <div class="pthumb"></div>
         <div class="pinfo">
-          <div class="pnm">${p.name} <span class="pid">${p.pid}</span></div>
-          <div class="ppth">${p.path}</div>
-          <div class="pmeta">${p.meta}</div>
+          <div class="pnm">${htmlesc(p.name)} <span class="pid">${projectId(p.path)}</span></div>
+          <div class="ppth">${htmlesc(p.path)}</div>
+          <div class="pmeta">${meta.join(' · ') || '—'}</div>
         </div>
         <div class="pacts">
           <button class="iconbtn" data-act="open" data-idx="${i}">打开</button>
           <button class="iconbtn" data-act="remove" data-idx="${i}">移除显示</button>
           <button class="iconbtn del" data-act="delete" data-idx="${i}">删文件夹</button>
         </div>
-      </div>`).join('');
-    const listInner = STATE.projects.length
+      </div>`;
+    }).join('');
+    const listInner = PROJECTS.length
       ? `<div class="projlist">${rows}</div>`
       : `<div class="empty">（暂无最近项目）</div>`;
     const projCard = card('最近项目（8 条上限 · 按最后打开降序）', `
       ${listInner}
       <div class="projbar">
-        <span class="cnt">共 <b>${STATE.projects.length}</b> / 8 个项目</span>
+        <span class="cnt">共 <b>${PROJECTS.length}</b> / 8 个项目</span>
         <span class="sp"></span>
-        <button class="iconbtn" data-act="browse">📂 浏览磁盘添加…</button>
         <button class="iconbtn del" data-act="clear">清空列表（仅移除显示）</button>
       </div>
       <div class="danger-note">⚠ 「删文件夹」会调用 <code>shutil.rmtree</code> 物理删除整个项目目录（分镜/图/视频/配乐全没），删前弹二次确认。「移除显示」只动 recent_projects.json，文件夹保留。</div>`);
     const rootCard = card('项目根目录', row(
       'projects_root',
-      `<input class="inp" id="projRoot" value="${STATE.projectsRoot}" readonly>
-       <button class="btn-sm" data-act="browseRoot">浏览…</button>`,
-      '新建项目落在此根目录下，目录名形如 <code>{P-NNN}_{slug}</code>，并同步登记进 <b>index.json</b> 全局注册表。'));
+      `<input class="inp" data-cfg="screenwriter_project_root" value="${htmlesc(getCfg('projects_root') || getCfg('screenwriter_project_root'))}" placeholder="如 E:/Drama/projects">`,
+      '新建项目落在此根目录下，目录名形如 <code>{P-NNN}_{slug}</code>，并同步登记进 <b>index.json</b> 全局注册表。改后点底栏「验证并保存」落盘。'));
     return `<p class="intro">读 <b>recent_projects.json</b>（最多 8 条，最近在前）。删项目两档：<b>仅移除显示</b>（<code>RecentProjectsManager.remove</code>，留文件夹）/ <b>删文件夹</b>（连项目目录一并删，不可恢复）。避免列表无限堆叠。</p>${projCard}${rootCard}`;
   },
 
   /* ── 流程 & 调试：流程锁 toggle（默认关）+ 默认宫格 ── */
   pipeline(s) {
+    const lock = !!getCfg('pipeline_lock_enabled', false);
     const lockCard = card('流程门禁', row(
       '流程锁',
-      `<span class="tg ${STATE.pipelineLock ? 'on' : ''}" id="lockTg"><span class="knob"></span></span>
-       <span class="tg-note" id="lockNote">${STATE.pipelineLock ? '开 — 按阶段门禁，未完成下游置灰' : '关 — 全部面板可达（调试用，默认）'}</span>`,
+      `<span class="tg ${lock ? 'on' : ''}" id="lockTg"><span class="knob"></span></span>
+       <span class="tg-note" id="lockNote">${lock ? '开 — 按阶段门禁，未完成下游置灰' : '关 — 全部面板可达（调试用，默认）'}</span>`,
       '开启后：剧本未生成 → 出图/生视频/配音/配乐侧栏项置灰，须按 立意→剧本→分镜→提示词→出图→生视频→后期 顺序逐步解锁。'));
-    const grids = [['single', '单帧'], ['quad', '四宫格'], ['nine', '九宫格']];
-    const gridRadios = grids.map(([v, l]) =>
-      `<span class="rad ${STATE.defaultGrid === v ? 'sel' : ''}" data-grid="${v}"><span class="rdot"></span>${l}</span>`).join('');
+    const grid = String(getCfg('prompts_default_grid', '4'));
+    const gridRadios = GRID_OPTS.map(([v, l]) =>
+      `<span class="rad ${grid === v ? 'sel' : ''}" data-grid="${v}"><span class="rdot"></span>${l}</span>`).join('');
     const gridCard = card('分镜默认宫格（与编剧共用 prompts_default_grid）',
       row('默认宫格', `<div class="radios" id="gridRadios">${gridRadios}</div>`));
     return `<p class="intro">对应 <code>cfg.pipeline_lock_enabled</code>（默认 <b>关</b>）。<b>关</b>=侧栏全部面板可达，方便跳着调试；<b>开</b>=按 pipeline 阶段门禁，未完成的下游面板置灰（frontier 解锁）。</p>${lockCard}${gridCard}`;
   },
 
-  /* ── LLM 平台：3 平台 base_url + key + 测试连接 ── */
+  /* ── LLM 平台：各平台 base_url + key（绑 cfg.llm_providers[id]）── */
   llm(s) {
-    const plats = [
-      ['DeepSeek', 'https://api.deepseek.com'],
-      ['豆包·火山引擎', 'https://ark.cn-beijing.volces.com/api/v3'],
-      ['其它 OpenAI 兼容', 'https://api.openai.com/v1'],
-    ];
-    const cards = plats.map(([label, base]) => card(label,
-      row('Base URL', `<input class="inp" placeholder="${base}">`) +
-      row('API Key', `<input class="inp pw" type="password" placeholder="未填">
-                      <button class="btn-sm test" data-act="testLLM">测试连接</button>`,
-          '对 base_url GET（带 Bearer），非 401/403 即视为鉴权通过。'))).join('');
+    const provs = getCfg('llm_providers', {}) || {};
+    const cards = LLM_PLATFORMS.map(p => {
+      const cur = provs[p.id] || {};
+      return card(p.label,
+        row('Base URL', `<input class="inp" data-llm="${p.id}" data-sub="base_url" placeholder="${p.base}" value="${htmlesc(cur.base_url || '')}">`) +
+        row('API Key', `<input class="inp pw" type="password" data-llm="${p.id}" data-sub="api_key" placeholder="未填" value="${htmlesc(cur.api_key || '')}">
+                        <button class="btn-sm test" data-act="testLLM">测试连接</button>`,
+            '对 base_url GET（带 Bearer），非 401/403 即视为鉴权通过。'));
+    }).join('');
     return `<p class="intro">各平台 base_url + key 在此统一配；其它功能（编剧 / 提示词优化）按平台名引用，避免到处重填 key。绑 <code>cfg.llm_providers</code>。</p>${cards}`;
   },
 
   /* ── RunningHub ── */
   runninghub(s) {
-    return `<p class="intro">RunningHub 工作流平台凭证（出图 / 配音 / 配乐等 ComfyUI 工作流走此）。</p>` +
+    return `<p class="intro">RunningHub 工作流平台凭证（出图 / 视频生成 / 智能转场 / 配音 / 配乐等 ComfyUI 工作流走此）。</p>` +
       card('RunningHub',
-        row('API Key', `<input class="inp pw" type="password" placeholder="未填">
+        row('API Key', `<input class="inp pw" type="password" data-cfg="runninghub_api_key" placeholder="未填" value="${htmlesc(getCfg('runninghub_api_key'))}">
                         <button class="btn-sm test" data-act="testRH">测试连接</button>`) +
-        row('Base URL', `<input class="inp" placeholder="https://www.runninghub.cn">`,
-            'fetch: GET <code>' + MA_API + '</code> 健康检查 / 工作流列表。'));
+        row('Base URL', `<input class="inp" data-cfg="runninghub_base_url" placeholder="https://www.runninghub.cn" value="${htmlesc(getCfg('runninghub_base_url'))}">`,
+            'fetch: GET <code>' + MA_API + '</code> 健康检查 / 工作流列表。') +
+        row('Workflow ID', `<input class="inp" data-cfg="runninghub_workflow_id" placeholder="请输入工作流 ID" value="${htmlesc(getCfg('runninghub_workflow_id'))}">`,
+            '提供方为 RunningHub 时必填的工作流标识。'));
   },
 
-  /* ── 出图 ── */
+  /* ── 出图（绑 imggen_* + 共用 prompts_default_grid）── */
   imggen(s) {
-    return `<p class="intro">分镜出图后端与默认参数（绑 cfg 出图字段）。真机经 media_agent <code>/imggen</code>。</p>` +
+    const prov = getCfg('imggen_provider', 'doubao');
+    const grid = String(getCfg('prompts_default_grid', '4'));
+    const gridOpt = (v, l) => `<option value="${v}" ${grid === v ? 'selected' : ''}>${l}</option>`;
+    return `<p class="intro">分镜出图后端与默认参数（绑 <code>cfg.imggen_*</code>）。真机经 media_agent <code>/imggen</code>。</p>` +
       card('出图后端',
-        row('提供方', `<select class="sel"><option>RunningHub (ComfyUI)</option><option>豆包·即梦</option></select>`) +
-        row('默认画幅', `<select class="sel"><option>16:9</option><option>9:16</option><option>1:1</option><option>4:5</option></select>`) +
-        row('默认宫格', `<select class="sel"><option>单帧</option><option selected>四宫格</option><option>九宫格</option></select>`,
+        row('提供方', `<select class="sel" data-cfg="imggen_provider">
+          <option value="runninghub" ${prov === 'runninghub' ? 'selected' : ''}>RunningHub (ComfyUI)</option>
+          <option value="doubao" ${prov === 'doubao' ? 'selected' : ''}>豆包·即梦</option></select>`) +
+        row('Base URL', `<input class="inp" data-cfg="imggen_base_url" placeholder="https://ark.cn-beijing.volces.com" value="${htmlesc(getCfg('imggen_base_url'))}">`) +
+        row('模型名', `<input class="inp" data-cfg="imggen_model" placeholder="如 doubao-seedream-..." value="${htmlesc(getCfg('imggen_model'))}">`) +
+        row('API Key', `<input class="inp pw" type="password" data-cfg="imggen_api_key" placeholder="未填" value="${htmlesc(getCfg('imggen_api_key'))}">`) +
+        row('输出目录', `<input class="inp" data-cfg="imggen_output_dir" placeholder="空 = 用项目默认" value="${htmlesc(getCfg('imggen_output_dir'))}">`) +
+        row('水印', `<span class="tg ${getCfg('imggen_watermark', false) ? 'on' : ''}" data-tg="imggen_watermark"><span class="knob"></span></span>
+                    <span class="tg-note">${getCfg('imggen_watermark', false) ? '开' : '关'}</span>`) +
+        row('默认宫格', `<select class="sel" data-cfg="prompts_default_grid">${gridOpt('single', '单帧')}${gridOpt('4', '四宫格')}${gridOpt('9', '九宫格')}</select>`,
             '与「流程 &amp; 调试 → 默认宫格」共用 <code>prompts_default_grid</code>。'));
   },
 
-  /* ── 配音 ── */
+  /* ── 视频生成（cfg 暂无独立 videogen_* 字段，展示信息，不绑写）── */
+  videogen(s) {
+    return `<p class="intro">视频生成走 RunningHub 工作流（凭证见「平台核心 → RunningHub」）。真机经 media_agent <code>/video</code>。当前 <code>cfg</code> 暂无独立视频生成参数字段，此页仅作说明。</p>` +
+      card('视频生成后端',
+        row('提供方', `<input class="inp" value="RunningHub（共用平台凭证）" readonly>`, '帧率/清晰度等参数由具体工作流模板决定。'));
+  },
+
+  /* ── 智能转场（另一终端独立分支负责，cfg 暂无字段，展示信息）── */
+  transition(s) {
+    return `<p class="intro">智能转场（compose）由独立分支实现，真机经 media_agent <code>/transition</code>。当前 <code>cfg</code> 暂无独立转场参数字段，此页仅作说明。</p>` +
+      card('智能转场',
+        row('状态', `<input class="inp" value="走 RunningHub 工作流 / 独立分支" readonly>`));
+  },
+
+  /* ── 配音（绑 dub_* ；workflow id 取 voice_design）── */
   dub(s) {
-    return `<p class="intro">配音（TTS）提供方与默认音色（绑 cfg 配音字段）。</p>` +
-      card('配音后端',
-        row('提供方', `<select class="sel"><option>RunningHub</option><option>火山引擎 TTS</option></select>`) +
-        row('默认音色', `<input class="inp" placeholder="如 BV700_streaming">`) +
-        row('语速', `<input class="inp num" type="number" value="1.0" step="0.1">`));
+    const wf = getCfg('dub_workflow_ids', {}) || {};
+    const samp = getCfg('dub_sampling', {}) || {};
+    return `<p class="intro">配音（TTS）走 RunningHub 工作流（绑 <code>cfg.dub_*</code>）。真机经 media_agent <code>/tts</code>。</p>` +
+      card('配音工作流',
+        row('音色设计 WF', `<input class="inp" data-dubwf="voice_design" placeholder="工作流 ID" value="${htmlesc(wf.voice_design || '')}">`) +
+        row('声音克隆 WF', `<input class="inp" data-dubwf="voice_clone" placeholder="工作流 ID" value="${htmlesc(wf.voice_clone || '')}">`) +
+        row('输出目录', `<input class="inp" data-cfg="dub_output_dir" placeholder="空 = 用项目默认" value="${htmlesc(getCfg('dub_output_dir'))}">`)) +
+      card('采样参数',
+        row('temperature', `<input class="inp num" type="number" step="0.1" data-dubsamp="temperature" value="${htmlesc(samp.temperature != null ? samp.temperature : 0.8)}">`) +
+        row('top_p', `<input class="inp num" type="number" step="0.05" data-dubsamp="top_p" value="${htmlesc(samp.top_p != null ? samp.top_p : 0.8)}">`) +
+        row('top_k', `<input class="inp num" type="number" step="1" data-dubsamp="top_k" value="${htmlesc(samp.top_k != null ? samp.top_k : 30)}">`));
   },
 
-  /* ── 配乐 ── */
+  /* ── 配乐（绑 soundtrack_*）── */
   soundtrack(s) {
-    return `<p class="intro">配乐 / BGM 生成后端（绑 cfg 配乐字段）。真机经 media_agent <code>/soundtrack</code>。</p>` +
+    return `<p class="intro">配乐 / BGM 生成后端（绑 <code>cfg.soundtrack_*</code>，ACE-Step / RunningHub）。真机经 media_agent <code>/soundtrack</code>。</p>` +
       card('配乐后端',
-        row('提供方', `<select class="sel"><option>RunningHub (ACE)</option><option>Suno</option></select>`) +
-        row('默认时长', `<input class="inp num" type="number" value="30" step="5"> 秒`));
+        row('工作流 ID', `<input class="inp" data-cfg="soundtrack_workflow_id" placeholder="工作流 ID" value="${htmlesc(getCfg('soundtrack_workflow_id'))}">`) +
+        row('输出目录', `<input class="inp" data-cfg="soundtrack_output_dir" placeholder="空 = 用项目默认" value="${htmlesc(getCfg('soundtrack_output_dir'))}">`) +
+        row('候选数', `<input class="inp num" type="number" step="1" data-cfg="soundtrack_seeds_count" data-num="int" value="${htmlesc(getCfg('soundtrack_seeds_count', 2))}">`) +
+        row('交叉淡化', `<input class="inp num" type="number" step="0.1" data-cfg="soundtrack_crossfade" data-num="float" value="${htmlesc(getCfg('soundtrack_crossfade', 0.5))}"> 秒`) +
+        row('末尾淡出', `<span class="tg ${getCfg('soundtrack_fade_out', false) ? 'on' : ''}" data-tg="soundtrack_fade_out"><span class="knob"></span></span>
+                        <span class="tg-note">${getCfg('soundtrack_fade_out', false) ? '开 — 末尾约 25% 衰减' : '关 — 保住完整段长（默认）'}</span>`));
   },
 
-  /* ── 编剧 ── */
+  /* ── 编剧（绑 screenwriter_llm_* + screenwriter_models 同步四阶段）── */
   screenwriter(s) {
-    return `<p class="intro">编剧生成所用 LLM 平台（按名引用「LLM 平台」配好的 key）+ 默认参数。真机经 screenwriter_agent SSE 路由 <code>/ideate /script_outline /script_episode /storyboard /prompts</code>。</p>` +
+    const models = getCfg('screenwriter_models', {}) || {};
+    const model = models.ideate || models.script || '';
+    return `<p class="intro">编剧生成所用 LLM 平台凭证（绑 <code>cfg.screenwriter_llm_*</code>）+ 默认模型。模型名写入 <code>screenwriter_models</code> 四阶段。真机经 screenwriter_agent SSE 路由 <code>/ideate /script_outline /script_episode /storyboard /prompts</code>。</p>` +
       card('编剧模型',
-        row('使用平台', `<select class="sel"><option>DeepSeek</option><option>豆包·火山引擎</option><option>其它 OpenAI 兼容</option></select>`) +
-        row('模型名', `<input class="inp" placeholder="如 deepseek-chat">`) +
-        row('温度', `<input class="inp num" type="number" value="0.8" step="0.1">`));
+        row('Base URL', `<input class="inp" data-cfg="screenwriter_llm_base_url" placeholder="https://api.deepseek.com" value="${htmlesc(getCfg('screenwriter_llm_base_url'))}">`) +
+        row('API Key', `<input class="inp pw" type="password" data-cfg="screenwriter_llm_api_key" placeholder="未填" value="${htmlesc(getCfg('screenwriter_llm_api_key'))}">`) +
+        row('模型名', `<input class="inp" data-swmodel="all" placeholder="如 deepseek-v4-flash" value="${htmlesc(model)}">`,
+            '写入 <code>screenwriter_models</code> 的 ideate/script/storyboard/prompts 四阶段。'));
   },
 
-  /* ── 提示词优化 ── */
+  /* ── 提示词优化（绑 refine_*）── */
   refine(s) {
-    return `<p class="intro">提示词优化所用 LLM 平台（按名引用「LLM 平台」配好的 key）。</p>` +
+    const prov = getCfg('refine_provider', '');
+    const opt = (v, l) => `<option value="${v}" ${prov === v ? 'selected' : ''}>${l}</option>`;
+    return `<p class="intro">提示词优化所用 LLM 平台（绑 <code>cfg.refine_*</code>；可按 LLM 平台名引用，或单独填 base_url/key）。</p>` +
       card('提示词优化',
-        row('使用平台', `<select class="sel"><option>DeepSeek</option><option>豆包·火山引擎</option><option>其它 OpenAI 兼容</option></select>`) +
-        row('模型名', `<input class="inp" placeholder="如 deepseek-chat">`));
+        row('使用平台', `<select class="sel" data-cfg="refine_provider"><option value="">（不指定）</option>${opt('deepseek', 'DeepSeek')}${opt('doubao', '豆包·火山引擎')}${opt('openai', '其它 OpenAI 兼容')}</select>`) +
+        row('Base URL', `<input class="inp" data-cfg="refine_base_url" placeholder="留空则用平台默认" value="${htmlesc(getCfg('refine_base_url'))}">`) +
+        row('API Key', `<input class="inp pw" type="password" data-cfg="refine_api_key" placeholder="未填" value="${htmlesc(getCfg('refine_api_key'))}">`) +
+        row('模型名', `<input class="inp" data-cfg="refine_model" placeholder="如 deepseek-chat" value="${htmlesc(getCfg('refine_model'))}">`));
   },
 
-  /* ── 主题 ── */
+  /* ── 主题（绑 cfg.ui.theme）── */
   theme(s) {
+    const cur = (getCfg('ui', {}) || {}).theme || 'dark';
     const themes = [['dark', '蓝紫·暗色（默认）'], ['light', '浅色']];
-    const radios = themes.map(([v, l], i) =>
-      `<span class="rad ${i === 0 ? 'sel' : ''}" data-theme="${v}"><span class="rdot"></span>${l}</span>`).join('');
-    return `<p class="intro">界面外观主题（绑 cfg theme）。当前蓝紫暗色与 <code>tokens.css</code> 设计系统一致。</p>` +
+    const radios = themes.map(([v, l]) =>
+      `<span class="rad ${cur === v ? 'sel' : ''}" data-theme="${v}"><span class="rdot"></span>${l}</span>`).join('');
+    return `<p class="intro">界面外观主题（绑 <code>cfg.ui.theme</code>）。当前蓝紫暗色与 <code>tokens.css</code> 设计系统一致。</p>` +
       card('主题', row('主题', `<div class="radios">${radios}</div>`));
   },
 
-  /* ── 翻译（归「其他」分类）── */
+  /* ── 翻译（绑 current_translator + tencent 凭证 / deeplx_url）── */
   translation(s) {
+    const trans = getCfg('current_translator', '');
     const provs = [['disabled', '不启用'], ['tencent', '腾讯云机器翻译（推荐）'], ['deeplx', 'DeepLX（自部署）']];
-    const radios = provs.map(([v, l]) =>
-      `<span class="rad ${STATE.translator === v ? 'sel' : ''}" data-trans="${v}"><span class="rdot"></span>${l}</span>`).join('');
+    const radios = provs.map(([v, l]) => {
+      const isSel = (v === 'disabled') ? (!trans) : (trans === v);
+      return `<span class="rad ${isSel ? 'sel' : ''}" data-trans="${v}"><span class="rdot"></span>${l}</span>`;
+    }).join('');
+    const region = getCfg('tencent_translator_region', 'ap-beijing');
+    const regionOpt = v => `<option value="${v}" ${region === v ? 'selected' : ''}>${v}</option>`;
     const tencentCard = card('腾讯云机器翻译',
-      row('SecretId', `<input class="inp" placeholder="未填">`) +
-      row('SecretKey', `<input class="inp pw" type="password" placeholder="未填">`) +
-      row('Region', `<select class="sel"><option>ap-beijing</option><option>ap-shanghai</option><option>ap-guangzhou</option><option>ap-singapore</option></select>`) +
-      row('ProjectId', `<input class="inp num" type="number" value="0">
+      row('SecretId', `<input class="inp" data-cfg="tencent_translator_secret_id" placeholder="未填" value="${htmlesc(getCfg('tencent_translator_secret_id'))}">`) +
+      row('SecretKey', `<input class="inp pw" type="password" data-cfg="tencent_translator_secret_key" placeholder="未填" value="${htmlesc(getCfg('tencent_translator_secret_key'))}">`) +
+      row('Region', `<select class="sel" data-cfg="tencent_translator_region">${regionOpt('ap-beijing')}${regionOpt('ap-shanghai')}${regionOpt('ap-guangzhou')}${regionOpt('ap-singapore')}</select>`) +
+      row('ProjectId', `<input class="inp num" type="number" data-cfg="tencent_translator_project_id" data-num="int" value="${htmlesc(getCfg('tencent_translator_project_id', 0))}">
                         <button class="btn-sm test" data-act="testTrans">测试连接</button>`,
           '去 <a href="https://console.cloud.tencent.com/cam/capi" target="_blank">腾讯云控制台</a> 创建访问密钥，免费 5 万字符/月。'));
     const deeplxCard = card('DeepLX（自部署）',
-      row('DeepLX URL', `<input class="inp" placeholder="https://api.deeplx.org/translate（或自部署 http://localhost:1188/translate）">
+      row('DeepLX URL', `<input class="inp" data-cfg="deeplx_url" placeholder="https://api.deeplx.org/translate（或自部署 http://localhost:1188/translate）" value="${htmlesc(getCfg('deeplx_url'))}">
                          <button class="btn-sm test" data-act="testTrans">测试连接</button>`,
           '公共实例不稳定，建议自部署或切到腾讯云。'));
     let providerCards = '';
-    if (STATE.translator === 'tencent') providerCards = tencentCard;
-    else if (STATE.translator === 'deeplx') providerCards = deeplxCard;
-    return `<p class="intro">翻译服务（绑 <code>cfg.current_translator</code>）。<b>翻译非平台核心，归「其他」分类</b>。选「不启用」则隐藏凭证表单。</p>` +
+    if (trans === 'tencent') providerCards = tencentCard;
+    else if (trans === 'deeplx') providerCards = deeplxCard;
+    return `<p class="intro">翻译服务（绑 <code>cfg.current_translator</code>）。选「不启用」则隐藏凭证表单。</p>` +
       card('翻译服务', row('服务', `<div class="radios" id="transRadios">${radios}</div>`)) +
       `<div id="transProvider">${providerCards}</div>`;
   },
@@ -500,12 +622,55 @@ const FORMS = {
   },
 };
 
-/* ===================== 交互绑定（占位逻辑，不接真后端写） ===================== */
+/* ===================== 交互绑定（写进 PENDING，底栏保存 PUT） ===================== */
+function castNum(el, raw) {
+  if (raw === '' || raw == null) return el.dataset.num === 'int' ? 0 : 0;
+  return el.dataset.num === 'int' ? parseInt(raw, 10) : parseFloat(raw);
+}
 function wireFormInteractions(id) {
-  // 通用：任何输入变更 → 标脏
-  document.querySelectorAll('#formBody input, #formBody select').forEach(el => {
-    el.addEventListener('input', markDirty);
-    el.addEventListener('change', markDirty);
+  // 通用单值字段：data-cfg → setCfg
+  document.querySelectorAll('#formBody [data-cfg]').forEach(el => {
+    const key = el.dataset.cfg;
+    const handler = () => {
+      let v = el.value;
+      if (el.dataset.num) v = castNum(el, el.value);
+      setCfg(key, v);
+    };
+    el.addEventListener('input', handler);
+    el.addEventListener('change', handler);
+  });
+  // LLM 平台嵌套：data-llm(id) + data-sub(base_url|api_key) → cfg.llm_providers[id][sub]
+  document.querySelectorAll('#formBody [data-llm]').forEach(el => {
+    const handler = () => setCfgNested('llm_providers', el.dataset.llm, { [el.dataset.sub]: el.value });
+    el.addEventListener('input', handler);
+  });
+  // 配音工作流 / 采样嵌套
+  document.querySelectorAll('#formBody [data-dubwf]').forEach(el => {
+    el.addEventListener('input', () => setCfgNested('dub_workflow_ids', el.dataset.dubwf, el.value));
+  });
+  document.querySelectorAll('#formBody [data-dubsamp]').forEach(el => {
+    el.addEventListener('input', () => {
+      const v = el.value === '' ? 0 : parseFloat(el.value);
+      setCfgNested('dub_sampling', el.dataset.dubsamp, v);
+    });
+  });
+  // 编剧模型 → 写四阶段
+  document.querySelectorAll('#formBody [data-swmodel]').forEach(el => {
+    el.addEventListener('input', () => {
+      const v = el.value;
+      setCfg('screenwriter_models', { ideate: v, script: v, storyboard: v, prompts: v });
+    });
+  });
+  // 通用 toggle（data-tg → bool 字段）
+  document.querySelectorAll('#formBody [data-tg]').forEach(tg => {
+    tg.addEventListener('click', () => {
+      const key = tg.dataset.tg;
+      const next = !tg.classList.contains('on');
+      tg.classList.toggle('on', next);
+      const note = tg.parentElement.querySelector('.tg-note');
+      if (note) note.textContent = next ? '开' : '关';
+      setCfg(key, next);
+    });
   });
 
   if (id === 'project') {
@@ -513,36 +678,31 @@ function wireFormInteractions(id) {
       btn.addEventListener('click', () => {
         const act = btn.dataset.act;
         const idx = btn.dataset.idx != null ? +btn.dataset.idx : -1;
-        const p = STATE.projects[idx];
+        const p = PROJECTS[idx];
         if (act === 'open') {
-          // TODO 主控：跳转壳「概览」并加载该项目
-          alert(`（占位）打开项目：${p.name}\n${p.path}`);
+          api('/projects/open', { path: p.path })
+            .then(() => toast('已置顶：' + p.name))
+            .then(() => loadProjects())
+            .catch(e => toast('打开失败：' + e.message, true));
         } else if (act === 'remove') {
-          // 仅移除显示：RecentProjectsManager.remove(path)，留文件夹
-          // TODO fetch: POST `${MA_API}/recent/remove` { path }
-          STATE.projects.splice(idx, 1);
-          renderForm('project');
+          api('/recent/remove', { path: p.path })
+            .then(() => { toast('已移除显示'); return loadProjects(); })
+            .catch(e => toast('移除失败：' + e.message, true));
         } else if (act === 'delete') {
           openConfirm(
             '删除项目文件夹',
-            `将永久删除「<b>${p.name}</b>」的整个文件夹：<br><span class="path">${p.path}</span><br><br>此操作不可恢复（调用 shutil.rmtree），确定？`,
-            () => {
-              // TODO fetch: POST `${MA_API}/recent/delete_folder` { path }（rmtree + remove）
-              STATE.projects.splice(idx, 1);
-              renderForm('project');
-            });
+            `将永久删除「<b>${htmlesc(p.name)}</b>」的整个文件夹：<br>${htmlesc(p.path)}<br><br>此操作不可恢复（调用 shutil.rmtree），确定？`,
+            () => api('/recent/delete_folder', { path: p.path })
+              .then(() => { toast('已删除文件夹'); return loadProjects(); })
+              .catch(e => toast('删除失败：' + e.message, true)));
         } else if (act === 'clear') {
           openConfirm(
             '清空最近项目列表',
             '将<b>仅移除显示</b>所有最近项目（文件夹全部保留），确定？',
-            () => {
-              // TODO fetch: POST `${MA_API}/recent/clear`（仅 remove，不删盘）
-              STATE.projects = [];
-              renderForm('project');
-            }, '清空列表');
-        } else if (act === 'browse' || act === 'browseRoot') {
-          // TODO 主控：经壳的本地目录选择（Qt/Electron 桥）
-          alert('（占位）浏览磁盘选择目录…');
+            () => api('/recent/clear', {})
+              .then(() => { toast('已清空列表'); return loadProjects(); })
+              .catch(e => toast('清空失败：' + e.message, true)),
+            '清空列表');
         }
       });
     });
@@ -551,19 +711,18 @@ function wireFormInteractions(id) {
   if (id === 'pipeline') {
     const tg = document.getElementById('lockTg');
     if (tg) tg.addEventListener('click', () => {
-      STATE.pipelineLock = !STATE.pipelineLock;
-      tg.classList.toggle('on', STATE.pipelineLock);
-      document.getElementById('lockNote').textContent = STATE.pipelineLock
+      const next = !tg.classList.contains('on');
+      tg.classList.toggle('on', next);
+      document.getElementById('lockNote').textContent = next
         ? '开 — 按阶段门禁，未完成下游置灰'
         : '关 — 全部面板可达（调试用，默认）';
-      markDirty();
+      setCfg('pipeline_lock_enabled', next);
     });
     document.querySelectorAll('#gridRadios .rad').forEach(r => {
       r.addEventListener('click', () => {
-        STATE.defaultGrid = r.dataset.grid;
         document.querySelectorAll('#gridRadios .rad').forEach(x => x.classList.remove('sel'));
         r.classList.add('sel');
-        markDirty();
+        setCfg('prompts_default_grid', r.dataset.grid);
       });
     });
   }
@@ -571,9 +730,9 @@ function wireFormInteractions(id) {
   if (id === 'translation') {
     document.querySelectorAll('#transRadios .rad').forEach(r => {
       r.addEventListener('click', () => {
-        STATE.translator = r.dataset.trans;
-        renderForm('translation');   // 切 provider 显隐对应凭证卡
-        markDirty();
+        const v = r.dataset.trans === 'disabled' ? '' : r.dataset.trans;
+        setCfg('current_translator', v);
+        renderForm('translation');   // 切 provider 显隐对应凭证卡（pending 已保留）
       });
     });
   }
@@ -583,29 +742,69 @@ function wireFormInteractions(id) {
       r.addEventListener('click', () => {
         document.querySelectorAll('#formBody [data-theme]').forEach(x => x.classList.remove('sel'));
         r.classList.add('sel');
-        markDirty();
+        setCfgNested('ui', 'theme', r.dataset.theme);
       });
     });
   }
 
-  // 测试连接按钮（占位）：真机 fetch 对应平台健康检查
+  // 测试连接按钮：对当前卡片 Base URL GET（带 Bearer），非 401/403 即视为通过
   document.querySelectorAll('#formBody [data-act^="test"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const hint = btn.closest('.frow').nextElementSibling;
-      btn.disabled = true; btn.textContent = '测试中…';
-      // TODO fetch: GET base_url（带 Authorization: Bearer），非 401/403 即过
-      setTimeout(() => {
-        btn.disabled = false; btn.textContent = '测试连接';
-        if (hint && hint.classList.contains('hint')) {
-          hint.classList.add('ok');
-          hint.innerHTML = '✓ 鉴权通过（占位 · 真机经 fetch 验证）';
-        }
-      }, 700);
-    });
+    btn.addEventListener('click', () => testConnection(btn));
   });
 }
 
-/* ===================== 脏标记 + 底栏 ===================== */
+/* 测试连接：读同卡片内 base_url + api_key，直接 fetch 目标 base（非经 media_agent）。 */
+function testConnection(btn) {
+  const cardEl = btn.closest('.card');
+  const hint = btn.closest('.frow').nextElementSibling;
+  const setHint = (ok, msg) => {
+    if (hint && hint.classList.contains('hint')) {
+      hint.classList.remove('ok', 'err');
+      hint.classList.add(ok ? 'ok' : 'err');
+      hint.textContent = msg;
+    }
+  };
+  let base = '', key = '';
+  cardEl.querySelectorAll('input').forEach(i => {
+    const v = i.value.trim();
+    if (!v) return;
+    const cfg = i.dataset.cfg || '';
+    const sub = i.dataset.sub || '';
+    if ((sub === 'base_url' || cfg.indexOf('base_url') >= 0 || cfg.indexOf('_url') >= 0)
+        && /^https?:\/\//.test(v)) base = v;
+    if (sub === 'api_key' || cfg.indexOf('api_key') >= 0 || cfg.indexOf('secret_key') >= 0) key = v;
+  });
+  // 兜底：取卡片内第一个 http(s) 输入框当 base
+  if (!base) {
+    cardEl.querySelectorAll('input').forEach(i => {
+      if (!base && /^https?:\/\//.test(i.value.trim())) base = i.value.trim();
+    });
+  }
+  if (!base) { setHint(false, '请先填 Base URL'); return; }
+  btn.disabled = true; const old = btn.textContent; btn.textContent = '测试中…';
+  fetch(base, { method: 'GET', headers: key ? { Authorization: 'Bearer ' + key } : {} })
+    .then(r => {
+      if (r.status === 401 || r.status === 403) setHint(false, `✗ 鉴权失败（HTTP ${r.status}）`);
+      else setHint(true, `✓ 鉴权通过（HTTP ${r.status}）`);
+    })
+    .catch(e => setHint(false, '✗ 连接失败：' + e.message))
+    .finally(() => { btn.disabled = false; btn.textContent = old; });
+}
+
+/* ===================== fetch 封装 + 脏标记 + 底栏 ===================== */
+async function api(path, body) {
+  const opt = body === undefined
+    ? { method: 'GET' }
+    : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  const r = await fetch(MA_API + path, opt);
+  if (!r.ok) {
+    let detail = 'HTTP ' + r.status;
+    try { const j = await r.json(); if (j && j.detail) detail = j.detail; } catch (e) {}
+    throw new Error(detail);
+  }
+  return r.json().catch(() => ({}));
+}
+
 function markDirty() {
   if (dirty) return;
   dirty = true;
@@ -615,18 +814,44 @@ function clearDirty() {
   dirty = false;
   document.getElementById('dirty').classList.remove('show');
 }
-document.getElementById('btnSave').addEventListener('click', () => {
-  // TODO 主控：对当前 section 走 validate → save_to(cfg)；翻译/项目可即时落盘
-  // 各 section 真机端点由主控约定（cfg 写盘 + RecentProjectsManager）
+
+document.getElementById('btnSave').addEventListener('click', async () => {
   const btn = document.getElementById('btnSave');
-  btn.textContent = '已保存 ✓';
-  clearDirty();
-  setTimeout(() => (btn.textContent = '验证并保存'), 1200);
+  if (!Object.keys(PENDING).length) { toast('没有改动'); return; }
+  const payload = Object.assign({}, PENDING);
+  btn.disabled = true; const old = btn.textContent; btn.textContent = '保存中…';
+  try {
+    await fetch(MA_API + '/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(async r => {
+      if (!r.ok) {
+        let d = 'HTTP ' + r.status;
+        try { const j = await r.json(); if (j && j.detail) d = JSON.stringify(j.detail); } catch (e) {}
+        throw new Error(d);
+      }
+    });
+    // 落盘成功：把 pending 并入 CFG 快照，清脏
+    Object.assign(CFG, payload);
+    PENDING = {};
+    clearDirty();
+    btn.textContent = '已保存 ✓';
+    toast('已保存');
+    setTimeout(() => (btn.textContent = old), 1200);
+  } catch (e) {
+    btn.textContent = old;
+    toast('保存失败：' + e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
 });
+
 document.getElementById('btnCancel').addEventListener('click', () => {
-  // 占位：重渲染当前 section（丢弃未保存）
-  renderForm(current);
+  // 丢弃未保存改动，按 CFG 快照重渲染当前 section
+  PENDING = {};
   clearDirty();
+  renderForm(current);
 });
 
 /* ===================== 确认弹窗 ===================== */
@@ -651,9 +876,36 @@ document.getElementById('modalMask').addEventListener('click', (e) => {
   if (e.target.id === 'modalMask') closeConfirm();
 });
 
-/* ===================== 初始渲染 ===================== */
-renderNav();
-selectSection(current);
+/* ===================== 数据加载 + 初始渲染 ===================== */
+async function loadConfig() {
+  try {
+    CFG = await api('/config');
+  } catch (e) {
+    CFG = {};
+    toast('读取配置失败：' + e.message, true);
+  }
+}
+async function loadProjects() {
+  try {
+    const r = await api('/projects/list');
+    PROJECTS = Array.isArray(r.projects) ? r.projects : [];
+  } catch (e) {
+    PROJECTS = [];
+    toast('读取项目列表失败：' + e.message, true);
+  }
+  if (current === 'project') renderForm('project');
+}
+
+(async function init() {
+  renderNav();
+  await Promise.all([loadConfig(), (async () => {
+    try {
+      const r = await api('/projects/list');
+      PROJECTS = Array.isArray(r.projects) ? r.projects : [];
+    } catch (e) { PROJECTS = []; }
+  })()]);
+  selectSection(current);
+})();
 </script>
 </body>
 </html>

@@ -201,47 +201,66 @@
 </div>
 
 <script>
-/* ===== 可配 API base（真机联调由主控接入；本页仅占位渲染）=====
-   const SW_API = new URLSearchParams(location.search).get('sw') || 'http://127.0.0.1:18430'; // screenwriter_agent
-   const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450'; // media_agent
-   概览数据当前为静态占位。后续可由项目状态接口/各 agent 汇总拉取，例如：
-     fetch(`${SW_API}/project/overview`)  // 若后端提供概览聚合
-       .then(r => r.json()).then(renderAll);
-   注意：screenwriter_agent / media_agent 现有路由均为 SSE 生成型，概览的"统计/状态"建议由项目层聚合接口提供。 */
+/* ===== API base + 项目目录（壳通过 ?media= / ?project= 注入，与其它内容页一致）===== */
+const _qs = new URLSearchParams(location.search);
+const MEDIA_API = _qs.get("media") || "http://127.0.0.1:18450";   // media_agent（项目概览聚合）
+const PROJECT_DIR = _qs.get("project") || "";                     // 项目目录；空则保留占位
 
-/* ---- 流水线 7 阶段（创意→剧本→分镜→出图→视频→配音配乐→成片）---- */
-const STAGES = [
-  { key: "ideate",     nm: "创意立意", st: "done", done: 1,  total: 1,   meta: "题材/风格已定" },
-  { key: "script",     nm: "剧本",     st: "done", done: 12, total: 12,  meta: "12 集 · 108 场" },
-  { key: "storyboard", nm: "分镜",     st: "done", done: 108,total: 108, meta: "分镜脚本已生成" },
-  { key: "imggen",     nm: "出图",     st: "cur",  done: 0,  total: 108, meta: "0/108 已出图" },
-  { key: "video",      nm: "视频生成", st: "lock", done: 0,  total: 108, meta: "图生视频 · 按镜" },
-  { key: "audio",      nm: "配音配乐", st: "lock", done: 0,  total: 12,  meta: "配音 0/12 · 配乐 0/1" },
-  { key: "final",      nm: "成片",     st: "lock", done: 0,  total: 12,  meta: "合成导出" },
-];
+/* 概览阶段卡片 key → 壳左栏导航键（app.html data-key）。
+   立意/剧本归「剧本创作」；分镜+出图都落「分镜板」；视频→视频生成；配音配乐+成片→视频后期。 */
+const STAGE_NAV = {
+  ideate: "screenwriter", script: "screenwriter",
+  storyboard: "storyboard", imggen: "storyboard",
+  video: "video_gen", audio: "video_post", final: "video_post",
+};
+/* 向壳（parent）发导航请求 */
+function navTo(key) {
+  try { window.parent.postMessage({ type: "nav", key }, "*"); } catch (e) {}
+  console.log("[overview] nav →", key);
+}
+
 const SB = { done: "✓", cur: "●", lock: "🔒" };
 
-function renderFlow() {
+/* 后端 status(done|cur|lock) → 卡片三态；缺省 lock。后端字段名可能是 status 或 st。 */
+function stOf(s) {
+  const v = s.status || s.st || "lock";
+  return v === "done" || v === "cur" ? v : "lock";
+}
+
+/* 占位用的 7 阶段（无 project / 拉取失败时回退展示，全 lock 不报错）。 */
+const FALLBACK_STAGES = [
+  { key: "ideate",     label: "创意立意", status: "lock", done: 0, total: 1, meta: "题材/风格待定" },
+  { key: "script",     label: "剧本",     status: "lock", done: 0, total: 0, meta: "等待立意完成" },
+  { key: "storyboard", label: "分镜",     status: "lock", done: 0, total: 0, meta: "分镜脚本" },
+  { key: "imggen",     label: "出图",     status: "lock", done: 0, total: 0, meta: "按镜出图" },
+  { key: "video",      label: "视频生成", status: "lock", done: 0, total: 0, meta: "图生视频 · 按镜" },
+  { key: "audio",      label: "配音配乐", status: "lock", done: 0, total: 0, meta: "配音 / 配乐" },
+  { key: "final",      label: "成片",     status: "lock", done: 0, total: 0, meta: "合成导出" },
+];
+
+function renderFlow(stages) {
   const root = document.getElementById("flow");
   root.innerHTML = "";
-  STAGES.forEach((s, i) => {
-    const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
-    const cls = s.st === "done" ? "done" : s.st === "cur" ? "cur" : "locked";
+  stages.forEach((s, i) => {
+    const total = Number(s.total) || 0;
+    const done = Number(s.done) || 0;
+    const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+    const st = stOf(s);
+    const cls = st === "done" ? "done" : st === "cur" ? "cur" : "locked";
     const card = document.createElement("div");
     card.className = "pc " + cls;
     card.dataset.stage = s.key;
     card.innerHTML = `
-      <div class="hd"><span class="nm">${s.nm}</span><span class="sb ${s.st}">${SB[s.st]}</span></div>
-      <div class="big">${s.done}<span class="den">/${s.total}</span></div>
-      <div class="meta">${s.meta}</div>
+      <div class="hd"><span class="nm">${s.label || s.nm || s.key}</span><span class="sb ${st}">${SB[st]}</span></div>
+      <div class="big">${done}<span class="den">/${total}</span></div>
+      <div class="meta">${s.meta || ""}</div>
       <div class="bar"><i style="width:${pct}%"></i></div>`;
     card.addEventListener("click", () => {
-      if (s.st === "lock") return;
-      /* 真机：由壳路由到对应导航页，如 window.parent.postMessage({nav:s.key},'*') */
-      console.log("[overview] goto stage:", s.key);
+      if (st === "lock") return;          // 锁定阶段不可达
+      navTo(STAGE_NAV[s.key] || "overview");
     });
     root.appendChild(card);
-    if (i < STAGES.length - 1) {
+    if (i < stages.length - 1) {
       const a = document.createElement("div");
       a.className = "arrow"; a.textContent = "›";
       root.appendChild(a);
@@ -276,15 +295,15 @@ function renderRecent() {
   });
 }
 
-/* ---- 快捷入口 ---- */
+/* ---- 快捷入口（nav 用壳左栏导航键）---- */
 const QUICK = [
-  { nm: "继续出图", desc: "前往分镜板，补全分镜参考图", stage: "imggen",
+  { nm: "继续出图", desc: "前往分镜板，补全分镜参考图", nav: "storyboard",
     ic: '<path d="M3 3h18v18H3z"/><path d="M3 15l5-5 4 4 3-3 6 6"/><circle cx="8.5" cy="8.5" r="1.5"/>' },
-  { nm: "剧本创作", desc: "立意 / 大纲 / 分集 / 分镜脚本", stage: "script",
+  { nm: "剧本创作", desc: "立意 / 大纲 / 分集 / 分镜脚本", nav: "screenwriter",
     ic: '<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/>' },
-  { nm: "资源库", desc: "角色 / 场景 / 道具 参考图", stage: "assets",
+  { nm: "资源库", desc: "角色 / 场景 / 道具 参考图", nav: "asset_library",
     ic: '<path d="M4 7l8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7"/>' },
-  { nm: "全局设置", desc: "模型平台 / 出图 / 翻译 / 配乐", stage: "settings",
+  { nm: "全局设置", desc: "模型平台 / 出图 / 翻译 / 配乐", nav: "settings",
     ic: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.3 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L2.1 11a7 7 0 0 0 0 2"/>' },
 ];
 function renderQuick() {
@@ -297,22 +316,116 @@ function renderQuick() {
       <span class="qic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${q.ic}</svg></span>
       <span><span class="qt">${q.nm}</span><div class="qd">${q.desc}</div></span>
       <span class="arr">›</span>`;
-    b.addEventListener("click", () => {
-      /* 真机：通知壳切换导航 window.parent.postMessage({nav:q.stage},'*') */
-      console.log("[overview] quick nav:", q.stage);
-    });
+    b.addEventListener("click", () => navTo(q.nav));
     root.appendChild(b);
   });
 }
 
-/* 按钮占位 */
-document.getElementById("editBible").addEventListener("click", () => console.log("[overview] edit style bible"));
-document.getElementById("nextGo").addEventListener("click", () => console.log("[overview] goto next step"));
-document.getElementById("moreRecent").addEventListener("click", () => console.log("[overview] open asset library"));
+/* ---- 顶部信息卡 / 风格圣经 / 下一步 渲染 ---- */
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
-renderFlow();
-renderRecent();
+function renderHeader(data) {
+  const p = data.project || {};
+  const name = p.project_name || "未命名项目";
+  const genre = data.genre || p.genre || "—";
+  const aspect = p.aspect || "—";
+  const eps = Number(p.episode_count) || 0;
+
+  document.getElementById("pjName").textContent = name;
+  document.getElementById("pjPill").textContent =
+    `${genre} · ${eps ? eps + " 集" : "未分集"} · ${aspect}`;
+
+  const metaBits = [];
+  if (p.project_id) metaBits.push(`编号 <b>${esc(p.project_id)}</b>`);
+  metaBits.push(esc(genre));
+  if (eps) metaBits.push(`<b>${eps}</b> 集`);
+  metaBits.push(`画幅 <b>${esc(aspect)}</b>`);
+  const lm = (p.last_modified || "").slice(0, 10);
+  if (lm) metaBits.push(`更新于 ${esc(lm)}`);
+  document.getElementById("pjMeta").innerHTML = metaBits.join(" · ");
+}
+
+/* style_bible 是 dict（research §2.3 引用层），尽量取常见描述字段，兜底拼可读串。 */
+function bibleText(bible, genre) {
+  if (!bible || typeof bible !== "object") return "";
+  const desc = bible.description || bible.desc || bible.summary || bible.style || "";
+  const id = bible.id || bible.name || bible.key || "";
+  if (desc) return id ? `<b>${esc(id)}</b>：${esc(desc)}` : esc(desc);
+  if (id) return `<b>${esc(id)}</b>`;
+  // 无结构化描述 → 列出键值兜底（避免空白）
+  const parts = Object.entries(bible)
+    .filter(([, v]) => typeof v === "string" && v)
+    .slice(0, 3).map(([k, v]) => `${esc(k)}：${esc(v)}`);
+  return parts.join("；");
+}
+
+function renderBible(data) {
+  const txt = bibleText(data.bible, data.genre);
+  const el = document.getElementById("bibleDesc");
+  const badge = document.querySelector(".bible .badge");
+  if (txt) {
+    el.innerHTML = txt;
+    if (badge) badge.textContent = "已设定" + (data.genre ? " · " + data.genre : "");
+  } else {
+    el.innerHTML = `<b>风格圣经待设定</b>：在立意阶段确定题材与全片风格后，这里会展示风格描述。`;
+    if (badge) badge.textContent = "未设定";
+  }
+}
+
+function renderNext(data) {
+  const txt = (data.next_action || "").trim();
+  const tx = document.getElementById("nextTx");
+  if (txt) {
+    tx.innerHTML = `下一步 · <b>${esc(txt)}</b>`;
+  } else {
+    tx.innerHTML = `流程暂无待办，或项目尚未开始 —— 从「剧本创作」开始你的下一集。`;
+  }
+}
+
+/* 无 project 时的友好占位（不报错，保留布局）。 */
+function renderPlaceholder(msg) {
+  document.getElementById("pjName").textContent = "未选择项目";
+  document.getElementById("pjPill").textContent = "—";
+  document.getElementById("pjMeta").innerHTML =
+    esc(msg || "请从首页选择或新建一个项目后，再查看概览。");
+  document.getElementById("bibleDesc").innerHTML =
+    `<b>风格圣经</b>：选择项目后展示。`;
+  const badge = document.querySelector(".bible .badge");
+  if (badge) badge.textContent = "—";
+  document.getElementById("nextTx").innerHTML = esc(msg || "未选择项目。");
+  renderFlow(FALLBACK_STAGES);
+}
+
+/* ---- 进页：拉真实概览 ---- */
+async function loadOverview() {
+  if (!PROJECT_DIR) { renderPlaceholder(); return; }
+  try {
+    const r = await fetch(MEDIA_API + "/project/overview?project=" +
+      encodeURIComponent(PROJECT_DIR));
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+    renderHeader(data);
+    renderBible(data);
+    renderNext(data);
+    renderFlow(Array.isArray(data.stages) && data.stages.length
+      ? data.stages : FALLBACK_STAGES);
+  } catch (e) {
+    console.warn("[overview] 拉取概览失败，保留占位：", e);
+    renderPlaceholder("无法连接后端或读取项目概览，已显示占位。");
+  }
+}
+
+/* 顶部动作按钮 → 路由到对应阶段 */
+document.getElementById("editBible").addEventListener("click", () => navTo("screenwriter"));
+document.getElementById("nextGo").addEventListener("click", () => navTo("screenwriter"));
+document.getElementById("moreRecent").addEventListener("click", () => navTo("asset_library"));
+
+renderRecent();   // 最近产物：后端暂无聚合，保留静态占位
 renderQuick();
+loadOverview();
 </script>
 </body>
 </html>
