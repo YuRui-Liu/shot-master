@@ -21,10 +21,10 @@
 
   .work { flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 16px; gap:12px; }
 
-  /* ① 顶部 = 左:视频预览(+下方进度) | 右:LLM 对话面板(选时段→识别情绪→生成BGM/SFX) */
-  .preview { flex-shrink:0; display:flex; gap:14px; align-items:stretch; }
-  .video-col { flex:0 0 auto; display:flex; flex-direction:column; gap:9px; }
-  .video-box { width:460px; max-width:48vw; aspect-ratio:16/9; background:#06070d; border:1px solid var(--border); border-radius:11px; display:grid; place-items:center; color:var(--faint); font-size:13px; position:relative; overflow:hidden; }
+  /* ① 顶部 = 左:视频预览(主焦点,更大) | 右:LLM 对话(辅助,克制收窄) */
+  .preview { flex-shrink:0; display:flex; gap:16px; align-items:stretch; }
+  .video-col { flex:1.9 1 0; min-width:0; display:flex; flex-direction:column; gap:10px; }   /* 视频列占主导(~2/3) */
+  .video-box { width:100%; aspect-ratio:16/9; background:#06070d; border:1px solid var(--border); border-radius:12px; display:grid; place-items:center; color:var(--faint); font-size:13px; position:relative; overflow:hidden; box-shadow:0 8px 28px rgba(0,0,0,.4); }
   .video-box .ph{ text-align:center; } .video-box .play{ position:absolute; inset:0; display:grid; place-items:center; }
   .video-box .pbtn{ width:54px; height:54px; border-radius:50%; background:rgba(74,158,255,.85); display:grid; place-items:center; color:#06122a; font-size:22px; }
   /* 视频下方的进度+播放控制条 */
@@ -38,11 +38,11 @@
   .pv-ctrl .meta{ font-size:11.5px; color:var(--faint); }
   .pv-ctrl .chip{ font-size:11px; color:var(--periw); border:1px solid var(--border); border-radius:9px; padding:3px 11px; cursor:pointer; }
 
-  /* 右:LLM 对话面板 */
-  .chat-col { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--border); border-radius:11px; overflow:hidden; }
-  .chat-hd { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border-lo); }
-  .chat-hd .t{ font-size:12.5px; font-weight:600; background:linear-gradient(135deg,var(--blue),var(--mauve)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .chat-hd .seg{ margin-left:auto; font-size:11px; color:var(--overlay); background:rgba(167,139,250,.14); border:1px solid #4a3d6e; border-radius:9px; padding:2px 10px; }
+  /* 右:LLM 对话面板(辅助·克制:收窄+弱化背景+标题降级,不与视频争焦点) */
+  .chat-col { flex:1 1 0; min-width:0; max-width:340px; display:flex; flex-direction:column; background:var(--navy); border:1px solid var(--border-lo); border-radius:11px; overflow:hidden; }
+  .chat-hd { display:flex; align-items:center; gap:8px; padding:9px 13px; border-bottom:1px solid var(--border-lo); }
+  .chat-hd .t{ font-size:11.5px; font-weight:600; color:var(--periw); text-transform:none; }   /* 降级:非渐变大标题,避免抢视觉重心 */
+  .chat-hd .seg{ margin-left:auto; font-size:10px; color:var(--overlay); background:rgba(167,139,250,.12); border:1px solid #4a3d6e; border-radius:9px; padding:2px 9px; }
   .chat-body{ flex:1; overflow:auto; padding:12px 14px; display:flex; flex-direction:column; gap:9px; min-height:150px; }
   .msg{ font-size:12px; line-height:1.55; padding:8px 11px; border-radius:9px; max-width:88%; }
   .msg.sys{ align-self:center; color:var(--faint); font-size:11px; background:none; max-width:100%; text-align:center; }
