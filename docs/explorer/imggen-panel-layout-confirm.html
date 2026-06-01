@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分镜视角·出图面板 布局确认稿</title>
+<link rel="stylesheet" href="../../web/tokens.css">
+<style>
+  /* 确认稿：分镜视角「出图面板」重平衡（解决过小/失衡）。参考原 PySide6 分镜板-以分镜视角的面板.jpg：
+     主列(镜头表行 + 引用资源 + 本镜涉及 + 提示词大编辑区 + 预置提示词片段 + 镜头细节 + 动作)
+     + 右侧分镜图大预览。整页竖向滚动，左主列宽、右预览固定。 */
+  body { margin: 0; background: var(--bg); color: var(--fg); }
+  .note { background: rgba(74,158,255,.08); border-bottom: 1px solid var(--blue-dim); padding: 10px 22px; font-size: 12.5px; color: var(--periw); }
+  .note b { color: var(--blue); }
+  .page { max-width: 1280px; margin: 0 auto; padding: 16px 24px 60px; }
+
+  .head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .head h1 { margin: 0; font-size: 19px; background: linear-gradient(135deg, var(--blue), var(--mauve)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .head .ep-sel select { min-width: 230px; }
+
+  /* 镜头表行（紧凑一行 + 状态点） */
+  .shot-row { display: grid; grid-template-columns: 40px 120px 110px 130px 80px 1fr 16px; gap: 10px; align-items: center;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 14px; }
+  .shot-row .lab { font-size: 10.5px; color: var(--muted); }
+  .shot-row .v { font-size: 12.5px; color: var(--fg2); }
+  .shot-row .ord { font-weight: 700; color: var(--mauve); }
+  .shot-row .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--done); box-shadow: 0 0 6px var(--done); }
+
+  /* 平衡两栏：主列 + 右预览 */
+  .cols { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+  @media (max-width: 980px){ .cols { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .sect-t { font-size: 11px; color: var(--periw); font-weight: 600; letter-spacing: .4px; margin-bottom: 8px; }
+
+  /* chips 区 */
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+  .chip { font-size: 12px; color: var(--fg2); background: var(--field); border: 1px solid var(--border); border-radius: 14px; padding: 5px 12px; cursor: pointer; }
+  .chip:hover { border-color: var(--mauve); }
+  .chip.ent { background: rgba(78,201,143,.14); border-color: #2c5a44; color: #9bd6a4; }
+  .chip .link { color: var(--blue); margin-left: 4px; }
+
+  /* 提示词大编辑区（加大，不再过小） */
+  .prompt-ta { width: 100%; box-sizing: border-box; min-height: 150px; resize: vertical; font: inherit; line-height: 1.65;
+    background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--fg); padding: 12px 14px; outline: none; }
+  .prompt-ta:focus { border-color: var(--mauve); }
+
+  /* 预置专业提示词片段库 */
+  .presets { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0 4px; }
+  .preset { font-size: 11.5px; color: var(--periw); background: rgba(138,127,217,.12); border: 1px solid #4a3d6e; border-radius: 12px; padding: 4px 11px; cursor: pointer; }
+  .preset:hover { background: rgba(138,127,217,.22); }
+  .presets .plab { font-size: 11.5px; color: var(--muted); align-self: center; margin-right: 2px; }
+
+  /* 参考图(图生图) 区 */
+  .refs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+  .ref-th { width: 56px; height: 56px; border-radius: 8px; background: linear-gradient(135deg,#2a2d42,#1a1c2e); border: 1px solid var(--border-lo); position: relative; overflow: hidden; }
+  .ref-th .tag { position: absolute; left: 0; bottom: 0; right: 0; font-size: 9px; background: rgba(0,0,0,.6); color: #9cc7ff; text-align: center; padding: 1px; }
+  .ref-add { width: 56px; height: 56px; border-radius: 8px; border: 1px dashed var(--border); display: grid; place-items: center; color: var(--faint); cursor: pointer; }
+  .mode-badge { font-size: 11px; color: var(--blue); background: rgba(74,158,255,.12); border: 1px solid var(--blue-dim); border-radius: 9px; padding: 2px 9px; }
+
+  /* 动作按钮 */
+  .acts { display: flex; gap: 10px; margin: 14px 0 4px; }
+  .acts button { font: inherit; font-size: 13px; padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer; }
+  .btn-sec { background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); }
+  .btn-gen { background: linear-gradient(135deg, var(--done), #3aa978); color: #06231a; font-weight: 700; border: none; }
+  .acts .grow { flex: 1; }
+
+  /* 镜头细节 */
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .detail-grid label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .detail-row { margin-bottom: 9px; }
+  .detail-row > label { font-size: 11px; color: var(--muted); display: inline-block; width: 40px; }
+  .detail-row input { width: calc(100% - 50px); }
+
+  /* 右侧：分镜图大预览 */
+  .preview-panel { position: sticky; top: 16px; }
+  .preview-panel .pv { aspect-ratio: 9/16; border-radius: var(--radius-sm); background: linear-gradient(160deg,#20243a,#14172a); border: 1px solid var(--blue-dim);
+    display: grid; place-items: center; color: var(--faint); font-size: 12px; overflow: hidden; }
+  .preview-panel .pv-cap { font-size: 11px; color: var(--muted); margin-top: 8px; text-align: center; }
+  .preview-panel .ar { display: flex; gap: 6px; margin: 10px 0; }
+  .preview-panel .ar .arb { flex: 1; text-align: center; font-size: 11px; padding: 5px; border-radius: 6px; border: 1px solid var(--border); color: var(--fg2); cursor: pointer; }
+  .preview-panel .ar .arb.on { border-color: var(--blue); background: rgba(74,158,255,.1); color: var(--fg); }
+</style>
+</head>
+<body>
+<div class="note"><b>分镜视角 · 出图面板 布局确认稿</b> —— 解决「出图面板过小/页面失衡」。重平衡为：<b>主列</b>(镜头表行 → 引用资源/本镜涉及 chips → <b>加大的提示词编辑区</b> → 预置专业提示词片段 → 参考图(图生图) → 镜头细节 → 动作) + <b>右侧分镜图大预览</b>(sticky 跟随)。整页竖向滚动。请浏览器确认；OK 后纳入 P6-3/P6-6 实施（该页目前是静态 mockup，将一并接真实分镜+出图后端）。</div>
+
+<div class="page">
+  <div class="head">
+    <h1>分镜板 · 分镜视角（出图）</h1>
+    <div class="ep-sel"><select><option>1-1 城郊废品回收站</option><option>1-2 审讯室对峙</option></select></div>
+  </div>
+
+  <!-- 镜头表行 -->
+  <div class="shot-row">
+    <span class="v ord">1</span>
+    <div><div class="lab">机位</div><div class="v">俯拍</div></div>
+    <div><div class="lab">运镜</div><div class="v">固定 Fixed</div></div>
+    <div><div class="lab">类别</div><div class="v">全景</div></div>
+    <div><div class="lab">时长</div><div class="v">4s</div></div>
+    <div><div class="lab">对白/动作</div><div class="v">空镜锚点 · 废品场全景</div></div>
+    <span class="dot" title="已出图"></span>
+  </div>
+
+  <div class="cols">
+    <!-- 主列 -->
+    <div class="main">
+      <div class="panel">
+        <div class="sect-t">引用资源（一致性来源）</div>
+        <div class="chips">
+          <span class="chip ent">秦烈 ✕</span><span class="chip ent">刀疤 ✕</span>
+          <span class="chip">+ 选择角色/场景…</span>
+        </div>
+        <div class="sect-t">本镜涉及（点击引用 → 插入 @标签）</div>
+        <div class="chips">
+          <span class="chip">拆迁协议 <span class="link">＋</span></span><span class="chip">钢管 <span class="link">＋</span></span>
+          <span class="chip">黑伞 <span class="link">＋</span></span><span class="chip">城郊废品回收站·暴雨夜 <span class="link">＋</span></span>
+        </div>
+
+        <div class="sect-t">分镜文生图提示词</div>
+        <textarea class="prompt-ta">暴雨夜。城郊废品回收站俯拍全景：24mm 广角镜头静止俯视，锈死龙门吊横贯画面中轴线，左侧堆叠库存车壳如倾斜墓碑群；地面浑浊积水没过脚踝，泛着黄褐反光，倒映七束晃动的手电光斑……电影级质感，HD 高清画质。</textarea>
+
+        <div class="presets">
+          <span class="plab">预置片段：</span>
+          <span class="preset">电影级质感</span><span class="preset">HD 高清</span><span class="preset">浅景深</span>
+          <span class="preset">体积光</span><span class="preset">35mm 胶片颗粒</span><span class="preset">广角畸变</span><span class="preset">禁字幕水印</span>
+        </div>
+
+        <div class="refs">
+          <span class="sect-t" style="margin:0">参考图(图生图)：</span>
+          <div class="ref-th"><div class="tag">@图1</div></div>
+          <div class="ref-th"><div class="tag">@图2</div></div>
+          <div class="ref-add">＋</div>
+          <span class="mode-badge">图文生图（自动判定）</span>
+        </div>
+
+        <div class="acts">
+          <button class="btn-sec">✦ 生成提示词</button>
+          <button class="btn-sec">保存</button>
+          <span class="grow"></span>
+          <button class="btn-gen">✦ 生成分镜图</button>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <div class="sect-t">镜头细节（电影级）</div>
+        <div class="detail-grid">
+          <div><label>焦线</label><select><option>废品回收站全景</option></select></div>
+          <div><label>轴线</label><select><option>N</option><option>L</option><option>R</option></select></div>
+          <div><label>同期声</label><select><option>同期声</option></select></div>
+        </div>
+        <div class="detail-row"><label>主体</label><input type="text" value="废品回收站全景：成山废铁、锈死龙门吊、积水地面倒映晃动手电光"></div>
+        <div class="detail-row"><label>朝向</label><input type="text" value="无主体运动"></div>
+      </div>
+    </div>
+
+    <!-- 右：分镜图大预览（sticky） -->
+    <div class="panel preview-panel">
+      <div class="sect-t">分镜图（1）</div>
+      <div class="pv">点「生成分镜图」后在此显示</div>
+      <div class="ar">
+        <div class="arb">9:16</div><div class="arb on">16:9</div><div class="arb">1:1</div>
+      </div>
+      <div class="pv-cap">画幅 16:9 · 单张 · 点击放大</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
