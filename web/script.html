@@ -156,7 +156,7 @@
 
   <!-- 本阶段参数 + 题材/风格继承提示 -->
   <div class="parambar">
-    <div class="grp"><label>集数</label><input type="number" id="epCount" value="12" min="1" max="20"></div>
+    <div class="grp"><label>集数</label><input type="number" id="epCount" value="12" min="1" max="999"></div>
     <div class="grp"><label>单集时长</label><input type="number" id="durSec" value="60" min="10" max="600"><label>秒</label></div>
     <div class="grp"><label>语言风格</label>
       <select id="langStyle">
@@ -240,16 +240,15 @@ function saveLocal() {
 }
 function restoreLocal() {
   let s; try { s = JSON.parse(localStorage.getItem(LS_SCRIPT) || "null"); } catch {}
-  if (!s) return;
-  if (s.epCount) $("epCount").value = s.epCount;
-  if (s.durSec) $("durSec").value = s.durSec;
-  if (s.langStyle) $("langStyle").value = s.langStyle;
-  EPISODES = Array.isArray(s.episodes) ? s.episodes : [];
-  Object.assign(epStatus, s.status || {});
-  Object.assign(epContent, s.content || {});
+  if (s && s.epCount) $("epCount").value = s.epCount;
+  if (s && s.durSec) $("durSec").value = s.durSec;
+  if (s && s.langStyle) $("langStyle").value = s.langStyle;
+  EPISODES = (s && Array.isArray(s.episodes)) ? s.episodes : [];
+  Object.assign(epStatus, (s && s.status) || {});
+  Object.assign(epContent, (s && s.content) || {});
   renderEpList();
   $("btnAll").disabled = EPISODES.length === 0;
-  if (s.active && EPISODES.some((e) => e.id === s.active)) selectEp(s.active);
+  if (s && s.active && EPISODES.some((e) => e.id === s.active)) selectEp(s.active);
 }
 
 /* ---------- 二次打开：从后端读回分集/正文（BUGD 契约） ----------
@@ -652,6 +651,31 @@ async function init() {
   renderEpList();
   restoreLocal();             // 即时占位：参数 + 上次分集/正文（无后端/离线时即终态）
   readSelectedIdea();         // 显示立意页选定的立意（继承上下文）
+  /* P0-6: 继承立意页集数（若脚本页从未保存过 epCount，从 ideate localStorage 回读） */
+  if (!$("epCount").dataset.inherited) {
+    try {
+      const ideateKey = "nuomi.ideate.state." + (PROJECT_DIR || "noproj");
+      const ideateRaw = localStorage.getItem(ideateKey);
+      if (ideateRaw) {
+        const ideateState = JSON.parse(ideateRaw);
+        if (ideateState.episodes != null) {
+          const epFromIdeate = parseInt(String(ideateState.episodes), 10);
+          if (!isNaN(epFromIdeate) && epFromIdeate >= 1) {
+            // 仅当脚本页自身未存过 epCount 时才继承（用户改过就不再覆盖）
+            let savedEpCount = null;
+            try {
+              const s = JSON.parse(localStorage.getItem(LS_SCRIPT) || "null");
+              if (s && s.epCount) savedEpCount = s.epCount;
+            } catch (_) {}
+            if (savedEpCount == null) {
+              $("epCount").value = epFromIdeate;
+              $("epCount").dataset.inherited = "1";
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
   showInheritedContext();     // 域W3：只读显示当前选中题材/风格名
   try {
     await loadFromBackend();  // 二次打开：后端有则覆盖；读不到静默保留 localStorage

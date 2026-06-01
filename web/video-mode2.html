@@ -1311,7 +1311,10 @@ function onDragMove(e) {
   const durEl = clipEl.querySelector('.clip-dur'); if (durEl) durEl.textContent = fmtDur(newDuration);
   const al = alignLine();
   al.style.display = snapped ? 'block' : 'none';
-  if (snapped) al.style.left = (ss * TIME_SCALE) + "px";
+  if (snapped) {
+    const endSnapped = Math.abs(se - proposedEnd) > 0.0001;
+    al.style.left = (endSnapped ? se : ss) * TIME_SCALE + "px";
+  }
 }
 
 function onDragEnd() {

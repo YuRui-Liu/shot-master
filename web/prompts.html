@@ -260,7 +260,7 @@ function saveLocal() {
     }));
   } catch {}
 }
-function restoreLocal() {
+async function restoreLocal() {
   let s; try { s = JSON.parse(localStorage.getItem(LS_PROMPTS) || "null"); } catch {}
   if (s) {
     if (typeof s.charRefs === "boolean") $("charRefs").checked = s.charRefs;
@@ -270,6 +270,19 @@ function restoreLocal() {
     if (s.gridMode) $("gridMode").value = s.gridMode;
     Object.assign(fileStatus, s.status || {});
     Object.assign(fileContent, s.content || {});
+  }
+  // P1-5: 当 localStorage 无 gridMode 时，回退到服务器配置 prompts_default_grid
+  if (!(s && s.gridMode)) {
+    try {
+      const r = await fetch(MEDIA_API + "/config?_=" + Date.now());
+      if (r.ok) {
+        const cfg = await r.json();
+        const cfgGrid = cfg.prompts_default_grid;
+        if (cfgGrid && ['single', '4', '9'].includes(String(cfgGrid))) {
+          $("gridMode").value = String(cfgGrid);
+        }
+      }
+    } catch (_) {}
   }
   inheritEpisodes();
   renderEpbar();

@@ -310,7 +310,7 @@ def _do_ltx(req: LtxRequest) -> dict:
         spec_kwargs["epsilon"] = float(req.epsilon)
 
     # 分辨率：自定义宽高优先；否则预设串。
-    if req.custom_w and req.custom_h:
+    if req.use_custom_resolution:
         spec_kwargs["use_custom_resolution"] = True
         spec_kwargs["custom_width"] = int(req.custom_w)
         spec_kwargs["custom_height"] = int(req.custom_h)

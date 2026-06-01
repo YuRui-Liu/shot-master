@@ -185,8 +185,6 @@
   .lightbox .lb-close { position: absolute; top: -36px; right: 0; color: var(--fg2); font-size: 22px; cursor: pointer; padding: 8px; }
   .lightbox .lb-close:hover { color: var(--fg); }
   .lightbox .lb-info { position: absolute; bottom: -30px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 11px; }
-  .preview { cursor: pointer; }  /* 可点击放大 */
-  .preview:hover { border-color: var(--mauve); }
 
   /* ===== 工作模式切换 seg ===== */
   .mode-seg {
@@ -576,7 +574,8 @@
           画幅 9:16 · 短剧竖屏<br>
           单图 HD · 视频基底帧
         </div>
-        <!-- 全屏灯箱预览（点击分镜图打开） -->
+        <button class="btn-go" id="sidePreviewBtn" style="width:100%;margin-top:10px;">🔍 预览</button>
+        <!-- 全屏灯箱预览（点击预览按钮打开） -->
         <div class="lightbox" id="imgLightbox" hidden>
           <div class="lb-overlay" id="lbOverlay"></div>
           <div class="lb-body">
@@ -848,14 +847,17 @@
     }, { once: true });
   }
 
-  // ---- 灯箱：点击分镜图全屏查看 ----
+  // ---- 灯箱：点击预览按钮全屏查看 ----
   function setupLightbox() {
     const lb = $("imgLightbox"), lbImg = $("lbImg"), lbClose = $("lbClose"), lbOverlay = $("lbOverlay"), lbInfo = $("lbInfo");
     if (!lb || !lbImg) return;
-    const pv = $("preview");
-    if (pv) pv.addEventListener("click", (e) => {
-      const img = e.target.closest("img._out");
-      if (!img || !img.src) return;
+    // preview button in shot-side opens lightbox
+    const sideBtn = $("sidePreviewBtn");
+    if (sideBtn) sideBtn.addEventListener("click", () => {
+      const pv = $("preview");
+      if (!pv) return;
+      const img = pv.querySelector("img._out");
+      if (!img || !img.src) { toast("当前无分镜图可预览", "warn"); return; }
       lbImg.src = img.src;
       lbInfo.textContent = img.alt || "分镜图原图";
       lb.hidden = false;

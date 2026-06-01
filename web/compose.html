@@ -596,8 +596,8 @@ function renderStrip() {
           if (oldVid) { oldVid.pause(); oldVid.remove(); }
           const src = fileSrc(cl.path.replace(/\\/g, '/'));
           pvBox.innerHTML = `<video src="${src}" controls autoplay preload="auto" style="width:100%;max-height:400px;border-radius:8px;background:#000;"
-            onerror="this.nextElementSibling && (this.nextElementSibling.style.display='')"></video>
-            <div style="display:none;color:var(--muted);font-size:11px;padding:40px;text-align:center;">视频无法播放 · 尝试点击路径直接访问文件</div>`;
+           onerror="var n=this.nextElementSibling;if(n){n.style.display='';n.innerHTML='视频无法播放 &middot; <a href=\\''+this.src+'\\' target=\\'_blank\\' style=\\'color:var(--blue);text-decoration:underline\\'>点击链接直接打开</a>'}"></video>
+          <div style="display:none;color:var(--muted);font-size:11px;padding:40px;text-align:center;"></div>`;
         }
       }
       document.getElementById("pvTag").textContent = `预览：${cl.name}（也可切「整片预览」）`;
@@ -959,7 +959,9 @@ function wireToolbar() {
               const oldVid = pvBox.querySelector("video");
               if (oldVid) { oldVid.pause(); oldVid.remove(); }
               const src = fileSrc(cl.path.replace(/\\/g, '/'));
-              pvBox.innerHTML = `<video src="${src}" controls autoplay style="width:100%;max-height:400px;border-radius:8px;background:#000;"></video>`;
+              pvBox.innerHTML = `<video src="${src}" controls autoplay style="width:100%;max-height:400px;border-radius:8px;background:#000;"
+           onerror="var n=this.nextElementSibling;if(n){n.style.display='';n.innerHTML='视频无法播放 &middot; <a href=\\''+this.src+'\\' target=\\'_blank\\' style=\\'color:var(--blue);text-decoration:underline\\'>点击链接直接打开</a>'}"></video>
+          <div style="display:none;color:var(--muted);font-size:11px;padding:40px;text-align:center;"></div>`;
             }
           } else {
             toast("请先选中一个视频片段");

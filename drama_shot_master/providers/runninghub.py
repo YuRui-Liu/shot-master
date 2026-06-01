@@ -186,6 +186,7 @@ def _guess_mime(path: Path) -> str:
         ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
         ".webp": "image/webp",
         ".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac",
+        ".m4a": "audio/mp4", ".ogg": "audio/ogg", ".aac": "audio/aac", ".wma": "audio/x-ms-wma",
         ".mp4": "video/mp4", ".mov": "video/quicktime",
     }.get(ext, "application/octet-stream")
 
@@ -226,7 +227,7 @@ class RunningHubClient:
             resp = _retry_transient(_do_upload)
             if resp.status_code >= 400:
                 raise RunningHubUploadError(
-                    f"upload HTTP {resp.status_code}: {resp.text[:300]}")
+                    f"upload HTTP {resp.status_code}: {resp.text}")
             data = resp.json()
             if data.get("code") != 0:
                 msg = data.get("msg") or data.get("message") or ""
