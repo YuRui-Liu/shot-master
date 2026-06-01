@@ -501,9 +501,7 @@
     <div class="work-head">
       <h1>④ 视频生成 · CLIPS<span id="taskTitle" style="color:var(--mauve);font-weight:600;"> · 任务1</span></h1>
       <select class="shot-select" id="sceneSelect">
-        <option>1-1 城郊废品回收站</option>
-        <option>1-2 审讯室对峙</option>
-        <option>2-1 雨夜天台</option>
+        <option>加载剧集…</option>
       </select>
       <div class="task-switch">
         <span class="lbl">并行任务</span>
@@ -1508,51 +1506,190 @@ async function dirGenerateAll() {
 }
 
 /* ================================================================
-   ===== 模式2 · 剧集分镜对齐（SHOT 卡列表） =====
+   ===== 模式2 · 剧集分镜对齐（对齐真实分镜：SHOT 卡列表） =====
+   读真实 分镜_E{id}.json（共享契约：MEDIA_API /project/files + /file），
+   按 shots 顺序渲染 SHOT 卡（不再用静态假数据）。无分镜→友好空态。
    ================================================================ */
-const SHOTS = [
-  { n: 1, meta: ["全景", "俯拍", "固定", "4s"], desc: "雨夜废品场全景\n人群打伞站立", frame: "" },
-  { n: 2, meta: ["中景", "平视", "缓慢推", "3s"], desc: "男主蹲于废铁堆\n翻看地图", frame: "" },
-  { n: 3, meta: ["近景", "过肩（秦烈肩后）", "固定", "2s"], desc: "面部特写\n眼神警觉", frame: "" }
-];
 const PLACEHOLDER = "点「✦ 生成提示词」由 AI 看图生成 LTX 视频提示词，或先选「范例」模板填入再编辑…";
 
+/* 模式2 真实状态：
+   episodes [{id, path, file}]（来自 列集/读分镜 推断）；
+   activeEp 当前集 id；shots 当前集渲染用镜头数组（已规整字段）。 */
+const sbState = { episodes: [], activeEp: EPISODE_ID, shots: [], title: "", aspectRatio: "" };
+
+/* 一个 shot 缩略图候选字段（分镜 JSON 若有出图产物路径则用之，否则空） */
+function shotFrame(s) {
+  if (!s || typeof s !== "object") return "";
+  return s.mediaUrl || s.media_url || s.image || s.firstFrame || s.first_frame || s.frame || s.path || "";
+}
+function shotMeta(s) {
+  const m = [];
+  if (s.composition) m.push(String(s.composition));
+  const dur = (typeof s.duration === "number") ? s.duration : parseFloat(s.duration);
+  if (!isNaN(dur) && dur > 0) m.push(dur + "s");
+  return m;
+}
+function shotDesc(s) {
+  return String(s.description || s.stylePrompt || "").trim() || "（无描述）";
+}
+
+/* [列集] 优先 剧本_E*.md 推断集列表；其次 分镜_E*.json；旧 分镜.json→E1。
+   返回 [{id, path}]（按集号升序），并回填 #sceneSelect 下拉。 */
+async function listEpisodes() {
+  const out = {};   // id → {id, path}
+  if (PROJECT_DIR && MEDIA_API) {
+    // 1) 剧本_E*.md（推断集列表）
+    try {
+      const r = await fetch(MEDIA_API + "/project/files?" + new URLSearchParams({ project: PROJECT_DIR, ext: "md" }));
+      if (r.ok) {
+        const j = await r.json().catch(() => null);
+        (j && Array.isArray(j.files) ? j.files : []).forEach((f) => {
+          const m = (f && f.name || "").match(/^剧本_(E\d+)\.md$/);
+          if (m) out[m[1]] = { id: m[1], path: f.path || f.name };
+        });
+      }
+    } catch (_) {}
+    // 2) 分镜_E*.json（兜底+取分镜路径）
+    try {
+      const r = await fetch(MEDIA_API + "/project/files?" + new URLSearchParams({ project: PROJECT_DIR, ext: "json" }));
+      if (r.ok) {
+        const j = await r.json().catch(() => null);
+        (j && Array.isArray(j.files) ? j.files : []).forEach((f) => {
+          const name = f && f.name || "";
+          const m = name.match(/^分镜_(E\d+)\.json$/);
+          const id = m ? m[1] : (name === "分镜.json" ? "E1" : null);
+          if (id && !out[id]) out[id] = { id, path: f.path || name };
+        });
+      }
+    } catch (_) {}
+  }
+  const list = Object.values(out).sort(
+    (a, b) => (parseInt((a.id || "").slice(1), 10) || 0) - (parseInt((b.id || "").slice(1), 10) || 0)
+  );
+  sbState.episodes = list;
+
+  const sel = document.getElementById("sceneSelect");
+  if (sel) {
+    if (list.length) {
+      sel.innerHTML = list.map((e) => `<option value="${e.id}">${e.id}${e.title ? " " + e.title : ""}</option>`).join("");
+      if (!list.some((e) => e.id === sbState.activeEp)) sbState.activeEp = list[0].id;
+      sel.value = sbState.activeEp;
+    } else {
+      sel.innerHTML = `<option value="${EPISODE_ID}">${EPISODE_ID}（无分镜）</option>`;
+    }
+  }
+  return list;
+}
+
+/* [读分镜] 读单集 分镜_E{id}.json → 规整 shots 写入 sbState；解析失败→空。 */
+async function loadStoryboard(epId) {
+  sbState.activeEp = epId;
+  sbState.shots = []; sbState.title = ""; sbState.aspectRatio = "";
+  if (!PROJECT_DIR || !MEDIA_API) return [];
+
+  // 先用 列集 已知路径，否则按命名约定拼 分镜_E{id}.json
+  let path = "";
+  const hit = sbState.episodes.find((e) => e.id === epId);
+  // 列集里 path 可能是 剧本_E*.md，分镜需独立文件名
+  if (hit && /分镜_E\d+\.json$/.test(hit.path || "")) path = hit.path;
+  if (!path) path = "分镜_" + epId + ".json";
+
+  let sb = null;
+  try {
+    const r = await fetch(MEDIA_API + "/file?" + new URLSearchParams({ path, project: PROJECT_DIR }));
+    if (r.ok) sb = JSON.parse(await r.text());
+  } catch (_) { sb = null; }
+  // 旧 分镜.json 兜底（仅 E1）
+  if (!sb && epId === "E1") {
+    try {
+      const r = await fetch(MEDIA_API + "/file?" + new URLSearchParams({ path: "分镜.json", project: PROJECT_DIR }));
+      if (r.ok) sb = JSON.parse(await r.text());
+    } catch (_) { sb = null; }
+  }
+  if (sb && typeof sb === "object") {
+    sbState.title = sb.title || "";
+    sbState.aspectRatio = sb.aspectRatio || "";
+    sbState.shots = Array.isArray(sb.shots) ? sb.shots : [];
+  }
+  return sbState.shots;
+}
+
+/* 渲染当前集 shots → SHOT 卡（对齐真实分镜）。data-shot 用 1..N 顺序号，
+   data-shotid 存真实 shotId，以便提示词回填/i2v 取首帧对齐。 */
 function renderShots() {
   const root = document.getElementById("shots");
+  if (!root) return;
+  const shots = sbState.shots || [];
+  if (!shots.length) {
+    root.innerHTML = `
+      <div class="shot" style="justify-content:center;text-align:center;">
+        <div class="body" style="align-items:center;gap:8px;">
+          <div class="meta" style="font-size:14px;color:var(--fg2);">该集暂无分镜数据</div>
+          <div style="color:var(--faint);font-size:12.5px;line-height:1.7;">
+            请先到「③ 分镜板」生成本集分镜（分镜_${sbState.activeEp}.json），<br>
+            或在上方下拉切换到已生成分镜的剧集。
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
   root.innerHTML = "";
-  SHOTS.forEach((s) => {
+  shots.forEach((s, i) => {
+    const n = i + 1;                               // 顺序号（卡片/回填用）
+    const shotId = (s.shotId != null && s.shotId !== "") ? String(s.shotId) : String(n);
+    const frame = shotFrame(s);
+    const meta = shotMeta(s);
+    const desc = shotDesc(s);
     const card = document.createElement("div");
     card.className = "shot";
-    const meta = s.meta.map((m, i) => i === s.meta.length - 1 ? `<span class="dur">${m}</span>` : `<span>${m}</span>`).join('<span class="sep">·</span>');
-    const thumbInner = s.frame
-      ? `<img src="${mediaUrl(s.frame)}" alt="" onerror="this.style.display='none'"><div class="ph">${s.desc.replace(/\n/g, "<br>")}</div>`
-      : `<div class="ph">${s.desc.replace(/\n/g, "<br>")}</div>`;
+    const metaHtml = meta.length
+      ? meta.map((m, mi) => mi === meta.length - 1 ? `<span class="dur">${m}</span>` : `<span>${m}</span>`).join('<span class="sep">·</span>')
+      : `<span style="color:var(--faint);">无构图/时长信息</span>`;
+    const descHtml = String(desc).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])).replace(/\n/g, "<br>");
+    const thumbInner = frame
+      ? `<img src="${mediaUrl(frame)}" alt="" onerror="this.style.display='none'"><div class="ph">${descHtml}</div>`
+      : `<div class="ph">${descHtml}</div>`;
     card.innerHTML = `
       <div class="thumb">
         ${thumbInner}
-        <div class="ord">第 ${s.n} 个 · 自动对齐</div>
-        <div class="tag">SHOT ${s.n}</div>
+        <div class="ord">第 ${n} 个 · 自动对齐</div>
+        <div class="tag">SHOT ${shotId}</div>
       </div>
       <div class="body">
-        <div class="meta">${meta}</div>
+        <div class="meta">${metaHtml}</div>
         <div class="prompt-label">
           <span class="name">LTX 2.3 视频提示词</span>
           <span class="ltx-pill">单段流式 · 现在时 · 长度∝时长</span>
         </div>
-        <textarea class="pane2-textarea" data-shot="${s.n}" placeholder="${PLACEHOLDER}"></textarea>
-        <div class="examples" data-shot="${s.n}">
+        <textarea class="pane2-textarea" data-shot="${n}" data-shotid="${shotId}" placeholder="${PLACEHOLDER}">${s.stylePrompt ? String(s.stylePrompt).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])) : ""}</textarea>
+        <div class="examples" data-shot="${n}">
           <span class="lab">范例：</span>
           ${LTX_TEMPLATES.map(t => `<span class="chip" data-tpl="${t.id}" title="${t.title}">${t.name}</span>`).join("")}
         </div>
         <div class="actions">
-          <button class="btn-gen" data-act="gen" data-shot="${s.n}">✦ 生成提示词</button>
-          <button class="btn-save" data-act="save" data-shot="${s.n}">保存</button>
+          <button class="btn-gen" data-act="gen" data-shot="${n}">✦ 生成提示词</button>
+          <button class="btn-save" data-act="save" data-shot="${n}">保存</button>
           <span class="grow"></span>
-          <button class="btn-i2v" data-act="i2v" data-shot="${s.n}">► 图生视频</button>
+          <button class="btn-i2v" data-act="i2v" data-shot="${n}">► 图生视频</button>
         </div>
-        <div class="vid-result" data-result="${s.n}"></div>
+        <div class="vid-result" data-result="${n}"></div>
       </div>`;
     root.appendChild(card);
+  });
+}
+
+/* 把 /video_prompt 的 shots 结果按顺序回填到真实卡（对齐分镜）。
+   优先按 shotId 匹配；匹配不到则退化为顺序号（卡 n=1..N 对应 data shots[n-1]）。 */
+function fillPromptsFromData(data) {
+  const tas = Array.from(document.querySelectorAll("#pane2 textarea[data-shot]"));
+  if (!tas.length || !data) return;
+  tas.forEach((t) => {
+    const n = t.getAttribute("data-shot");
+    const sid = t.getAttribute("data-shotid");
+    // 先按真实 shotId 取，再退化按顺序号取
+    let p = sid ? shotPromptFromData(data, sid) : "";
+    if (!p) p = shotPromptFromData(data, n);
+    if (p) t.value = p;
   });
 }
 
@@ -1584,13 +1721,7 @@ function wireActions() {
         const orig = btn.textContent;
         const obj = await runVideoPrompt({
           onStatus: (m) => { btn.textContent = "✦ " + m; },
-          onShots: (data) => {
-            document.querySelectorAll("#pane2 textarea[data-shot]").forEach((t) => {
-              const sn = t.getAttribute("data-shot");
-              const p = shotPromptFromData(data, sn);
-              if (p) t.value = p;
-            });
-          },
+          onShots: (data) => fillPromptsFromData(data),
           onError: (err) => { ta.value = "⚠ " + (err.hint || err.message || "生成失败"); },
         });
         btn.textContent = obj ? "✦ 已生成" : orig;
@@ -1602,13 +1733,14 @@ function wireActions() {
         btn.dataset.busy = "1";
         const orig = "► 图生视频";
         const slot = document.querySelector(`.vid-result[data-result="${n}"]`);
-        const shot = SHOTS.find((s) => String(s.n) === String(n));
+        const shot = sbState.shots[parseInt(n, 10) - 1] || null;   // 顺序号 → 真实分镜
+        const shotId = ta.getAttribute("data-shotid") || n;
         btn.disabled = true; btn.textContent = "⏳ 生成中…";
         if (slot) slot.innerHTML = "";
         try {
           const res = await runVideoLtx({
-            prompt: ta.value, firstFrame: shot ? shot.frame : "",
-            baseName: "shot_" + n, mode: wfToMode(document.getElementById("workflowSelect2").value),
+            prompt: ta.value, firstFrame: shot ? shotFrame(shot) : "",
+            baseName: "shot_" + shotId, mode: wfToMode(document.getElementById("workflowSelect2").value),
           });
           renderVideoOk(slot, res); btn.textContent = "✓ 已生成";
         } catch (err) { renderVideoErr(slot, err); btn.textContent = "⚠ 生成失败"; }
@@ -1624,14 +1756,10 @@ function wireMode2Extract() {
     if (btn.dataset.busy === "1") return;
     btn.dataset.busy = "1";
     const orig = btn.textContent;
+    if (!sbState.shots.length) { btn.textContent = "无分镜可提取"; setTimeout(() => { btn.textContent = orig; btn.dataset.busy = ""; }, 1600); return; }
     await runVideoPrompt({
       onStatus: (m) => { btn.textContent = "✦ " + m; },
-      onShots: (data) => {
-        document.querySelectorAll("#pane2 textarea[data-shot]").forEach((t) => {
-          const p = shotPromptFromData(data, t.getAttribute("data-shot"));
-          if (p) t.value = p;
-        });
-      },
+      onShots: (data) => fillPromptsFromData(data),
       onError: () => {},
     });
     btn.textContent = "✦ 已提取";
@@ -1688,15 +1816,44 @@ function wireTaskSwitch() {
   renderTaskMenu(); refreshTaskHeader();
 }
 
+/* ===== 模式2 整体刷新：渲染卡 + 重绑交互 + 对齐提示 ===== */
+function refreshMode2() {
+  renderShots();
+  wireExamples();
+  wireActions();
+  const note = document.getElementById("alignCount");
+  if (note) note.textContent = sbState.shots.length
+    ? `已按分镜顺序自动对齐 ${sbState.shots.length} 个镜头`
+    : "该集暂无分镜";
+}
+
+/* 选集下拉：切集 → 读分镜 → 重渲 */
+function wireSceneSelect() {
+  const sel = document.getElementById("sceneSelect");
+  if (!sel) return;
+  sel.addEventListener("change", async () => {
+    sel.disabled = true;
+    await loadStoryboard(sel.value);
+    refreshMode2();
+    sel.disabled = false;
+  });
+}
+
+/* 进模式2/选集：列集 → 读当前集分镜 → 渲染（替换静态假数据） */
+async function initMode2() {
+  await listEpisodes();
+  await loadStoryboard(sbState.activeEp);
+  refreshMode2();
+}
+
 /* ===== 启动 ===== */
 wireModes();
 wireDirector();
-renderShots();
-wireExamples();
-wireActions();
+wireSceneSelect();
 wireMode2Extract();
 wireTaskSwitch();
-document.getElementById("alignCount").textContent = `已按分镜顺序自动对齐 ${SHOTS.length} 个镜头`;
+renderShots();                 // 首帧占位（数据到达前空态）
+initMode2();                   // 异步拉真实分镜后重渲
 </script>
 </body>
 </html>
