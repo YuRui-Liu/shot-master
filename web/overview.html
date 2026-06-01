@@ -286,12 +286,15 @@ function renderFlow(stages) {
    {clips:[{name, path(posix), kind:"image"|"video", size}]}。
    从若干常见出图/视频输出目录拉取并合并，取最近的若干条；无→空态。 */
 const RECENT_MAX = 8;
-// 出图(shots)、视频碎片(clips)、成片(exports) 输出目录 + 项目根。
+// 真实产物输出目录（与项目文件规范一致）：出图 imggen/、分镜图 storyboard/、视频 video/、
+// 角色/场景 ref 图 characters//scenes/、成片 exports/。原 shots/clips/exports 是错目录名→恒空→"暂无产物"。
 const RECENT_SUBS = [
-  { sub: "shots",   label: "出图" },
-  { sub: "clips",   label: "视频" },
-  { sub: "exports", label: "成片" },
-  { sub: "",        label: "产物" },
+  { sub: "imggen",     label: "出图" },
+  { sub: "storyboard", label: "分镜图" },
+  { sub: "video",      label: "视频" },
+  { sub: "characters", label: "角色图" },
+  { sub: "scenes",     label: "场景图" },
+  { sub: "exports",    label: "成片" },
 ];
 
 function renderRecentEmpty(msg) {
