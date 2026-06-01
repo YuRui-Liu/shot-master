@@ -372,6 +372,68 @@
   .task-table .row-op:hover { color: var(--blue); border-color: var(--blue-dim); }
   .task-table .row-op.del:hover { color: var(--err); border-color: #6e3a45; }
   .tasks-empty { color: var(--faint); font-size: 12px; padding: 14px 4px; text-align: center; }
+
+  /* ===== 出图 = 生图工作室（仅 imggen 工具用；拆/拼/去白边 仍用 grid-col+panel-col）===== */
+  /* 出图模式下隐藏通用网格批处理体与底部执行栏，改用 studio-body */
+  .batch-win.studio-mode .batch-body { display: none; }
+  .batch-win.studio-mode .execbar { display: none; }
+  /* 非出图时隐藏 studio 体 */
+  .batch-win:not(.studio-mode) .studio-body { display: none; }
+
+  .studio-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  /* ① 提示词 HERO（视觉中心，全宽大编辑区） */
+  .composer { flex-shrink: 0; padding: 16px 20px; border-bottom: 1px solid var(--border-lo); background: linear-gradient(180deg, rgba(74,158,255,.05), transparent); }
+  .composer .clab { font-size: 12px; color: var(--periw); font-weight: 700; letter-spacing: .5px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .composer .clab .star { color: var(--blue); }
+  .composer .clab .mode-badge { margin-left: auto; font-size: 10.5px; color: var(--blue); background: rgba(74,158,255,.12); border: 1px solid var(--blue-dim); border-radius: 9px; padding: 2px 9px; font-weight: 400; }
+  .prompt-hero { width: 100%; box-sizing: border-box; min-height: 116px; resize: vertical; font: inherit; font-size: 14px; line-height: 1.7;
+    background: var(--field); border: 1.5px solid var(--blue-dim); border-radius: 12px; color: var(--fg); padding: 14px 16px; outline: none; box-shadow: 0 0 0 1px rgba(74,158,255,.12) inset; }
+  .prompt-hero:focus { border-color: var(--blue); }
+  /* 预置专业片段（醒目一排） */
+  .presets { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; align-items: center; }
+  .presets .plab { font-size: 11.5px; color: var(--muted); margin-right: 2px; }
+  .preset { font: inherit; font-size: 11.5px; color: var(--periw); background: rgba(138,127,217,.14); border: 1px solid #4a3d6e; border-radius: 13px; padding: 5px 12px; cursor: pointer; }
+  .preset:hover { background: rgba(138,127,217,.24); }
+  /* 参考图 + 参数 + 生成 同一行 */
+  .ctrl-row { display: flex; align-items: center; gap: 18px; margin-top: 13px; flex-wrap: wrap; }
+  .refs { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+  .refs .rl { font-size: 11.5px; color: var(--muted); }
+  .ref-th { width: 68px; height: 68px; border-radius: 9px; background: linear-gradient(135deg,#2a2d42,#1a1c2e) center/cover no-repeat; border: 1px solid var(--border-lo); position: relative; overflow: hidden; cursor: pointer; }
+  .ref-th .tag { position: absolute; left: 0; right: 0; bottom: 0; font-size: 9.5px; background: rgba(0,0,0,.6); color: #9cc7ff; text-align: center; padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ref-th .ops { position: absolute; top: 2px; right: 2px; display: flex; gap: 3px; opacity: 0; transition: opacity .12s; }
+  .ref-th:hover .ops { opacity: 1; }
+  .ref-th .op { width: 17px; height: 17px; border-radius: 4px; font-size: 10px; line-height: 17px; text-align: center; background: rgba(8,9,16,.82); color: var(--fg2); border: 1px solid var(--border); }
+  .ref-th .op:hover { color: var(--blue); border-color: var(--blue-dim); }
+  .ref-add { width: 68px; height: 68px; border-radius: 9px; border: 1px dashed var(--border); display: grid; place-items: center; color: var(--faint); font-size: 18px; cursor: pointer; }
+  .ref-add:hover { border-color: var(--blue-dim); color: var(--blue); }
+  .params { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .params .pg { display: flex; align-items: center; gap: 6px; }
+  .params .pg label { font-size: 11.5px; color: var(--muted); }
+  .params .pg select, .params .pg input[type=number] { font-size: 12px; padding: 5px 8px; }
+  .params .pg input[type=range] { width: 88px; accent-color: var(--blue); }
+  .ctrl-row .grow { flex: 1; }
+  .btn-gen { font: inherit; font-size: 14px; font-weight: 700; padding: 11px 26px; border-radius: 9px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; box-shadow: 0 6px 18px rgba(74,158,255,.3); white-space: nowrap; }
+  .btn-gen:disabled { opacity: .6; cursor: default; }
+  /* ② 结果画廊 */
+  .gallery-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .gallery-head { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--border-lo); flex-shrink: 0; }
+  .gallery-head .t { font-size: 12.5px; font-weight: 600; }
+  .gallery-head .cnt { font-size: 10px; color: #cdbcf5; border: 1px solid #4a3d6e; border-radius: 9px; padding: 1px 9px; }
+  .gallery-head .sp { flex: 1; }
+  .gallery-head .prog { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--muted); }
+  .gallery-head .bar { width: 160px; height: 6px; background: var(--field); border-radius: 3px; overflow: hidden; }
+  .gallery-head .fill { width: 0; height: 100%; background: linear-gradient(90deg, var(--blue), var(--periw)); transition: width .3s; }
+  .gallery { flex: 1; overflow: auto; padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; align-content: start; }
+  .gcard { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: #10131f; aspect-ratio: 16/9; position: relative; }
+  .gcard img { width: 100%; height: 100%; object-fit: cover; display: block; background: linear-gradient(135deg,#243a5a,#3a2746); }
+  .gcard .cap { position: absolute; left: 0; right: 0; bottom: 0; font-size: 9.5px; color: #cfd3e0; background: linear-gradient(transparent, rgba(8,9,16,.85)); padding: 14px 8px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gallery-empty { grid-column: 1/-1; color: var(--faint); font-size: 13px; text-align: center; padding: 50px 12px; }
+  /* outdir 内 打开 / 刷新 按钮 */
+  .outdir .open, .outdir .refresh { border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; color: var(--muted); }
+  .outdir .open:hover { color: var(--fg2); border-color: var(--blue-dim); }
+  .outdir .refresh { color: var(--blue); border-color: var(--blue-dim); }
+  .outdir .refresh:hover { background: rgba(74,158,255,.12); }
 </style>
 </head>
 <body>
@@ -564,6 +626,53 @@
           <span>输出目录</span>
           <span class="path" id="outDir">D:/works/ep01/tiles_out</span>
           <span class="pick" id="pickDir">选择…</span>
+          <span class="open" id="openOutDir">打开</span>
+          <span class="refresh" id="refreshOutDir">↻ 刷新</span>
+        </div>
+      </div>
+
+      <!-- ===== 出图 = 生图工作室（仅 imggen 工具显示；其余工具显示下方 batch-body） ===== -->
+      <div class="studio-body">
+        <!-- ① 提示词 HERO -->
+        <div class="composer">
+          <div class="clab"><span class="star">✦</span> 提示词（文生图 / 图生图）<span class="mode-badge" id="studioMode">文生图（自动）</span></div>
+          <textarea class="prompt-hero" id="studioPrompt" placeholder="描述本次出图画面…电影级质感，HD 高清画质。"></textarea>
+          <div class="presets" id="studioPresets">
+            <span class="plab">预置专业片段：</span>
+          </div>
+          <div class="ctrl-row">
+            <div class="refs" id="studioRefs"><span class="rl">参考图:</span>
+              <div class="ref-add" id="studioAddRef">＋</div>
+            </div>
+            <div class="params">
+              <div class="pg"><label>画幅</label>
+                <select id="studioAspect">
+                  <option value="16:9">16:9</option>
+                  <option value="9:16">9:16</option>
+                  <option value="1:1">1:1</option>
+                  <option value="4:5">4:5</option>
+                </select>
+              </div>
+              <div class="pg"><label>张数</label><input type="number" id="studioN" value="1" min="1" max="9" style="width:54px"></div>
+              <div class="pg"><label>质量</label>
+                <select id="studioQuality"><option value="hd">2K HD</option><option value="std">1K</option></select>
+              </div>
+              <div class="pg"><label>参考强度</label><input type="range" id="studioStrength" min="0" max="1" step="0.05" value="0.6"></div>
+            </div>
+            <span class="grow"></span>
+            <button class="btn-gen" id="studioGenBtn">✦ 生成出图</button>
+          </div>
+        </div>
+        <!-- ② 结果画廊 -->
+        <div class="gallery-wrap">
+          <div class="gallery-head">
+            <span class="t">生成结果</span><span class="cnt" id="galleryCount">0 张</span>
+            <span class="sp"></span>
+            <span class="prog" id="studioProg" hidden>生成中 <div class="bar"><div class="fill" id="studioProgFill"></div></div> <span id="studioProgText">0 / 0</span></span>
+          </div>
+          <div class="gallery" id="studioGallery">
+            <div class="gallery-empty" id="galleryEmpty">尚无生成结果。填写提示词后点「✦ 生成出图」，或点「↻ 刷新」从输出目录载入已有图。</div>
+          </div>
         </div>
       </div>
 
@@ -575,7 +684,8 @@
             <span class="bmode" id="gridMode">多选 · 已选 3 张</span>
             <span class="gh-sp"></span>
             <span class="mini" id="addSrc">＋ 添加源图…</span>
-            <span class="mini" id="openDir">打开目录…</span>
+            <span class="mini" id="openDir">打开目录</span>
+            <span class="mini" id="refreshSrc">↻ 刷新</span>
             <span class="mini" id="selAll">全选</span>
             <span class="mini" id="selClear">清空</span>
           </div>
@@ -1269,16 +1379,17 @@
   let curTool = "imggen";
 
   // 预制专业提示词片段库（照搬 drama_shot_master/core/imggen_presets.py 的 QUICK_PROMPTS）
+  // 顺序对齐确认稿：三视图 / 人设 / 特写 / 中焦 / 广角 / 360° / 2D / 3D / 国漫
   const QUICK_PROMPTS = [
     ["三视图", "三视图（正面、侧面、背面），白色纯色背景，人物角色设计图，"],
     ["人设", "角色人设参考图，白色纯色背景，正面、背面、侧面展示，"],
-    ["2D", "2D平面画风，动漫风格，"],
-    ["360°", "生成该图的360全景图，360度水平无死角，180度垂直全视角覆盖，画面完整连贯.首尾无缝衔接，无畸变.无拉伸.无黑边.无裁切"],
-    ["3D", "3D建模风格，CG渲染，"],
-    ["国漫", "中国漫画风格，线条流畅，"],
     ["特写", "特写镜头，面部细节，"],
     ["中焦", "标准镜头，透视正常，"],
     ["广角", "广角镜头，透视变形，场景开阔，"],
+    ["360°", "生成该图的360全景图，360度水平无死角，180度垂直全视角覆盖，画面完整连贯.首尾无缝衔接，无畸变.无拉伸.无黑边.无裁切"],
+    ["2D", "2D平面画风，动漫风格，"],
+    ["3D", "3D建模风格，CG渲染，"],
+    ["国漫", "中国漫画风格，线条流畅，"],
   ];
   // 在文本域光标处插入（无选区则追加）
   function insertAtTextarea(ta, text) {
@@ -1290,91 +1401,268 @@
     } else { ta.value += text; }
     ta.focus();
   }
-  // ---- 自由模式·批量出图参考图（图生图 / @标签）—— batchRefs: [{path,label}] ----
-  let batchRefs = [];
-  function batchNextLabel() {
-    const used = new Set(batchRefs.map(r => r.label));
+
+  /* ============================================================
+     出图 = 生图工作室（仅 imggen 工具）：HERO 提示词 + 预置片段 + 参考图@标签
+     + 画幅/张数/质量/参考强度 + 生成出图 + 结果画廊。
+     接现有后端：单张 POST /imggen/generate；多张拆为 batch_generate（SSE）。
+     ============================================================ */
+  let studioRefs = [];               // [{path,label}] 参考图（图生图 / @标签）
+  let studioGallery = [];            // [{path,cap}] 生成结果（含刷新载入）
+  let studioInited = false;
+
+  function studioMode() {
+    const hasRef = studioRefs.length > 0;
+    const hasTxt = (($("studioPrompt") && $("studioPrompt").value) || "").trim().length > 0;
+    return (hasRef && hasTxt ? "图文生图" : hasRef ? "图生图" : "文生图") + "（自动）";
+  }
+  function updateStudioMode() {
+    const el = $("studioMode");
+    if (el) el.textContent = studioMode();
+  }
+  function studioNextLabel() {
+    const used = new Set(studioRefs.map(r => r.label));
     let i = 1; while (used.has("图" + i)) i++;
     return "图" + i;
   }
-  function updateBatchMode() {
-    const el = $("batchGenMode");
-    if (!el) return;
-    const ta = $("batchPrompt");
-    const hasTxt = ((ta && ta.value) || "").trim().length > 0;
-    const hasRef = batchRefs.length > 0;
-    el.textContent = (hasRef && hasTxt ? "图文生图" : hasRef ? "图生图" : "文生图") + "（自动）";
-  }
-  function renderBatchRefs() {
-    const row = $("batchRefRow");
+  function renderStudioRefs() {
+    const row = $("studioRefs");
     if (!row) return;
-    row.querySelectorAll(".refimg-card").forEach(x => x.remove());
-    const addBtn = $("batchAddRef");
-    batchRefs.forEach((r, idx) => {
-      const card = document.createElement("div");
-      card.className = "refimg-card";
-      card.title = "点击把 @" + r.label + " 插入提示词\n" + r.path;
-      const thumb = document.createElement("div");
-      thumb.className = "thumb";
-      thumb.style.backgroundImage = "url('" + mediaUrl(r.path) + "')";
-      const tag = document.createElement("span");
-      tag.className = "tag";
-      tag.textContent = "@" + r.label;
+    row.querySelectorAll(".ref-th").forEach(x => x.remove());
+    const addBtn = $("studioAddRef");
+    studioRefs.forEach((r, idx) => {
+      const th = document.createElement("div");
+      th.className = "ref-th";
+      th.title = "点击把 @" + r.label + " 插入提示词\n" + r.path;
+      th.style.backgroundImage = "url('" + mediaUrl(r.path) + "')";
+      const tag = document.createElement("div");
+      tag.className = "tag"; tag.textContent = "@" + r.label;
       const ops = document.createElement("div");
       ops.className = "ops";
       ops.innerHTML = '<span class="op rn" title="改名">✎</span><span class="op rm" title="删除">✕</span>';
-      card.appendChild(thumb); card.appendChild(tag); card.appendChild(ops);
-      card.addEventListener("click", (e) => {
+      th.appendChild(tag); th.appendChild(ops);
+      th.addEventListener("click", (e) => {
         if (e.target.closest(".op")) return;
-        insertAtTextarea($("batchPrompt"), "@" + r.label + " ");
+        insertAtTextarea($("studioPrompt"), "@" + r.label + " ");
       });
       ops.querySelector(".rn").addEventListener("click", () => {
-        const v = prompt("参考图 @标签：", r.label);
+        const v = prompt("参考图 @标签（供提示词引用）：", r.label);
         if (v == null) return;
         const name = v.trim().replace(/^@/, "");
-        if (name) { r.label = name; renderBatchRefs(); }
+        if (name) { r.label = name; renderStudioRefs(); }
       });
-      ops.querySelector(".rm").addEventListener("click", () => { batchRefs.splice(idx, 1); renderBatchRefs(); });
-      row.insertBefore(card, addBtn);
+      ops.querySelector(".rm").addEventListener("click", () => { studioRefs.splice(idx, 1); renderStudioRefs(); });
+      row.insertBefore(th, addBtn);
     });
-    updateBatchMode();
+    updateStudioMode();
   }
-  function wireBatchRefs() {
-    const add = $("batchAddRef");
-    if (add) add.addEventListener("click", () => {
+  function renderStudioPresets() {
+    const box = $("studioPresets");
+    if (!box) return;
+    box.querySelectorAll(".preset").forEach(x => x.remove());
+    QUICK_PROMPTS.forEach(([label, text]) => {
+      const c = document.createElement("span");
+      c.className = "preset"; c.textContent = label; c.title = text;
+      c.addEventListener("click", () => insertAtTextarea($("studioPrompt"), text));
+      box.appendChild(c);
+    });
+  }
+  // 画幅 → size 像素串（HD：长边 1920，短边按比例；1K 时长边 1280）
+  function studioSize() {
+    const ar = ($("studioAspect") && $("studioAspect").value) || "16:9";
+    const hd = !($("studioQuality") && $("studioQuality").value === "std");
+    const long = hd ? 1920 : 1280;
+    const map = {
+      "16:9": [long, Math.round(long * 9 / 16)],
+      "9:16": [Math.round(long * 9 / 16), long],
+      "1:1":  [hd ? 1440 : 1024, hd ? 1440 : 1024],
+      "4:5":  [Math.round(long * 4 / 5), long],
+    };
+    const [w, h] = map[ar] || map["16:9"];
+    return w + "x" + h;
+  }
+  // 结果画廊渲染
+  function renderStudioGallery() {
+    const g = $("studioGallery");
+    if (!g) return;
+    g.querySelectorAll(".gcard").forEach(x => x.remove());
+    $("galleryCount").textContent = studioGallery.length + " 张";
+    const empty = $("galleryEmpty");
+    if (!studioGallery.length) { if (empty) empty.hidden = false; return; }
+    if (empty) empty.hidden = true;
+    studioGallery.forEach((it) => {
+      const card = document.createElement("div");
+      card.className = "gcard";
+      const img = document.createElement("img");
+      img.src = mediaUrl(it.path); img.alt = it.cap || ""; imgFallback(img);
+      const cap = document.createElement("div");
+      cap.className = "cap"; cap.textContent = it.cap || (it.path.split("/").pop() || "");
+      cap.title = it.path;
+      card.title = it.path;
+      card.appendChild(img); card.appendChild(cap);
+      g.appendChild(card);
+    });
+  }
+  function addGalleryItems(paths, prepend) {
+    const items = (paths || []).map(p => ({
+      path: String(p).replace(/\\/g, "/"),
+      cap: (String(p).split(/[\\/]/).pop() || ""),
+    }));
+    if (!items.length) return;
+    if (prepend) studioGallery = items.concat(studioGallery);
+    else studioGallery = studioGallery.concat(items);
+    renderStudioGallery();
+  }
+  function studioOutDir() { return outDir() ? outDir() + "/imggen" : (PROJECT ? PROJECT + "/storyboard" : ""); }
+  // 生成出图：单张走 /imggen/generate；多张走 /imggen/batch_generate（SSE）
+  async function studioGenerate() {
+    if (!PROJECT) { toast("请先在首页选择项目后再出图。"); return; }
+    const prompt = (($("studioPrompt") && $("studioPrompt").value) || "").trim();
+    const refPathsS = studioRefs.map(r => r.path);
+    if (!prompt && !refPathsS.length) { toast("提示词为空，且无参考图——请先填写或添加参考图。"); return; }
+    let n = parseInt(($("studioN") && $("studioN").value) || "1", 10); if (!(n > 0)) n = 1;
+    const size = studioSize();
+    const od = studioOutDir();
+    if (!od) { toast("无输出目录（请先选择项目或输出目录）。"); return; }
+
+    const btn = $("studioGenBtn"); const old = btn.textContent;
+    btn.disabled = true; btn.textContent = "⏳ 生成中…";
+    const prog = $("studioProg");
+
+    try {
+      if (n <= 1) {
+        const resp = await fetch(MEDIA + "/imggen/generate", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: prompt, references: refPathsS, size: size, n: 1,
+            out_dir: od, base_name: "gen", ext: "png",
+          }),
+        });
+        if (!resp.ok) { toast("生成失败：" + (await errHint(resp))); return; }
+        const data = await resp.json();
+        const outs = (data && data.outputs) || [];
+        if (!outs.length) { toast("生成失败：未返回图片。"); return; }
+        addGalleryItems(outs, true);
+        toast("已生成 " + outs.length + " 张 → " + od, "ok");
+        return;
+      }
+      // 多张：拆为 n 个 batch item（同一提示词），走 SSE 实时进图
+      if (prog) prog.hidden = false;
+      $("studioProgFill").style.width = "0";
+      $("studioProgText").textContent = "0 / " + n;
+      const items = [];
+      for (let i = 0; i < n; i++) {
+        items.push({
+          prompt: prompt, references: refPathsS, size: size, n: 1,
+          out_dir: od, base_name: "gen_" + String(i + 1).padStart(2, "0"), ext: "png",
+        });
+      }
+      let done = 0, okC = 0, failC = 0;
+      const resp = await fetch(MEDIA + "/imggen/batch_generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: items }),
+      });
+      if (!resp.ok || !resp.body) { toast("批量出图失败：" + (await errHint(resp))); return; }
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder(); let buf = "";
+      while (true) {
+        const { value, done: rd } = await reader.read();
+        if (rd) break;
+        buf += dec.decode(value, { stream: true });
+        let sep;
+        while ((sep = buf.indexOf("\n\n")) !== -1) {
+          const block = buf.slice(0, sep); buf = buf.slice(sep + 2);
+          let ev = "", dataStr = "";
+          block.split("\n").forEach(line => {
+            if (line.startsWith("event:")) ev = line.slice(6).trim();
+            else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+          });
+          if (!ev) continue;
+          let d = {}; try { d = dataStr ? JSON.parse(dataStr) : {}; } catch (_) {}
+          if (ev === "item_done") {
+            done++;
+            if (d.status === "ok") {
+              okC++;
+              const outs = (d.result && d.result.outputs) || d.outputs;
+              if (Array.isArray(outs)) addGalleryItems(outs, true);
+            } else failC++;
+            $("studioProgFill").style.width = Math.round(done / n * 100) + "%";
+            $("studioProgText").textContent = done + " / " + n;
+          } else if (ev === "error") {
+            toast("批量出图失败：" + (d.hint || d.message || "未知错误"));
+          }
+        }
+      }
+      $("studioProgFill").style.width = "100%";
+      $("studioProgText").textContent = okC + " / " + n;
+      if (failC) toast("出图完成：成功 " + okC + " · 失败 " + failC, okC ? "ok" : undefined);
+      else toast("出图完成：成功 " + okC + " 张 → " + od, "ok");
+    } catch (e) {
+      toast("生成失败：" + (e && e.message ? e.message : e));
+    } finally {
+      btn.disabled = false; btn.textContent = old;
+      if (prog) setTimeout(() => { prog.hidden = true; }, 1200);
+    }
+  }
+  // 刷新：列输出目录下图片，载入结果画廊（应对外部新增图）
+  async function refreshGallery() {
+    if (!PROJECT || !MEDIA) { toast("请先在首页选择项目后再刷新。"); return; }
+    const od = studioOutDir();
+    if (!od) { toast("无输出目录。"); return; }
+    // od 形如 PROJECT/storyboard 或 自选目录/imggen → 取相对 PROJECT 的 sub（自选目录用绝对，sub 留空+绝对列不便，简化用 project/files sub）
+    let sub = "";
+    const odNorm = od.replace(/\\/g, "/");
+    const projNorm = String(PROJECT).replace(/\\/g, "/").replace(/\/+$/, "");
+    if (odNorm.indexOf(projNorm + "/") === 0) sub = odNorm.slice(projNorm.length + 1);
+    try {
+      const r = await fetch(MEDIA + "/project/files?" + new URLSearchParams({
+        project: PROJECT, sub: sub, ext: "png,jpg,jpeg,webp",
+      }));
+      if (!r.ok) { toast("刷新失败：" + (await errHint(r))); return; }
+      const j = await r.json().catch(() => null);
+      const files = (j && Array.isArray(j.files)) ? j.files : [];
+      studioGallery = files.map(f => ({ path: f.path, cap: f.name }));
+      renderStudioGallery();
+      toast(files.length ? ("已载入 " + files.length + " 张（" + (sub || "项目根") + "）。") : "输出目录暂无图片。", files.length ? "ok" : undefined);
+    } catch (e) { toast("刷新失败：" + (e && e.message ? e.message : e)); }
+  }
+  // 工作室一次性初始化（首次进 imggen 工具时）
+  function ensureStudioInit() {
+    if (studioInited) return;
+    studioInited = true;
+    renderStudioPresets();
+    renderStudioRefs();
+    renderStudioGallery();
+    const ta = $("studioPrompt");
+    if (ta) ta.addEventListener("input", updateStudioMode);
+    const addBtn = $("studioAddRef");
+    if (addBtn) addBtn.addEventListener("click", () => {
       pickNative("files", (paths) => {
         let added = 0;
         (paths || []).forEach(p => {
           const norm = String(p).replace(/\\/g, "/").trim();
           if (!norm) return;
-          batchRefs.push({ path: norm, label: batchNextLabel() });
+          studioRefs.push({ path: norm, label: studioNextLabel() });
           added++;
         });
-        if (added) { renderBatchRefs(); toast("已添加 " + added + " 张参考图（图生图）。", "ok"); }
+        if (added) { renderStudioRefs(); toast("已添加 " + added + " 张参考图（图生图）。", "ok"); }
       });
     });
-    const ta = $("batchPrompt");
-    if (ta) ta.addEventListener("input", updateBatchMode);
-    renderBatchRefs();
-  }
-
-  // 渲染快捷词 chips（仅出图工具有）
-  function renderQuickChips() {
-    const box = $("quickChips");
-    if (!box) return;
-    box.innerHTML = "";
-    QUICK_PROMPTS.forEach(([label, text]) => {
-      const c = document.createElement("span");
-      c.className = "qchip";
-      c.textContent = label;
-      c.title = text;
-      c.addEventListener("click", () => insertAtTextarea($("batchPrompt"), text));
-      box.appendChild(c);
-    });
+    if ($("studioGenBtn")) $("studioGenBtn").addEventListener("click", studioGenerate);
+    updateStudioMode();
   }
 
   function renderTool(tool) {
     curTool = tool;
+    // 出图 = 生图工作室（专属布局）；拆/拼/去白边 = 通用网格批处理布局
+    const studio = tool === "imggen";
+    win.classList.toggle("studio-mode", studio);
+    if (studio) {
+      // 工作室布局：隐藏 grid+panel 体与底栏（由 .studio-mode CSS 处理），只需保证已初始化
+      win.classList.remove("order-mode");
+      ensureStudioInit();
+      return;
+    }
     const t = TOOLS[tool];
     $("panelTitle").textContent = t.title;
     $("panelTag").textContent = t.tag;
@@ -1393,8 +1681,6 @@
       sw.addEventListener("click", () => sw.classList.toggle("off")));
     $("panelBody").querySelectorAll(".detbtn").forEach(b =>
       b.addEventListener("click", () => runDetect(b.dataset.det)));
-    // 出图工具：渲染预制专业提示词片段库（快捷词 chips）+ 参考图区
-    if (tool === "imggen") { renderQuickChips(); wireBatchRefs(); }
     updateValidity();
   }
 
@@ -1439,7 +1725,12 @@
     $("thumbs").querySelectorAll(".th").forEach(th => th.classList.add("sel"));
     refreshGridMode(); updateValidity();
   });
-  $("selClear").addEventListener("click", () => resetSelection() || updateValidity());
+  // 「清空」→ 真清空源图 + 选择 state 并重渲（移除所有缩略图，含占位/真实）
+  $("selClear").addEventListener("click", () => {
+    $("thumbs").innerHTML = "";
+    refreshGridMode(); updateValidity();
+    toast("已清空源图。", "ok");
+  });
 
   // 工具 Tab 切换
   $("btabs").addEventListener("click", (e) => {
@@ -1475,6 +1766,16 @@
     const v = ($("outDir").textContent || "").trim();
     return v && v !== "D:/works/ep01/tiles_out" ? v : (PROJECT ? PROJECT + "/tiles_out" : "");
   }
+  // outdir 区「打开」→ 系统文件管理器打开输出目录（出图工具用 studioOutDir，其余用 outDir）
+  $("openOutDir").addEventListener("click", () => {
+    const od = curTool === "imggen" ? studioOutDir() : outDir();
+    if (!od) { toast("无输出目录（请先选择项目或输出目录）。"); return; }
+    window.parent.postMessage({ type: "open.path", path: od }, "*");
+  });
+  // outdir 区「↻ 刷新」→ 出图工具刷新结果画廊；其余工具刷新源图网格
+  $("refreshOutDir").addEventListener("click", () => {
+    if (curTool === "imggen") refreshGallery(); else refreshSrcGrid();
+  });
 
   // ---- 源图：缩略图网格当前没有真实路径，用「＋ 添加源图…」填真实 src_path ----
   // 每个真实条目挂 data-path；占位缩略图(data-ph)无路径，执行时会被过滤并提示。
@@ -1517,10 +1818,38 @@
     if (added) toast("已添加 " + added + " 张源图。", "ok");
     else toast("未新增源图（可能已存在或路径为空）。");
   }
-  // 「＋ 添加源图…」→ 原生多选文件
+  // 「＋ 添加源图…/选择目录」→ 原生多选文件/目录（pickNative；壳目录会返回其下图片路径，回退粘贴）
   $("addSrc").addEventListener("click", () => pickNative("files", addSourcePaths));
-  // 「打开目录…」→ 原生选目录（壳返回目录下图片路径；回退粘贴）
-  $("openDir").addEventListener("click", () => pickNative("dir", addSourcePaths));
+  // 「打开目录」→ 在系统文件管理器打开输出目录（postMessage open.path → 壳调 Qt openPath）
+  $("openDir").addEventListener("click", () => {
+    const od = outDir();
+    if (!od) { toast("无输出目录（请先选择项目或输出目录）。"); return; }
+    window.parent.postMessage({ type: "open.path", path: od }, "*");
+  });
+  // 「↻ 刷新」→ 重新 GET /project/files 列输出目录图片，重载源图网格（应对外部新增图）
+  async function refreshSrcGrid() {
+    if (!PROJECT || !MEDIA) { toast("请先在首页选择项目后再刷新。"); return; }
+    const od = outDir();
+    if (!od) { toast("无输出目录。"); return; }
+    let sub = "";
+    const odNorm = od.replace(/\\/g, "/");
+    const projNorm = String(PROJECT).replace(/\\/g, "/").replace(/\/+$/, "");
+    if (odNorm.indexOf(projNorm + "/") === 0) sub = odNorm.slice(projNorm.length + 1);
+    try {
+      const r = await fetch(MEDIA + "/project/files?" + new URLSearchParams({
+        project: PROJECT, sub: sub, ext: "png,jpg,jpeg,webp",
+      }));
+      if (!r.ok) { toast("刷新失败：" + (await errHint(r))); return; }
+      const j = await r.json().catch(() => null);
+      const files = (j && Array.isArray(j.files)) ? j.files : [];
+      // 清空现有网格（含占位）后重载
+      $("thumbs").innerHTML = "";
+      files.forEach(f => addThumb(f.path));
+      resetSelection(); updateValidity();
+      toast(files.length ? ("已重载 " + files.length + " 张（" + (sub || "项目根") + "）。") : "输出目录暂无图片。", files.length ? "ok" : undefined);
+    } catch (e) { toast("刷新失败：" + (e && e.message ? e.message : e)); }
+  }
+  $("refreshSrc").addEventListener("click", refreshSrcGrid);
 
   // 选中缩略图 → 真实路径列表（按 DOM/选择顺序）。无 data-path 的占位项被忽略。
   function selectedPaths() {
@@ -1594,9 +1923,8 @@
     toast(TOOLS[curTool].preview + "：已选 " + paths.length + " 张源图，可执行。", "ok");
   });
 
-  // ---- 执行：按工具走真实后端 ----
+  // ---- 执行：按工具走真实后端（出图走生图工作室的「生成出图」，不经此执行栏）----
   $("execBtn").addEventListener("click", () => {
-    if (curTool === "imggen") return execImggenBatch();
     if (curTool === "split") return execSplit();
     if (curTool === "trim") return execTrim();
     if (curTool === "combine") return execCombine();
@@ -1759,95 +2087,7 @@
     else toast(label + "完成：成功 " + okCount + " 张 → " + od, "ok");
   }
 
-  // ---- 自由模式·出图批量：POST {MEDIA}/imggen/batch_generate（SSE 进度）----
-  // 提示词面板每行一条 → 一个 GenRequest item。事件：progress / item_done / complete。
-  async function execImggenBatch() {
-    if (!PROJECT) { toast("请先在首页选择项目后再批量出图。"); return; }
-    const ta = $("batchPrompt") || $("panelBody").querySelector(".pta");
-    const lines = (ta && ta.value || "").split("\n").map(s => s.trim()).filter(Boolean);
-    const refPathsBatch = batchRefs.map(r => r.path);
-    if (!lines.length && !refPathsBatch.length) { toast("提示词为空，且无参考图——请先填写或添加参考图。"); return; }
-
-    // 面板内画幅 / 每条张数（取 sel-box / spin 的当前显示值，宽松解析）
-    const selBoxes = $("panelBody").querySelectorAll(".sel-box");
-    const arText = selBoxes[0] ? selBoxes[0].textContent.trim() : "9:16";
-    const wide = arText.indexOf("16:9") === 0;
-    const size = wide ? "1920x1080" : "1080x1920";
-    const spin = $("panelBody").querySelector(".spin input");
-    let n = parseInt(spin && spin.value, 10); if (!(n > 0)) n = 1;
-    const extBox = selBoxes[selBoxes.length - 1];
-    const ext = (extBox ? extBox.textContent.trim().split(/\s/)[0] : "PNG").toLowerCase() || "png";
-
-    const items = lines.map((p, i) => ({
-      prompt: p,
-      references: refPathsBatch,   // 非空 = 对每条图生图（provider 自动判定）
-      size: size,
-      n: n,
-      out_dir: PROJECT + "/storyboard",
-      base_name: "batch_" + String(i + 1).padStart(2, "0"),
-      ext: ext,
-    }));
-    const total = items.length;
-
-    const execBtn = $("execBtn");
-    const oldText = execBtn.textContent;
-    execBtn.disabled = true;
-    execBtn.textContent = "执行中…";
-    $("progFill").style.width = "0";
-    $("progText").innerHTML = "<b>0</b> / " + total + " · 执行中…";
-
-    let done = 0, okCount = 0, failCount = 0;
-    try {
-      const resp = await fetch(MEDIA + "/imggen/batch_generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: items }),
-      });
-      if (!resp.ok || !resp.body) { toast("批量出图失败：" + (await errHint(resp))); return; }
-
-      const reader = resp.body.getReader();
-      const dec = new TextDecoder();
-      let buf = "";
-      while (true) {
-        const { value, done: rdDone } = await reader.read();
-        if (rdDone) break;
-        buf += dec.decode(value, { stream: true });
-        // 按空行切 SSE 块
-        let sep;
-        while ((sep = buf.indexOf("\n\n")) !== -1) {
-          const block = buf.slice(0, sep);
-          buf = buf.slice(sep + 2);
-          let ev = "", dataStr = "";
-          block.split("\n").forEach(line => {
-            if (line.startsWith("event:")) ev = line.slice(6).trim();
-            else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
-          });
-          if (!ev) continue;
-          let data = {};
-          try { data = dataStr ? JSON.parse(dataStr) : {}; } catch (_) {}
-          if (ev === "item_done") {
-            done++;
-            if (data.status === "ok") okCount++; else failCount++;
-            $("progFill").style.width = Math.round(done / total * 100) + "%";
-            $("progText").innerHTML = "<b>" + done + "</b> / " + total + " · 执行中…";
-          } else if (ev === "complete") {
-            $("progFill").style.width = "100%";
-            $("progText").innerHTML = "<b>" + (data.ok != null ? data.ok : okCount) + "</b> / " +
-              (data.total != null ? data.total : total) + " · 完成 ✓";
-          } else if (ev === "error") {
-            toast("批量出图失败：" + (data.hint || data.message || "未知错误"));
-          }
-        }
-      }
-      if (failCount > 0) toast("批量出图完成：成功 " + okCount + " · 失败 " + failCount, okCount > 0 ? "ok" : undefined);
-      else toast("批量出图完成：成功 " + okCount + " 条 → " + PROJECT + "/storyboard", "ok");
-    } catch (e) {
-      toast("批量出图失败：" + (e && e.message ? e.message : e));
-    } finally {
-      execBtn.disabled = false;
-      execBtn.textContent = oldText;
-    }
-  }
+  // 出图批量已并入「生图工作室」（studioGenerate：n>1 走 /imggen/batch_generate SSE 实时进图廊）。
 
   // 初始渲染默认工具
   renderTool("imggen");

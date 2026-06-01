@@ -106,7 +106,63 @@ class LTXDirectorSpec:
         return tuple(result)
 
 
+import logging
+import ssl
+import time as _time
+
 import httpx
+
+log = logging.getLogger(__name__)
+
+
+# 瞬时网络/SSL 错误重试：最多 _RETRY_ATTEMPTS 次尝试，退避间隔 1/2/4s。
+_RETRY_ATTEMPTS = 4
+_RETRY_BACKOFFS = (1.0, 2.0, 4.0)
+
+
+def _sleep(seconds: float) -> None:
+    """重试退避间隔睡眠。抽成模块级函数，测试可 monkeypatch 免真等。"""
+    _time.sleep(seconds)
+
+
+def _is_transient_error(exc: BaseException) -> bool:
+    """判断异常是否属于「瞬时网络/SSL 断连」——可安全重试。
+
+    覆盖：httpx 传输层错误（ConnectError/ReadError/WriteError/
+    RemoteProtocolError 等 TransportError 子类）、ssl.SSLError，
+    以及报文里含 'EOF'/'_ssl' 字样的错误（真机里 SSL EOF 断连）。
+    HTTP 4xx/5xx 业务错不在此列（它们不抛 httpx 异常，由调用方按
+    status_code 处理）。
+    """
+    if isinstance(exc, (httpx.TransportError, ssl.SSLError)):
+        return True
+    text = str(exc)
+    return "EOF" in text or "_ssl" in text
+
+
+def _retry_transient(fn):
+    """对 fn() 做指数退避重试，仅对瞬时网络/SSL 错误重试。
+
+    最多 _RETRY_ATTEMPTS 次；瞬时错误按 _RETRY_BACKOFFS 退避后重试，
+    重试耗尽则抛最后一次异常。非瞬时错误（如 HTTP 业务错经 fn 内部转换
+    抛出的 RunningHub* 异常、KeyError/ValueError）立即向上抛，不重试。
+    """
+    last_exc: BaseException | None = None
+    for attempt in range(_RETRY_ATTEMPTS):
+        try:
+            return fn()
+        except (httpx.TransportError, ssl.SSLError) as e:
+            last_exc = e
+            if not _is_transient_error(e) or attempt >= _RETRY_ATTEMPTS - 1:
+                raise
+            backoff = _RETRY_BACKOFFS[min(attempt, len(_RETRY_BACKOFFS) - 1)]
+            log.warning(
+                "RunningHub 瞬时网络/SSL 错误，重试 #%d (退避 %.0fs): %s",
+                attempt + 1, backoff, e)
+            _sleep(backoff)
+    # 理论不可达（循环内已 return 或 raise），保底
+    assert last_exc is not None
+    raise last_exc
 
 
 def _guess_mime(path: Path) -> str:
@@ -141,13 +197,18 @@ class RunningHubClient:
         if not path.exists():
             raise RunningHubUploadError(f"文件不存在: {path}")
         url = f"{self.base_url}/openapi/v2/media/upload/binary"
-        try:
+
+        def _do_upload():
+            # 每次尝试重新打开文件——重试时需从头读，避免发空 body。
             with path.open("rb") as f:
-                resp = self._client.post(
+                return self._client.post(
                     url,
                     headers={"Authorization": f"Bearer {self.api_key}"},
                     files={"file": (path.name, f, _guess_mime(path))},
                 )
+
+        try:
+            resp = _retry_transient(_do_upload)
             if resp.status_code >= 400:
                 raise RunningHubUploadError(
                     f"upload HTTP {resp.status_code}: {resp.text[:300]}")
@@ -188,14 +249,14 @@ class RunningHubClient:
 
         url = f"{self.base_url}/task/openapi/create"
         try:
-            resp = self._client.post(
+            resp = _retry_transient(lambda: self._client.post(
                 url,
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                 },
                 json=payload,
-            )
+            ))
             if resp.status_code >= 400:
                 raise RunningHubTaskFailed(
                     f"create_task HTTP {resp.status_code}: {resp.text[:500]}")
@@ -229,14 +290,14 @@ class RunningHubClient:
         """
         url = f"{self.base_url}/openapi/v2/query"
         try:
-            resp = self._client.post(
+            resp = _retry_transient(lambda: self._client.post(
                 url,
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                 },
                 json={"taskId": task_id},
-            )
+            ))
             if resp.status_code >= 400:
                 raise RunningHubUnavailable(
                     f"query_task HTTP {resp.status_code}: {resp.text[:300]}")
@@ -549,10 +610,7 @@ class LTXTaskBuilder:
                         f"音频段 {j} {a.audio_path} 未在 uploaded_files 中")
 
 
-import logging
 from typing import Callable, Optional
-
-log = logging.getLogger(__name__)
 
 
 def submit_ltx_task(client: RunningHubClient,

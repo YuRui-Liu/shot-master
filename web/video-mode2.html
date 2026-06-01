@@ -375,6 +375,9 @@
   .param-row .grp .rngval.g { color: var(--mauve); }
   .param-row .grp input[type="text"].wide { width: 160px; }
   .param-row .grp input[type="text"].xwide { width: 200px; }
+  /* 段长度数值输入框（可直接键入，单位由「时间显示」决定） */
+  .param-row .grp input.seg-len-num { width: 66px; padding: 6px 7px; font-size: 12.5px; }
+  .param-row .grp .seg-len-unit { color: var(--blue); font-weight: 600; font-size: 12px; min-width: 14px; }
 
   .global-panel .gp-row {
     display: flex; align-items: center; gap: 20px;
@@ -916,6 +919,20 @@ function fmtDur(sec) {
   return sec.toFixed(2) + "s";
 }
 
+/* ---- 段「长度」数值文本框 ↔ duration(秒) 换算（单位由 timeUnit 决定） ----
+   帧模式：文本框显示/接收 帧数（= 秒*fps，整数）；秒模式：显示/接收 秒。 */
+function segLenNumStep() { return dirState.timeUnit === "frame" ? "1" : "0.5"; }
+function segLenNumVal(sec) {
+  return dirState.timeUnit === "frame" ? String(Math.round(sec * dirState.fps)) : String(Number(sec.toFixed(2)));
+}
+/* 文本框输入值 → duration(秒)。帧模式：帧/fps；秒模式：直接秒。下限 0.5s。 */
+function segLenInputToSec(raw) {
+  let v = parseFloat(raw);
+  if (!isFinite(v) || v < 0) v = 0;
+  let sec = dirState.timeUnit === "frame" ? (v / Math.max(1, dirState.fps)) : v;
+  return Math.max(0.5, Math.round(sec * 1000) / 1000);
+}
+
 /* ---------- 图片池 ---------- */
 function poolAdd(paths) {
   let added = 0;
@@ -1041,10 +1058,12 @@ function renderAudioTrack() {
   else { empty.style.display = "none"; dirState.audioClips.forEach(c => track.appendChild(createClipBlock(c, 'audio'))); }
 }
 
+/* 总时长口径：各画面段 duration 之和（Σsegment），不含时间轴空隙/空轨/音轨 span。 */
+function totalSegSeconds() {
+  return dirState.clips.reduce((s, c) => s + c.duration, 0);
+}
 function updateTotalDuration() {
-  const totalV = dirState.clips.reduce((s, c) => s + c.duration, 0);
-  const totalA = dirState.audioClips.reduce((s, c) => Math.max(s, c.start + c.duration), 0);
-  const total = Math.max(totalV, totalA);
+  const total = totalSegSeconds();
   const frames = Math.round(total * dirState.fps);
   document.getElementById("totalDuration").textContent =
     `片段 ${dirState.clips.length} · 总时长：${frames}f / ${total.toFixed(2)} s`;
@@ -1120,7 +1139,8 @@ function renderSegEditor() {
       <div class="grp">
         <label>长度</label>
         <input type="range" id="segLen" min="0.5" max="12" step="0.5" value="${c.duration}">
-        <span class="rngval" id="segLenVal">${fmtDur(c.duration)}</span>
+        <input type="number" class="seg-len-num" id="segLenNum" min="0" step="${segLenNumStep()}" value="${segLenNumVal(c.duration)}">
+        <span class="seg-len-unit" id="segLenUnit">${dirState.timeUnit === "frame" ? "帧" : "秒"}</span>
         <span id="segLenFrames" style="color:var(--faint);font-size:11px">(${frames}f)</span>
       </div>
       <div class="grp">
@@ -1160,12 +1180,27 @@ function renderSegEditor() {
     });
   });
   const len = root.querySelector("#segLen");
+  const lenNum = root.querySelector("#segLenNum");
+  // 同步「帧/秒提示」+ 数值框，但不在用户正编辑的框上覆盖光标
+  function syncSegLenUI(skipNum) {
+    root.querySelector("#segLenFrames").textContent = "(" + Math.round(c.duration * dirState.fps) + "f)";
+    len.value = c.duration;
+    if (!skipNum) lenNum.value = segLenNumVal(c.duration);
+  }
+  // 滑块 → duration（秒）：滑块永远以秒为单位
   len.addEventListener("input", () => {
     c.duration = Math.max(0.5, parseFloat(len.value));
-    root.querySelector("#segLenVal").textContent = fmtDur(c.duration);
-    root.querySelector("#segLenFrames").textContent = "(" + Math.round(c.duration * dirState.fps) + "f)";
+    syncSegLenUI(false);
     refreshAll();
   });
+  // 数值文本框 → duration：单位由 timeUnit 决定（秒 或 帧），下限 0.5s
+  lenNum.addEventListener("input", () => {
+    c.duration = segLenInputToSec(lenNum.value);
+    syncSegLenUI(true);   // 保留正在输入框中的原始文本
+    refreshAll();
+  });
+  // 失焦时把文本框规范化为换算后的标准值（如帧取整、秒补 0.5 下限）
+  lenNum.addEventListener("blur", () => { lenNum.value = segLenNumVal(c.duration); });
   const g = root.querySelector("#segGuide");
   g.addEventListener("input", () => {
     c.guide = parseFloat(g.value);
@@ -1293,9 +1328,14 @@ function dirValidate() {
 function dirBuildBody() {
   const fps = dirState.fps;
   const aspect = dirState.use_custom_resolution ? `${dirState.custom_width}x${dirState.custom_height}` : dirState.resolution_preset;
+  // 总时长口径 = 各段 duration 之和（Σsegment），不含时间轴空隙/空轨。
+  const totalSec = totalSegSeconds();
+  const totalFrames = dirState.clips.reduce((s, c) => s + Math.max(1, Math.round(c.duration * fps)), 0);
   return {
     mode: dirState.workflow_key,                 // director | hd_director
     fps: fps,
+    total_length: totalFrames,                   // Σ段帧数（提交口径，不含空隙）
+    total_duration: totalSec,                    // Σ段秒数
     aspect: aspect,
     out_dir: PROJECT_DIR + "/video",
     base_name: dirState.filename_prefix || "spb_video",
