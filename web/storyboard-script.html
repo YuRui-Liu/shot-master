@@ -8,8 +8,9 @@
 <style>
   /* 壳内容页：无自带标题栏/侧栏（由 web/app.html 糯米 AI 壳统一提供）；
      编剧视角的「按集生成分镜脚本」页，铺满工作区。 */
-  body { overflow: hidden; }
-  .work { height: 100vh; overflow: hidden; display: flex; flex-direction: column; padding: 18px 26px 0; }
+  /* 整页竖向滚动（一长页），不再 inner-scroll 小窗；底部留出贴底动作条高度 */
+  body { overflow: auto; }
+  .work { min-height: 100vh; display: flex; flex-direction: column; padding: 18px 26px 92px; max-width: 1280px; margin: 0 auto; }
 
   /* 顶部标题 + 健康 */
   .work-head { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; flex-shrink: 0; }
@@ -115,7 +116,8 @@
   .rhead .streaming .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); animation: blink 1s infinite; }
   @keyframes blink { 50% { opacity: .3; } }
 
-  .sb-scroll { flex: 1; overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding-bottom: 4px; }
+  /* 内容随整页滚动（不再 flex:1 + inner overflow） */
+  .sb-scroll { display: flex; flex-direction: column; gap: 12px; }
 
   /* 全局头卡片：标题/比例/总时长/globalStyle */
   .ghead { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 15px; }
@@ -183,6 +185,46 @@
   .json-drawer pre { background: #0c0f1a; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 11px; line-height: 1.55; color: var(--fg2); white-space: pre-wrap; max-height: 280px; overflow: auto; }
   .json-bad { color: var(--warn); }
   .json-ok { color: var(--done); }
+
+  /* ===== 重设计：分集横条 + 镜头表全宽列宽 + 贴底动作条 ===== */
+  /* 分集横条（替代左侧 340px 栏，横向空间全给镜头表） */
+  .ep-strip { display: flex; align-items: center; gap: 10px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 14px; margin-bottom: 12px; flex-shrink: 0; }
+  .ep-strip .lab { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .ep-strip .btn-all { white-space: nowrap; width: auto; padding: 7px 14px; font-size: 12.5px;
+    background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .ep-strip .btn-all:hover:not(:disabled) { border-color: var(--mauve); color: var(--fg); filter: none; }
+  /* #epList 在横条里 → 横向 chip 流；renderEpList 产出的 .ep-item 变紧凑横向卡 */
+  .eplist-strip { display: flex; align-items: center; gap: 7px; overflow-x: auto; flex: 1; padding: 1px; }
+  .eplist-strip::-webkit-scrollbar { height: 5px; } .eplist-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .eplist-strip .ep-item { margin-bottom: 0; white-space: nowrap; padding: 6px 10px; flex: 0 0 auto; max-width: 220px; }
+  .eplist-strip .ep-item .idx { width: 20px; height: 20px; font-size: 10px; border-radius: 6px; }
+  .eplist-strip .ep-item .info .sum { display: none; }   /* 横条里只显集名，省空间 */
+  .eplist-strip .ep-empty { padding: 6px 10px; border: none; white-space: nowrap; }
+
+  /* 当前集标题行（原 rhead，现为流内一行） */
+  .rhead { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-shrink: 0; }
+
+  /* 镜头表全宽 + 固定列宽：ID/时长/构图 窄，描述/风格 宽 + 斑马纹 */
+  .shots-wrap { overflow: visible; }
+  table.shots { table-layout: fixed; }
+  table.shots th:nth-child(1), table.shots td:nth-child(1) { width: 66px; }   /* ID */
+  table.shots th:nth-child(2), table.shots td:nth-child(2) { width: 72px; }   /* 时长 */
+  table.shots th:nth-child(3), table.shots td:nth-child(3) { width: 120px; }  /* 构图（字少，收窄） */
+  table.shots th:nth-child(5), table.shots td:nth-child(5) { width: 34%; }    /* stylePrompt（加宽） */
+  /* 描述列(4) 不设宽 → 自适应吃掉剩余空间（加宽） */
+  table.shots tbody tr:nth-child(even) { background: rgba(255,255,255,.015); }
+  table.shots tbody tr:hover { background: rgba(74,158,255,.05); }
+
+  /* 贴底固定动作条：整页滚动时始终可点 */
+  .action-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    display: flex; align-items: center; gap: 10px; padding: 11px 26px;
+    background: rgba(15,17,26,.92); backdrop-filter: blur(8px); border-top: 1px solid var(--border); }
+  .action-dock .grow { flex: 1; }
+  .action-dock button { font: inherit; font-size: 13px; padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer; }
+  .action-dock button:disabled { filter: grayscale(.6) brightness(.7); }
+  .action-dock #btnGen { background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; font-weight: 600; border: none; }
+  .action-dock #btnAdvance { background: linear-gradient(135deg, var(--done), #3aa978); color: #06231a; font-weight: 700; border: none; }
 </style>
 </head>
 <body>
@@ -227,89 +269,85 @@
     <span class="grow"></span>
   </div>
 
-  <!-- 主从分栏 -->
-  <div class="split">
-    <!-- 左 -->
-    <div class="left" id="leftPane">
-      <div class="panel-card eplist">
-        <div class="ph"><span class="t">分集</span><span class="sp"></span><span class="faint" id="epCountLabel"></span></div>
-        <div class="pbody" id="epList">
-          <div class="ep-empty">尚无分集。<br>继承自「剧本」页的分集大纲<br>（localStorage nuomi.script.state）。</div>
-        </div>
+  <!-- 分集横条（替代原左侧 340px 栏；renderEpList 渲染进 #epList，横向 chip 流） -->
+  <div class="ep-strip">
+    <span class="lab">分集</span>
+    <div class="eplist-strip" id="epList">
+      <div class="ep-empty">尚无分集 · 继承自「剧本」页大纲</div>
+    </div>
+    <span class="faint" id="epCountLabel"></span>
+    <button class="btn-all" id="btnAll" disabled>⚡ 一键生成全集分镜</button>
+  </div>
+
+  <!-- 当前集标题 + 流式指示（btnCollapse 保留隐藏节点供 JS 兼容） -->
+  <div class="rhead">
+    <span class="ep-title" id="epTitle">选择上方某一集生成分镜脚本 <span class="badge" id="epBadge" style="display:none"></span></span>
+    <span class="sp"></span>
+    <span class="streaming" id="epStreaming"><span class="dot"></span>生成中…</span>
+    <button class="collapse-btn" id="btnCollapse" style="display:none">◧</button>
+  </div>
+
+  <!-- 整页流（随页面竖向滚动，不再 inner-scroll 小窗） -->
+  <div class="sb-scroll" id="sbScroll">
+    <div class="placeholder" id="sbPlaceholder">
+      选上方某一集，点底部「✦ 生成本集分镜」由 AI 流式生成分镜脚本。<br>
+      完成后此处显示：全局头（标题/比例/总时长/全局风格）· 角色行 · 镜头表 · 校验警告。
+    </div>
+
+    <!-- 全局头 -->
+    <div class="ghead" id="ghead" style="display:none">
+      <div class="gh-row">
+        <div class="f ttl-in"><label>标题</label><input type="text" id="sbTitle" placeholder="本集标题"></div>
+        <div class="f"><label>比例</label><span class="v" id="sbAspect">—</span></div>
+        <div class="f"><label>总时长</label><span class="v" id="sbTotalDur">0</span><span class="faint" style="font-size:11px">s</span></div>
       </div>
-      <div class="panel-card preview">
-        <div class="ph"><span class="t">流式原始输出（只读）</span></div>
-        <div class="pbody" id="rawPreview"><span class="dim">点某一集「✦ 生成本集分镜」时，LLM 原始 JSON 在此流式显示…</span></div>
-      </div>
-      <div class="leftfoot">
-        <button class="btn-all" id="btnAll" disabled>⚡ 一键生成全集分镜</button>
+      <div class="gh-style">
+        <label>globalStyle 全局风格</label>
+        <textarea id="sbGlobalStyle" placeholder="全局视觉风格（镜头语言 / 色调 / 护栏）"></textarea>
       </div>
     </div>
 
-    <!-- 右 -->
-    <div class="right">
-      <div class="rhead">
-        <button class="collapse-btn" id="btnCollapse" title="折叠/展开左栏">◧</button>
-        <span class="ep-title" id="epTitle">选择左侧某一集生成分镜脚本 <span class="badge" id="epBadge" style="display:none"></span></span>
-        <span class="sp"></span>
-        <span class="streaming" id="epStreaming"><span class="dot"></span>生成中…</span>
-      </div>
+    <!-- 角色行（flex-wrap 自动换行不挤） -->
+    <div class="panel-card chars" id="charsCard" style="display:none">
+      <div class="ph"><span class="t">角色（Character Lock 来源）</span><span class="sp"></span><button class="btn-secondary" id="btnAddChar" style="padding:5px 11px;font-size:12px">+ 加角色</button></div>
+      <div class="pbody" id="charsBody"></div>
+    </div>
 
-      <div class="sb-scroll" id="sbScroll">
-        <div class="placeholder" id="sbPlaceholder">
-          选左侧某一集，点「✦ 生成本集分镜」由 AI 流式生成分镜脚本。<br>
-          完成后此处显示：全局头（标题/比例/总时长/全局风格）· 角色行 · 镜头表 · 校验警告。
-        </div>
+    <!-- 镜头表（全宽 + 固定列宽：构图窄 / 描述·风格宽） -->
+    <div class="panel-card shots-card" id="shotsCard" style="display:none">
+      <div class="ph"><span class="t">镜头表</span><span class="sp"></span><span class="faint" id="shotCountLabel"></span></div>
+      <div class="pbody shots-wrap" id="shotsBody"></div>
+    </div>
 
-        <!-- 全局头 -->
-        <div class="ghead" id="ghead" style="display:none">
-          <div class="gh-row">
-            <div class="f ttl-in"><label>标题</label><input type="text" id="sbTitle" placeholder="本集标题"></div>
-            <div class="f"><label>比例</label><span class="v" id="sbAspect">—</span></div>
-            <div class="f"><label>总时长</label><span class="v" id="sbTotalDur">0</span><span class="faint" style="font-size:11px">s</span></div>
-          </div>
-          <div class="gh-style">
-            <label>globalStyle 全局风格</label>
-            <textarea id="sbGlobalStyle" placeholder="全局视觉风格（镜头语言 / 色调 / 护栏）"></textarea>
-          </div>
-        </div>
+    <!-- 流式原始输出（只读，生成时显示） -->
+    <div class="panel-card preview" id="rawPreviewCard">
+      <div class="ph"><span class="t">流式原始输出（只读）</span></div>
+      <div class="pbody" id="rawPreview"><span class="dim">点某一集「✦ 生成本集分镜」时，LLM 原始 JSON 在此流式显示…</span></div>
+    </div>
 
-        <!-- 角色行 -->
-        <div class="panel-card chars" id="charsCard" style="display:none">
-          <div class="ph"><span class="t">角色（Character Lock 来源）</span><span class="sp"></span><button class="btn-secondary" id="btnAddChar" style="padding:5px 11px;font-size:12px">+ 加角色</button></div>
-          <div class="pbody" id="charsBody"></div>
-        </div>
+    <!-- warnings -->
+    <div class="warns" id="warns">
+      <div class="wt">⚠ 校验警告（已自动兜底，可手动修正后保存）</div>
+      <ul id="warnsList"></ul>
+    </div>
 
-        <!-- 镜头表 -->
-        <div class="panel-card shots-card" id="shotsCard" style="display:none">
-          <div class="ph"><span class="t">镜头表</span><span class="sp"></span><span class="faint" id="shotCountLabel"></span></div>
-          <div class="pbody shots-wrap" id="shotsBody"></div>
-        </div>
-
-        <!-- warnings -->
-        <div class="warns" id="warns">
-          <div class="wt">⚠ 校验警告（已自动兜底，可手动修正后保存）</div>
-          <ul id="warnsList"></ul>
-        </div>
-
-        <!-- 原始 JSON -->
-        <div class="json-drawer" id="jsonDrawer">
-          <div style="font-size:11px;color:var(--periw);font-weight:600;margin-bottom:6px">原始 JSON <span id="jsonValid"></span></div>
-          <pre id="jsonText"></pre>
-        </div>
-      </div>
-
-      <div class="ract">
-        <button id="btnGen" disabled>✦ 生成本集分镜</button>
-        <button class="btn-secondary" id="btnSave" disabled>保存修改</button>
-        <button class="btn-secondary" id="btnJson" disabled>{ } 看原始 JSON</button>
-        <span class="grow"></span>
-        <button class="btn-secondary" id="btnRegen" disabled>↻ 重生成（清下游）</button>
-        <button id="btnAdvance" disabled>推进到出图 prompt →</button>
-      </div>
+    <!-- 原始 JSON -->
+    <div class="json-drawer" id="jsonDrawer">
+      <div style="font-size:11px;color:var(--periw);font-weight:600;margin-bottom:6px">原始 JSON <span id="jsonValid"></span></div>
+      <pre id="jsonText"></pre>
     </div>
   </div>
 </main>
+
+<!-- 贴底固定动作条（整页滚动时始终可点） -->
+<div class="action-dock">
+  <button id="btnGen" disabled>✦ 生成本集分镜</button>
+  <button class="btn-secondary" id="btnRegen" disabled>↻ 重生成（清下游）</button>
+  <button class="btn-secondary" id="btnSave" disabled>保存修改</button>
+  <button class="btn-secondary" id="btnJson" disabled>{ } 看原始 JSON</button>
+  <span class="grow"></span>
+  <button id="btnAdvance" disabled>推进到出图 prompt →</button>
+</div>
 
 <script>
 /* ===== 可配 API base：壳通过 ?sw= / ?media= / ?project= 传入 =====
@@ -797,7 +835,9 @@ async function genAll() {
 }
 
 /* ---------- 折叠左栏 ---------- */
-$("btnCollapse").addEventListener("click", () => $("leftPane").classList.toggle("collapsed"));
+// 新布局无左栏；btnCollapse 隐藏保留供兼容，存在才绑（leftPane 已移除）
+(function(){ const _bc = $("btnCollapse"), _lp = $("leftPane");
+  if (_bc && _lp) _bc.addEventListener("click", () => _lp.classList.toggle("collapsed")); })();
 
 /* ---------- JSON 抽屉 ---------- */
 $("btnJson").addEventListener("click", () => $("jsonDrawer").classList.toggle("on"));
