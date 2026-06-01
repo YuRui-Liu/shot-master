@@ -562,6 +562,7 @@ class LTXTaskBuilder:
     def _resolution_items(self, spec: LTXDirectorSpec) -> list[dict]:
         prof = self.profile
         if prof.resolution_node:
+            # 显式自定义宽高：直接走 custom 三件套。
             if spec.use_custom_resolution:
                 return [
                     {"nodeId": prof.resolution_node,
@@ -570,6 +571,25 @@ class LTXTaskBuilder:
                      "fieldName": "custom_width", "fieldValue": spec.custom_width},
                     {"nodeId": prof.resolution_node,
                      "fieldName": "custom_height", "fieldValue": spec.custom_height},
+                ]
+            # 预设串：TTResolutionSelector 的 resolution widget 只认完整下拉标签
+            # （如 "1280x720 (16:9) (横屏)"），传裸 "1280x720" 不匹配会落回节点默认。
+            # 且模板里 use_custom_resolution 默认可能为 True（v23 模板节点 34 即如此），
+            # 仅改 resolution 而不关掉 custom 开关，节点会忽略 resolution 改用模板内置
+            # custom_width/height（v23 默认 1280x832，非 16:9）→ 出图变近方形。
+            # 修复：能从预设解析出 WxH 时，统一走 custom 三件套（显式关 custom 开关
+            # 不可行，因为那样又依赖 resolution 标签精确匹配），用解析出的宽高强制覆盖；
+            # 解析不出时才退回传 resolution 标签（best-effort）。
+            wh = parse_preset_wh(spec.resolution_preset)
+            if wh:
+                w, h = wh
+                return [
+                    {"nodeId": prof.resolution_node,
+                     "fieldName": "use_custom_resolution", "fieldValue": True},
+                    {"nodeId": prof.resolution_node,
+                     "fieldName": "custom_width", "fieldValue": w},
+                    {"nodeId": prof.resolution_node,
+                     "fieldName": "custom_height", "fieldValue": h},
                 ]
             return [{"nodeId": prof.resolution_node,
                      "fieldName": "resolution", "fieldValue": spec.resolution_preset}]

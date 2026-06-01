@@ -268,3 +268,77 @@ def test_generate_scene_prompt_no_turnaround(tmp_path, monkeypatch):
     assert sent == "温馨咖啡馆"
     assert "three-view" not in sent
     assert "no scene background" not in sent
+
+
+# ---------- 项目风格圣经注入（根因修复 #1） ----------
+
+def _fake_manifest_with_style(style_ref):
+    """造一个最小 manifest stub（只需 style_bible.ref 字段）。"""
+    class _M:
+        style_bible = {"ref": style_ref}
+    return _M()
+
+
+def test_generate_injects_project_style_bible(tmp_path, monkeypatch):
+    """根因修复：generate 时读项目 style_bible.ref → 注入风格圣经关键词到 prompt。
+
+    原 bug：/refs/generate 不读项目风格，出图用 provider 默认风格（如 2D）而非
+    项目设定（电影冷调）。修复后 provider 收到的 prompt 必须含该风格的 suffix。
+    """
+    _patch_capturing(monkeypatch)
+    pdir = _make_project(tmp_path)
+    # monkeypatch manifest → 项目风格为「电影冷调」(real/cinematic-cool-v1)
+    monkeypatch.setattr(
+        assets_mod, "load_manifest",
+        lambda _p: _fake_manifest_with_style("real/cinematic-cool-v1"))
+
+    r = client.post("/assets/refs/generate", json={
+        "project": str(pdir), "kind": "characters",
+        "entity_id": "女主", "prompt": "红衣少女"})
+    assert r.status_code == 200, r.text
+    sent = _CapturingProvider.last_prompt
+    # 原始描述 + 角色三视图约束仍在
+    assert "红衣少女" in sent
+    assert "three-view" in sent
+    # 注入了「电影冷调」风格 suffix（teal-and-orange cool grade）
+    assert "teal-and-orange cool grade" in sent
+    # ref 阶段含视觉指纹（中性平光锁一致性）
+    assert "neutral studio flat lighting" in sent
+
+
+def test_generate_falls_back_to_idea_json_style(tmp_path, monkeypatch):
+    """manifest 无风格时回退读 创意.json input.style_bible.ref。"""
+    _patch_capturing(monkeypatch)
+    pdir = _make_project(tmp_path)
+    # manifest 无 style_bible.ref（空）
+    monkeypatch.setattr(
+        assets_mod, "load_manifest",
+        lambda _p: _fake_manifest_with_style(""))
+    # 创意.json 提供风格（2D 动画）
+    (pdir / "创意.json").write_text(
+        json.dumps({"input": {"style_bible": {"ref": "2D/anime-cel-v1"}}},
+                   ensure_ascii=False),
+        encoding="utf-8")
+
+    r = client.post("/assets/refs/generate", json={
+        "project": str(pdir), "kind": "scenes",
+        "entity_id": "教室", "prompt": "明亮教室"})
+    assert r.status_code == 200, r.text
+    sent = _CapturingProvider.last_prompt
+    assert "明亮教室" in sent
+    assert "anime cel-shaded" in sent
+
+
+def test_generate_no_style_keeps_prompt_unchanged(tmp_path, monkeypatch):
+    """无项目风格（manifest 空 + 无 创意.json）→ prompt 原样（仅角色增广），不崩。"""
+    _patch_capturing(monkeypatch)
+    pdir = _make_project(tmp_path)
+    monkeypatch.setattr(
+        assets_mod, "load_manifest",
+        lambda _p: _fake_manifest_with_style(""))
+    r = client.post("/assets/refs/generate", json={
+        "project": str(pdir), "kind": "scenes",
+        "entity_id": "广场", "prompt": "城市广场"})
+    assert r.status_code == 200, r.text
+    sent = _CapturingProvider.last_prompt
+    assert sent == "城市广场"

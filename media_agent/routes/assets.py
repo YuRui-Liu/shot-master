@@ -18,8 +18,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import json as _json
+
 from drama_shot_master.core import genre_templates, style_bible
 from drama_shot_master.core.compass import paths as _paths
+from drama_shot_master.core.compass.manifest import load_manifest
 from drama_shot_master.core.compass.ref_index import (
     READY_STATUS,
     RefIndex,
@@ -55,6 +58,60 @@ def _augment_prompt_for_kind(prompt: str, kind: str) -> str:
     if kind == "characters":
         return f"{prompt}, {_CHARACTER_TURNAROUND_HINT}"
     return prompt
+
+
+def _resolve_project_style_id(project_dir: Path) -> str:
+    """解析项目当前风格 style_id（供 ref 生成注入风格圣经）。
+
+    单一可信源优先级（对齐 screenwriter_client / overview_page 同源契约）：
+      1) project.json（manifest）的 style_bible.ref
+      2) 回退 创意.json 的 input.style_bible.ref
+    都没有则返回空串（无风格 → 生成 prompt 原样，不注入）。
+    """
+    # 1) project.json.style_bible.ref（load_manifest 缺失/坏 JSON 不崩）
+    try:
+        manifest = load_manifest(project_dir)
+        sb = manifest.style_bible
+        if isinstance(sb, dict):
+            ref = (sb.get("ref") or "").strip()
+            if ref:
+                return ref
+    except Exception:  # noqa: BLE001 manifest 读失败 → 走回退
+        pass
+
+    # 2) 回退 创意.json input.style_bible.ref
+    try:
+        idea_path = project_dir / "创意.json"
+        data = _json.loads(idea_path.read_text(encoding="utf-8"))
+        inp = (data or {}).get("input") or {}
+        sb = inp.get("style_bible") or {}
+        if isinstance(sb, dict):
+            ref = (sb.get("ref") or "").strip()
+            if ref:
+                return ref
+    except (FileNotFoundError, OSError, ValueError, AttributeError):
+        pass
+
+    return ""
+
+
+def _inject_project_style(prompt: str, project_dir: Path) -> str:
+    """把项目风格圣经注入 ref 生成 prompt（ref 阶段：含 ref_fingerprint）。
+
+    根因修复：原 /refs/generate 只加角色三视图约束、不注入项目 style_bible，
+    导致出图用 provider 默认风格（如默认 2D）而非项目设定（如电影冷调）。
+    这里读项目 style_id（manifest → 创意.json 回退），用 style_bible.get_style
+    解析风格实体，再 inject_style_prompt(stage='ref')：
+      base_prompt → ref_fingerprint(中性平光锁一致性) → prompt_suffix → negative_suffix。
+    无风格（空 id / 未知 id）→ 原样返回 prompt（降级不崩）。
+    """
+    style_id = _resolve_project_style_id(project_dir)
+    if not style_id:
+        return prompt
+    style = style_bible.get_style(style_id)
+    if not style:
+        return prompt
+    return style_bible.inject_style_prompt(prompt, style, stage="ref")
 
 
 # ---------- 题材模板 ----------
@@ -347,6 +404,8 @@ def generate_ref_route(body: GenerateRefBody):
         raise HTTPException(status_code=400, detail="prompt 与 entity_id 均为空")
     # 角色类注入三视图/无背景约束；场景/道具原样
     prompt = _augment_prompt_for_kind(prompt, body.kind)
+    # 注入项目风格圣经（ref 阶段：含视觉指纹），使 ref 图与项目设定的电影/2D/3D 风格一致
+    prompt = _inject_project_style(prompt, pdir)
 
     try:
         provider = _build_provider(_safe_cfg())

@@ -255,6 +255,56 @@ def test_ltx_duration_sec_to_frames(tmp_path, monkeypatch):
     assert cap["spec"].segments[0].length == 72              # 3.0 * 24
 
 
+def test_ltx_16_9_resolution_into_spec(tmp_path, monkeypatch):
+    """16:9 预设串（1280x720）正确组装进 LTXDirectorSpec.resolution_preset，
+
+    且不误置 custom 分辨率（use_custom_resolution 应为 False，宽高保持默认非方形输入）。
+    根因排查点：确认 resolution 真的流入 spec，而非中途丢失变方形。
+    """
+    cfg = _FakeCfg(workflow_ids={"director": "wf-dir"})
+    cap: dict = {}
+    _patch(monkeypatch, cfg, cap)
+    r = client.post("/video/ltx", json={
+        "mode": "director", "prompt": "p", "duration": 1.0,
+        "resolution": "1280x720", "out_dir": str(tmp_path),
+    })
+    assert r.status_code == 200, r.text
+    spec = cap["spec"]
+    assert spec.resolution_preset == "1280x720"
+    assert spec.use_custom_resolution is False
+
+
+def test_ltx_16_9_builds_non_square_nodeinfolist(tmp_path):
+    """端到端：16:9 预设经真实 LTXTaskBuilder + 真实 v23 模板 → nodeInfoList 宽高=1280x720。
+
+    回归核心 bug「16:9 变正方形」：模板节点 34 默认 use_custom_resolution=True 且
+    custom 宽高近方形；修复后预设须解析为 1280x720 并显式覆盖，断言宽≠高、=16:9。
+    """
+    from drama_shot_master.providers.runninghub import (
+        LTXDirectorSpec, LTXSegment, LTXTaskBuilder, LTXNodes,
+        resolve_template_path,
+    )
+    from drama_shot_master.core.workflow_profiles import get_profile
+
+    template_path = resolve_template_path(_FakeCfg(workflow_ids={}))
+    builder = LTXTaskBuilder(template_path, get_profile("director"))
+    img = tmp_path / "a.png"
+    img.write_bytes(b"x")
+    spec = LTXDirectorSpec(
+        segments=(LTXSegment(local_prompt="s", length=10, image_path=img),),
+        resolution_preset="1280x720 (16:9) (横屏)",
+    )
+    items = builder.build_node_info_list(spec, {img: "openapi/a.png"})
+    res = {it["fieldName"]: it["fieldValue"]
+           for it in items if it["nodeId"] == LTXNodes.RESOLUTION}
+    assert res.get("custom_width") == 1280
+    assert res.get("custom_height") == 720
+    # 不是正方形
+    assert res["custom_width"] != res["custom_height"]
+    # 显式开了 custom 开关，强制覆盖模板默认（否则落回方形）
+    assert res.get("use_custom_resolution") is True
+
+
 def test_ltx_custom_resolution_wh(tmp_path, monkeypatch):
     """custom_w/custom_h → use_custom_resolution + 宽高。"""
     cfg = _FakeCfg(workflow_ids={"director": "wf-dir"})

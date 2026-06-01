@@ -379,13 +379,21 @@ def test_nodeinfolist_noise_seed_only_when_set(builder, tmp_path):
 
 
 def test_nodeinfolist_resolution_preset_when_not_custom(builder, tmp_path):
+    """预设分辨率（非 custom）→ 解析出 WxH 后走 custom 三件套强制覆盖。
+
+    根因回归：TTResolutionSelector 的 resolution widget 只认完整下拉标签，
+    且 v23 模板节点 34 的 use_custom_resolution 默认为 True；若仅传 resolution
+    而不关 custom 开关，节点会忽略它改用模板内置 custom 宽高（1280x832 非 16:9）。
+    修复后统一从预设解析 WxH（1280x720）→ use_custom_resolution=True + 显式宽高，
+    保证 16:9 真正生效，而非落回近方形。
+    """
     img = tmp_path / "a.png"; img.write_bytes(b"x")
-    spec = _basic_spec(img_path=img)
+    spec = _basic_spec(img_path=img)   # resolution_preset 默认 "1280x720 (16:9) (横屏)"
     items = builder.build_node_info_list(spec, {img: "openapi/a.png"})
-    res_items = [it for it in items if it["nodeId"] == LTXNodes.RESOLUTION]
-    assert len(res_items) == 1
-    assert res_items[0]["fieldName"] == "resolution"
-    assert res_items[0]["fieldValue"] == "1280x720 (16:9) (横屏)"
+    res_items = {it["fieldName"]: it["fieldValue"]
+                 for it in items if it["nodeId"] == LTXNodes.RESOLUTION}
+    assert res_items == {"use_custom_resolution": True,
+                         "custom_width": 1280, "custom_height": 720}
 
 
 def test_nodeinfolist_custom_resolution_three_fields(builder, tmp_path):

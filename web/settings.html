@@ -785,7 +785,24 @@ function wireFormInteractions(id) {
 function testConnection(btn) {
   const act = btn.dataset.act;
   const cardEl = btn.closest('.card');
-  const hint = btn.closest('.frow').nextElementSibling;
+  const frow = btn.closest('.frow');
+  // 定位可写 hint：优先用按钮所在行的 .hint 兄弟；该行没有 .hint（如 RunningHub
+  // 的 API Key 行只传两参，nextElementSibling 是下一 .frow），则复用卡片内任一
+  // .hint，仍没有就紧跟该 .frow 现造一个 .hint，保证任意 test 按钮都有反馈位。
+  const resolveHint = () => {
+    const sib = frow && frow.nextElementSibling;
+    if (sib && sib.classList && sib.classList.contains('hint')) return sib;
+    const own = cardEl && cardEl.querySelector('.hint');
+    if (own) return own;
+    if (frow) {
+      const el = document.createElement('div');
+      el.className = 'hint';
+      frow.insertAdjacentElement('afterend', el);
+      return el;
+    }
+    return null;
+  };
+  const hint = resolveHint();
   const setHint = (ok, msg) => {
     if (hint && hint.classList.contains('hint')) {
       hint.classList.remove('ok', 'err');

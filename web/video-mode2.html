@@ -9,6 +9,7 @@
   /* 本页是壳内容页：标题栏/左侧导航由 web/app.html 提供，此处不再自带 .titlebar/.side。 */
   html, body { height: 100%; }
   body { overflow: hidden; }
+  /* 内容页用 min-height + 自身滚动：小窗(如 1366x768 非全屏)整页可滚动，避免子元素被裁剪/互相遮挡 */
   .work { height: 100vh; overflow-y: auto; padding: 22px 26px 30px; }
   .work-head {
     display: flex; align-items: center; gap: 16px; margin-bottom: 14px; max-width: 1440px;
@@ -87,7 +88,9 @@
      ================================================================ */
   .timeline-app {
     display: flex; flex-direction: column;
-    height: calc(100vh - 130px);
+    /* 不写死高度：用 min-height 让其随内容增长，由 .work 滚动容器兜底；
+       小窗时编辑区不会被挤成 0 高度、也不会溢出遮挡下方状态栏。 */
+    min-height: calc(100vh - 130px);
     max-width: 1440px; gap: 0;
   }
 
@@ -298,15 +301,19 @@
 
   /* --- 下部编辑区 --- */
   .editor-bottom {
-    display: flex; gap: 12px; flex: 1; min-height: 0; overflow: hidden;
+    display: flex; gap: 12px; flex: 1;
+    /* 给一个最小高度防小窗被挤扁；允许在窄屏换行堆叠(下方 @media)；
+       不再 overflow:hidden 裁剪内容，由各 panel 自身滚动。 */
+    min-height: 320px;
     margin-bottom: 10px;
   }
   .editor-bottom .panel {
     background: var(--panel); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 14px 16px;
     display: flex; flex-direction: column; overflow: hidden;
+    min-height: 0;
   }
-  .seg-panel { flex: 1.1; min-width: 0; }
+  .seg-panel { flex: 1.1; min-width: 0; overflow-y: auto; }
   .global-panel { flex: 1; min-width: 0; overflow-y: auto; }
 
   .panel-header {
@@ -392,12 +399,14 @@
   .global-panel .customwh { display: none; align-items: center; gap: 5px; }
   .global-panel .customwh.on { display: flex; }
 
-  /* 底部状态栏 */
+  /* 底部状态栏：粘在 .work 滚动容器底部，永不被编辑区/结果浮层遮挡，提交按钮始终可达 */
   .status-bar {
     display: flex; align-items: center; gap: 16px;
     background: var(--panel); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 10px 16px; flex-shrink: 0;
+    position: sticky; bottom: 0; z-index: 20;
   }
+  .status-bar .total-dur { white-space: nowrap; }
   .status-bar .status { font-size: 12.5px; color: var(--muted); }
   .status-bar .status.idle::before {
     content: ""; display: inline-block; width: 8px; height: 8px;
@@ -443,6 +452,25 @@
   .vid-result .err {
     background: rgba(255,90,90,.08); border: 1px solid var(--err);
     border-radius: var(--radius-sm); padding: 10px 12px; color: var(--err); font-size: 12.5px;
+  }
+
+  /* ================================================================
+     ===== 响应式：窄屏/小窗(如 1366x768 非全屏) 防遮挡 =====
+     窄屏时编辑区双栏改为纵向堆叠；整页靠 .work 滚动，状态栏 sticky 兜底。
+     ================================================================ */
+  @media (max-width: 1100px) {
+    .work { padding: 16px 16px 24px; }
+    /* 编辑区两栏在窄屏换行堆叠，避免横向挤压导致内容溢出遮挡 */
+    .editor-bottom { flex-wrap: wrap; min-height: 0; }
+    .editor-bottom .seg-panel,
+    .editor-bottom .global-panel { flex: 1 1 100%; min-width: 0; overflow: visible; }
+    .editor-bottom .panel { overflow: visible; }
+    .editor-bottom textarea { min-height: 120px; }
+  }
+  /* 矮屏：不再强求 timeline-app 占满视口高度，纯随内容流式排布 */
+  @media (max-height: 820px) {
+    .timeline-app { min-height: 0; }
+    .editor-bottom { min-height: 0; }
   }
 
   /* ================================================================
