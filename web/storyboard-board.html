@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>绯背AI 路 鈶?鍒嗛暅鏉?路 STORYBOARD</title>
+<title>糯米AI · ③ 分镜板 · STORYBOARD</title>
 <link rel="stylesheet" href="tokens.css">
 <style>
-  /* ===== 椤甸潰楠ㄦ灦 ===== */
+  /* ===== 页面骨架 ===== */
   .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 22px 60px; }
 
-  /* ===== 椤堕儴鏍?===== */
+  /* ===== 顶部栏 ===== */
   .topbar {
     display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
   }
@@ -20,19 +20,19 @@
   }
   .topbar .spacer { flex: 1; }
   .shot-select { min-width: 240px; }
-  /* 涓€閿垎闀滐細娆＄骇钃濈传鎻忚竟鎸夐挳 */
+  /* 一键分镜：次级蓝紫描边按钮 */
   .btn-split-auto {
     background: var(--panel2); color: var(--fg);
     border: 1px solid var(--border);
   }
   .btn-split-auto:hover { filter: brightness(1.15); }
-  /* 鎷嗗垎闀滐細缁胯壊涓绘寜閽紙done 绯伙級 */
+  /* 拆分镜：绿色主按钮（done 系） */
   .btn-go {
     background: linear-gradient(135deg, var(--done), #3bb37e);
     color: #06251a;
   }
 
-  /* ===== 鎷嗚В琛ㄩ潰鏉?===== */
+  /* ===== 拆解表面板 ===== */
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; }
   .panel-head {
     display: flex; align-items: center; gap: 10px;
@@ -44,7 +44,7 @@
   .panel-body { padding: 4px 16px 16px; border-top: 1px solid var(--border-lo); }
   .panel.collapsed .panel-body { display: none; }
 
-  /* 瀹炰綋鍒嗙粍锛氱浉杩戠被鍨嬪悓鎺掞紝3 涓í鍚?band 鑺傜渷绾靛悜绌洪棿 */
+  /* 实体分组：相近类型同排，3 个横向 band 节省纵向空间 */
   .ent-band { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 8px 0; }
   .ent-band + .ent-band { border-top: 1px dashed var(--border-lo); }
   .ent-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -65,7 +65,7 @@
   .chip .link { color: var(--periw); font-size: 11px; opacity: .85; }
   .chip.role { border-color: var(--blue-dim); }
 
-  /* ===== 鑺傛媿琛?B1/B2/B3 ===== */
+  /* ===== 节拍行 B1/B2/B3 ===== */
   .beats { margin-bottom: 16px; }
   .beat {
     display: flex; align-items: center; gap: 12px;
@@ -78,19 +78,19 @@
     padding: 2px 9px; border-radius: 9px; font-size: 11px; font-weight: 600;
     border: 1px solid transparent; white-space: nowrap;
   }
-  .tag.setup  { background: rgba(167,139,250,.16); color: var(--mauve); border-color: #4a3d6e; }   /* 閾哄灚 */
-  .tag.turn   { background: rgba(139,127,217,.16); color: var(--periw); border-color: #443c66; }   /* 杞姌 */
-  .tag.react  { background: rgba(74,158,255,.14);  color: var(--blue);  border-color: var(--blue-dim); } /* 鍙嶅簲 */
+  .tag.setup  { background: rgba(167,139,250,.16); color: var(--mauve); border-color: #4a3d6e; }   /* 铺垫 */
+  .tag.turn   { background: rgba(139,127,217,.16); color: var(--periw); border-color: #443c66; }   /* 转折 */
+  .tag.react  { background: rgba(74,158,255,.14);  color: var(--blue);  border-color: var(--blue-dim); } /* 反应 */
   .beat .desc { flex: 1; color: var(--fg2); font-size: 13px; }
   .beat .tension { color: var(--warn); font-size: 12px; white-space: nowrap; }
 
-  /* ===== 姣忛暅璇︽儏 ===== */
+  /* ===== 每镜详情 ===== */
   .shot-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
   .shot-grid { display: flex; gap: 16px; padding: 16px; }
   .shot-main { flex: 1; min-width: 0; }
   .shot-side { width: 210px; flex: none; }
 
-  /* 闀滃ご澶磋 */
+  /* 镜头头行 */
   .shot-meta {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     padding-bottom: 12px; border-bottom: 1px solid var(--border-lo); margin-bottom: 12px;
@@ -105,7 +105,7 @@
   .field select, .field input { padding: 5px 8px; font-size: 12px; min-width: 92px; }
   .shot-meta .status { margin-left: auto; display: flex; align-items: center; font-size: 12px; color: var(--muted); }
 
-  /* 瀛愬尯鍧?*/
+  /* 子区块 */
   .sub { margin-bottom: 13px; }
   .sub-label {
     font-size: 11px; letter-spacing: .4px; color: var(--periw);
@@ -131,14 +131,14 @@
   .btn-sm { padding: 7px 14px; font-size: 13px; }
   .btn-genimg { background: linear-gradient(135deg, var(--done), #3bb37e); color: #06251a; }
 
-  /* 鐢靛奖绾х粏鑺?*/
+  /* 电影级细节 */
   .cine { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-lo); }
   .cine-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
   .cine-line { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .cine-line label { font-size: 11px; color: var(--muted); min-width: 30px; }
   .cine-line input { flex: 1; font-size: 12px; }
 
-  /* HD 涓昏矾寰勬彁绀?*/
+  /* HD 主路径提示 */
   .hd-note {
     display: flex; align-items: flex-start; gap: 9px;
     background: rgba(74,158,255,.08); border: 1px solid var(--blue-dim);
@@ -148,7 +148,7 @@
   .hd-note b { color: var(--blue); }
   .hd-note .ic { color: var(--blue); }
 
-  /* 鍙虫爮鍒嗛暅鍥鹃瑙?9:16 */
+  /* 右栏分镜图预览 9:16 */
   .side-label { font-size: 12px; font-weight: 600; color: var(--fg2); margin-bottom: 9px; }
   .preview {
     width: 100%; aspect-ratio: 9 / 16; border-radius: var(--radius-sm);
@@ -157,7 +157,7 @@
     display: flex; align-items: flex-start; justify-content: center;
     position: relative; overflow: hidden;
   }
-  .preview.wide { aspect-ratio: 16 / 9; }   /* 16:9 妯睆鍒囨崲 */
+  .preview.wide { aspect-ratio: 16 / 9; }   /* 16:9 横屏切换 */
   .side-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
   .ar-toggle { display: inline-flex; background: var(--field); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
   .ar-btn { font: inherit; font-size: 11px; color: var(--muted); background: transparent; border: none; padding: 3px 9px; cursor: pointer; }
@@ -167,27 +167,22 @@
     padding: 2px 9px; border-radius: 9px; font-size: 11px; font-weight: 600;
     background: rgba(78,201,143,.18); color: var(--done); border: 1px solid #2f6b50;
   }
-  .preview .badge-recover {
-    position: absolute; top: 30px; left: 8px;
-    padding: 2px 9px; border-radius: 9px; font-size: 11px; font-weight: 600;
-    background: rgba(255,180,0,.14); color: var(--warn); border: 1px solid #6e5a3a;
-    z-index: 2; pointer-events: none;
-  }
   .preview .ph {
     margin-top: 46%; color: var(--faint); font-size: 12px; text-align: center; line-height: 1.7;
   }
   .side-meta { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.7; }
 
-  /* 鐏锛氱偣鍑诲垎闀滃浘鍏ㄥ睆鏌ョ湅 */
-  .lightbox { position: fixed; inset: 0; z-index: 6000; display: none; align-items: center; justify-content: center; }
-  .lightbox.open { display: flex; }
+  /* 灯箱：点击分镜图全屏查看 */
+  .lightbox { position: fixed; inset: 0; z-index: 6000; display: flex; align-items: center; justify-content: center; }
   .lightbox .lb-overlay { position: absolute; inset: 0; background: rgba(8,9,18,.88); cursor: pointer; }
   .lightbox .lb-body { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; }
   .lightbox .lb-close { position: absolute; top: -36px; right: 0; color: var(--fg2); font-size: 22px; cursor: pointer; padding: 8px; }
   .lightbox .lb-close:hover { color: var(--fg); }
   .lightbox .lb-info { position: absolute; bottom: -30px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 11px; }
+  .preview { cursor: pointer; }  /* 可点击放大 */
+  .preview:hover { border-color: var(--mauve); }
 
-  /* ===== 宸ヤ綔妯″紡鍒囨崲 seg ===== */
+  /* ===== 工作模式切换 seg ===== */
   .mode-seg {
     display: inline-flex; background: var(--field); border: 1px solid var(--border);
     border-radius: 9px; padding: 3px; gap: 3px;
@@ -203,7 +198,7 @@
   }
   .sbview-tools { display: inline-flex; align-items: center; gap: 14px; }
 
-  /* ===== 鑷敱妯″紡锛氭壒澶勭悊宸ュ叿闆嗭紙瀵归綈 batch-tools-redesign 纭绋胯川鎰燂級===== */
+  /* ===== 自由模式：批处理工具集（对齐 batch-tools-redesign 确认稿质感）===== */
   .batch-win {
     border: 1px solid #000; border-radius: 11px; overflow: hidden;
     box-shadow: 0 24px 60px rgba(0,0,0,.55);
@@ -227,7 +222,7 @@
 
   .batch-body { flex: 1; display: flex; min-height: 0; }
 
-  /* 涓爮锛氱缉鐣ュ浘缃戞牸 */
+  /* 中栏：缩略图网格 */
   .grid-col { flex: 1; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border-lo); }
   .gridhead { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border-lo); }
   .gridhead .t { font-size: 12.5px; font-weight: 600; }
@@ -247,12 +242,12 @@
   .th.sel { border-color: var(--mauve); box-shadow: 0 0 0 1px rgba(167,139,250,.35); }
   .th .check { position: absolute; top: 6px; left: 6px; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid rgba(255,255,255,.5); background: rgba(8,9,16,.4); display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; }
   .th.sel .check { background: var(--mauve); border-color: var(--mauve); color: #1a1230; font-weight: 700; }
-  /* order 椤哄簭瑙掓爣锛堟嫾鍥撅級 */
+  /* order 顺序角标（拼图） */
   .th .ord { position: absolute; top: 6px; left: 6px; min-width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; font-weight: 800; font-size: 11px; display: none; align-items: center; justify-content: center; padding: 0 5px; }
   .batch-win.order-mode .th .check { display: none; }
   .batch-win.order-mode .th.sel .ord { display: flex; }
 
-  /* 鍙虫爮锛氬弬鏁伴潰鏉?*/
+  /* 右栏：参数面板 */
   .panel-col { width: 360px; flex: 0 0 360px; display: flex; flex-direction: column; background: var(--bg); }
   .panelhead { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--border-lo); }
   .panelhead .t { font-size: 13px; font-weight: 600; }
@@ -286,7 +281,7 @@
   .pta { width: 100%; min-height: 88px; resize: vertical; background: var(--field); border: 1px solid var(--border); border-radius: 6px; color: var(--fg); font: inherit; font-size: 12px; line-height: 1.55; padding: 8px 10px; outline: none; }
   .pta:focus { border-color: var(--mauve); }
 
-  /* 棰勫埗涓撲笟鎻愮ず璇嶇墖娈碉紙蹇嵎璇?chips锛夆€斺€旂偣鍑绘彃鍏ユ彁绀鸿瘝鍏夋爣澶?*/
+  /* 预制专业提示词片段（快捷词 chips）——点击插入提示词光标处 */
   .quick-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
   .qchip {
     font: inherit; font-size: 11px; color: var(--periw);
@@ -295,7 +290,7 @@
   }
   .qchip:hover { color: #06122a; background: linear-gradient(135deg, var(--blue), var(--periw)); border-color: transparent; }
 
-  /* 鑷畾涔夋暟瀛楀井璋冩 + 閫夋嫨妗嗭紙瀵归綈纭绋胯川鎰燂紝鏇夸唬瑁?input/select锛?/
+  /* 自定义数字微调框 + 选择框（对齐确认稿质感，替代裸 input/select）*/
   .spin { display: flex; align-items: center; background: var(--field); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; flex: 1; }
   .spin input { flex: 1; background: transparent; border: none; outline: none; color: var(--fg); font: inherit; font-size: 12px; padding: 6px 9px; width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
   .spin .stp { width: 24px; text-align: center; color: var(--muted); border-left: 1px solid var(--border); padding: 6px 0; cursor: pointer; font-size: 12px; user-select: none; }
@@ -306,7 +301,7 @@
   .sel-box .car { color: var(--muted); font-size: 10px; flex: none; }
   .quad .qcell .spin { width: 100%; }
 
-  /* 搴曢儴鎵ц鏍?*/
+  /* 底部执行栏 */
   .execbar { border-top: 1px solid var(--border-lo); background: var(--navy); padding: 11px 16px; }
   .prog-line { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .prog-line .pl { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -321,7 +316,7 @@
   .vhint { font-size: 11.5px; color: var(--warn); }
   .vhint.ok { color: var(--done); }
 
-  /* ===== 鍑哄浘鍙傝€冨浘鍖猴紙鍥剧敓鍥?/ @鏍囩锛?==== */
+  /* ===== 出图参考图区（图生图 / @标签）===== */
   .refimg-row { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
   .refimg-card {
     position: relative; width: 78px; flex: none;
@@ -358,7 +353,7 @@
     background: rgba(139,127,217,.12); border-radius: 9px; padding: 2px 10px; white-space: nowrap;
   }
 
-  /* ===== 鍑哄浘浠诲姟绠＄悊 ===== */
+  /* ===== 出图任务管理 ===== */
   .tasks-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
   .tasks-tools .t-sp { flex: 1; }
   .tk-btn { font-size: 12px; padding: 6px 12px; }
@@ -390,15 +385,15 @@
   .task-table .row-op.del:hover { color: var(--err); border-color: #6e3a45; }
   .tasks-empty { color: var(--faint); font-size: 12px; padding: 14px 4px; text-align: center; }
 
-  /* ===== 鍑哄浘 = 鐢熷浘宸ヤ綔瀹わ紙浠?imggen 宸ュ叿鐢紱鎷?鎷?鍘荤櫧杈?浠嶇敤 grid-col+panel-col锛?==== */
-  /* 鍑哄浘妯″紡涓嬮殣钘忛€氱敤缃戞牸鎵瑰鐞嗕綋涓庡簳閮ㄦ墽琛屾爮锛屾敼鐢?studio-body */
+  /* ===== 出图 = 生图工作室（仅 imggen 工具用；拆/拼/去白边 仍用 grid-col+panel-col）===== */
+  /* 出图模式下隐藏通用网格批处理体与底部执行栏，改用 studio-body */
   .batch-win.studio-mode .batch-body { display: none; }
   .batch-win.studio-mode .execbar { display: none; }
-  /* 闈炲嚭鍥炬椂闅愯棌 studio 浣?*/
+  /* 非出图时隐藏 studio 体 */
   .batch-win:not(.studio-mode) .studio-body { display: none; }
 
   .studio-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  /* 鈶?鎻愮ず璇?HERO锛堣瑙変腑蹇冿紝鍏ㄥ澶х紪杈戝尯锛?*/
+  /* ① 提示词 HERO（视觉中心，全宽大编辑区） */
   .composer { flex-shrink: 0; padding: 16px 20px; border-bottom: 1px solid var(--border-lo); background: linear-gradient(180deg, rgba(74,158,255,.05), transparent); }
   .composer .clab { font-size: 12px; color: var(--periw); font-weight: 700; letter-spacing: .5px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
   .composer .clab .star { color: var(--blue); }
@@ -406,12 +401,12 @@
   .prompt-hero { width: 100%; box-sizing: border-box; min-height: 116px; resize: vertical; font: inherit; font-size: 14px; line-height: 1.7;
     background: var(--field); border: 1.5px solid var(--blue-dim); border-radius: 12px; color: var(--fg); padding: 14px 16px; outline: none; box-shadow: 0 0 0 1px rgba(74,158,255,.12) inset; }
   .prompt-hero:focus { border-color: var(--blue); }
-  /* 棰勭疆涓撲笟鐗囨锛堥啋鐩竴鎺掞級 */
+  /* 预置专业片段（醒目一排） */
   .presets { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; align-items: center; }
   .presets .plab { font-size: 11.5px; color: var(--muted); margin-right: 2px; }
   .preset { font: inherit; font-size: 11.5px; color: var(--periw); background: rgba(138,127,217,.14); border: 1px solid #4a3d6e; border-radius: 13px; padding: 5px 12px; cursor: pointer; }
   .preset:hover { background: rgba(138,127,217,.24); }
-  /* 鍙傝€冨浘 + 鍙傛暟 + 鐢熸垚 鍚屼竴琛?*/
+  /* 参考图 + 参数 + 生成 同一行 */
   .ctrl-row { display: flex; align-items: center; gap: 18px; margin-top: 13px; flex-wrap: wrap; }
   .refs { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
   .refs .rl { font-size: 11.5px; color: var(--muted); }
@@ -432,7 +427,7 @@
   .btn-gen { font: inherit; font-size: 14px; font-weight: 700; padding: 11px 26px; border-radius: 9px; border: none; cursor: pointer;
     background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; box-shadow: 0 6px 18px rgba(74,158,255,.3); white-space: nowrap; }
   .btn-gen:disabled { opacity: .6; cursor: default; }
-  /* 鈶?缁撴灉鐢诲粖 */
+  /* ② 结果画廊 */
   .gallery-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .gallery-head { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--border-lo); flex-shrink: 0; }
   .gallery-head .t { font-size: 12.5px; font-weight: 600; }
@@ -446,7 +441,7 @@
   .gcard img { width: 100%; height: 100%; object-fit: cover; display: block; background: linear-gradient(135deg,#243a5a,#3a2746); }
   .gcard .cap { position: absolute; left: 0; right: 0; bottom: 0; font-size: 9.5px; color: #cfd3e0; background: linear-gradient(transparent, rgba(8,9,16,.85)); padding: 14px 8px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gallery-empty { grid-column: 1/-1; color: var(--faint); font-size: 13px; text-align: center; padding: 50px 12px; }
-  /* outdir 鍐?鎵撳紑 / 鍒锋柊 鎸夐挳 */
+  /* outdir 内 打开 / 刷新 按钮 */
   .outdir .open, .outdir .refresh { border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; color: var(--muted); }
   .outdir .open:hover { color: var(--fg2); border-color: var(--blue-dim); }
   .outdir .refresh { color: var(--blue); border-color: var(--blue-dim); }
@@ -456,111 +451,112 @@
 <body>
 <div class="wrap">
 
-  <!-- ===== 椤堕儴鏍?===== -->
+  <!-- ===== 顶部栏 ===== -->
   <div class="topbar">
-    <h1>鈶?鍒嗛暅鏉?路 STORYBOARD</h1>
-    <!-- 宸ヤ綔妯″紡鍒囨崲锛氬垎闀滆瑙掞紙榛樿锛? 鑷敱妯″紡 -->
+    <h1>③ 分镜板 · STORYBOARD</h1>
+    <!-- 工作模式切换：分镜视角（默认）/ 自由模式 -->
     <span class="mode-seg" id="modeSeg">
-      <button class="mode-btn active" data-mode="storyboard">鍒嗛暅瑙嗚</button>
-      <button class="mode-btn" data-mode="free">鑷敱妯″紡</button>
+      <button class="mode-btn active" data-mode="storyboard">分镜视角</button>
+      <button class="mode-btn" data-mode="free">自由模式</button>
     </span>
     <div class="spacer"></div>
-    <!-- 鍒嗛暅瑙嗚宸ュ叿锛氶€夐泦 / 閫夐暅 / 鍒锋柊 -->
+    <!-- 分镜视角工具：选集 / 选镜 / 刷新 -->
     <span class="sbview-tools" id="sbViewTools">
-      <select class="shot-select" id="epSel" style="min-width:140px;" title="閫夋嫨闆?></select>
-      <select class="shot-select" id="shotSel" title="閫夋嫨闀滃ご"></select>
-      <button class="btn-split-auto" id="reloadBtn" title="閲嶆柊璇诲彇鍒嗛暅鏁版嵁">鈫?璇诲垎闀?/button>
+      <select class="shot-select" id="epSel" style="min-width:140px;" title="选择集"></select>
+      <select class="shot-select" id="shotSel" title="选择镜头"></select>
+      <button class="btn-split-auto" id="reloadBtn" title="重新读取分镜数据">↻ 读分镜</button>
     </span>
   </div>
 
-  <!-- ===== 鍒嗛暅瑙嗚鍐呭鍖猴紙榛樿鏄剧ず锛?===== -->
+  <!-- ===== 分镜视角内容区（默认显示） ===== -->
   <div id="storyboardView">
 
-  <!-- ===== 绌烘€侊紙鏃犲垎闀滄暟鎹椂鏄剧ず锛?===== -->
+  <!-- ===== 空态（无分镜数据时显示） ===== -->
   <div class="panel" id="sbEmpty" hidden>
     <div class="panel-body" style="border-top:none;padding:30px 20px;text-align:center;">
-      <div style="font-size:14px;color:var(--fg2);margin-bottom:8px;">鏈」鐩殏鏃犲垎闀滄暟鎹?/div>
+      <div style="font-size:14px;color:var(--fg2);margin-bottom:8px;">本项目暂无分镜数据</div>
       <div style="font-size:12.5px;color:var(--muted);line-height:1.8;">
-        璇峰厛鍒般€屸憽 鍒嗛暅姝ャ€嶇敓鎴愬垎闀滐紙钀界洏 <b>鍒嗛暅_E*.json</b>锛夊悗鍥炲埌鏈〉銆?br>
-        鐢熸垚鍚庣偣鍙充笂銆屸喕 璇诲垎闀溿€嶉噸鏂拌鍙栥€?      </div>
+        请先到「② 分镜步」生成分镜（落盘 <b>分镜_E*.json</b>）后回到本页。<br>
+        生成后点右上「↻ 读分镜」重新读取。
+      </div>
     </div>
   </div>
 
-  <!-- ===== 鎷嗚В琛ㄩ潰鏉匡紙鍙敹璧凤級锛氬叏灞€澶?+ 瑙掕壊锛堝紩鐢ㄨ祫婧愭潵婧愶級 ===== -->
+  <!-- ===== 拆解表面板（可收起）：全局头 + 角色（引用资源来源） ===== -->
   <div class="panel" id="breakdown" hidden>
     <div class="panel-head" id="bdHead">
-      <span class="ttl">鍒嗛暅淇℃伅 路 瑙掕壊</span>
+      <span class="ttl">分镜信息 · 角色</span>
       <span class="meta" id="bdMeta"></span>
-      <span class="toggle" id="bdToggle">鏀惰捣 鈻?/span>
+      <span class="toggle" id="bdToggle">收起 ▲</span>
     </div>
     <div class="panel-body" id="bdBody">
-      <!-- 鐢?JS 娓叉煋锛氬叏灞€澶达紙鏍囬/鐢诲箙/闀滃ご鏁帮級+ 瑙掕壊 chips -->
+      <!-- 由 JS 渲染：全局头（标题/画幅/镜头数）+ 角色 chips -->
     </div>
   </div>
 
-  <!-- ===== 姣忛暅璇︽儏 ===== -->
+  <!-- ===== 每镜详情 ===== -->
   <div class="shot-card" id="shotCard" hidden>
     <div class="shot-grid">
 
-      <!-- 涓诲尯 -->
+      <!-- 主区 -->
       <div class="shot-main">
-        <!-- 澶磋 -->
+        <!-- 头行 -->
         <div class="shot-meta">
           <div class="no" id="shotNo">1</div>
           <div class="field" style="flex:1;min-width:120px;">
-            <label>鏋勫浘 composition</label>
-            <input type="text" id="shotComposition" placeholder="鏅埆 / 鏈轰綅 / 杩愰暅鈥?>
+            <label>构图 composition</label>
+            <input type="text" id="shotComposition" placeholder="景别 / 机位 / 运镜…">
           </div>
           <div class="field">
-            <label>鏃堕暱(s)</label>
+            <label>时长(s)</label>
             <input type="text" id="shotDuration" value="" style="min-width:54px;">
           </div>
-          <div class="status" id="shotStatus"><span class="dot"></span>鑽夌</div>
+          <div class="status" id="shotStatus"><span class="dot"></span>草稿</div>
         </div>
 
-        <!-- HD 涓昏矾寰勬彁绀?-->
+        <!-- HD 主路径提示 -->
         <div class="hd-note">
-          <span class="ic">鈽?/span>
-          <div><b>鍗曞浘 HD 鐢熸垚涓轰富璺緞</b> 鈥斺€?鐭墽瑙嗛渚濊禆楂樻竻鍒嗛暅鍥撅紝鍏堟妸鏈暅闈欏抚鎷夊埌 HD 璐ㄩ噺锛屽啀椹卞姩鍚庣画瑙嗛鐢熸垚銆?/div>
+          <span class="ic">★</span>
+          <div><b>单图 HD 生成为主路径</b> —— 短剧视频依赖高清分镜图，先把本镜静帧拉到 HD 质量，再驱动后续视频生成。</div>
         </div>
 
-        <!-- 闀滃ご鎻忚堪锛堟潵鑷?shot.description锛屽彲缂栬緫锛?-->
+        <!-- 镜头描述（来自 shot.description，可编辑） -->
         <div class="sub">
-          <div class="sub-label">闀滃ご鎻忚堪 <span class="hint" id="shotIdHint"></span></div>
-          <textarea class="prompt-ta" id="shotDescription" style="min-height:78px;" placeholder="鏈暅鍐呭鎻忚堪鈥?></textarea>
+          <div class="sub-label">镜头描述 <span class="hint" id="shotIdHint"></span></div>
+          <textarea class="prompt-ta" id="shotDescription" style="min-height:78px;" placeholder="本镜内容描述…"></textarea>
         </div>
 
-        <!-- 寮曠敤璧勬簮锛堟潵鑷湰闆?characters锛岀偣鍑绘妸 @瑙掕壊 鎻掑叆鎻愮ず璇嶏級 -->
+        <!-- 引用资源（来自本集 characters，点击把 @角色 插入提示词） -->
         <div class="sub">
-          <div class="sub-label">寮曠敤璧勬簮 <span class="hint">锛堟湰闆嗚鑹?路 鐐瑰嚮鎶?@鍚?鎻掑叆鎻愮ず璇嶏級</span></div>
+          <div class="sub-label">引用资源 <span class="hint">（本集角色 · 点击把 @名 插入提示词）</span></div>
           <div class="ref-row" id="charRow"></div>
         </div>
 
-        <!-- 鍑哄浘鍙傝€冨浘锛堝浘鐢熷浘 / @鏍囩锛?->
+        <!-- 出图参考图（图生图 / @标签）-->
         <div class="sub">
           <div class="sub-label">
-            鍙傝€冨浘 <span class="hint">锛堟坊鍔犲嵆鍥剧敓鍥?路 鐐瑰崱鐗囨妸 @鏍囩鎻掑叆鎻愮ず璇嶏級</span>
-            <span class="refimg-mode" id="genMode">鏂囩敓鍥?/span>
+            参考图 <span class="hint">（添加即图生图 · 点卡片把 @标签插入提示词）</span>
+            <span class="refimg-mode" id="genMode">文生图</span>
           </div>
           <div class="refimg-row" id="refImgRow">
-            <div class="refimg-add" id="addRefImg">锛?娣诲姞<br>鍙傝€冨浘</div>
+            <div class="refimg-add" id="addRefImg">＋ 添加<br>参考图</div>
           </div>
         </div>
 
-        <!-- 鎻愮ず璇嶏紙鏉ヨ嚜 shot.stylePrompt锛屽彲缂栬緫锛涚敓鎴愬垎闀滃浘鍗崇敤姝ゆ枃鏈級 -->
+        <!-- 提示词（来自 shot.stylePrompt，可编辑；生成分镜图即用此文本） -->
         <div class="sub">
-          <div class="sub-label">鍒嗛暅鍑哄浘鎻愮ず璇?<span class="hint">锛坰tylePrompt锛?/span></div>
-          <textarea class="prompt-ta" id="prompt" placeholder="鏈暅鍑哄浘鎻愮ず璇嶁€?></textarea>
+          <div class="sub-label">分镜出图提示词 <span class="hint">（stylePrompt）</span></div>
+          <textarea class="prompt-ta" id="prompt" placeholder="本镜出图提示词…"></textarea>
           <div class="btn-row">
-            <button class="btn-genimg btn-sm" id="genImgBtn">鈿?鐢熸垚鍒嗛暅鍥?/button>
+            <button class="btn-genimg btn-sm" id="genImgBtn">⚡ 生成分镜图</button>
           </div>
         </div>
       </div>
 
-      <!-- 鍙虫爮锛氬垎闀滃浘棰勮 -->
+      <!-- 右栏：分镜图预览 -->
       <div class="shot-side">
         <div class="side-head">
-          <span class="side-label">鍒嗛暅鍥撅紙1锛?/span>
+          <span class="side-label">分镜图（1）</span>
           <span class="ar-toggle" id="arToggle">
             <button class="ar-btn active" data-ar="vertical">9:16</button>
             <button class="ar-btn" data-ar="wide">16:9</button>
@@ -568,18 +564,18 @@
         </div>
         <div class="preview" id="preview">
           <span class="badge-hd">HD</span>
-          <div class="ph" id="previewPh">9 : 16 绔栧睆<br>鍒嗛暅鍥鹃瑙?br><span class="faint">锛堝崰浣嶏級</span></div>
+          <div class="ph" id="previewPh">9 : 16 竖屏<br>分镜图预览<br><span class="faint">（占位）</span></div>
         </div>
         <div class="side-meta" id="sideMeta">
-          鐢诲箙 9:16 路 鐭墽绔栧睆<br>
-          鍗曞浘 HD 路 瑙嗛鍩哄簳甯?        </div>
-        <button class="btn-go" id="sidePreviewBtn" style="width:100%;margin-top:10px;">馃攳 棰勮</button>
-        <!-- 鍏ㄥ睆鐏棰勮锛堢偣鍑婚瑙堟寜閽墦寮€锛?-->
+          画幅 9:16 · 短剧竖屏<br>
+          单图 HD · 视频基底帧
+        </div>
+        <!-- 全屏灯箱预览（点击分镜图打开） -->
         <div class="lightbox" id="imgLightbox" hidden>
           <div class="lb-overlay" id="lbOverlay"></div>
           <div class="lb-body">
-            <img id="lbImg" alt="鍒嗛暅鍥惧師鍥? style="max-width:92vw;max-height:92vh;object-fit:contain;border-radius:10px;box-shadow:0 12px 48px rgba(0,0,0,.55);">
-            <div class="lb-close" id="lbClose">鉁?/div>
+            <img id="lbImg" alt="分镜图原图" style="max-width:92vw;max-height:92vh;object-fit:contain;border-radius:10px;box-shadow:0 12px 48px rgba(0,0,0,.55);">
+            <div class="lb-close" id="lbClose">✕</div>
             <div class="lb-info" id="lbInfo"></div>
           </div>
         </div>
@@ -588,88 +584,89 @@
     </div>
   </div>
 
-  <!-- ===== 鍑哄浘浠诲姟绠＄悊锛坙ocalStorage 鎸佷箙鍖栵級 ===== -->
+  <!-- ===== 出图任务管理（localStorage 持久化） ===== -->
   <div class="panel" id="tasksPanel" style="margin-top:16px;">
     <div class="panel-head" id="tkHead">
-      <span class="ttl">鍑哄浘浠诲姟</span>
-      <span class="meta" id="tkMeta">锛? 涓换鍔★級</span>
-      <span class="toggle" id="tkToggle">鏀惰捣 鈻?/span>
+      <span class="ttl">出图任务</span>
+      <span class="meta" id="tkMeta">（0 个任务）</span>
+      <span class="toggle" id="tkToggle">收起 ▲</span>
     </div>
     <div class="panel-body">
       <div class="tasks-tools">
-        <button class="ghost tk-btn" id="tkNew">锛?鏂板缓浠诲姟</button>
-        <button class="ghost tk-btn" id="tkSaveCur">淇濆瓨褰撳墠涓轰换鍔?/button>
+        <button class="ghost tk-btn" id="tkNew">＋ 新建任务</button>
+        <button class="ghost tk-btn" id="tkSaveCur">保存当前为任务</button>
         <span class="t-sp"></span>
-        <span class="faint" id="tkHint">鐐逛换鍔¤杞藉叆鍒颁笂鏂圭紪杈戝櫒锛涚敓鎴愭椂鍥炲啓鐘舵€併€?/span>
+        <span class="faint" id="tkHint">点任务行载入到上方编辑器；生成时回写状态。</span>
       </div>
       <table class="task-table" id="taskTable">
         <thead>
           <tr>
             <th style="width:30px;">#</th>
-            <th>鎻愮ず璇?/th>
-            <th style="width:64px;">鍙傝€冨浘</th>
-            <th style="width:58px;">鐢诲箙</th>
-            <th style="width:44px;">寮犳暟</th>
-            <th style="width:72px;">鐘舵€?/th>
-            <th style="width:130px;">鎿嶄綔</th>
+            <th>提示词</th>
+            <th style="width:64px;">参考图</th>
+            <th style="width:58px;">画幅</th>
+            <th style="width:44px;">张数</th>
+            <th style="width:72px;">状态</th>
+            <th style="width:130px;">操作</th>
           </tr>
         </thead>
         <tbody id="taskBody"></tbody>
       </table>
-      <div class="tasks-empty" id="tasksEmpty" hidden>鏆傛棤浠诲姟銆傜偣銆岋紜 鏂板缓浠诲姟銆嶆垨銆屼繚瀛樺綋鍓嶄负浠诲姟銆嶅垱寤恒€?/div>
+      <div class="tasks-empty" id="tasksEmpty" hidden>暂无任务。点「＋ 新建任务」或「保存当前为任务」创建。</div>
     </div>
   </div>
 
   </div><!-- /#storyboardView -->
 
-  <!-- ===== 鑷敱妯″紡锛氭壒澶勭悊宸ュ叿闆嗭紙榛樿闅愯棌锛?===== -->
+  <!-- ===== 自由模式：批处理工具集（默认隐藏） ===== -->
   <div id="freeView" hidden>
     <div class="batch-win">
 
-      <!-- 椤堕儴宸ュ叿 Tab + 杈撳嚭鐩綍 -->
+      <!-- 顶部工具 Tab + 输出目录 -->
       <div class="batch-toolbar">
         <div class="btabs" id="btabs">
           <div class="btab act" data-tool="imggen">
             <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><circle cx="5.5" cy="6" r="1.4"/><path d="M2 12l3.5-3.5 2.5 2.5 3-3 3.5 3.5"/></svg>
-            鍑哄浘
+            出图
           </div>
           <div class="btab" data-tool="split">
             <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="1.5" width="13" height="13" rx="1.5"/><line x1="8" y1="1.5" x2="8" y2="14.5"/><line x1="1.5" y1="8" x2="14.5" y2="8"/></svg>
-            鎷嗗浘
+            拆图
           </div>
           <div class="btab" data-tool="trim">
             <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="3" width="10" height="10" rx="1" opacity=".55"/><path d="M3 1v3M3 12v3M1 3h3M12 3h3"/></svg>
-            鍘荤櫧杈?          </div>
+            去白边
+          </div>
           <div class="btab" data-tool="combine">
             <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1"/><rect x="9" y="9" width="5.5" height="5.5" rx="1"/></svg>
-            鎷煎浘
+            拼图
           </div>
         </div>
         <div class="btbsp"></div>
         <div class="outdir">
-          <span>杈撳嚭鐩綍</span>
+          <span>输出目录</span>
           <span class="path" id="outDir">D:/works/ep01/tiles_out</span>
-          <span class="pick" id="pickDir">閫夋嫨鈥?/span>
-          <span class="open" id="openOutDir">鎵撳紑</span>
-          <span class="refresh" id="refreshOutDir">鈫?鍒锋柊</span>
+          <span class="pick" id="pickDir">选择…</span>
+          <span class="open" id="openOutDir">打开</span>
+          <span class="refresh" id="refreshOutDir">↻ 刷新</span>
         </div>
       </div>
 
-      <!-- ===== 鍑哄浘 = 鐢熷浘宸ヤ綔瀹わ紙浠?imggen 宸ュ叿鏄剧ず锛涘叾浣欏伐鍏锋樉绀轰笅鏂?batch-body锛?===== -->
+      <!-- ===== 出图 = 生图工作室（仅 imggen 工具显示；其余工具显示下方 batch-body） ===== -->
       <div class="studio-body">
-        <!-- 鈶?鎻愮ず璇?HERO -->
+        <!-- ① 提示词 HERO -->
         <div class="composer">
-          <div class="clab"><span class="star">鉁?/span> 鎻愮ず璇嶏紙鏂囩敓鍥?/ 鍥剧敓鍥撅級<span class="mode-badge" id="studioMode">鏂囩敓鍥撅紙鑷姩锛?/span></div>
-          <textarea class="prompt-hero" id="studioPrompt" placeholder="鎻忚堪鏈鍑哄浘鐢婚潰鈥︾數褰辩骇璐ㄦ劅锛孒D 楂樻竻鐢昏川銆?></textarea>
+          <div class="clab"><span class="star">✦</span> 提示词（文生图 / 图生图）<span class="mode-badge" id="studioMode">文生图（自动）</span></div>
+          <textarea class="prompt-hero" id="studioPrompt" placeholder="描述本次出图画面…电影级质感，HD 高清画质。"></textarea>
           <div class="presets" id="studioPresets">
-            <span class="plab">棰勭疆涓撲笟鐗囨锛?/span>
+            <span class="plab">预置专业片段：</span>
           </div>
           <div class="ctrl-row">
-            <div class="refs" id="studioRefs"><span class="rl">鍙傝€冨浘:</span>
-              <div class="ref-add" id="studioAddRef">锛?/div>
+            <div class="refs" id="studioRefs"><span class="rl">参考图:</span>
+              <div class="ref-add" id="studioAddRef">＋</div>
             </div>
             <div class="params">
-              <div class="pg"><label>鐢诲箙</label>
+              <div class="pg"><label>画幅</label>
                 <select id="studioAspect">
                   <option value="16:9">16:9</option>
                   <option value="9:16">9:16</option>
@@ -677,47 +674,47 @@
                   <option value="4:5">4:5</option>
                 </select>
               </div>
-              <div class="pg"><label>寮犳暟</label><input type="number" id="studioN" value="1" min="1" max="9" style="width:54px"></div>
-              <div class="pg"><label>璐ㄩ噺</label>
+              <div class="pg"><label>张数</label><input type="number" id="studioN" value="1" min="1" max="9" style="width:54px"></div>
+              <div class="pg"><label>质量</label>
                 <select id="studioQuality"><option value="hd">2K HD</option><option value="std">1K</option></select>
               </div>
-              <div class="pg"><label>鍙傝€冨己搴?/label><input type="range" id="studioStrength" min="0" max="1" step="0.05" value="0.6"></div>
+              <div class="pg"><label>参考强度</label><input type="range" id="studioStrength" min="0" max="1" step="0.05" value="0.6"></div>
             </div>
             <span class="grow"></span>
-            <button class="btn-gen" id="studioGenBtn">鉁?鐢熸垚鍑哄浘</button>
+            <button class="btn-gen" id="studioGenBtn">✦ 生成出图</button>
           </div>
         </div>
-        <!-- 鈶?缁撴灉鐢诲粖 -->
+        <!-- ② 结果画廊 -->
         <div class="gallery-wrap">
           <div class="gallery-head">
-            <span class="t">鐢熸垚缁撴灉</span><span class="cnt" id="galleryCount">0 寮?/span>
+            <span class="t">生成结果</span><span class="cnt" id="galleryCount">0 张</span>
             <span class="sp"></span>
-            <span class="prog" id="studioProg" hidden>鐢熸垚涓?<div class="bar"><div class="fill" id="studioProgFill"></div></div> <span id="studioProgText">0 / 0</span></span>
+            <span class="prog" id="studioProg" hidden>生成中 <div class="bar"><div class="fill" id="studioProgFill"></div></div> <span id="studioProgText">0 / 0</span></span>
           </div>
           <div class="gallery" id="studioGallery">
-            <div class="gallery-empty" id="galleryEmpty">灏氭棤鐢熸垚缁撴灉銆傚～鍐欐彁绀鸿瘝鍚庣偣銆屸湨 鐢熸垚鍑哄浘銆嶏紝鎴栫偣銆屸喕 鍒锋柊銆嶄粠杈撳嚭鐩綍杞藉叆宸叉湁鍥俱€?/div>
+            <div class="gallery-empty" id="galleryEmpty">尚无生成结果。填写提示词后点「✦ 生成出图」，或点「↻ 刷新」从输出目录载入已有图。</div>
           </div>
         </div>
       </div>
 
       <div class="batch-body">
-        <!-- 涓爮锛氱缉鐣ュ浘缃戞牸 -->
+        <!-- 中栏：缩略图网格 -->
         <div class="grid-col">
           <div class="gridhead">
-            <span class="t" id="gridTitle">婧愬浘</span>
-            <span class="bmode" id="gridMode">澶氶€?路 宸查€?3 寮?/span>
-            <span class="indir" id="inDirChip" title="杈撳叆鐩綍锛堣浇鍥炬簮锛? hidden>馃搧 <span id="inDirPath"></span></span>
+            <span class="t" id="gridTitle">源图</span>
+            <span class="bmode" id="gridMode">多选 · 已选 3 张</span>
+            <span class="indir" id="inDirChip" title="输入目录（载图源）" hidden>📁 <span id="inDirPath"></span></span>
             <span class="gh-sp"></span>
-            <span class="mini" id="addSrc">锛?娣诲姞婧愬浘鈥?/span>
-            <span class="mini" id="pickInDir">閫夋嫨杈撳叆鐩綍鈥?/span>
-            <span class="mini" id="openInDir" hidden>鎵撳紑杈撳叆鐩綍</span>
-            <span class="mini" id="refreshSrc">鈫?鍒锋柊</span>
-            <span class="mini" id="selAll">鍏ㄩ€?/span>
-            <span class="mini" id="selClear">娓呯┖</span>
+            <span class="mini" id="addSrc">＋ 添加源图…</span>
+            <span class="mini" id="pickInDir">选择输入目录…</span>
+            <span class="mini" id="openInDir" hidden>打开输入目录</span>
+            <span class="mini" id="refreshSrc">↻ 刷新</span>
+            <span class="mini" id="selAll">全选</span>
+            <span class="mini" id="selClear">清空</span>
           </div>
           <div class="gridwrap">
             <div class="thumbs" id="thumbs">
-              <!-- 鍗犱綅缂╃暐鍥撅紙鏃犵湡瀹炶矾寰勶級锛氭墽琛屽墠闇€缁忋€岋紜 娣诲姞婧愬浘鈥︺€嶅～鍏ョ湡瀹?src_path -->
+              <!-- 占位缩略图（无真实路径）：执行前需经「＋ 添加源图…」填入真实 src_path -->
               <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_001.png</div></div>
               <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_002.png</div></div>
               <div class="th" data-ph="1"><div class="img"></div><div class="check"></div><div class="ord"></div><div class="name">grid_003.png</div></div>
@@ -731,31 +728,31 @@
           </div>
         </div>
 
-        <!-- 鍙虫爮锛氬弬鏁伴潰鏉匡紙闅忓伐鍏峰垏鎹級 -->
+        <!-- 右栏：参数面板（随工具切换） -->
         <div class="panel-col">
           <div class="panelhead">
-            <span class="t" id="panelTitle">鍑哄浘鍙傛暟</span>
+            <span class="t" id="panelTitle">出图参数</span>
             <span class="ph-sp"></span>
-            <span class="ptag" id="panelTag">鎵归噺闃熷垪</span>
+            <span class="ptag" id="panelTag">批量队列</span>
           </div>
           <div class="panelbody" id="panelBody">
-            <!-- 鐢?JS 鎸夊綋鍓嶅伐鍏锋覆鏌?-->
+            <!-- 由 JS 按当前工具渲染 -->
           </div>
         </div>
       </div>
 
-      <!-- 搴曢儴鎵ц鏍?-->
+      <!-- 底部执行栏 -->
       <div class="execbar">
         <div class="prog-line">
-          <span class="pl">鎵归噺杩涘害</span>
+          <span class="pl">批量进度</span>
           <div class="bar"><div class="fill" id="progFill"></div></div>
-          <span class="pl" id="progText"><b>0</b> / 0 路 寰呮墽琛?/span>
+          <span class="pl" id="progText"><b>0</b> / 0 · 待执行</span>
         </div>
         <div class="btnrow">
-          <button class="bbtn" id="previewBtn">棰勮</button>
-          <button class="bbtn exec" id="execBtn">鎵ц</button>
+          <button class="bbtn" id="previewBtn">预览</button>
+          <button class="bbtn exec" id="execBtn">执行</button>
           <span class="br-sp"></span>
-          <span class="vhint ok" id="vhint">鉁?鏍￠獙閫氳繃</span>
+          <span class="vhint ok" id="vhint">✓ 校验通过</span>
         </div>
       </div>
 
@@ -765,22 +762,22 @@
 </div>
 
 <script>
-  // ===== 闈欐€?mockup锛氭寜閽潎涓哄崰浣?stub锛屼笉鎺ョ湡瀹炲悗绔?=====
+  // ===== 静态 mockup：按钮均为占位 stub，不接真实后端 =====
   const $ = (id) => document.getElementById(id);
 
-  // 鎷嗚В琛ㄦ敹璧?灞曞紑
+  // 拆解表收起/展开
   $("bdHead").addEventListener("click", () => {
     const p = $("breakdown");
     const collapsed = p.classList.toggle("collapsed");
-    $("bdToggle").textContent = collapsed ? "灞曞紑 鈻? : "鏀惰捣 鈻?;
+    $("bdToggle").textContent = collapsed ? "展开 ▼" : "收起 ▲";
   });
 
-  // ---- 閰嶇疆锛欰PI 鍦板潃 + 椤圭洰锛堝３宸茶浆鍙??project=锛?----
+  // ---- 配置：API 地址 + 项目（壳已转发 ?project=） ----
   const QS_TOP = new URLSearchParams(location.search);
   const MEDIA = QS_TOP.get("media") || "http://127.0.0.1:18450";   // media_agent /imggen
   const PROJECT = QS_TOP.get("project") || "";
 
-  // ---- 杞婚噺 toast ----
+  // ---- 轻量 toast ----
   let _toastTimer = null;
   function toast(msg, kind) {
     let el = document.getElementById("_toast");
@@ -802,20 +799,26 @@
     _toastTimer = setTimeout(() => { el.style.display = "none"; }, kind === "ok" ? 3600 : 5200);
   }
 
-  // 褰撳墠鐢诲箙 鈫?size 鍍忕礌涓诧紙妯睆/绔栧睆锛夈€侶D 涓昏矾寰勶細绔栧睆 1080x1920銆佹í灞?1920x1080銆?  let curWide = false;   // false=9:16 绔栧睆锛堥粯璁わ級, true=16:9 妯睆
+  // 当前画幅 → size 像素串（横屏/竖屏）。HD 主路径：竖屏 1080x1920、横屏 1920x1080。
+  let curWide = false;   // false=9:16 竖屏（默认）, true=16:9 横屏
   function curSize() { return curWide ? "1920x1080" : "1080x1920"; }
 
-  // [A] 鏈湴濯掍綋 URL 鍔╂墜锛堟浛浠?file://锛屽洜 http 椤甸潰绂?file://锛?  // 鍏变韩鍓嶇濂戠害锛氱収鎶勩€侻EDIA_API/PROJECT_DIR 鍙栭〉鍐呯幇鏈夋硶锛圡EDIA/PROJECT 鍒悕锛夈€?  const MEDIA_API0 = MEDIA;      // media_agent 鍩哄潃锛堝惈 /file 绔偣锛?  const PROJECT_DIR = PROJECT;   // 褰撳墠椤圭洰鐩綍锛堢浉瀵硅矾寰勮В鏋愬熀锛?  function mediaUrl(p) {
+  // [A] 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）
+  // 共享前端契约：照抄。MEDIA_API/PROJECT_DIR 取页内现有法（MEDIA/PROJECT 别名）。
+  const MEDIA_API0 = MEDIA;      // media_agent 基址（含 /file 端点）
+  const PROJECT_DIR = PROJECT;   // 当前项目目录（相对路径解析基）
+  function mediaUrl(p) {
     if (!p) return "";
     if (/^(https?:|data:|blob:)/.test(p)) return p;
     let u = MEDIA_API0 + "/file?path=" + encodeURIComponent(p);
     if (PROJECT_DIR && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += "&project=" + encodeURIComponent(PROJECT_DIR);
     return u;
   }
-  // 鍏煎鏃ц皟鐢ㄥ悕
+  // 兼容旧调用名
   function fileSrc(p) { return mediaUrl(p); }
 
-  // [B] 鍘熺敓鏂囦欢/鐩綍閫夋嫨锛堢粡澹充腑缁э紝缁?iframe锛夈€傚洖璋?cb(paths:string[])銆?  let _pkSeq = 0;
+  // [B] 原生文件/目录选择（经壳中继，绕 iframe）。回调 cb(paths:string[])。
+  let _pkSeq = 0;
   function pickNative(mode, cb) {
     const reqId = "pk_" + (++_pkSeq);
     function onMsg(e) {
@@ -823,7 +826,7 @@
       if (d.type === "pick.result" && d.reqId === reqId) {
         window.removeEventListener("message", onMsg);
         if (d.nobridge) {
-          const t = prompt("绮樿创璺緞(澶氭潯鎹㈣/鍒嗗彿鍒嗛殧)锛?) || "";
+          const t = prompt("粘贴路径(多条换行/分号分隔)：") || "";
           cb(t.split(/[\n;]+/).map(s => s.trim()).filter(Boolean));
         } else cb(d.paths || []);
       }
@@ -832,34 +835,31 @@
     window.parent.postMessage({ type: "pick.request", mode: mode, reqId: reqId }, "*");
   }
 
-  // 缁?<img>/缂╃暐鍥剧粺涓€鍔?onerror 鍗犱綅鍥為€€锛堥伩鍏嶈鍥撅級
+  // 给 <img>/缩略图统一加 onerror 占位回退（避免裂图）
   function imgFallback(el) {
     el.addEventListener("error", function () {
       el.style.visibility = "hidden";
     }, { once: true });
   }
 
-  // ---- 鐏锛氱偣鍑婚瑙堟寜閽叏灞忔煡鐪?----
+  // ---- 灯箱：点击分镜图全屏查看 ----
   function setupLightbox() {
     const lb = $("imgLightbox"), lbImg = $("lbImg"), lbClose = $("lbClose"), lbOverlay = $("lbOverlay"), lbInfo = $("lbInfo");
     if (!lb || !lbImg) return;
-    // preview button in shot-side opens lightbox
-    const sideBtn = $("sidePreviewBtn");
-    if (sideBtn) sideBtn.addEventListener("click", () => {
-      const pv = $("preview");
-      if (!pv) return;
-      const img = pv.querySelector("img._out");
-      if (!img || !img.src) { toast("褰撳墠鏃犲垎闀滃浘鍙瑙?, "warn"); return; }
+    const pv = $("preview");
+    if (pv) pv.addEventListener("click", (e) => {
+      const img = e.target.closest("img._out");
+      if (!img || !img.src) return;
       lbImg.src = img.src;
-      lbInfo.textContent = img.alt || "鍒嗛暅鍥惧師鍥?;
-      lb.classList.add("open");
+      lbInfo.textContent = img.alt || "分镜图原图";
+      lb.hidden = false;
     });
-    const close = () => { lb.classList.remove("open"); };
+    const close = () => { lb.hidden = true; };
     lbClose.addEventListener("click", close);
     lbOverlay.addEventListener("click", close);
   }
 
-  // 閿欒鎻愮ず锛氫紭鍏堢敤鍚庣 hint锛屽叾娆?message/detail
+  // 错误提示：优先用后端 hint，其次 message/detail
   async function errHint(resp) {
     try {
       const j = await resp.json();
@@ -871,25 +871,26 @@
   }
 
   // ===========================================================
-  // 鍑哄浘鍙傝€冨浘鍖猴紙鍥剧敓鍥?/ @鏍囩锛夆€斺€?refs: [{path,label}]
-  // 鏈夊弬鑰冨浘 = 鍥剧敓鍥撅紱references 鐪熷疄浼犺繘 /imggen/generate銆?  // ===========================================================
+  // 出图参考图区（图生图 / @标签）—— refs: [{path,label}]
+  // 有参考图 = 图生图；references 真实传进 /imggen/generate。
+  // ===========================================================
   let refs = [];
 
   function refMode() {
     const hasRef = refs.length > 0;
     const hasTxt = (($("prompt") && $("prompt").value) || "").trim().length > 0;
-    return hasRef && hasTxt ? "鍥炬枃鐢熷浘" : hasRef ? "鍥剧敓鍥? : "鏂囩敓鍥?;
+    return hasRef && hasTxt ? "图文生图" : hasRef ? "图生图" : "文生图";
   }
   function refPaths() { return refs.map(r => r.path); }
   function updateRefMode() {
     const el = $("genMode");
-    if (el) el.textContent = refMode() + "锛堣嚜鍔級";
+    if (el) el.textContent = refMode() + "（自动）";
   }
   function nextRefLabel() {
-    // 榛樿鏍囩 鍥?/鍥?鈥︼紝閬垮紑宸茬敤鏍囩
+    // 默认标签 图1/图2…，避开已用标签
     const used = new Set(refs.map(r => r.label));
-    let i = 1; while (used.has("鍥? + i)) i++;
-    return "鍥? + i;
+    let i = 1; while (used.has("图" + i)) i++;
+    return "图" + i;
   }
   function renderRefs() {
     const row = $("refImgRow");
@@ -899,7 +900,7 @@
     refs.forEach((r, idx) => {
       const card = document.createElement("div");
       card.className = "refimg-card";
-      card.title = "鐐瑰嚮鎶?@" + r.label + " 鎻掑叆鎻愮ず璇峔n" + r.path;
+      card.title = "点击把 @" + r.label + " 插入提示词\n" + r.path;
       const thumb = document.createElement("div");
       thumb.className = "thumb";
       thumb.style.backgroundImage = "url('" + mediaUrl(r.path) + "')";
@@ -908,9 +909,9 @@
       tag.textContent = "@" + r.label;
       const ops = document.createElement("div");
       ops.className = "ops";
-      ops.innerHTML = '<span class="op rn" title="鏀瑰悕">鉁?/span><span class="op rm" title="鍒犻櫎">鉁?/span>';
+      ops.innerHTML = '<span class="op rn" title="改名">✎</span><span class="op rm" title="删除">✕</span>';
       card.appendChild(thumb); card.appendChild(tag); card.appendChild(ops);
-      // 鐐瑰崱鐗囷紙闈炴搷浣滄寜閽級鈫?鎻掑叆 @鏍囩
+      // 点卡片（非操作按钮）→ 插入 @标签
       card.addEventListener("click", (e) => {
         if (e.target.closest(".op")) return;
         insertAtPrompt("@" + r.label + " ");
@@ -940,12 +941,12 @@
         refs.push({ path: norm, label: nextRefLabel() });
         added++;
       });
-      if (added) { renderRefs(); toast("宸叉坊鍔?" + added + " 寮犲弬鑰冨浘锛堝浘鐢熷浘锛夈€?, "ok"); }
+      if (added) { renderRefs(); toast("已添加 " + added + " 张参考图（图生图）。", "ok"); }
     });
   }
   function renameRef(idx) {
     const cur = refs[idx]; if (!cur) return;
-    const v = prompt("鍙傝€冨浘 @鏍囩锛堜緵鎻愮ず璇嶅紩鐢級锛?, cur.label);
+    const v = prompt("参考图 @标签（供提示词引用）：", cur.label);
     if (v == null) return;
     const name = v.trim().replace(/^@/, "");
     if (!name) return;
@@ -960,8 +961,10 @@
   renderRefs();
 
   // ===========================================================
-  // 鍒嗛暅鏁版嵁锛氫粠鐪熷疄 鍒嗛暅_E{id}.json 璇婚暅澶村垪琛?/ 瑙掕壊 / 鍏ㄥ眬澶?  // 鍏变韩濂戠害锛堢収鎶?storyboard-script.html锛夛細
-  //   [鍒楅泦] GET {MEDIA}/project/files?project=&ext=json 鈫?鎸?鍒嗛暅_E*.json锛堟棫 鍒嗛暅.json=E1锛?  //   [璇诲垎闀淽 GET {MEDIA}/file?path=鍒嗛暅_E{id}.json&project= 鈫?text 鈫?JSON.parse
+  // 分镜数据：从真实 分镜_E{id}.json 读镜头列表 / 角色 / 全局头
+  // 共享契约（照抄 storyboard-script.html）：
+  //   [列集] GET {MEDIA}/project/files?project=&ext=json → 挑 分镜_E*.json（旧 分镜.json=E1）
+  //   [读分镜] GET {MEDIA}/file?path=分镜_E{id}.json&project= → text → JSON.parse
   //     {title, aspectRatio, characters:[{name,appearance}],
   //      shots:[{shotId, duration, composition, description, stylePrompt}]}
   // ===========================================================
@@ -970,52 +973,56 @@
   const SB = {
     eps: [],          // [{id:"E1", path}]
     byId: {},         // {E1: storyboard dict}
-    curEp: null,      // 褰撳墠闆?id
-    curShotIdx: -1,   // 褰撳墠闀滃ご鍦?shots[] 鐨勪笅鏍?  };
+    curEp: null,      // 当前集 id
+    curShotIdx: -1,   // 当前镜头在 shots[] 的下标
+  };
 
   function curStoryboard() { return SB.curEp ? SB.byId[SB.curEp] : null; }
   function curShots() { const sb = curStoryboard(); return (sb && Array.isArray(sb.shots)) ? sb.shots : []; }
   function curShot() { const ss = curShots(); return (SB.curShotIdx >= 0 && SB.curShotIdx < ss.length) ? ss[SB.curShotIdx] : null; }
 
-  // 鍒楅泦 + 閫愰泦璇诲垎闀?  async function loadStoryboards() {
-    if (!PROJECT || !MEDIA) { showEmpty("璇峰厛鍦ㄩ椤甸€夋嫨椤圭洰鍚庡啀璇诲彇鍒嗛暅銆?); return; }
+  // 列集 + 逐集读分镜
+  async function loadStoryboards() {
+    if (!PROJECT || !MEDIA) { showEmpty("请先在首页选择项目后再读取分镜。"); return; }
     let files = [];
     try {
       const r = await fetch(MEDIA + "/project/files?" + new URLSearchParams({ project: PROJECT, ext: "json" }));
-      if (!r.ok) { showEmpty("璇诲彇鍒嗛暅鍒楄〃澶辫触锛? + (await errHint(r))); return; }
+      if (!r.ok) { showEmpty("读取分镜列表失败：" + (await errHint(r))); return; }
       const j = await r.json().catch(() => null);
       files = (j && Array.isArray(j.files)) ? j.files : [];
-    } catch (e) { showEmpty("璇诲彇鍒嗛暅鍒楄〃澶辫触锛? + (e && e.message ? e.message : e)); return; }
+    } catch (e) { showEmpty("读取分镜列表失败：" + (e && e.message ? e.message : e)); return; }
 
-    // 鏂囦欢鍚?鈫?闆?id锛氬垎闀淿E{n}.json锛涙棫 鍒嗛暅.json 鈫?E1锛堝悓瀛樻椂浼樺厛 鍒嗛暅_锛?    const found = [];
+    // 文件名 → 集 id：分镜_E{n}.json；旧 分镜.json → E1（同存时优先 分镜_）
+    const found = [];
     for (const f of files) {
       const name = (f && f.name) || "";
-      const m = name.match(/^鍒嗛暅_(E\d+)\.json$/);
-      const id = m ? m[1] : (name === "鍒嗛暅.json" ? "E1" : null);
+      const m = name.match(/^分镜_(E\d+)\.json$/);
+      const id = m ? m[1] : (name === "分镜.json" ? "E1" : null);
       if (id) found.push({ id, path: f.path || name });
     }
     const byPath = {};
-    for (const it of found) { if (!byPath[it.id] || /鍒嗛暅_E/.test(it.path)) byPath[it.id] = it; }
+    for (const it of found) { if (!byPath[it.id] || /分镜_E/.test(it.path)) byPath[it.id] = it; }
     const eps = Object.values(byPath).sort((a, b) =>
       (parseInt((a.id || "").slice(1), 10) || 0) - (parseInt((b.id || "").slice(1), 10) || 0));
 
     if (!eps.length) { showEmpty(); return; }
 
-    // 閫愰泦璇诲唴瀹?    SB.eps = eps; SB.byId = {};
+    // 逐集读内容
+    SB.eps = eps; SB.byId = {};
     await Promise.all(eps.map(async (it) => {
       try {
         const r = await fetch(MEDIA + "/file?" + new URLSearchParams({ path: it.path, project: PROJECT }));
         if (!r.ok) return;
         const sb = JSON.parse(await r.text());
         if (sb && typeof sb === "object") SB.byId[it.id] = sb;
-      } catch (_) { /* 鍗曢泦澶辫触闈欓粯璺宠繃 */ }
+      } catch (_) { /* 单集失败静默跳过 */ }
     }));
 
-    SB.eps = eps.filter((e) => SB.byId[e.id]);   // 鍙暀璇诲埌鍐呭鐨勯泦
-    if (!SB.eps.length) { showEmpty("鍒嗛暅鏂囦欢瀛樺湪浣嗘棤娉曡В鏋愩€?); return; }
+    SB.eps = eps.filter((e) => SB.byId[e.id]);   // 只留读到内容的集
+    if (!SB.eps.length) { showEmpty("分镜文件存在但无法解析。"); return; }
     renderEpSelect();
     selectEp(SB.eps[0].id);
-    toast("宸茶鍙?" + SB.eps.length + " 闆嗗垎闀溿€?, "ok");
+    toast("已读取 " + SB.eps.length + " 集分镜。", "ok");
   }
 
   function showEmpty(msg) {
@@ -1026,7 +1033,8 @@
       const body = $("sbEmpty").querySelector(".panel-body");
       if (body) body.querySelector("div").textContent = msg;
     }
-    // 闆?闀滀笅鎷夋竻绌?    $("epSel").innerHTML = "";
+    // 集/镜下拉清空
+    $("epSel").innerHTML = "";
     $("shotSel").innerHTML = "";
   }
   function showData() {
@@ -1053,7 +1061,8 @@
     $("epSel").value = id;
     renderShotSelect();
     renderBreakdown();
-    // 榛樿閫夐闀?    const ss = curShots();
+    // 默认选首镜
+    const ss = curShots();
     selectShot(ss.length ? 0 : -1);
     showData();
   }
@@ -1064,7 +1073,7 @@
     const ss = curShots();
     if (!ss.length) {
       const o = document.createElement("option");
-      o.value = "-1"; o.textContent = "锛堟湰闆嗘棤闀滃ご锛?;
+      o.value = "-1"; o.textContent = "（本集无镜头）";
       sel.appendChild(o);
       return;
     }
@@ -1078,29 +1087,30 @@
     });
   }
 
-  // 鍏ㄥ眬澶达紙鏍囬/鐢诲箙/闀滃ご鏁帮級+ 瑙掕壊 chips锛堝紩鐢ㄨ祫婧愶紝鐐瑰嚮鎻掑叆 @鍚嶏級
+  // 全局头（标题/画幅/镜头数）+ 角色 chips（引用资源，点击插入 @名）
   function renderBreakdown() {
     const sb = curStoryboard();
     const body = $("bdBody");
     const chars = Array.isArray(sb && sb.characters) ? sb.characters : [];
     const ss = curShots();
     if (!sb) { body.innerHTML = ""; renderCharRow(chars); return; }
-    $("bdMeta").textContent = "锛? + chars.length + " 瑙掕壊 路 " + ss.length + " 闀滃ご锛?;
+    $("bdMeta").textContent = "（" + chars.length + " 角色 · " + ss.length + " 镜头）";
     body.innerHTML = '<div class="ent-band"><div class="ent-group">' +
-      '<div class="ent-label">鏈泦</div><div class="ent-chips">' +
+      '<div class="ent-label">本集</div><div class="ent-chips">' +
       '<span class="chip">' + esc(sb.title || SB.curEp) + '</span>' +
-      '<span class="chip">鐢诲箙 ' + esc(sb.aspectRatio || "鈥?) + '</span>' +
-      '<span class="chip">' + ss.length + ' 闀滃ご</span>' +
+      '<span class="chip">画幅 ' + esc(sb.aspectRatio || "—") + '</span>' +
+      '<span class="chip">' + ss.length + ' 镜头</span>' +
       '</div></div></div>';
     renderCharRow(chars);
   }
 
-  // 寮曠敤璧勬簮锛堟湰闆嗚鑹诧級鈫?shot-card 鍐?charRow锛涚偣 chip 鎶?@鍚?鎻掑叆鎻愮ず璇?  function renderCharRow(chars) {
+  // 引用资源（本集角色）→ shot-card 内 charRow；点 chip 把 @名 插入提示词
+  function renderCharRow(chars) {
     const row = $("charRow");
     if (!row) return;
     row.innerHTML = "";
     if (!chars || !chars.length) {
-      row.innerHTML = '<span class="chip">锛堟湰闆嗘棤瑙掕壊锛?/span>';
+      row.innerHTML = '<span class="chip">（本集无角色）</span>';
       return;
     }
     chars.forEach((c) => {
@@ -1109,20 +1119,20 @@
       chip.className = "chip role";
       chip.title = (c && c.appearance) || "";
       chip.style.cursor = "pointer";
-      chip.innerHTML = '<span class="av"></span>' + esc(nm || "锛堟棤鍚嶏級") + ' <span class="link">@</span>';
+      chip.innerHTML = '<span class="av"></span>' + esc(nm || "（无名）") + ' <span class="link">@</span>';
       chip.addEventListener("click", () => { if (nm) insertAtPrompt("@" + nm + " "); });
       row.appendChild(chip);
     });
   }
 
-  // 閫変腑闀滃ご 鈫?濉厖缂栬緫鍖猴紙鏋勫浘/鏃堕暱/鎻忚堪/鎻愮ず璇嶏級
+  // 选中镜头 → 填充编辑区（构图/时长/描述/提示词）
   function selectShot(idx) {
     SB.curShotIdx = idx;
     const s = curShot();
     const ss = curShots();
     if (idx >= 0) $("shotSel").value = String(idx);
     if (!s) {
-      $("shotNo").textContent = "鈥?;
+      $("shotNo").textContent = "–";
       $("shotComposition").value = "";
       $("shotDuration").value = "";
       $("shotDescription").value = "";
@@ -1137,7 +1147,7 @@
     $("shotDuration").value = (s.duration != null ? s.duration : "");
     $("shotDescription").value = s.description || "";
     if ($("prompt")) $("prompt").value = s.stylePrompt || "";
-    // 鍒囬暅锛氭竻鎺変笂涓€闀滈瑙堝悗锛屾寜 shot_{shotId}_ 鍓嶇紑閲嶈浇鏈暅宸茬敓鎴愬浘锛堟寔涔呭彲瑙侊級
+    // 切镜：清掉上一镜预览后，按 shot_{shotId}_ 前缀重载本镜已生成图（持久可见）
     const pv = $("preview");
     if (pv) {
       pv.querySelectorAll("img._out").forEach((x) => x.remove());
@@ -1148,7 +1158,7 @@
     void ss;
   }
 
-  // 缂栬緫鍖烘敼鍔?鈫?鍐欏洖鍐呭瓨涓殑 shot锛堜笉钀界洏锛涘悗绔啓鍥炵敱鍒嗛暅姝ヨ礋璐ｏ級
+  // 编辑区改动 → 写回内存中的 shot（不落盘；后端写回由分镜步负责）
   function bindShotEditors() {
     const map = { shotComposition: "composition", shotDuration: "duration", shotDescription: "description", prompt: "stylePrompt" };
     Object.keys(map).forEach((id) => {
@@ -1162,7 +1172,7 @@
     });
   }
 
-  // 涓嬫媺/鍒锋柊浜嬩欢
+  // 下拉/刷新事件
   $("epSel").addEventListener("change", (e) => selectEp(e.target.value));
   $("shotSel").addEventListener("change", (e) => {
     const i = parseInt(e.target.value, 10);
@@ -1171,22 +1181,25 @@
   $("reloadBtn").addEventListener("click", loadStoryboards);
 
   bindShotEditors();
-  // 鍒濇杩涢〉鑷姩璇诲垎闀?  loadStoryboards();
+  // 初次进页自动读分镜
+  loadStoryboards();
   setupLightbox();
 
-  // ---- 鍑哄浘浜х墿绾﹀畾锛堝垎闀滆瑙掞級锛歰ut_dir=PROJECT/imggen锛宐ase_name=shot_{shotId} ----
-  //   浜х墿钀界洏 imggen/shot_{shotId}_NN.png锛涢噸杞芥椂鎸?shot_{shotId}_ 鍓嶇紑杩囨护杩樺師棰勮銆?  function curShotId() {
+  // ---- 出图产物约定（分镜视角）：out_dir=PROJECT/imggen，base_name=shot_{shotId} ----
+  //   产物落盘 imggen/shot_{shotId}_NN.png；重载时按 shot_{shotId}_ 前缀过滤还原预览。
+  function curShotId() {
     const s = curShot();
     if (s && s.shotId) return String(s.shotId);
     if (SB.curShotIdx >= 0) return (SB.curEp || "E1") + "-" + (SB.curShotIdx + 1);
     return "";
   }
-  // shotId 鈫?鏂囦欢鍚嶅畨鍏ㄥ墠缂€锛堣矾寰勫垎闅?绌虹櫧绛夋浛鎹负 _锛屼笌钀界洏 base_name 涓€鑷达級
+  // shotId → 文件名安全前缀（路径分隔/空白等替换为 _，与落盘 base_name 一致）
   function shotPrefix(shotId) {
-    return "shot_" + String(shotId || "").replace(/[^0-9A-Za-z涓€-榫-]+/g, "_");
+    return "shot_" + String(shotId || "").replace(/[^0-9A-Za-z一-龥_-]+/g, "_");
   }
 
-  // 宸茬敓鎴愮殑鍒嗛暅鍥鹃噸杞斤細鍒?imggen 鐩綍锛岃繃婊?shot_{shotId}_ 鍓嶇紑 鈫?濉彸鏍忛瑙堬紙鎸佷箙鍙锛?  async function reloadShotPreview() {
+  // 已生成的分镜图重载：列 imggen 目录，过滤 shot_{shotId}_ 前缀 → 填右栏预览（持久可见）
+  async function reloadShotPreview() {
     const pv = $("preview");
     if (!pv) return;
     pv.querySelectorAll("img._out").forEach((x) => x.remove());
@@ -1201,36 +1214,39 @@
       if (!r.ok) { if (ph) ph.style.display = ""; return; }
       const j = await r.json().catch(() => null);
       const files = (j && Array.isArray(j.files)) ? j.files : [];
-      // 浠呭彇鏈暅鍓嶇紑浜х墿锛屾寜鍚嶆帓搴忓彇鏈紶锛堟渶鏂?NN锛?      const mine = files
+      // 仅取本镜前缀产物，按名排序取末张（最新 NN）
+      const mine = files
         .filter((f) => f && typeof f.name === "string" && f.name.indexOf(pfx) === 0)
         .sort((a, b) => String(a.name).localeCompare(String(b.name)));
-      // 浠呭綋浠嶆槸鍚屼竴闀滃ご鏃跺啀娓叉煋锛堝紓姝ユ湡闂村彲鑳藉凡鍒囬暅锛?      if (curShotId() !== sid) return;
+      // 仅当仍是同一镜头时再渲染（异步期间可能已切镜）
+      if (curShotId() !== sid) return;
       if (!mine.length) { if (ph) ph.style.display = ""; return; }
       const latest = mine[mine.length - 1];
       const img = document.createElement("img");
       img.className = "_out";
       img.src = mediaUrl(latest.path);
       img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;";
-      img.alt = "鍒嗛暅鍥?;
+      img.alt = "分镜图";
       imgFallback(img);
       pv.appendChild(img);
       if (ph) ph.style.display = "none";
     } catch (_) { if (ph) ph.style.display = ""; }
   }
 
-  // ---- 鐢熸垚鍒嗛暅鍥撅紙鍗曞浘 HD锛夛細POST {MEDIA}/imggen/generate ----
+  // ---- 生成分镜图（单图 HD）：POST {MEDIA}/imggen/generate ----
   $("genImgBtn").addEventListener("click", async () => {
-    if (!PROJECT) { toast("璇峰厛鍦ㄩ椤甸€夋嫨椤圭洰鍚庡啀鐢熸垚鍒嗛暅鍥俱€?); return; }
+    if (!PROJECT) { toast("请先在首页选择项目后再生成分镜图。"); return; }
     const prompt = ($("prompt").value || "").trim();
-    if (!prompt && refs.length === 0) { toast("鎻愮ず璇嶄负绌猴紝涓旀棤鍙傝€冨浘鈥斺€旇鍏堝～鍐欐彁绀鸿瘝鎴栨坊鍔犲弬鑰冨浘銆?); return; }
+    if (!prompt && refs.length === 0) { toast("提示词为空，且无参考图——请先填写提示词或添加参考图。"); return; }
 
     const btn = $("genImgBtn");
     const oldText = btn.textContent;
     btn.disabled = true;
-    btn.textContent = "鈴?鐢熸垚涓€?;
+    btn.textContent = "⏳ 生成中…";
     const ph = $("previewPh");
-    if (ph) ph.innerHTML = "鐢熸垚涓€?br><span class=\"faint\">鍗曞浘 HD</span>";
-    // 鏈夊綋鍓嶄换鍔″垯缃?running 骞跺洖鍐欐湰娆″嚭鍥惧弬鏁?    if (activeTaskId) syncTaskFromEditor(activeTaskId, "running");
+    if (ph) ph.innerHTML = "生成中…<br><span class=\"faint\">单图 HD</span>";
+    // 有当前任务则置 running 并回写本次出图参数
+    if (activeTaskId) syncTaskFromEditor(activeTaskId, "running");
 
     try {
       const resp = await fetch(MEDIA + "/imggen/generate", {
@@ -1238,45 +1254,47 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: prompt,
-          references: refPaths(),     // 闈炵┖ = 鍥剧敓鍥撅紙鐢?provider 鑷姩鍒ゅ畾锛?          size: curSize(),
+          references: refPaths(),     // 非空 = 图生图（由 provider 自动判定）
+          size: curSize(),
           n: 1,
-          out_dir: PROJECT + "/imggen",      // [鍑哄浘浜х墿绾﹀畾] 鍒嗛暅瑙嗚缁熶竴钀界洏 imggen/
-          base_name: shotPrefix(curShotId()), // shot_{shotId} 鈫?浜х墿 shot_{shotId}_NN.png锛堟寜鍓嶇紑閲嶈浇锛?          ext: "png",
+          out_dir: PROJECT + "/imggen",      // [出图产物约定] 分镜视角统一落盘 imggen/
+          base_name: shotPrefix(curShotId()), // shot_{shotId} → 产物 shot_{shotId}_NN.png（按前缀重载）
+          ext: "png",
         }),
       });
       if (!resp.ok) {
         if (activeTaskId) setTaskStatus(activeTaskId, "failed");
-        toast("鐢熸垚澶辫触锛? + (await errHint(resp))); return;
+        toast("生成失败：" + (await errHint(resp))); return;
       }
       const data = await resp.json();
       const outputs = (data && data.outputs) || [];
       if (!outputs.length) {
         if (activeTaskId) setTaskStatus(activeTaskId, "failed");
-        toast("鐢熸垚澶辫触锛氭湭杩斿洖鍥剧墖銆?); return;
+        toast("生成失败：未返回图片。"); return;
       }
-      // 棣栧紶鏄惧埌鍙虫爮棰勮
+      // 首张显到右栏预览
       const pv = $("preview");
       pv.querySelectorAll("img._out").forEach(x => x.remove());
       const img = document.createElement("img");
       img.className = "_out";
       img.src = mediaUrl(outputs[0]);
       img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;";
-      img.alt = "鍒嗛暅鍥?;
+      img.alt = "分镜图";
       imgFallback(img);
       pv.appendChild(img);
       if (ph) ph.style.display = "none";
       if (activeTaskId) setTaskStatus(activeTaskId, "done");
-      toast("宸茬敓鎴愬垎闀滃浘锛? + outputs[0], "ok");
+      toast("已生成分镜图：" + outputs[0], "ok");
     } catch (e) {
       if (activeTaskId) setTaskStatus(activeTaskId, "failed");
-      toast("鐢熸垚澶辫触锛? + (e && e.message ? e.message : e));
+      toast("生成失败：" + (e && e.message ? e.message : e));
     } finally {
       btn.disabled = false;
       btn.textContent = oldText;
     }
   });
 
-  // 鐢诲箙 9:16 / 16:9 鍒囨崲
+  // 画幅 9:16 / 16:9 切换
   const arToggle = $("arToggle");
   if (arToggle) arToggle.addEventListener("click", (e) => {
     const b = e.target.closest(".ar-btn"); if (!b) return;
@@ -1285,176 +1303,166 @@
     curWide = wide;
     const pv = $("preview");
     pv.classList.toggle("wide", wide);
-    // 鍒囩敾骞呮竻鎺夊凡鐢熸垚鐨勯瑙堝浘锛屾仮澶嶅崰浣?    pv.querySelectorAll("img._out").forEach(x => x.remove());
+    // 切画幅清掉已生成的预览图，恢复占位
+    pv.querySelectorAll("img._out").forEach(x => x.remove());
     const ph = $("previewPh");
     ph.style.display = "";
-    ph.innerHTML = (wide ? "16 : 9 妯睆" : "9 : 16 绔栧睆") +
-      '<br>鍒嗛暅鍥鹃瑙?br><span class="faint">锛堝崰浣嶏級</span>';
-    $("sideMeta").innerHTML = (wide ? "鐢诲箙 16:9 路 妯睆" : "鐢诲箙 9:16 路 鐭墽绔栧睆") +
-      "<br>鍗曞浘 HD 路 瑙嗛鍩哄簳甯?;
-    // 鍒囩敾骞呭悗閲嶈浇鏈暅宸茬敓鎴愬浘锛堜笌浜х墿鐢诲箙鏃犲叧锛屼粛鎸佷箙鍙锛?    reloadShotPreview();
+    ph.innerHTML = (wide ? "16 : 9 横屏" : "9 : 16 竖屏") +
+      '<br>分镜图预览<br><span class="faint">（占位）</span>';
+    $("sideMeta").innerHTML = (wide ? "画幅 16:9 · 横屏" : "画幅 9:16 · 短剧竖屏") +
+      "<br>单图 HD · 视频基底帧";
+    // 切画幅后重载本镜已生成图（与产物画幅无关，仍持久可见）
+    reloadShotPreview();
   });
 
   /* ============================================================
-     鑷敱妯″紡锛堟壒澶勭悊宸ュ叿闆嗭級鈥斺€?绾墠绔垏鎹?+ 鍗犱綅浜や簰
-     鐪熸満鑱旇皟鐢变富鎺у仛锛氬嚭鍥?鍘荤櫧杈?鎷煎浘/鎷嗗浘 鎺?MEDIA_API锛堥粯璁?18450锛?     ============================================================ */
-  const SB_MODE_KEY = "nuomi.sbMode." + (PROJECT || "default");
-const qs = new URLSearchParams(location.search);
+     自由模式（批处理工具集）—— 纯前端切换 + 占位交互
+     真机联调由主控做：出图/去白边/拼图/拆图 接 MEDIA_API（默认 18450）
+     ============================================================ */
+  const qs = new URLSearchParams(location.search);
   const MEDIA_API = qs.get("media") || "http://127.0.0.1:18450";   // media_agent /imggen /imaging
   const SW_API = qs.get("sw") || "http://127.0.0.1:18430";          // screenwriter_agent
-  void SW_API; // 鑷敱妯″紡鎵瑰鐞嗚蛋 MEDIA_API锛汼W_API 棰勭暀
+  void SW_API; // 自由模式批处理走 MEDIA_API；SW_API 预留
 
-  // ---- 宸ヤ綔妯″紡鍒囨崲锛氬垎闀滆瑙?/ 鑷敱妯″紡 ----
+  // ---- 工作模式切换：分镜视角 / 自由模式 ----
   const modeSeg = $("modeSeg");
   modeSeg.addEventListener("click", (e) => {
     const b = e.target.closest(".mode-btn"); if (!b) return;
-    const mode = b.dataset.mode;
     modeSeg.querySelectorAll(".mode-btn").forEach(x => x.classList.toggle("active", x === b));
-    const free = mode === "free";
+    const free = b.dataset.mode === "free";
     $("storyboardView").hidden = free;
     $("freeView").hidden = !free;
-    // 鍒嗛暅瑙嗚涓撳睘宸ュ叿鏍忥紙閫夐暅/涓€閿垎闀?鎷嗗垎闀滐級浠呭湪鍒嗛暅瑙嗚鏄剧ず
+    // 分镜视角专属工具栏（选镜/一键分镜/拆分镜）仅在分镜视角显示
     $("sbViewTools").style.display = free ? "none" : "";
-    try { localStorage.setItem(SB_MODE_KEY, mode); } catch (_) {}
   });
-  // 鍒濆鍖栨椂浠?localStorage 鎭㈠妯″紡锛堥粯璁?storyboard锛?  (function () {
-    let saved = null;
-    try { saved = localStorage.getItem(SB_MODE_KEY); } catch (_) {}
-    if (saved === "free") {
-      modeSeg.querySelectorAll(".mode-btn").forEach(x => x.classList.toggle("active", x.dataset.mode === "free"));
-      $("storyboardView").hidden = true;
-      $("freeView").hidden = false;
-      $("sbViewTools").style.display = "none";
-    }
-  })();
 
-  // ---- 鎵瑰鐞嗭細宸ュ叿瀹氫箟锛堝弬鏁伴潰鏉块殢宸ュ叿鍒囨崲锛涢€夋嫨鎬?multi / order锛?---
+  // ---- 批处理：工具定义（参数面板随工具切换；选择态 multi / order）----
   const TOOLS = {
     imggen: {
-      title: "鍑哄浘鍙傛暟", tag: "鎵归噺闃熷垪", grid: "鎻愮ず璇嶆潯鐩?, mode: "multi",
-      exec: "鎵ц鍑哄浘", preview: "棰勮棣栨潯",
-      api: "POST " + MEDIA_API + "/imggen锛堟壒閲忛槦鍒?路 SSE 杩涘害锛?,
+      title: "出图参数", tag: "批量队列", grid: "提示词条目", mode: "multi",
+      exec: "执行出图", preview: "预览首条",
+      api: "POST " + MEDIA_API + "/imggen（批量队列 · SSE 进度）",
       body: `
         <div class="pgroup">
-          <div class="glab">鎻愮ず璇?/div>
+          <div class="glab">提示词</div>
           <div class="prow" style="display:block;margin:0">
-            <textarea class="pta" id="batchPrompt" placeholder="姣忚涓€鏉℃彁绀鸿瘝锛屾壒閲忓嚭鍥锯€?>鏆撮洦澶?鍩庨儕搴熷搧鍥炴敹绔?淇媿鍏ㄦ櫙 鐢靛奖绾?HD
-闆ㄥ杩介€?鎵嬫寔璺熸媿 闇撹櫣鍙嶅厜 鐢靛奖绾?HD</textarea>
+            <textarea class="pta" id="batchPrompt" placeholder="每行一条提示词，批量出图…">暴雨夜 城郊废品回收站 俯拍全景 电影级 HD
+雨夜追逐 手持跟拍 霓虹反光 电影级 HD</textarea>
           </div>
           <div class="quick-chips" id="quickChips"></div>
-          <div class="phint">姣忚涓€鏉?鈫?鎵归噺鍏ラ槦锛涚偣涓婃柟璇嶆潯鎻掑叆鍏夋爣澶勩€傚彲濂楃敤褰撳墠 <b>STYLE BIBLE</b> 鐨?ref_fingerprint銆?/div>
+          <div class="phint">每行一条 → 批量入队；点上方词条插入光标处。可套用当前 <b>STYLE BIBLE</b> 的 ref_fingerprint。</div>
         </div>
         <div class="pgroup">
-          <div class="ghead-sw"><span class="glab">鍙傝€冨浘锛堝浘鐢熷浘锛?/span><span class="refimg-mode" id="batchGenMode">鏂囩敓鍥?/span></div>
+          <div class="ghead-sw"><span class="glab">参考图（图生图）</span><span class="refimg-mode" id="batchGenMode">文生图</span></div>
           <div class="refimg-row" id="batchRefRow">
-            <div class="refimg-add" id="batchAddRef">锛?娣诲姞<br>鍙傝€冨浘</div>
+            <div class="refimg-add" id="batchAddRef">＋ 添加<br>参考图</div>
           </div>
-          <div class="phint">娣诲姞鍗冲<b>姣忔潯</b>鎻愮ず璇嶅浘鐢熷浘锛涚偣鍗＄墖鎶?@鏍囩鎻掑叆鎻愮ず璇嶃€傜┖=鏂囩敓鍥俱€?/div>
+          <div class="phint">添加即对<b>每条</b>提示词图生图；点卡片把 @标签插入提示词。空=文生图。</div>
         </div>
         <div class="pgroup">
-          <div class="glab">鐢诲箙 / 鏁伴噺</div>
+          <div class="glab">画幅 / 数量</div>
           <div class="pgrid2">
-            <div class="prow"><span class="k sm">鐢诲箙</span><div class="sel-box">9:16<span class="car">鈻?/span></div></div>
-            <div class="prow"><span class="k sm">姣忔潯寮犳暟</span><div class="spin"><input value="1"><span class="stp">鈱?/span></div></div>
+            <div class="prow"><span class="k sm">画幅</span><div class="sel-box">9:16<span class="car">▾</span></div></div>
+            <div class="prow"><span class="k sm">每条张数</span><div class="spin"><input value="1"><span class="stp">⌄</span></div></div>
           </div>
         </div>
         <div class="pgroup">
-          <div class="ghead-sw"><span class="glab">HD 楂樻竻</span><span class="sw"><span class="dot"></span></span></div>
-          <div class="phint">寮€鍚悗鍗曞浘鎷夊埌 HD 璐ㄩ噺锛屼綔涓鸿棰戝熀搴曞抚銆?/div>
+          <div class="ghead-sw"><span class="glab">HD 高清</span><span class="sw"><span class="dot"></span></span></div>
+          <div class="phint">开启后单图拉到 HD 质量，作为视频基底帧。</div>
         </div>
         <div class="pgroup">
-          <div class="glab">杈撳嚭</div>
-          <div class="prow" style="margin:0"><span class="k">鏍煎紡</span><div class="sel-box">PNG<span class="car">鈻?/span></div></div>
+          <div class="glab">输出</div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><div class="sel-box">PNG<span class="car">▾</span></div></div>
         </div>`
     },
     split: {
-      title: "鎷嗗浘鍙傛暟", tag: "鏀寔棰勮鍙犲姞", grid: "婧愬浘", mode: "multi",
-      exec: "鎵ц鎷嗗浘", preview: "棰勮锛堝彔鍔犵綉鏍?/ 鐧借竟锛?,
-      api: "POST " + MEDIA_API + "/imaging?op=split锛堟媶鍥撅級",
+      title: "拆图参数", tag: "支持预览叠加", grid: "源图", mode: "multi",
+      exec: "执行拆图", preview: "预览（叠加网格 / 白边）",
+      api: "POST " + MEDIA_API + "/imaging?op=split（拆图）",
       body: `
         <div class="pgroup">
-          <div class="glab">缃戞牸</div>
+          <div class="glab">网格</div>
           <div class="pgrid2">
-            <div class="prow"><span class="k sm">婧愬浘 琛?/span><div class="spin"><input value="2"><span class="stp">鈱?/span></div></div>
-            <div class="prow"><span class="k sm">婧愬浘 鍒?/span><div class="spin"><input value="2"><span class="stp">鈱?/span></div></div>
-            <div class="prow"><span class="k sm">瀛愬浘 琛?/span><div class="spin"><input value="1"><span class="stp">鈱?/span></div></div>
-            <div class="prow"><span class="k sm">瀛愬浘 鍒?/span><div class="spin"><input value="1"><span class="stp">鈱?/span></div></div>
+            <div class="prow"><span class="k sm">源图 行</span><div class="spin"><input value="2"><span class="stp">⌄</span></div></div>
+            <div class="prow"><span class="k sm">源图 列</span><div class="spin"><input value="2"><span class="stp">⌄</span></div></div>
+            <div class="prow"><span class="k sm">子图 行</span><div class="spin"><input value="1"><span class="stp">⌄</span></div></div>
+            <div class="prow"><span class="k sm">子图 列</span><div class="spin"><input value="1"><span class="stp">⌄</span></div></div>
           </div>
-          <div class="phint">瀛愬浘琛屽垪椤昏兘 <b>鏁撮櫎</b> 婧愬浘琛屽垪銆傚綋鍓?2脳2 鈫?鎷嗗嚭 4 寮?鍥俱€?/div>
+          <div class="phint">子图行列须能 <b>整除</b> 源图行列。当前 2×2 → 拆出 4 张/图。</div>
         </div>
         <div class="pgroup">
-          <div class="glab">鐧借竟 / 闂磋窛</div>
+          <div class="glab">白边 / 间距</div>
           <div class="pgrid2 quad">
-            <div class="qcell"><span class="ql">涓?/span><div class="spin"><input value="12"><span class="stp">鈱?/span></div></div>
-            <div class="qcell"><span class="ql">鍙?/span><div class="spin"><input value="12"><span class="stp">鈱?/span></div></div>
-            <div class="qcell"><span class="ql">涓?/span><div class="spin"><input value="12"><span class="stp">鈱?/span></div></div>
-            <div class="qcell"><span class="ql">宸?/span><div class="spin"><input value="12"><span class="stp">鈱?/span></div></div>
+            <div class="qcell"><span class="ql">上</span><div class="spin"><input value="12"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">右</span><div class="spin"><input value="12"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">下</span><div class="spin"><input value="12"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">左</span><div class="spin"><input value="12"><span class="stp">⌄</span></div></div>
           </div>
-          <div class="prow" style="margin-top:9px;margin-bottom:0"><span class="k">闂磋窛</span><div class="spin"><input value="6"><span class="stp">鈱?/span></div></div>
+          <div class="prow" style="margin-top:9px;margin-bottom:0"><span class="k">间距</span><div class="spin"><input value="6"><span class="stp">⌄</span></div></div>
           <div class="detbtns">
-            <span class="detbtn" data-det="white">妫€娴嬬櫧杈?/span>
-            <span class="detbtn" data-det="grid">鎺ㄦ柇缃戞牸</span>
+            <span class="detbtn" data-det="white">检测白边</span>
+            <span class="detbtn" data-det="grid">推断网格</span>
           </div>
         </div>
         <div class="pgroup">
-          <div class="ghead-sw"><span class="glab">閲嶉噰鏍凤紙缂╂斁 / 瓒呭垎锛?/span><span class="sw off"><span class="dot"></span></span></div>
-          <div class="prow"><span class="k">绠楁硶</span><div class="sel-box">AI 瓒呭垎锛圕omfyUI锛?span class="car">鈻?/span></div></div>
-          <div class="prow"><span class="k">瓒呭垎妯″瀷</span><div class="sel-box">4x-UltraSharp.pth<span class="car">鈻?/span></div></div>
-          <div class="prow"><span class="k">鐩爣姣斾緥</span><div class="sel-box">9:16<span class="car">鈻?/span></div></div>
-          <div class="phint">瓒呭垎澶辫触灏嗚嚜鍔ㄥ洖閫€ <b>LANCZOS</b>锛屽苟鍦ㄥ畬鎴愭彁绀轰腑缁熻鍥為€€鏁伴噺銆?/div>
+          <div class="ghead-sw"><span class="glab">重采样（缩放 / 超分）</span><span class="sw off"><span class="dot"></span></span></div>
+          <div class="prow"><span class="k">算法</span><div class="sel-box">AI 超分（ComfyUI）<span class="car">▾</span></div></div>
+          <div class="prow"><span class="k">超分模型</span><div class="sel-box">4x-UltraSharp.pth<span class="car">▾</span></div></div>
+          <div class="prow"><span class="k">目标比例</span><div class="sel-box">9:16<span class="car">▾</span></div></div>
+          <div class="phint">超分失败将自动回退 <b>LANCZOS</b>，并在完成提示中统计回退数量。</div>
         </div>
         <div class="pgroup">
-          <div class="glab">杈撳嚭</div>
-          <div class="prow" style="margin:0"><span class="k">鏍煎紡</span><div class="sel-box">PNG<span class="car">鈻?/span></div></div>
+          <div class="glab">输出</div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><div class="sel-box">PNG<span class="car">▾</span></div></div>
         </div>`
     },
     trim: {
-      title: "鍘荤櫧杈瑰弬鏁?, tag: "鏀寔棰勮鍙犲姞", grid: "婧愬浘", mode: "multi",
-      exec: "鎵ц鍘荤櫧杈?, preview: "棰勮锛堝彔鍔犺鍒囨锛?,
-      api: "POST " + MEDIA_API + "/imaging?op=trim锛堝幓鐧借竟锛?,
+      title: "去白边参数", tag: "支持预览叠加", grid: "源图", mode: "multi",
+      exec: "执行去白边", preview: "预览（叠加裁切框）",
+      api: "POST " + MEDIA_API + "/imaging?op=trim（去白边）",
       body: `
         <div class="pgroup">
-          <div class="glab">妫€娴?/div>
-          <div class="prow"><span class="k">鑳屾櫙鑹?/span><div class="sel-box">鑷姩锛堥噰鏍峰洓瑙掞級<span class="car">鈻?/span></div></div>
-          <div class="prow" style="margin:0"><span class="k">瀹瑰樊</span><div class="spin"><input value="10"><span class="stp">鈱?/span></div></div>
-          <div class="phint">瀹瑰樊瓒婂ぇ锛岃秺鎺ヨ繎鑳屾櫙鑹茬殑鍍忕礌瓒婁細琚綋浣滅櫧杈硅鎺夈€?/div>
+          <div class="glab">检测</div>
+          <div class="prow"><span class="k">背景色</span><div class="sel-box">自动（采样四角）<span class="car">▾</span></div></div>
+          <div class="prow" style="margin:0"><span class="k">容差</span><div class="spin"><input value="10"><span class="stp">⌄</span></div></div>
+          <div class="phint">容差越大，越接近背景色的像素越会被当作白边裁掉。</div>
         </div>
         <div class="pgroup">
-          <div class="glab">淇濈暀杈硅窛</div>
+          <div class="glab">保留边距</div>
           <div class="pgrid2 quad">
-            <div class="qcell"><span class="ql">涓?/span><div class="spin"><input value="0"><span class="stp">鈱?/span></div></div>
-            <div class="qcell"><span class="ql">鍙?/span><div class="spin"><input value="0"><span class="stp">鈱?/span></div></div>
-            <div class="qcell"><span class="ql">涓?/span><div class="spin"><input value="0"><span class="stp">鈱?/span></div></div>
-            <div class="qcell"><span class="ql">宸?/span><div class="spin"><input value="0"><span class="stp">鈱?/span></div></div>
+            <div class="qcell"><span class="ql">上</span><div class="spin"><input value="0"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">右</span><div class="spin"><input value="0"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">下</span><div class="spin"><input value="0"><span class="stp">⌄</span></div></div>
+            <div class="qcell"><span class="ql">左</span><div class="spin"><input value="0"><span class="stp">⌄</span></div></div>
           </div>
-          <div class="detbtns"><span class="detbtn" data-det="white">妫€娴嬬櫧杈?/span></div>
+          <div class="detbtns"><span class="detbtn" data-det="white">检测白边</span></div>
         </div>
         <div class="pgroup">
-          <div class="glab">杈撳嚭</div>
-          <div class="prow" style="margin:0"><span class="k">鏍煎紡</span><div class="sel-box">PNG<span class="car">鈻?/span></div></div>
+          <div class="glab">输出</div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><div class="sel-box">PNG<span class="car">▾</span></div></div>
         </div>`
     },
     combine: {
-      title: "鎷煎浘鍙傛暟", tag: "椤哄簭鎷兼帴", grid: "寰呮嫾鍥撅紙鎸夌偣鍑婚『搴忥級", mode: "order",
-      exec: "鎵ц鎷煎浘", preview: "棰勮鎷兼帴",
-      api: "POST " + MEDIA_API + "/imaging?op=combine锛堟嫾鍥撅級",
+      title: "拼图参数", tag: "顺序拼接", grid: "待拼图（按点击顺序）", mode: "order",
+      exec: "执行拼图", preview: "预览拼接",
+      api: "POST " + MEDIA_API + "/imaging?op=combine（拼图）",
       body: `
         <div class="pgroup">
-          <div class="glab">甯冨眬</div>
+          <div class="glab">布局</div>
           <div class="pgrid2">
-            <div class="prow"><span class="k sm">琛?/span><div class="spin"><input value="2"><span class="stp">鈱?/span></div></div>
-            <div class="prow"><span class="k sm">鍒?/span><div class="spin"><input value="2"><span class="stp">鈱?/span></div></div>
+            <div class="prow"><span class="k sm">行</span><div class="spin"><input value="2"><span class="stp">⌄</span></div></div>
+            <div class="prow"><span class="k sm">列</span><div class="spin"><input value="2"><span class="stp">⌄</span></div></div>
           </div>
-          <div class="phint">闇€鎸夐『搴忛€夋弧 <b>琛屆楀垪</b> 寮狅紱缂╃暐鍥捐鏍?1路2路3鈥?鍗虫嫾鎺ラ『搴忋€?/div>
+          <div class="phint">需按顺序选满 <b>行×列</b> 张；缩略图角标 1·2·3… 即拼接顺序。</div>
         </div>
         <div class="pgroup">
-          <div class="glab">闂磋窛 / 鑳屾櫙</div>
-          <div class="prow"><span class="k">闂磋窛(px)</span><div class="spin"><input value="6"><span class="stp">鈱?/span></div></div>
-          <div class="prow" style="margin:0"><span class="k">鑳屾櫙鑹?/span><div class="sel-box">閫忔槑<span class="car">鈻?/span></div></div>
+          <div class="glab">间距 / 背景</div>
+          <div class="prow"><span class="k">间距(px)</span><div class="spin"><input value="6"><span class="stp">⌄</span></div></div>
+          <div class="prow" style="margin:0"><span class="k">背景色</span><div class="sel-box">透明<span class="car">▾</span></div></div>
         </div>
         <div class="pgroup">
-          <div class="glab">杈撳嚭</div>
-          <div class="prow" style="margin:0"><span class="k">鏍煎紡</span><div class="sel-box">PNG<span class="car">鈻?/span></div></div>
+          <div class="glab">输出</div>
+          <div class="prow" style="margin:0"><span class="k">格式</span><div class="sel-box">PNG<span class="car">▾</span></div></div>
         </div>`
     }
   };
@@ -1462,19 +1470,20 @@ const qs = new URLSearchParams(location.search);
   const win = document.querySelector(".batch-win");
   let curTool = "imggen";
 
-  // 棰勫埗涓撲笟鎻愮ず璇嶇墖娈靛簱锛堢収鎼?drama_shot_master/core/imggen_presets.py 鐨?QUICK_PROMPTS锛?  // 椤哄簭瀵归綈纭绋匡細涓夎鍥?/ 浜鸿 / 鐗瑰啓 / 涓劍 / 骞胯 / 360掳 / 2D / 3D / 鍥芥极
+  // 预制专业提示词片段库（照搬 drama_shot_master/core/imggen_presets.py 的 QUICK_PROMPTS）
+  // 顺序对齐确认稿：三视图 / 人设 / 特写 / 中焦 / 广角 / 360° / 2D / 3D / 国漫
   const QUICK_PROMPTS = [
-    ["涓夎鍥?, "涓夎鍥撅紙姝ｉ潰銆佷晶闈€佽儗闈級锛岀櫧鑹茬函鑹茶儗鏅紝浜虹墿瑙掕壊璁捐鍥撅紝"],
-    ["浜鸿", "瑙掕壊浜鸿鍙傝€冨浘锛岀櫧鑹茬函鑹茶儗鏅紝姝ｉ潰銆佽儗闈€佷晶闈㈠睍绀猴紝"],
-    ["鐗瑰啓", "鐗瑰啓闀滃ご锛岄潰閮ㄧ粏鑺傦紝"],
-    ["涓劍", "鏍囧噯闀滃ご锛岄€忚姝ｅ父锛?],
-    ["骞胯", "骞胯闀滃ご锛岄€忚鍙樺舰锛屽満鏅紑闃旓紝"],
-    ["360掳", "鐢熸垚璇ュ浘鐨?60鍏ㄦ櫙鍥撅紝360搴︽按骞虫棤姝昏锛?80搴﹀瀭鐩村叏瑙嗚瑕嗙洊锛岀敾闈㈠畬鏁磋繛璐?棣栧熬鏃犵紳琛旀帴锛屾棤鐣稿彉.鏃犳媺浼?鏃犻粦杈?鏃犺鍒?],
-    ["2D", "2D骞抽潰鐢婚锛屽姩婕鏍硷紝"],
-    ["3D", "3D寤烘ā椋庢牸锛孋G娓叉煋锛?],
-    ["鍥芥极", "涓浗婕敾椋庢牸锛岀嚎鏉℃祦鐣咃紝"],
+    ["三视图", "三视图（正面、侧面、背面），白色纯色背景，人物角色设计图，"],
+    ["人设", "角色人设参考图，白色纯色背景，正面、背面、侧面展示，"],
+    ["特写", "特写镜头，面部细节，"],
+    ["中焦", "标准镜头，透视正常，"],
+    ["广角", "广角镜头，透视变形，场景开阔，"],
+    ["360°", "生成该图的360全景图，360度水平无死角，180度垂直全视角覆盖，画面完整连贯.首尾无缝衔接，无畸变.无拉伸.无黑边.无裁切"],
+    ["2D", "2D平面画风，动漫风格，"],
+    ["3D", "3D建模风格，CG渲染，"],
+    ["国漫", "中国漫画风格，线条流畅，"],
   ];
-  // 鍦ㄦ枃鏈煙鍏夋爣澶勬彃鍏ワ紙鏃犻€夊尯鍒欒拷鍔狅級
+  // 在文本域光标处插入（无选区则追加）
   function insertAtTextarea(ta, text) {
     if (!ta) return;
     const s = ta.selectionStart, e = ta.selectionEnd;
@@ -1486,14 +1495,18 @@ const qs = new URLSearchParams(location.search);
   }
 
   /* ============================================================
-     鍑哄浘 = 鐢熷浘宸ヤ綔瀹わ紙浠?imggen 宸ュ叿锛夛細HERO 鎻愮ず璇?+ 棰勭疆鐗囨 + 鍙傝€冨浘@鏍囩
-     + 鐢诲箙/寮犳暟/璐ㄩ噺/鍙傝€冨己搴?+ 鐢熸垚鍑哄浘 + 缁撴灉鐢诲粖銆?     鎺ョ幇鏈夊悗绔細鍗曞紶 POST /imggen/generate锛涘寮犳媶涓?batch_generate锛圫SE锛夈€?     ============================================================ */
-  let studioRefs = [];               // [{path,label}] 鍙傝€冨浘锛堝浘鐢熷浘 / @鏍囩锛?  let studioGallery = [];            // [{path,cap}] 鐢熸垚缁撴灉锛堝惈鍒锋柊杞藉叆锛?  let studioInited = false;
+     出图 = 生图工作室（仅 imggen 工具）：HERO 提示词 + 预置片段 + 参考图@标签
+     + 画幅/张数/质量/参考强度 + 生成出图 + 结果画廊。
+     接现有后端：单张 POST /imggen/generate；多张拆为 batch_generate（SSE）。
+     ============================================================ */
+  let studioRefs = [];               // [{path,label}] 参考图（图生图 / @标签）
+  let studioGallery = [];            // [{path,cap}] 生成结果（含刷新载入）
+  let studioInited = false;
 
   function studioMode() {
     const hasRef = studioRefs.length > 0;
     const hasTxt = (($("studioPrompt") && $("studioPrompt").value) || "").trim().length > 0;
-    return (hasRef && hasTxt ? "鍥炬枃鐢熷浘" : hasRef ? "鍥剧敓鍥? : "鏂囩敓鍥?) + "锛堣嚜鍔級";
+    return (hasRef && hasTxt ? "图文生图" : hasRef ? "图生图" : "文生图") + "（自动）";
   }
   function updateStudioMode() {
     const el = $("studioMode");
@@ -1501,8 +1514,8 @@ const qs = new URLSearchParams(location.search);
   }
   function studioNextLabel() {
     const used = new Set(studioRefs.map(r => r.label));
-    let i = 1; while (used.has("鍥? + i)) i++;
-    return "鍥? + i;
+    let i = 1; while (used.has("图" + i)) i++;
+    return "图" + i;
   }
   function renderStudioRefs() {
     const row = $("studioRefs");
@@ -1512,20 +1525,20 @@ const qs = new URLSearchParams(location.search);
     studioRefs.forEach((r, idx) => {
       const th = document.createElement("div");
       th.className = "ref-th";
-      th.title = "鐐瑰嚮鎶?@" + r.label + " 鎻掑叆鎻愮ず璇峔n" + r.path;
+      th.title = "点击把 @" + r.label + " 插入提示词\n" + r.path;
       th.style.backgroundImage = "url('" + mediaUrl(r.path) + "')";
       const tag = document.createElement("div");
       tag.className = "tag"; tag.textContent = "@" + r.label;
       const ops = document.createElement("div");
       ops.className = "ops";
-      ops.innerHTML = '<span class="op rn" title="鏀瑰悕">鉁?/span><span class="op rm" title="鍒犻櫎">鉁?/span>';
+      ops.innerHTML = '<span class="op rn" title="改名">✎</span><span class="op rm" title="删除">✕</span>';
       th.appendChild(tag); th.appendChild(ops);
       th.addEventListener("click", (e) => {
         if (e.target.closest(".op")) return;
         insertAtTextarea($("studioPrompt"), "@" + r.label + " ");
       });
       ops.querySelector(".rn").addEventListener("click", () => {
-        const v = prompt("鍙傝€冨浘 @鏍囩锛堜緵鎻愮ず璇嶅紩鐢級锛?, r.label);
+        const v = prompt("参考图 @标签（供提示词引用）：", r.label);
         if (v == null) return;
         const name = v.trim().replace(/^@/, "");
         if (name) { r.label = name; renderStudioRefs(); }
@@ -1546,7 +1559,8 @@ const qs = new URLSearchParams(location.search);
       box.appendChild(c);
     });
   }
-  // 鐢诲箙 鈫?size 鍍忕礌涓诧紙HD锛氶暱杈?1920锛岀煭杈规寜姣斾緥锛?K 鏃堕暱杈?1280锛?  function studioSize() {
+  // 画幅 → size 像素串（HD：长边 1920，短边按比例；1K 时长边 1280）
+  function studioSize() {
     const ar = ($("studioAspect") && $("studioAspect").value) || "16:9";
     const hd = !($("studioQuality") && $("studioQuality").value === "std");
     const long = hd ? 1920 : 1280;
@@ -1559,12 +1573,12 @@ const qs = new URLSearchParams(location.search);
     const [w, h] = map[ar] || map["16:9"];
     return w + "x" + h;
   }
-  // 缁撴灉鐢诲粖娓叉煋
+  // 结果画廊渲染
   function renderStudioGallery() {
     const g = $("studioGallery");
     if (!g) return;
     g.querySelectorAll(".gcard").forEach(x => x.remove());
-    $("galleryCount").textContent = studioGallery.length + " 寮?;
+    $("galleryCount").textContent = studioGallery.length + " 张";
     const empty = $("galleryEmpty");
     if (!studioGallery.length) { if (empty) empty.hidden = false; return; }
     if (empty) empty.hidden = true;
@@ -1592,18 +1606,19 @@ const qs = new URLSearchParams(location.search);
     renderStudioGallery();
   }
   function studioOutDir() { return outDir() ? outDir() + "/imggen" : (PROJECT ? PROJECT + "/storyboard" : ""); }
-  // 鐢熸垚鍑哄浘锛氬崟寮犺蛋 /imggen/generate锛涘寮犺蛋 /imggen/batch_generate锛圫SE锛?  async function studioGenerate() {
-    if (!PROJECT) { toast("璇峰厛鍦ㄩ椤甸€夋嫨椤圭洰鍚庡啀鍑哄浘銆?); return; }
+  // 生成出图：单张走 /imggen/generate；多张走 /imggen/batch_generate（SSE）
+  async function studioGenerate() {
+    if (!PROJECT) { toast("请先在首页选择项目后再出图。"); return; }
     const prompt = (($("studioPrompt") && $("studioPrompt").value) || "").trim();
     const refPathsS = studioRefs.map(r => r.path);
-    if (!prompt && !refPathsS.length) { toast("鎻愮ず璇嶄负绌猴紝涓旀棤鍙傝€冨浘鈥斺€旇鍏堝～鍐欐垨娣诲姞鍙傝€冨浘銆?); return; }
+    if (!prompt && !refPathsS.length) { toast("提示词为空，且无参考图——请先填写或添加参考图。"); return; }
     let n = parseInt(($("studioN") && $("studioN").value) || "1", 10); if (!(n > 0)) n = 1;
     const size = studioSize();
     const od = studioOutDir();
-    if (!od) { toast("鏃犺緭鍑虹洰褰曪紙璇峰厛閫夋嫨椤圭洰鎴栬緭鍑虹洰褰曪級銆?); return; }
+    if (!od) { toast("无输出目录（请先选择项目或输出目录）。"); return; }
 
     const btn = $("studioGenBtn"); const old = btn.textContent;
-    btn.disabled = true; btn.textContent = "鈴?鐢熸垚涓€?;
+    btn.disabled = true; btn.textContent = "⏳ 生成中…";
     const prog = $("studioProg");
 
     try {
@@ -1615,15 +1630,15 @@ const qs = new URLSearchParams(location.search);
             out_dir: od, base_name: "gen", ext: "png",
           }),
         });
-        if (!resp.ok) { toast("鐢熸垚澶辫触锛? + (await errHint(resp))); return; }
+        if (!resp.ok) { toast("生成失败：" + (await errHint(resp))); return; }
         const data = await resp.json();
         const outs = (data && data.outputs) || [];
-        if (!outs.length) { toast("鐢熸垚澶辫触锛氭湭杩斿洖鍥剧墖銆?); return; }
+        if (!outs.length) { toast("生成失败：未返回图片。"); return; }
         addGalleryItems(outs, true);
-        toast("宸茬敓鎴?" + outs.length + " 寮?鈫?" + od, "ok");
+        toast("已生成 " + outs.length + " 张 → " + od, "ok");
         return;
       }
-      // 澶氬紶锛氭媶涓?n 涓?batch item锛堝悓涓€鎻愮ず璇嶏級锛岃蛋 SSE 瀹炴椂杩涘浘
+      // 多张：拆为 n 个 batch item（同一提示词），走 SSE 实时进图
       if (prog) prog.hidden = false;
       $("studioProgFill").style.width = "0";
       $("studioProgText").textContent = "0 / " + n;
@@ -1639,7 +1654,7 @@ const qs = new URLSearchParams(location.search);
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: items }),
       });
-      if (!resp.ok || !resp.body) { toast("鎵归噺鍑哄浘澶辫触锛? + (await errHint(resp))); return; }
+      if (!resp.ok || !resp.body) { toast("批量出图失败：" + (await errHint(resp))); return; }
       const reader = resp.body.getReader();
       const dec = new TextDecoder(); let buf = "";
       while (true) {
@@ -1666,26 +1681,28 @@ const qs = new URLSearchParams(location.search);
             $("studioProgFill").style.width = Math.round(done / n * 100) + "%";
             $("studioProgText").textContent = done + " / " + n;
           } else if (ev === "error") {
-            toast("鎵归噺鍑哄浘澶辫触锛? + (d.hint || d.message || "鏈煡閿欒"));
+            toast("批量出图失败：" + (d.hint || d.message || "未知错误"));
           }
         }
       }
       $("studioProgFill").style.width = "100%";
       $("studioProgText").textContent = okC + " / " + n;
-      if (failC) toast("鍑哄浘瀹屾垚锛氭垚鍔?" + okC + " 路 澶辫触 " + failC, okC ? "ok" : undefined);
-      else toast("鍑哄浘瀹屾垚锛氭垚鍔?" + okC + " 寮?鈫?" + od, "ok");
+      if (failC) toast("出图完成：成功 " + okC + " · 失败 " + failC, okC ? "ok" : undefined);
+      else toast("出图完成：成功 " + okC + " 张 → " + od, "ok");
     } catch (e) {
-      toast("鐢熸垚澶辫触锛? + (e && e.message ? e.message : e));
+      toast("生成失败：" + (e && e.message ? e.message : e));
     } finally {
       btn.disabled = false; btn.textContent = old;
       if (prog) setTimeout(() => { prog.hidden = true; }, 1200);
     }
   }
-  // 鍒锋柊锛氬垪杈撳嚭鐩綍涓嬪浘鐗囷紝杞藉叆缁撴灉鐢诲粖锛堝簲瀵瑰閮ㄦ柊澧炲浘锛?  async function refreshGallery() {
-    if (!PROJECT || !MEDIA) { toast("璇峰厛鍦ㄩ椤甸€夋嫨椤圭洰鍚庡啀鍒锋柊銆?); return; }
+  // 刷新：列输出目录下图片，载入结果画廊（应对外部新增图）
+  async function refreshGallery() {
+    if (!PROJECT || !MEDIA) { toast("请先在首页选择项目后再刷新。"); return; }
     const od = studioOutDir();
-    if (!od) { toast("鏃犺緭鍑虹洰褰曘€?); return; }
-    // od 褰㈠ PROJECT/storyboard 鎴?鑷€夌洰褰?imggen 鈫?鍙栫浉瀵?PROJECT 鐨?sub锛堣嚜閫夌洰褰曠敤缁濆锛宻ub 鐣欑┖+缁濆鍒椾笉渚匡紝绠€鍖栫敤 project/files sub锛?    let sub = "";
+    if (!od) { toast("无输出目录。"); return; }
+    // od 形如 PROJECT/storyboard 或 自选目录/imggen → 取相对 PROJECT 的 sub（自选目录用绝对，sub 留空+绝对列不便，简化用 project/files sub）
+    let sub = "";
     const odNorm = od.replace(/\\/g, "/");
     const projNorm = String(PROJECT).replace(/\\/g, "/").replace(/\/+$/, "");
     if (odNorm.indexOf(projNorm + "/") === 0) sub = odNorm.slice(projNorm.length + 1);
@@ -1693,15 +1710,15 @@ const qs = new URLSearchParams(location.search);
       const r = await fetch(MEDIA + "/project/files?" + new URLSearchParams({
         project: PROJECT, sub: sub, ext: "png,jpg,jpeg,webp",
       }));
-      if (!r.ok) { toast("鍒锋柊澶辫触锛? + (await errHint(r))); return; }
+      if (!r.ok) { toast("刷新失败：" + (await errHint(r))); return; }
       const j = await r.json().catch(() => null);
       const files = (j && Array.isArray(j.files)) ? j.files : [];
       studioGallery = files.map(f => ({ path: f.path, cap: f.name }));
       renderStudioGallery();
-      toast(files.length ? ("宸茶浇鍏?" + files.length + " 寮狅紙" + (sub || "椤圭洰鏍?) + "锛夈€?) : "杈撳嚭鐩綍鏆傛棤鍥剧墖銆?, files.length ? "ok" : undefined);
-    } catch (e) { toast("鍒锋柊澶辫触锛? + (e && e.message ? e.message : e)); }
+      toast(files.length ? ("已载入 " + files.length + " 张（" + (sub || "项目根") + "）。") : "输出目录暂无图片。", files.length ? "ok" : undefined);
+    } catch (e) { toast("刷新失败：" + (e && e.message ? e.message : e)); }
   }
-  // 宸ヤ綔瀹や竴娆℃€у垵濮嬪寲锛堥娆¤繘 imggen 宸ュ叿鏃讹級
+  // 工作室一次性初始化（首次进 imggen 工具时）
   function ensureStudioInit() {
     if (studioInited) return;
     studioInited = true;
@@ -1720,7 +1737,7 @@ const qs = new URLSearchParams(location.search);
           studioRefs.push({ path: norm, label: studioNextLabel() });
           added++;
         });
-        if (added) { renderStudioRefs(); toast("宸叉坊鍔?" + added + " 寮犲弬鑰冨浘锛堝浘鐢熷浘锛夈€?, "ok"); }
+        if (added) { renderStudioRefs(); toast("已添加 " + added + " 张参考图（图生图）。", "ok"); }
       });
     });
     if ($("studioGenBtn")) $("studioGenBtn").addEventListener("click", studioGenerate);
@@ -1729,11 +1746,11 @@ const qs = new URLSearchParams(location.search);
 
   function renderTool(tool) {
     curTool = tool;
-    // 鍑哄浘 = 鐢熷浘宸ヤ綔瀹わ紙涓撳睘甯冨眬锛夛紱鎷?鎷?鍘荤櫧杈?= 閫氱敤缃戞牸鎵瑰鐞嗗竷灞€
+    // 出图 = 生图工作室（专属布局）；拆/拼/去白边 = 通用网格批处理布局
     const studio = tool === "imggen";
     win.classList.toggle("studio-mode", studio);
     if (studio) {
-      // 宸ヤ綔瀹ゅ竷灞€锛氶殣钘?grid+panel 浣撲笌搴曟爮锛堢敱 .studio-mode CSS 澶勭悊锛夛紝鍙渶淇濊瘉宸插垵濮嬪寲
+      // 工作室布局：隐藏 grid+panel 体与底栏（由 .studio-mode CSS 处理），只需保证已初始化
       win.classList.remove("order-mode");
       ensureStudioInit();
       return;
@@ -1745,11 +1762,14 @@ const qs = new URLSearchParams(location.search);
     $("panelBody").innerHTML = t.body;
     $("execBtn").textContent = t.exec;
     $("previewBtn").textContent = t.preview;
-    // 閫夋嫨鎬侊細order锛堟嫾鍥撅級鐢ㄩ『搴忚鏍囷紝鍏朵綑 multi 鍕鹃€?    win.classList.toggle("order-mode", t.mode === "order");
-    // 鍒囧伐鍏锋竻绌洪€夋嫨锛岄噸缃繘搴?    resetSelection();
+    // 选择态：order（拼图）用顺序角标，其余 multi 勾选
+    win.classList.toggle("order-mode", t.mode === "order");
+    // 切工具清空选择，重置进度
+    resetSelection();
     $("progFill").style.width = "0";
-    $("progText").innerHTML = "<b>0</b> / 0 路 寰呮墽琛?;
-    // 闈㈡澘鍐呭紑鍏充氦浜?    $("panelBody").querySelectorAll(".sw").forEach(sw =>
+    $("progText").innerHTML = "<b>0</b> / 0 · 待执行";
+    // 面板内开关交互
+    $("panelBody").querySelectorAll(".sw").forEach(sw =>
       sw.addEventListener("click", () => sw.classList.toggle("off")));
     $("panelBody").querySelectorAll(".detbtn").forEach(b =>
       b.addEventListener("click", () => runDetect(b.dataset.det)));
@@ -1765,10 +1785,10 @@ const qs = new URLSearchParams(location.search);
   function refreshGridMode() {
     const n = selectedThumbs().length;
     const m = TOOLS[curTool].mode;
-    $("gridMode").textContent = (m === "order" ? "椤哄簭閫夋嫨 路 宸叉帓 " : "澶氶€?路 宸查€?") + n + " 寮?;
+    $("gridMode").textContent = (m === "order" ? "顺序选择 · 已排 " : "多选 · 已选 ") + n + " 张";
   }
 
-  // 缂╃暐鍥剧偣鍑伙細multi 鍕鹃€?/ order 鎺掑簭
+  // 缩略图点击：multi 勾选 / order 排序
   $("thumbs").addEventListener("click", (e) => {
     const th = e.target.closest(".th"); if (!th) return;
     const m = TOOLS[curTool].mode;
@@ -1787,44 +1807,47 @@ const qs = new URLSearchParams(location.search);
     updateValidity();
   });
   function renumberOrder() {
-    // 椤哄簭妯″紡涓嬮噸鎺掕鏍囷紙鎸夊綋鍓?DOM 涓殑閫変腑鍏堝悗杩戜技澶勭悊锛?    let i = 0;
+    // 顺序模式下重排角标（按当前 DOM 中的选中先后近似处理）
+    let i = 0;
     $("thumbs").querySelectorAll(".th.sel").forEach(th => { th.querySelector(".ord").textContent = ++i; });
   }
 
   $("selAll").addEventListener("click", () => {
-    if (TOOLS[curTool].mode === "order") { alert("鎷煎浘涓洪『搴忛€夋嫨锛岃鎸夋嫾鎺ラ『搴忛€愬紶鐐瑰嚮銆?); return; }
+    if (TOOLS[curTool].mode === "order") { alert("拼图为顺序选择，请按拼接顺序逐张点击。"); return; }
     $("thumbs").querySelectorAll(".th").forEach(th => th.classList.add("sel"));
     refreshGridMode(); updateValidity();
   });
-  // 銆屾竻绌恒€嶁啋 鐪熸竻绌烘簮鍥?+ 閫夋嫨 state 骞堕噸娓诧紙绉婚櫎鎵€鏈夌缉鐣ュ浘锛屽惈鍗犱綅/鐪熷疄锛?  $("selClear").addEventListener("click", () => {
+  // 「清空」→ 真清空源图 + 选择 state 并重渲（移除所有缩略图，含占位/真实）
+  $("selClear").addEventListener("click", () => {
     $("thumbs").innerHTML = "";
     refreshGridMode(); updateValidity();
-    toast("宸叉竻绌烘簮鍥俱€?, "ok");
+    toast("已清空源图。", "ok");
   });
 
-  // 宸ュ叿 Tab 鍒囨崲
+  // 工具 Tab 切换
   $("btabs").addEventListener("click", (e) => {
     const tab = e.target.closest(".btab"); if (!tab) return;
     $("btabs").querySelectorAll(".btab").forEach(x => x.classList.toggle("act", x === tab));
     renderTool(tab.dataset.tool);
   });
 
-  // 鏍￠獙鎻愮ず
+  // 校验提示
   function updateValidity() {
     const n = selectedThumbs().length;
     const v = $("vhint");
     if (curTool === "combine") {
-      // 绠€鍗曟牎楠岋細鏄惁鍑戞弧鏌愪釜 琛屆楀垪锛堣繖閲屼粎鎸夊凡閫夋暟鎻愮ず锛?      v.classList.toggle("ok", n > 0);
-      v.textContent = n > 0 ? ("鉁?宸叉帓 " + n + " 寮?路 鎸?琛屆楀垪 鎷兼帴") : "鈿?璇锋寜椤哄簭閫夊浘鍑戞弧 琛屆楀垪";
+      // 简单校验：是否凑满某个 行×列（这里仅按已选数提示）
+      v.classList.toggle("ok", n > 0);
+      v.textContent = n > 0 ? ("✓ 已排 " + n + " 张 · 按 行×列 拼接") : "⚠ 请按顺序选图凑满 行×列";
     } else if (curTool === "imggen") {
-      v.classList.add("ok"); v.textContent = "鉁?鎵归噺闃熷垪灏辩华";
+      v.classList.add("ok"); v.textContent = "✓ 批量队列就绪";
     } else {
       v.classList.toggle("ok", n > 0);
-      v.textContent = n > 0 ? ("鉁?鏍￠獙閫氳繃 路 鍏?" + n + " 寮?) : "鈿?璇疯嚦灏戦€?1 寮犳簮鍥?;
+      v.textContent = n > 0 ? ("✓ 校验通过 · 共 " + n + " 张") : "⚠ 请至少选 1 张源图";
     }
   }
 
-  // ---- 杈撳嚭鐩綍锛氬師鐢熺洰褰曢€夋嫨锛堝洖閫€绮樿创锛?---
+  // ---- 输出目录：原生目录选择（回退粘贴）----
   $("pickDir").addEventListener("click", () => {
     pickNative("dir", (paths) => {
       const v = (paths && paths[0] || "").replace(/\\/g, "/").trim();
@@ -1835,21 +1858,24 @@ const qs = new URLSearchParams(location.search);
     const v = ($("outDir").textContent || "").trim();
     return v && v !== "D:/works/ep01/tiles_out" ? v : (PROJECT ? PROJECT + "/tiles_out" : "");
   }
-  // outdir 鍖恒€屾墦寮€銆嶁啋 绯荤粺鏂囦欢绠＄悊鍣ㄦ墦寮€杈撳嚭鐩綍锛堝嚭鍥惧伐鍏风敤 studioOutDir锛屽叾浣欑敤 outDir锛?  $("openOutDir").addEventListener("click", () => {
+  // outdir 区「打开」→ 系统文件管理器打开输出目录（出图工具用 studioOutDir，其余用 outDir）
+  $("openOutDir").addEventListener("click", () => {
     const od = curTool === "imggen" ? studioOutDir() : outDir();
-    if (!od) { toast("鏃犺緭鍑虹洰褰曪紙璇峰厛閫夋嫨椤圭洰鎴栬緭鍑虹洰褰曪級銆?); return; }
+    if (!od) { toast("无输出目录（请先选择项目或输出目录）。"); return; }
     window.parent.postMessage({ type: "open.path", path: od }, "*");
   });
-  // outdir 鍖恒€屸喕 鍒锋柊銆嶁啋 鍑哄浘宸ュ叿鍒锋柊缁撴灉鐢诲粖锛涙媶/鎷?鍘荤櫧杈规棤缁撴灉鐢诲粖锛屽埛鏂板嵆鎵撳紑杈撳嚭鐩綍鐪嬬粨鏋溿€?  $("refreshOutDir").addEventListener("click", () => {
+  // outdir 区「↻ 刷新」→ 出图工具刷新结果画廊；拆/拼/去白边无结果画廊，刷新即打开输出目录看结果。
+  $("refreshOutDir").addEventListener("click", () => {
     if (curTool === "imggen") { refreshGallery(); return; }
     const od = outDir();
-    if (!od) { toast("鏃犺緭鍑虹洰褰曪紙璇峰厛閫夋嫨椤圭洰鎴栬緭鍑虹洰褰曪級銆?); return; }
+    if (!od) { toast("无输出目录（请先选择项目或输出目录）。"); return; }
     window.parent.postMessage({ type: "open.path", path: od }, "*");
-    toast("宸插湪鏂囦欢绠＄悊鍣ㄦ墦寮€杈撳嚭鐩綍鏌ョ湅缁撴灉銆?, "ok");
+    toast("已在文件管理器打开输出目录查看结果。", "ok");
   });
 
-  // ---- 婧愬浘锛氱缉鐣ュ浘缃戞牸褰撳墠娌℃湁鐪熷疄璺緞锛岀敤銆岋紜 娣诲姞婧愬浘鈥︺€嶅～鐪熷疄 src_path ----
-  // 姣忎釜鐪熷疄鏉＄洰鎸?data-path锛涘崰浣嶇缉鐣ュ浘(data-ph)鏃犺矾寰勶紝鎵ц鏃朵細琚繃婊ゅ苟鎻愮ず銆?  function addThumb(path) {
+  // ---- 源图：缩略图网格当前没有真实路径，用「＋ 添加源图…」填真实 src_path ----
+  // 每个真实条目挂 data-path；占位缩略图(data-ph)无路径，执行时会被过滤并提示。
+  function addThumb(path) {
     const norm = String(path).replace(/\\/g, "/").trim();
     if (!norm) return null;
     const name = norm.split("/").pop() || norm;
@@ -1860,7 +1886,7 @@ const qs = new URLSearchParams(location.search);
     th.innerHTML = '<div class="img"></div><div class="check"></div><div class="ord"></div>' +
       '<div class="name"></div>';
     th.querySelector(".name").textContent = name;
-    // 鐪熷疄鏂囦欢缁忓３ /file 绔偣缂╃暐锛坔ttp 椤甸潰绂?file://锛夛紝鐢?<img> 浠ヤ究 onerror 鍥為€€
+    // 真实文件经壳 /file 端点缩略（http 页面禁 file://），用 <img> 以便 onerror 回退
     const im = th.querySelector(".img");
     const pic = document.createElement("img");
     pic.src = mediaUrl(norm);
@@ -1871,32 +1897,36 @@ const qs = new URLSearchParams(location.search);
     $("thumbs").appendChild(th);
     return th;
   }
-  // 宸叉坊鍔犵殑婧愬浘璺緞闆嗗悎锛堝幓閲嶏級
+  // 已添加的源图路径集合（去重）
   function existingSrcPaths() {
     return new Set([...$("thumbs").querySelectorAll(".th[data-path]")].map(t => t.dataset.path));
   }
   function addSourcePaths(paths) {
     const list = (paths || []).map(p => String(p).replace(/\\/g, "/").trim()).filter(Boolean);
     if (!list.length) return;
-    // 棣栨娣诲姞鐪熷疄婧愬浘鏃讹紝绉婚櫎鍗犱綅缂╃暐鍥?    if ($("thumbs").querySelector(".th[data-path]") == null)
+    // 首次添加真实源图时，移除占位缩略图
+    if ($("thumbs").querySelector(".th[data-path]") == null)
       $("thumbs").querySelectorAll(".th[data-ph]").forEach(x => x.remove());
     const have = existingSrcPaths();
     let added = 0;
     list.forEach(p => { if (!have.has(p) && addThumb(p)) { have.add(p); added++; } });
     refreshGridMode(); updateValidity();
-    if (added) toast("宸叉坊鍔?" + added + " 寮犳簮鍥俱€?, "ok");
-    else toast("鏈柊澧炴簮鍥撅紙鍙兘宸插瓨鍦ㄦ垨璺緞涓虹┖锛夈€?);
+    if (added) toast("已添加 " + added + " 张源图。", "ok");
+    else toast("未新增源图（可能已存在或路径为空）。");
   }
   // ===========================================================
-  // 杈撳叆鐩綍锛堟簮鍥炬潵婧愶級鈥斺€?涓庤緭鍑虹洰褰曪紙缁撴灉钀界洏锛夎涔夊垎绂伙細
-  //   杈撳叆鐩綍 = 杞藉浘婧愶細閫夋嫨鍚庛€屽埛鏂般€?鍒楄鐩綍鍥剧墖濉繘缃戞牸銆?  //   杈撳嚭鐩綍 = 缁撴灉钀界洏锛氭媶/鎷?鍘荤櫧杈?鍐欏埌鍏朵笅 split/combine/trim 瀛愮洰褰曘€?  // ===========================================================
-  let inputDir = "";   // 褰撳墠杈撳叆鐩綍锛堢粷瀵规垨鐩稿椤圭洰锛夛紱绌?鏈€?
+  // 输入目录（源图来源）—— 与输出目录（结果落盘）语义分离：
+  //   输入目录 = 载图源：选择后「刷新」=列该目录图片填进网格。
+  //   输出目录 = 结果落盘：拆/拼/去白边 写到其下 split/combine/trim 子目录。
+  // ===========================================================
+  let inputDir = "";   // 当前输入目录（绝对或相对项目）；空=未选
+
   function setInputDir(dir) {
     inputDir = (dir || "").replace(/\\/g, "/").trim();
     const chip = $("inDirChip"), openBtn = $("openInDir");
     if (inputDir) {
       if ($("inDirPath")) $("inDirPath").textContent = inputDir;
-      if (chip) { chip.hidden = false; chip.title = "杈撳叆鐩綍锛堣浇鍥炬簮锛塡n" + inputDir; }
+      if (chip) { chip.hidden = false; chip.title = "输入目录（载图源）\n" + inputDir; }
       if (openBtn) openBtn.hidden = false;
     } else {
       if (chip) chip.hidden = true;
@@ -1904,9 +1934,11 @@ const qs = new URLSearchParams(location.search);
     }
   }
 
-  // 銆岋紜 娣诲姞婧愬浘鈥︺€嶁啋 鍘熺敓澶氶€夋枃浠讹紙pickNative files锛涘洖閫€绮樿创锛夈€傛坊鍔犲崟寮?澶氬紶鍒扮綉鏍笺€?  $("addSrc").addEventListener("click", () => pickNative("files", addSourcePaths));
+  // 「＋ 添加源图…」→ 原生多选文件（pickNative files；回退粘贴）。添加单张/多张到网格。
+  $("addSrc").addEventListener("click", () => pickNative("files", addSourcePaths));
 
-  // 銆岄€夋嫨杈撳叆鐩綍鈥︺€嶁啋 鍘熺敓鐩綍閫夋嫨鍣紙pickNative dir锛夛紝閫夊畾鍚庣珛鍗宠浇鍏ュ叾涓嬪浘鐗囧埌缃戞牸銆?  $("pickInDir").addEventListener("click", () => {
+  // 「选择输入目录…」→ 原生目录选择器（pickNative dir），选定后立即载入其下图片到网格。
+  $("pickInDir").addEventListener("click", () => {
     pickNative("dir", (paths) => {
       const v = (paths && paths[0] || "").replace(/\\/g, "/").trim();
       if (!v) return;
@@ -1915,17 +1947,20 @@ const qs = new URLSearchParams(location.search);
     });
   });
 
-  // 銆屾墦寮€杈撳叆鐩綍銆嶁啋 绯荤粺鏂囦欢绠＄悊鍣ㄦ墦寮€杈撳叆鐩綍銆?  $("openInDir").addEventListener("click", () => {
-    if (!inputDir) { toast("灏氭湭閫夋嫨杈撳叆鐩綍銆?); return; }
+  // 「打开输入目录」→ 系统文件管理器打开输入目录。
+  $("openInDir").addEventListener("click", () => {
+    if (!inputDir) { toast("尚未选择输入目录。"); return; }
     window.parent.postMessage({ type: "open.path", path: inputDir }, "*");
   });
 
-  // 鍒楄緭鍏ョ洰褰曞浘鐗?鈫?閲嶈浇婧愬浘缃戞牸锛圙ET /project/files锛涜緭鍏ョ洰褰曞湪椤圭洰鍐呭垯鐢?sub锛屽惁鍒欑粷瀵硅矾寰勶級銆?  async function loadInputDir() {
-    if (!inputDir) { toast("璇峰厛銆岄€夋嫨杈撳叆鐩綍鈥︺€嶃€?); return; }
-    if (!MEDIA) { toast("鏃犲彲鐢ㄥ獟浣撴湇鍔°€?); return; }
+  // 列输入目录图片 → 重载源图网格（GET /project/files；输入目录在项目内则用 sub，否则绝对路径）。
+  async function loadInputDir() {
+    if (!inputDir) { toast("请先「选择输入目录…」。"); return; }
+    if (!MEDIA) { toast("无可用媒体服务。"); return; }
     const dirNorm = inputDir.replace(/\\/g, "/").replace(/\/+$/, "");
     const projNorm = String(PROJECT || "").replace(/\\/g, "/").replace(/\/+$/, "");
-    // 杈撳叆鐩綍鍦ㄩ」鐩唴 鈫?sub 鐩稿璺緞锛涘惁鍒欐妸鏁寸洰褰曞綋 project 鏍瑰垪锛堢粷瀵圭洰褰曪級銆?    let qp;
+    // 输入目录在项目内 → sub 相对路径；否则把整目录当 project 根列（绝对目录）。
+    let qp;
     if (projNorm && dirNorm.indexOf(projNorm + "/") === 0) {
       qp = { project: PROJECT, sub: dirNorm.slice(projNorm.length + 1), ext: "png,jpg,jpeg,webp" };
     } else if (projNorm && dirNorm === projNorm) {
@@ -1935,26 +1970,29 @@ const qs = new URLSearchParams(location.search);
     }
     try {
       const r = await fetch(MEDIA + "/project/files?" + new URLSearchParams(qp));
-      if (!r.ok) { toast("杞藉叆杈撳叆鐩綍澶辫触锛? + (await errHint(r))); return; }
+      if (!r.ok) { toast("载入输入目录失败：" + (await errHint(r))); return; }
       const j = await r.json().catch(() => null);
       const files = (j && Array.isArray(j.files)) ? j.files : [];
-      $("thumbs").innerHTML = "";   // 娓呯┖鐜版湁缃戞牸锛堝惈鍗犱綅锛夊悗閲嶈浇
+      $("thumbs").innerHTML = "";   // 清空现有网格（含占位）后重载
       files.forEach(f => addThumb(f.path));
       resetSelection(); updateValidity();
-      toast(files.length ? ("宸蹭粠杈撳叆鐩綍杞藉叆 " + files.length + " 寮犮€?) : "杈撳叆鐩綍鏆傛棤鍥剧墖銆?, files.length ? "ok" : undefined);
-    } catch (e) { toast("杞藉叆杈撳叆鐩綍澶辫触锛? + (e && e.message ? e.message : e)); }
+      toast(files.length ? ("已从输入目录载入 " + files.length + " 张。") : "输入目录暂无图片。", files.length ? "ok" : undefined);
+    } catch (e) { toast("载入输入目录失败：" + (e && e.message ? e.message : e)); }
   }
 
-  // 銆屸喕 鍒锋柊銆嶁啋 宸查€夎緭鍏ョ洰褰曞垯閲嶈浇璇ョ洰褰曪紱鍚﹀垯鎻愮ず鍏堥€夎緭鍏ョ洰褰曟垨娣诲姞婧愬浘銆?  function refreshSrcGrid() {
+  // 「↻ 刷新」→ 已选输入目录则重载该目录；否则提示先选输入目录或添加源图。
+  function refreshSrcGrid() {
     if (inputDir) { loadInputDir(); return; }
-    toast("璇峰厛銆岄€夋嫨杈撳叆鐩綍鈥︺€嶅啀鍒锋柊锛屾垨鐢ㄣ€岋紜 娣诲姞婧愬浘鈥︺€嶉€愬紶娣诲姞銆?);
+    toast("请先「选择输入目录…」再刷新，或用「＋ 添加源图…」逐张添加。");
   }
   $("refreshSrc").addEventListener("click", refreshSrcGrid);
 
-  // 閫変腑缂╃暐鍥?鈫?鐪熷疄璺緞鍒楄〃锛堟寜 DOM/閫夋嫨椤哄簭锛夈€傛棤 data-path 鐨勫崰浣嶉」琚拷鐣ャ€?  function selectedPaths() {
+  // 选中缩略图 → 真实路径列表（按 DOM/选择顺序）。无 data-path 的占位项被忽略。
+  function selectedPaths() {
     return selectedThumbs().map(th => th.dataset.path).filter(Boolean);
   }
-  // 鍙栭潰鏉垮唴 spin/sel-box 褰撳墠鍊硷紙瀹芥澗瑙ｆ瀽锛?  function spinVals() { return [...$("panelBody").querySelectorAll(".spin input")].map(i => parseInt(i.value, 10)); }
+  // 取面板内 spin/sel-box 当前值（宽松解析）
+  function spinVals() { return [...$("panelBody").querySelectorAll(".spin input")].map(i => parseInt(i.value, 10)); }
   function selBoxText(idx) {
     const b = $("panelBody").querySelectorAll(".sel-box")[idx];
     return b ? b.textContent.trim() : "";
@@ -1966,14 +2004,14 @@ const qs = new URLSearchParams(location.search);
     return t === "JPG" || t === "JPEG" ? "JPG" : "PNG";
   }
   function aspectFromText(txt) {
-    const m = String(txt).match(/(\d+)\s*[:锛歖\s*(\d+)/);
+    const m = String(txt).match(/(\d+)\s*[:：]\s*(\d+)/);
     return m ? { w: +m[1], h: +m[2] } : { w: 0, h: 0 };
   }
 
-  // ---- 妫€娴嬬櫧杈?/ 鎺ㄦ柇缃戞牸 鈫?鍥炲～琛ㄥ崟 ----
+  // ---- 检测白边 / 推断网格 → 回填表单 ----
   async function runDetect(kind) {
     const paths = selectedPaths();
-    if (!paths.length) { toast("璇峰厛銆岋紜 娣诲姞婧愬浘鈥︺€嶅苟閫変腑 1 寮犱綔涓烘娴嬫簮銆?); return; }
+    if (!paths.length) { toast("请先「＋ 添加源图…」并选中 1 张作为检测源。"); return; }
     const src = paths[0];
     const ep = kind === "grid" ? "/imaging/infer_grid" : "/imaging/detect_borders";
     try {
@@ -1981,71 +2019,72 @@ const qs = new URLSearchParams(location.search);
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ src_path: src }),
       });
-      if (!resp.ok) { toast("妫€娴嬪け璐ワ細" + (await errHint(resp))); return; }
+      if (!resp.ok) { toast("检测失败：" + (await errHint(resp))); return; }
       const d = await resp.json();
       const spins = $("panelBody").querySelectorAll(".spin input");
       if (kind === "grid") {
-        // 鎷嗗浘闈㈡澘鍓嶄袱涓?spin = 婧愬浘 琛?/ 鍒?        if (spins[0]) spins[0].value = d.rows;
+        // 拆图面板前两个 spin = 源图 行 / 列
+        if (spins[0]) spins[0].value = d.rows;
         if (spins[1]) spins[1].value = d.cols;
-        toast("鎺ㄦ柇缃戞牸锛? + d.rows + " 脳 " + d.cols, "ok");
+        toast("推断网格：" + d.rows + " × " + d.cols, "ok");
       } else {
         const m = d.margins || {};
         if (curTool === "split") {
-          // split 闈㈡澘 quad 涓婂彸涓嬪乏 = spins[4..7]锛岄棿璺?= spins[8]
+          // split 面板 quad 上右下左 = spins[4..7]，间距 = spins[8]
           if (spins[4]) spins[4].value = m.top ?? 0;
           if (spins[5]) spins[5].value = m.right ?? 0;
           if (spins[6]) spins[6].value = m.bottom ?? 0;
           if (spins[7]) spins[7].value = m.left ?? 0;
           if (spins[8]) spins[8].value = d.gap ?? 0;
         } else {
-          // trim 闈㈡澘锛氬宸?= spins[0]锛屼繚鐣欒竟璺?quad = spins[1..4]
+          // trim 面板：容差 = spins[0]，保留边距 quad = spins[1..4]
           if (spins[1]) spins[1].value = m.top ?? 0;
           if (spins[2]) spins[2].value = m.right ?? 0;
           if (spins[3]) spins[3].value = m.bottom ?? 0;
           if (spins[4]) spins[4].value = m.left ?? 0;
         }
-        toast("妫€娴嬬櫧杈癸細涓? + (m.top ?? 0) + " 鍙? + (m.right ?? 0) +
-          " 涓? + (m.bottom ?? 0) + " 宸? + (m.left ?? 0) + " 路 闂磋窛" + (d.gap ?? 0), "ok");
+        toast("检测白边：上" + (m.top ?? 0) + " 右" + (m.right ?? 0) +
+          " 下" + (m.bottom ?? 0) + " 左" + (m.left ?? 0) + " · 间距" + (d.gap ?? 0), "ok");
       }
     } catch (e) {
-      toast("妫€娴嬪け璐ワ細" + (e && e.message ? e.message : e));
+      toast("检测失败：" + (e && e.message ? e.message : e));
     }
   }
 
-  // ---- 棰勮锛氬綋鍓嶄负璺緞鏍￠獙/鎻愮ず锛堝３鍐呮棤鍙犲姞鐢诲竷锛岀粰鏄庣‘鎵ц鍓嶅弽棣堬級----
+  // ---- 预览：当前为路径校验/提示（壳内无叠加画布，给明确执行前反馈）----
   $("previewBtn").addEventListener("click", () => {
     const paths = selectedPaths();
-    if (curTool === "imggen") { toast("棰勮棣栨潯锛氭墽琛屽悗棣栧紶鏄句簬鍒嗛暅瑙嗚棰勮銆?); return; }
-    if (!paths.length) { toast("璇峰厛銆岋紜 娣诲姞婧愬浘鈥︺€嶅苟閫変腑婧愬浘銆?); return; }
-    toast(TOOLS[curTool].preview + "锛氬凡閫?" + paths.length + " 寮犳簮鍥撅紝鍙墽琛屻€?, "ok");
+    if (curTool === "imggen") { toast("预览首条：执行后首张显于分镜视角预览。"); return; }
+    if (!paths.length) { toast("请先「＋ 添加源图…」并选中源图。"); return; }
+    toast(TOOLS[curTool].preview + "：已选 " + paths.length + " 张源图，可执行。", "ok");
   });
 
-  // ---- 鎵ц锛氭寜宸ュ叿璧扮湡瀹炲悗绔紙鍑哄浘璧扮敓鍥惧伐浣滃鐨勩€岀敓鎴愬嚭鍥俱€嶏紝涓嶇粡姝ゆ墽琛屾爮锛?---
+  // ---- 执行：按工具走真实后端（出图走生图工作室的「生成出图」，不经此执行栏）----
   $("execBtn").addEventListener("click", () => {
     if (curTool === "split") return execSplit();
     if (curTool === "trim") return execTrim();
     if (curTool === "combine") return execCombine();
   });
 
-  // 杩涘害鏉″皬宸ュ叿
+  // 进度条小工具
   function setProg(done, total, suffix) {
     $("progFill").style.width = (total ? Math.round(done / total * 100) : 0) + "%";
     $("progText").innerHTML = "<b>" + done + "</b> / " + total + (suffix || "");
   }
   async function withExecBtn(fn) {
     const b = $("execBtn"); const old = b.textContent;
-    b.disabled = true; b.textContent = "鎵ц涓€?;
+    b.disabled = true; b.textContent = "执行中…";
     try { await fn(); } finally { b.disabled = false; b.textContent = old; }
   }
 
-  // ---- 鎷嗗浘锛氬崟鍥?鈫?POST /imaging/split锛涘鍥?鈫?POST /imaging/batch_split (SSE) ----
+  // ---- 拆图：单图 → POST /imaging/split；多图 → POST /imaging/batch_split (SSE) ----
   async function execSplit() {
     const paths = selectedPaths();
-    if (!paths.length) { toast("璇峰厛銆岋紜 娣诲姞婧愬浘鈥︺€嶅苟閫変腑婧愬浘鍚庡啀鎷嗗浘銆?); return; }
-    if (!outDir()) { toast("璇峰厛閫夋嫨杈撳嚭鐩綍锛堟垨鍦ㄩ椤甸€夋嫨椤圭洰锛夈€?); return; }
+    if (!paths.length) { toast("请先「＋ 添加源图…」并选中源图后再拆图。"); return; }
+    if (!outDir()) { toast("请先选择输出目录（或在首页选择项目）。"); return; }
     const sp = spinVals(); // [srcRows,srcCols,subRows,subCols, top,right,bottom,left, gap]
     const fmt = fmtVal();
-    const aspect = aspectFromText(selBoxText(2)); // split 闈㈡澘銆岀洰鏍囨瘮渚嬨€嶆槸绗?涓?sel-box
+    const aspect = aspectFromText(selBoxText(2)); // split 面板「目标比例」是第3个 sel-box
     const od = outDir() + "/split";
     const baseFor = p => (p.split("/").pop() || "cell").replace(/\.[^.]+$/, "");
     const mkReq = p => ({
@@ -2060,39 +2099,40 @@ const qs = new URLSearchParams(location.search);
 
     await withExecBtn(async () => {
       if (paths.length === 1) {
-        setProg(0, 1, " 路 鎵ц涓€?);
+        setProg(0, 1, " · 执行中…");
         const resp = await fetch(MEDIA_API + "/imaging/split", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(mkReq(paths[0])),
         });
-        if (!resp.ok) { toast("鎷嗗浘澶辫触锛? + (await errHint(resp))); setProg(0, 1, " 路 澶辫触"); return; }
+        if (!resp.ok) { toast("拆图失败：" + (await errHint(resp))); setProg(0, 1, " · 失败"); return; }
         const d = await resp.json();
         const outs = (d && d.outputs) || [];
-        setProg(1, 1, " 路 瀹屾垚 鉁?);
-        toast("鎷嗗浘瀹屾垚锛? + outs.length + " 寮?鈫?" + od, "ok");
+        setProg(1, 1, " · 完成 ✓");
+        toast("拆图完成：" + outs.length + " 张 → " + od, "ok");
         return;
       }
-      // 澶氬浘鎵归噺 鈫?SSE
+      // 多图批量 → SSE
       const items = paths.map(mkReq);
       await runSSE(MEDIA_API + "/imaging/batch_split", { items },
-        items.length, "鎷嗗浘", od);
+        items.length, "拆图", od);
     });
   }
 
-  // ---- 鍘荤櫧杈癸細閫愬紶 POST /imaging/trim锛堝悓姝?JSON锛屽墠绔覆琛岄┍鍔ㄨ繘搴︼級----
+  // ---- 去白边：逐张 POST /imaging/trim（同步 JSON，前端串行驱动进度）----
   async function execTrim() {
     const paths = selectedPaths();
-    if (!paths.length) { toast("璇峰厛銆岋紜 娣诲姞婧愬浘鈥︺€嶅苟閫変腑婧愬浘鍚庡啀鍘荤櫧杈广€?); return; }
-    if (!outDir()) { toast("璇峰厛閫夋嫨杈撳嚭鐩綍锛堟垨鍦ㄩ椤甸€夋嫨椤圭洰锛夈€?); return; }
-    const sp = spinVals();      // [瀹瑰樊, 涓?鍙?涓?宸
-    const tol = sp[0] || 0;     // 瀹瑰樊瓒婂ぇ瓒婃縺杩?鈫?鐧借竟闃堝€艰秺浣?    const threshold = Math.max(0, Math.min(255, 255 - tol));
+    if (!paths.length) { toast("请先「＋ 添加源图…」并选中源图后再去白边。"); return; }
+    if (!outDir()) { toast("请先选择输出目录（或在首页选择项目）。"); return; }
+    const sp = spinVals();      // [容差, 上,右,下,左]
+    const tol = sp[0] || 0;     // 容差越大越激进 → 白边阈值越低
+    const threshold = Math.max(0, Math.min(255, 255 - tol));
     const fmt = fmtVal();
     const od = outDir() + "/trim";
     const ext = fmt === "JPG" ? "jpg" : "png";
     const total = paths.length;
     await withExecBtn(async () => {
       let done = 0, ok = 0, fail = 0;
-      setProg(0, total, " 路 鎵ц涓€?);
+      setProg(0, total, " · 执行中…");
       for (const p of paths) {
         const name = (p.split("/").pop() || "img").replace(/\.[^.]+$/, "");
         try {
@@ -2103,24 +2143,24 @@ const qs = new URLSearchParams(location.search);
               out_path: od + "/" + name + "_trim." + ext, fmt,
             }),
           });
-          if (resp.ok) ok++; else { fail++; toast("鍘荤櫧杈瑰け璐?" + name + "锛? + (await errHint(resp))); }
-        } catch (e) { fail++; toast("鍘荤櫧杈瑰け璐?" + name + "锛? + (e && e.message ? e.message : e)); }
-        done++; setProg(done, total, done >= total ? " 路 瀹屾垚 鉁? : " 路 鎵ц涓€?);
+          if (resp.ok) ok++; else { fail++; toast("去白边失败 " + name + "：" + (await errHint(resp))); }
+        } catch (e) { fail++; toast("去白边失败 " + name + "：" + (e && e.message ? e.message : e)); }
+        done++; setProg(done, total, done >= total ? " · 完成 ✓" : " · 执行中…");
       }
-      if (fail) toast("鍘荤櫧杈瑰畬鎴愶細鎴愬姛 " + ok + " 路 澶辫触 " + fail, ok ? "ok" : undefined);
-      else toast("鍘荤櫧杈瑰畬鎴愶細鎴愬姛 " + ok + " 寮?鈫?" + od, "ok");
+      if (fail) toast("去白边完成：成功 " + ok + " · 失败 " + fail, ok ? "ok" : undefined);
+      else toast("去白边完成：成功 " + ok + " 张 → " + od, "ok");
     });
   }
 
-  // ---- 鎷煎浘锛歅OST /imaging/combine锛堜竴娆℃嫾涓€寮犲ぇ鍥撅級----
+  // ---- 拼图：POST /imaging/combine（一次拼一张大图）----
   async function execCombine() {
-    const paths = selectedPaths(); // order 妯″紡锛氭寜鐐瑰嚮椤哄簭
-    if (!paths.length) { toast("璇峰厛銆岋紜 娣诲姞婧愬浘鈥︺€嶅苟鎸夋嫾鎺ラ『搴忕偣閫夈€?); return; }
-    if (!outDir()) { toast("璇峰厛閫夋嫨杈撳嚭鐩綍锛堟垨鍦ㄩ椤甸€夋嫨椤圭洰锛夈€?); return; }
-    const sp = spinVals();         // [琛? 鍒? 闂磋窛]
+    const paths = selectedPaths(); // order 模式：按点击顺序
+    if (!paths.length) { toast("请先「＋ 添加源图…」并按拼接顺序点选。"); return; }
+    if (!outDir()) { toast("请先选择输出目录（或在首页选择项目）。"); return; }
+    const sp = spinVals();         // [行, 列, 间距]
     const rows = sp[0] || 1, cols = sp[1] || 1, gap = sp[2] || 0;
     if (paths.length !== rows * cols) {
-      toast("鎷煎浘闇€姝ｅソ閫?" + rows + "脳" + cols + " = " + (rows * cols) + " 寮狅紝褰撳墠 " + paths.length + " 寮犮€?);
+      toast("拼图需正好选 " + rows + "×" + cols + " = " + (rows * cols) + " 张，当前 " + paths.length + " 张。");
       return;
     }
     const fmt = fmtVal();
@@ -2128,7 +2168,7 @@ const qs = new URLSearchParams(location.search);
     const od = outDir() + "/combine";
     const ts = Date.now().toString().slice(-6);
     await withExecBtn(async () => {
-      setProg(0, 1, " 路 鎵ц涓€?);
+      setProg(0, 1, " · 执行中…");
       const resp = await fetch(MEDIA_API + "/imaging/combine", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2137,22 +2177,22 @@ const qs = new URLSearchParams(location.search);
           out_path: od + "/combine_" + ts + "." + ext, fmt,
         }),
       });
-      if (!resp.ok) { toast("鎷煎浘澶辫触锛? + (await errHint(resp))); setProg(0, 1, " 路 澶辫触"); return; }
+      if (!resp.ok) { toast("拼图失败：" + (await errHint(resp))); setProg(0, 1, " · 失败"); return; }
       const d = await resp.json();
-      setProg(1, 1, " 路 瀹屾垚 鉁?);
-      toast("鎷煎浘瀹屾垚 鈫?" + (d && d.output ? d.output : od), "ok");
+      setProg(1, 1, " · 完成 ✓");
+      toast("拼图完成 → " + (d && d.output ? d.output : od), "ok");
     });
   }
 
-  // ---- 閫氱敤 SSE 椹卞姩锛坆atch_split锛夛細浜嬩欢 progress / item_done / complete ----
+  // ---- 通用 SSE 驱动（batch_split）：事件 progress / item_done / complete ----
   async function runSSE(url, body, total, label, od) {
-    setProg(0, total, " 路 鎵ц涓€?);
+    setProg(0, total, " · 执行中…");
     let done = 0, okCount = 0, failCount = 0;
     const resp = await fetch(url, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!resp.ok || !resp.body) { toast(label + "澶辫触锛? + (await errHint(resp))); return; }
+    if (!resp.ok || !resp.body) { toast(label + "失败：" + (await errHint(resp))); return; }
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
@@ -2172,24 +2212,26 @@ const qs = new URLSearchParams(location.search);
         let data = {}; try { data = dataStr ? JSON.parse(dataStr) : {}; } catch (_) {}
         if (ev === "item_done") {
           done++;
-          if (data.status === "ok") okCount++; else { failCount++; if (data.error) toast(label + "澶辫触 #" + (data.idx + 1) + "锛? + data.error); }
-          setProg(done, total, " 路 鎵ц涓€?);
+          if (data.status === "ok") okCount++; else { failCount++; if (data.error) toast(label + "失败 #" + (data.idx + 1) + "：" + data.error); }
+          setProg(done, total, " · 执行中…");
         } else if (ev === "complete") {
-          setProg(data.total != null ? data.total : total, data.total != null ? data.total : total, " 路 瀹屾垚 鉁?);
+          setProg(data.total != null ? data.total : total, data.total != null ? data.total : total, " · 完成 ✓");
         }
       }
     }
-    if (failCount) toast(label + "瀹屾垚锛氭垚鍔?" + okCount + " 路 澶辫触 " + failCount + " 鈫?" + od, okCount ? "ok" : undefined);
-    else toast(label + "瀹屾垚锛氭垚鍔?" + okCount + " 寮?鈫?" + od, "ok");
+    if (failCount) toast(label + "完成：成功 " + okCount + " · 失败 " + failCount + " → " + od, okCount ? "ok" : undefined);
+    else toast(label + "完成：成功 " + okCount + " 张 → " + od, "ok");
   }
 
-  // 鍑哄浘鎵归噺宸插苟鍏ャ€岀敓鍥惧伐浣滃銆嶏紙studioGenerate锛歯>1 璧?/imggen/batch_generate SSE 瀹炴椂杩涘浘寤婏級銆?
-  // 鍒濆娓叉煋榛樿宸ュ叿
+  // 出图批量已并入「生图工作室」（studioGenerate：n>1 走 /imggen/batch_generate SSE 实时进图廊）。
+
+  // 初始渲染默认工具
   renderTool("imggen");
 
   /* ============================================================
-     鍑哄浘浠诲姟绠＄悊 鈥斺€?localStorage 鎸佷箙鍖?     key: nuomi.imggenTasks.<project>
-     姣忎釜浠诲姟璁板綍 prompt / refs(鍙傝€冨浘) / aspect(鐢诲箙) / count(寮犳暟) / status
+     出图任务管理 —— localStorage 持久化
+     key: nuomi.imggenTasks.<project>
+     每个任务记录 prompt / refs(参考图) / aspect(画幅) / count(张数) / status
      ============================================================ */
   const TK_KEY = "nuomi.imggenTasks." + (PROJECT || "_none");
   let tasks = [];
@@ -2204,23 +2246,25 @@ const qs = new URLSearchParams(location.search);
   }
   function saveTasks() {
     try { localStorage.setItem(TK_KEY, JSON.stringify(tasks)); }
-    catch (e) { toast("浠诲姟淇濆瓨澶辫触锛坙ocalStorage锛夛細" + (e && e.message ? e.message : e)); }
+    catch (e) { toast("任务保存失败（localStorage）：" + (e && e.message ? e.message : e)); }
   }
   function newTaskId() { return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
-  // 褰撳墠缂栬緫鍣紙鎻愮ず璇?/ 鍙傝€冨浘 / 鐢诲箙 / 寮犳暟锛夆啋 浠诲姟蹇収
+  // 当前编辑器（提示词 / 参考图 / 画幅 / 张数）→ 任务快照
   function editorSnapshot() {
     return {
       prompt: ($("prompt") && $("prompt").value || "").trim(),
       refs: refs.map(r => ({ path: r.path, label: r.label })),
       aspect: curWide ? "16:9" : "9:16",
-      count: 1,   // 鍒嗛暅瑙嗚鍗曞浘 HD 涓昏矾寰勶紝鍥哄畾 1锛堟壒閲忓湪鑷敱妯″紡锛?    };
+      count: 1,   // 分镜视角单图 HD 主路径，固定 1（批量在自由模式）
+    };
   }
-  // 浠诲姟 鈫?缂栬緫鍣紙鎻愮ず璇?/ 鍙傝€冨浘 / 鐢诲箙锛?  function applyTaskToEditor(t) {
+  // 任务 → 编辑器（提示词 / 参考图 / 画幅）
+  function applyTaskToEditor(t) {
     if ($("prompt")) $("prompt").value = t.prompt || "";
     refs = (t.refs || []).map(r => ({ path: r.path, label: r.label }));
     renderRefs();
-    // 鐢诲箙鍚屾鍙虫爮鍒囨崲
+    // 画幅同步右栏切换
     const wantWide = t.aspect === "16:9";
     if (wantWide !== curWide) {
       const arBtn = document.querySelector('.ar-btn[data-ar="' + (wantWide ? "wide" : "vertical") + '"]');
@@ -2229,14 +2273,14 @@ const qs = new URLSearchParams(location.search);
   }
 
   function statusLabel(s) {
-    return s === "running" ? "鐢熸垚涓? : s === "done" ? "宸茬敓鎴? : s === "failed" ? "澶辫触" : "鑽夌";
+    return s === "running" ? "生成中" : s === "done" ? "已生成" : s === "failed" ? "失败" : "草稿";
   }
   function setTaskStatus(id, status) {
     const t = tasks.find(x => x.id === id); if (!t) return;
     t.status = status; t.updatedAt = Date.now();
     saveTasks(); renderTasks();
   }
-  // 鎶婄紪杈戝櫒鍐呭鍥炲啓鍒颁换鍔★紙鐢熸垚鍓嶅揩鐓?+ 鐘舵€侊級
+  // 把编辑器内容回写到任务（生成前快照 + 状态）
   function syncTaskFromEditor(id, status) {
     const t = tasks.find(x => x.id === id); if (!t) return;
     Object.assign(t, editorSnapshot());
@@ -2249,7 +2293,7 @@ const qs = new URLSearchParams(location.search);
     const body = $("taskBody");
     if (!body) return;
     body.innerHTML = "";
-    $("tkMeta").textContent = "锛? + tasks.length + " 涓换鍔★級";
+    $("tkMeta").textContent = "（" + tasks.length + " 个任务）";
     $("tasksEmpty").hidden = tasks.length > 0;
     tasks.forEach((t, i) => {
       const tr = document.createElement("tr");
@@ -2260,18 +2304,19 @@ const qs = new URLSearchParams(location.search);
       tr.innerHTML =
         '<td>' + (i + 1) + '</td>' +
         '<td class="task-prompt"></td>' +
-        '<td>' + (refN ? refN + " 寮? : "鈥?) + '</td>' +
+        '<td>' + (refN ? refN + " 张" : "—") + '</td>' +
         '<td>' + (t.aspect || "9:16") + '</td>' +
         '<td>' + (t.count || 1) + '</td>' +
         '<td><span class="tk-status ' + st + '">' + statusLabel(st) + '</span></td>' +
         '<td><div class="row-ops">' +
-          '<button class="row-op load">杞藉叆</button>' +
-          '<button class="row-op dup">澶嶅埗</button>' +
-          '<button class="row-op del">鍒犻櫎</button>' +
+          '<button class="row-op load">载入</button>' +
+          '<button class="row-op dup">复制</button>' +
+          '<button class="row-op del">删除</button>' +
         '</div></td>';
-      tr.querySelector(".task-prompt").textContent = t.prompt || "锛堢┖鎻愮ず璇嶏級";
+      tr.querySelector(".task-prompt").textContent = t.prompt || "（空提示词）";
       tr.querySelector(".task-prompt").title = t.prompt || "";
-      // 琛岀偣鍑?/ 杞藉叆 鈫?璁句负褰撳墠骞跺簲鐢ㄥ埌缂栬緫鍣?      const loadFn = () => { activeTaskId = t.id; applyTaskToEditor(t); renderTasks(); toast("宸茶浇鍏ヤ换鍔?#" + (i + 1), "ok"); };
+      // 行点击 / 载入 → 设为当前并应用到编辑器
+      const loadFn = () => { activeTaskId = t.id; applyTaskToEditor(t); renderTasks(); toast("已载入任务 #" + (i + 1), "ok"); };
       tr.addEventListener("click", (e) => { if (e.target.closest(".row-op")) return; loadFn(); });
       tr.querySelector(".load").addEventListener("click", loadFn);
       tr.querySelector(".dup").addEventListener("click", () => {
@@ -2279,7 +2324,7 @@ const qs = new URLSearchParams(location.search);
           refs: (t.refs || []).map(r => ({ path: r.path, label: r.label })) });
         const idx = tasks.indexOf(t);
         tasks.splice(idx + 1, 0, copy);
-        saveTasks(); renderTasks(); toast("宸插鍒朵换鍔?, "ok");
+        saveTasks(); renderTasks(); toast("已复制任务", "ok");
       });
       tr.querySelector(".del").addEventListener("click", () => {
         tasks = tasks.filter(x => x.id !== t.id);
@@ -2290,19 +2335,19 @@ const qs = new URLSearchParams(location.search);
     });
   }
 
-  // 鏂板缓浠诲姟锛堢敤褰撳墠缂栬緫鍣ㄥ揩鐓э級
+  // 新建任务（用当前编辑器快照）
   function createTask() {
     const t = Object.assign({ id: newTaskId(), status: "draft", createdAt: Date.now(), updatedAt: Date.now() }, editorSnapshot());
     tasks.push(t);
     activeTaskId = t.id;
     saveTasks(); renderTasks();
-    toast("宸叉柊寤轰换鍔★紙鍙栧綋鍓嶇紪杈戝櫒鍐呭锛?, "ok");
+    toast("已新建任务（取当前编辑器内容）", "ok");
   }
-  // 淇濆瓨褰撳墠涓轰换鍔★細鏈?active 鍒欏洖鍐欙紝鍚﹀垯鏂板缓
+  // 保存当前为任务：有 active 则回写，否则新建
   function saveCurrentAsTask() {
     if (activeTaskId && tasks.some(x => x.id === activeTaskId)) {
       syncTaskFromEditor(activeTaskId);
-      toast("宸蹭繚瀛樺埌褰撳墠浠诲姟", "ok");
+      toast("已保存到当前任务", "ok");
     } else {
       createTask();
     }
@@ -2310,51 +2355,15 @@ const qs = new URLSearchParams(location.search);
 
   if ($("tkNew")) $("tkNew").addEventListener("click", createTask);
   if ($("tkSaveCur")) $("tkSaveCur").addEventListener("click", saveCurrentAsTask);
-  // 浠诲姟闈㈡澘鏀惰捣/灞曞紑
+  // 任务面板收起/展开
   if ($("tkHead")) $("tkHead").addEventListener("click", () => {
     const p = $("tasksPanel");
     const collapsed = p.classList.toggle("collapsed");
-    $("tkToggle").textContent = collapsed ? "灞曞紑 鈻? : "鏀惰捣 鈻?;
+    $("tkToggle").textContent = collapsed ? "展开 ▼" : "收起 ▲";
   });
 
   loadTasks();
   renderTasks();
-
-  // 鍚庡彴浠诲姟闊ф€э細鍙戠幇 running 浠诲姟 鈫?鑷姩鎵弿浜х墿锛岄瑙堝尯鏄剧ず鎭㈠鎸囩ず鍣?  (function recoverRunningTasks() {
-    const running = tasks.filter(t => t.status === "running");
-    if (!running.length) return;
-
-    // 鍙栨渶鏂?running 浠诲姟灏濊瘯搴旂敤鍒板綋鍓嶇紪杈戝櫒
-    const latest = running.reduce((a, b) => (a.updatedAt || 0) > (b.updatedAt || 0) ? a : b);
-    if (latest) {
-      applyTaskToEditor(latest);
-      activeTaskId = latest.id;
-      renderTasks();
-    }
-
-    // 鍦ㄥ綋鍓嶉暅澶撮瑙堝尯鏄剧ず鎭㈠鎸囩ず鍣?    const pv = $("preview");
-    if (pv) {
-      const badge = document.createElement("span");
-      badge.className = "badge-recover";
-      badge.textContent = running.length > 1 ? ("鎭㈠ " + running.length + " 浠诲姟") : "鎭㈠涓€?;
-      badge.id = "badgeRecover";
-      pv.appendChild(badge);
-    }
-
-    // 瑙﹀彂閲嶈浇棰勮浠ュ彂鐜板凡瀹屾垚浜х墿
-    reloadShotPreview().then(() => {
-      // 浜х墿宸叉樉鐜帮紝灏?running 杞负 done锛堣嫢鍥惧凡鏄剧ず锛?      const pv2 = $("preview");
-      const hasImg = pv2 && pv2.querySelector("img._out");
-      running.forEach(t => {
-        if (hasImg) setTaskStatus(t.id, "done");
-        else setTaskStatus(t.id, "draft"); // 鏃犱骇鐗╁洖閫€鑽夌
-      });
-      const badge = $("badgeRecover");
-      if (badge) badge.remove();
-    });
-  })();
 </script>
 </body>
 </html>
-
-
