@@ -3,14 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>分镜板·自由模式·出图面板 布局重平衡确认稿</title>
+<title>自由模式·出图=生图工作室 布局确认稿 v2</title>
 <link rel="stylesheet" href="../../web/tokens.css">
 <style>
-  /* 确认稿：分镜板「自由模式」批处理工具集 — 出图面板重平衡。
-     问题(现状)：.batch-win 写死 height:660px → 大屏下四周留空、页面失衡；
-                .panel-col 固定 360px → 装不下「出图参数+参考图@标签+预置提示词片段」，显得过小。
-     修复：① 批处理窗填满工作区高度(不再固定660px)；② 出图参数面板加宽(420px)且内容分组清晰；
-          ③ 缩略图网格区给「打开目录/刷新/清空」并真实显图；④ 自适应：窄屏参数面板转下方。 */
+  /* 确认稿 v2：出图(文生图)是明星功能 → 专属「生图工作室」布局，不再套用拆/拼/去白边的通用批处理壳。
+     纠正 v1：提示词不该缩在右侧 360px 小面板(无视觉重点+过小)。
+     新布局：① 提示词 = 顶部全宽 HERO 大编辑区(视觉中心)；② 预置专业片段 + 参考图@标签 + 参数 紧随其下；
+            ③ 生成结果画廊占据下方大块(出图的视觉回报)；④ 拆/拼/去白边 仍用原网格+侧栏布局(它们是机械工具)。 */
   body { margin: 0; background: var(--bg); color: var(--fg); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
   .note { background: rgba(74,158,255,.08); border-bottom: 1px solid var(--blue-dim); padding: 9px 20px; font-size: 12px; color: var(--periw); flex-shrink: 0; }
   .note b { color: var(--blue); }
@@ -22,73 +21,72 @@
   .mode-seg button { background: transparent; color: var(--muted); border: none; padding: 6px 14px; border-radius: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
   .mode-seg button.on { background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; font-weight: 700; }
 
-  /* ① 批处理窗：填满工作区高度（不再固定 660px） */
-  .batch-win { flex: 1; min-height: 0; border: 1px solid var(--border); border-radius: 11px; overflow: hidden;
-    background: var(--bg); display: flex; flex-direction: column; box-shadow: 0 18px 50px rgba(0,0,0,.45); }
-  .batch-toolbar { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--navy); border-bottom: 1px solid var(--border-lo); flex-shrink: 0; }
+  .studio { flex: 1; min-height: 0; border: 1px solid var(--border); border-radius: 11px; overflow: hidden; background: var(--bg); display: flex; flex-direction: column; box-shadow: 0 18px 50px rgba(0,0,0,.45); }
+  /* 工具 tab 行：出图突出(主色)，其余次要 */
+  .toolbar { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--navy); border-bottom: 1px solid var(--border-lo); flex-shrink: 0; }
   .btabs { display: flex; gap: 6px; background: #0f1120; border: 1px solid var(--border-lo); border-radius: 9px; padding: 3px; }
   .btab { font-size: 12.5px; color: var(--muted); padding: 7px 16px; border-radius: 7px; cursor: pointer; }
   .btab.act { color: #06122a; font-weight: 700; background: linear-gradient(135deg, var(--blue), var(--periw)); }
-  .btbsp { flex: 1; }
+  .toolbar .sp { flex: 1; }
   .outdir { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--muted); }
-  .outdir .path { background: var(--field); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; color: var(--fg2); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .outdir .pick { color: var(--blue); border: 1px solid var(--blue-dim); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .outdir .path { background: var(--field); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; color: var(--fg2); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .outdir .pick, .outdir .open, .outdir .refresh { border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; color: var(--muted); }
+  .outdir .refresh { color: var(--blue); border-color: var(--blue-dim); }
 
-  .batch-body { flex: 1; display: flex; min-height: 0; }
-  @media (max-width: 1000px){ .batch-body { flex-direction: column; } }
+  /* 生图工作室主体：上 = 提示词 HERO，下 = 结果画廊 */
+  .studio-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-  /* 中栏：缩略图网格（含 打开目录/刷新/清空） */
-  .grid-col { flex: 1; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border-lo); }
-  .gridhead { display: flex; align-items: center; gap: 9px; padding: 10px 16px; border-bottom: 1px solid var(--border-lo); flex-wrap: wrap; }
-  .gridhead .t { font-size: 12.5px; font-weight: 600; }
-  .gridhead .bmode { font-size: 9.5px; color: #cdbcf5; border: 1px solid #4a3d6e; border-radius: 9px; padding: 1px 9px; }
-  .gridhead .gh-sp { flex: 1; }
-  .gridhead .mini { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
-  .gridhead .mini:hover { color: var(--fg2); border-color: var(--blue-dim); }
-  .gridhead .mini.refresh { color: var(--blue); border-color: var(--blue-dim); }   /* ③ 新增刷新 */
-  .gridwrap { flex: 1; overflow: auto; padding: 14px 16px; }
-  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
-  .th { position: relative; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--border); background: #10131f; aspect-ratio: 1/1; }
-  .th img { width: 100%; height: 100%; object-fit: cover; display: block; background: linear-gradient(135deg,#243a5a,#3a2746); }
-  .th .name { position: absolute; left: 0; right: 0; bottom: 0; font-size: 9.5px; color: #cfd3e0; background: linear-gradient(transparent, rgba(8,9,16,.85)); padding: 12px 7px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .th.sel { border-color: var(--mauve); box-shadow: 0 0 0 1px rgba(167,139,250,.35); }
-  .grid-empty { color: var(--faint); font-size: 12.5px; text-align: center; padding: 40px 12px; grid-column: 1/-1; }
+  /* ① 提示词 HERO（视觉中心，全宽大编辑区） */
+  .composer { flex-shrink: 0; padding: 16px 20px; border-bottom: 1px solid var(--border-lo); background: linear-gradient(180deg, rgba(74,158,255,.05), transparent); }
+  .composer .clab { font-size: 12px; color: var(--periw); font-weight: 700; letter-spacing: .5px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .composer .clab .star { color: var(--blue); }
+  .composer .clab .mode-badge { margin-left: auto; font-size: 10.5px; color: var(--blue); background: rgba(74,158,255,.12); border: 1px solid var(--blue-dim); border-radius: 9px; padding: 2px 9px; font-weight: 400; }
+  .prompt-hero { width: 100%; box-sizing: border-box; min-height: 116px; resize: vertical; font: inherit; font-size: 14px; line-height: 1.7;
+    background: var(--field); border: 1.5px solid var(--blue-dim); border-radius: 12px; color: var(--fg); padding: 14px 16px; outline: none; box-shadow: 0 0 0 1px rgba(74,158,255,.12) inset; }
+  .prompt-hero:focus { border-color: var(--blue); }
+  /* 预置专业片段（醒目一排） */
+  .presets { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; align-items: center; }
+  .presets .plab { font-size: 11.5px; color: var(--muted); margin-right: 2px; }
+  .preset { font-size: 11.5px; color: var(--periw); background: rgba(138,127,217,.14); border: 1px solid #4a3d6e; border-radius: 13px; padding: 5px 12px; cursor: pointer; }
+  .preset:hover { background: rgba(138,127,217,.24); }
+  /* 参考图 + 参数 + 生成 同一行(紧凑，不抢提示词重点) */
+  .ctrl-row { display: flex; align-items: center; gap: 18px; margin-top: 13px; flex-wrap: wrap; }
+  .refs { display: flex; gap: 7px; align-items: center; }
+  .refs .rl { font-size: 11.5px; color: var(--muted); }
+  .ref-th { width: 44px; height: 44px; border-radius: 7px; background: linear-gradient(135deg,#2a2d42,#1a1c2e); border: 1px solid var(--border-lo); position: relative; overflow: hidden; }
+  .ref-th .tag { position: absolute; left: 0; right: 0; bottom: 0; font-size: 8px; background: rgba(0,0,0,.6); color: #9cc7ff; text-align: center; }
+  .ref-add { width: 44px; height: 44px; border-radius: 7px; border: 1px dashed var(--border); display: grid; place-items: center; color: var(--faint); cursor: pointer; }
+  .params { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .params .pg { display: flex; align-items: center; gap: 6px; }
+  .params .pg label { font-size: 11.5px; color: var(--muted); }
+  .params .pg select, .params .pg input[type=number] { font-size: 12px; padding: 5px 8px; }
+  .params .pg input[type=range] { width: 88px; accent-color: var(--blue); }
+  .ctrl-row .grow { flex: 1; }
+  .btn-gen { font: inherit; font-size: 14px; font-weight: 700; padding: 11px 26px; border-radius: 9px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; box-shadow: 0 6px 18px rgba(74,158,255,.3); white-space: nowrap; }
 
-  /* ② 右栏：出图参数面板 加宽 360→420，内容分组(提示词/参考图/预置片段/参数) */
-  .panel-col { width: 420px; flex: 0 0 420px; display: flex; flex-direction: column; background: var(--bg); }
-  @media (max-width: 1000px){ .panel-col { width: auto; flex: 0 0 auto; border-top: 1px solid var(--border-lo); max-height: 46%; } }
-  .panelhead { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--border-lo); flex-shrink: 0; }
-  .panelhead .t { font-size: 13px; font-weight: 600; }
-  .panelhead .ph-sp { flex: 1; }
-  .panelhead .ptag { font-size: 9.5px; color: var(--muted); border: 1px solid var(--border); border-radius: 9px; padding: 1px 9px; }
-  .panelbody { flex: 1; overflow: auto; padding: 14px 16px; }
-  .pgroup { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 12px 13px; margin-bottom: 12px; }
-  .pgroup .glab { font-size: 11px; color: var(--periw); font-weight: 600; letter-spacing: .4px; margin-bottom: 10px; text-transform: uppercase; }
-  .pta { width: 100%; box-sizing: border-box; min-height: 92px; resize: vertical; font: inherit; font-size: 12px; line-height: 1.6; background: var(--field); border: 1px solid var(--border); border-radius: 7px; color: var(--fg); padding: 9px 11px; outline: none; }
-  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
-  .preset { font-size: 11px; color: var(--periw); background: rgba(138,127,217,.12); border: 1px solid #4a3d6e; border-radius: 11px; padding: 3px 10px; cursor: pointer; }
-  .refs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .ref-th { width: 50px; height: 50px; border-radius: 7px; background: linear-gradient(135deg,#2a2d42,#1a1c2e); border: 1px solid var(--border-lo); position: relative; overflow: hidden; }
-  .ref-th .tag { position: absolute; left: 0; right: 0; bottom: 0; font-size: 8.5px; background: rgba(0,0,0,.6); color: #9cc7ff; text-align: center; }
-  .ref-add { width: 50px; height: 50px; border-radius: 7px; border: 1px dashed var(--border); display: grid; place-items: center; color: var(--faint); cursor: pointer; }
-  .mode-badge { font-size: 10.5px; color: var(--blue); background: rgba(74,158,255,.12); border: 1px solid var(--blue-dim); border-radius: 9px; padding: 2px 8px; margin-left: auto; }
-  .prow { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
-  .prow:last-child { margin-bottom: 0; }
-  .prow .k { font-size: 12px; color: var(--fg2); width: 72px; flex: 0 0 72px; }
-  .prow select, .prow input { flex: 1; font-size: 12px; padding: 6px 9px; }
+  /* ② 结果画廊（大块视觉回报） */
+  .gallery-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .gallery-head { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--border-lo); flex-shrink: 0; }
+  .gallery-head .t { font-size: 12.5px; font-weight: 600; }
+  .gallery-head .cnt { font-size: 10px; color: #cdbcf5; border: 1px solid #4a3d6e; border-radius: 9px; padding: 1px 9px; }
+  .gallery-head .sp { flex: 1; }
+  .gallery-head .prog { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--muted); }
+  .gallery-head .bar { width: 160px; height: 6px; background: var(--field); border-radius: 3px; overflow: hidden; }
+  .gallery-head .fill { width: 40%; height: 100%; background: linear-gradient(90deg, var(--blue), var(--periw)); }
+  .gallery { flex: 1; overflow: auto; padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; align-content: start; }
+  .gcard { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: #10131f; aspect-ratio: 16/9; position: relative; }
+  .gcard img { width: 100%; height: 100%; object-fit: cover; display: block; background: linear-gradient(135deg,#243a5a,#3a2746); }
+  .gcard.empty { display: grid; place-items: center; color: var(--faint); font-size: 11.5px; border-style: dashed; aspect-ratio: 16/9; }
+  .gcard .cap { position: absolute; left: 0; right: 0; bottom: 0; font-size: 9.5px; color: #cfd3e0; background: linear-gradient(transparent, rgba(8,9,16,.85)); padding: 14px 8px 5px; }
+  .gallery-empty { grid-column: 1/-1; color: var(--faint); font-size: 13px; text-align: center; padding: 50px 12px; }
 
-  /* 底部执行栏 */
-  .execbar { display: flex; align-items: center; gap: 16px; padding: 11px 16px; border-top: 1px solid var(--border-lo); background: var(--navy); flex-shrink: 0; }
-  .prog-line { display: flex; align-items: center; gap: 10px; flex: 1; }
-  .prog-line .bar { flex: 1; max-width: 320px; height: 6px; background: var(--field); border-radius: 3px; overflow: hidden; }
-  .prog-line .fill { width: 0; height: 100%; background: linear-gradient(90deg, var(--blue), var(--periw)); }
-  .bbtn { font: inherit; font-size: 12.5px; padding: 7px 18px; border-radius: 7px; cursor: pointer; background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); }
-  .bbtn.exec { background: linear-gradient(135deg, var(--done), #3aa978); color: #06231a; font-weight: 700; border: none; }
-  .vhint { font-size: 11.5px; color: var(--done); }
+  .legend { font-size: 11.5px; color: var(--faint); margin-top: 4px; }
+  .legend b { color: var(--periw); }
 </style>
 </head>
 <body>
-<div class="note"><b>分镜板 · 自由模式 · 出图面板 重平衡确认稿</b> —— 修「出图面板过小 / 页面失衡」。① 批处理窗<b>填满工作区高度</b>(原写死 660px → 四周留空失衡)；② 出图参数面板 <b>360→420px 加宽</b>且分组(提示词 / 参考图@标签 / 预置专业片段 / 画幅·张数·质量·参考强度)；③ 缩略图区加<b>打开目录 / 刷新 / 清空</b>且真实显图；④ 窄屏参数面板转到下方。请浏览器确认；OK 后落地到 storyboard-board.html 自由模式。</div>
+<div class="note"><b>自由模式 · 出图 = 生图工作室（确认稿 v2）</b> —— 纠正：出图是明星功能，提示词应是<b>视觉中心</b>，不该缩在右侧小面板，也不必和拆图/拼图/去白边长一样。新布局：① <b>提示词 = 顶部全宽 HERO 大编辑区</b>；② 预置专业片段 + 参考图@标签 + 画幅/张数/质量/参考强度 + <b>醒目「生成出图」</b> 紧随；③ <b>生成结果画廊</b>占下方大块。拆/拼/去白边 仍用原网格+侧栏。请浏览器确认。</div>
 
 <div class="work">
   <div class="head">
@@ -96,76 +94,58 @@
     <div class="mode-seg"><button>分镜视角</button><button class="on">自由模式</button></div>
   </div>
 
-  <div class="batch-win">
-    <div class="batch-toolbar">
-      <div class="btabs"><span class="btab act">🖼 出图</span><span class="btab">拆图</span><span class="btab">去白边</span><span class="btab">拼图</span></div>
-      <span class="btbsp"></span>
-      <div class="outdir"><span>输出目录</span><span class="path">E:\DramaAsserts\P-003_叽里咕噜\imggen</span><span class="pick">选择…</span></div>
+  <div class="studio">
+    <div class="toolbar">
+      <div class="btabs"><span class="btab act">✦ 出图</span><span class="btab">拆图</span><span class="btab">去白边</span><span class="btab">拼图</span></div>
+      <span class="sp"></span>
+      <div class="outdir"><span>输出目录</span><span class="path">E:\DramaAsserts\P-003_叽里咕噜\imggen</span><span class="pick">选择…</span><span class="open">打开</span><span class="refresh">↻ 刷新</span></div>
     </div>
 
-    <div class="batch-body">
-      <!-- 中栏：缩略图网格 -->
-      <div class="grid-col">
-        <div class="gridhead">
-          <span class="t">源图 / 产物</span>
-          <span class="bmode">多选 · 已选 2 张</span>
-          <span class="gh-sp"></span>
-          <span class="mini">＋ 添加源图…</span>
-          <span class="mini">打开目录…</span>
-          <span class="mini refresh">↻ 刷新</span>
-          <span class="mini">全选</span>
-          <span class="mini">清空</span>
+    <div class="studio-body">
+      <!-- ① 提示词 HERO -->
+      <div class="composer">
+        <div class="clab"><span class="star">✦</span> 提示词（文生图 / 图生图）<span class="mode-badge">图文生图（自动判定）</span></div>
+        <textarea class="prompt-hero">暴雨夜。城郊废品回收站俯拍全景：24mm 广角镜头静止俯视，锈死龙门吊横贯画面中轴线，左侧堆叠库存车壳如倾斜墓碑群；地面浑浊积水没过脚踝，泛着黄褐反光，倒映七束晃动的手电光斑。电影级质感，HD 高清画质。</textarea>
+        <div class="presets">
+          <span class="plab">预置专业片段：</span>
+          <span class="preset">电影级质感</span><span class="preset">HD 高清</span><span class="preset">浅景深</span>
+          <span class="preset">体积光</span><span class="preset">35mm 胶片颗粒</span><span class="preset">广角畸变</span><span class="preset">禁字幕水印</span>
         </div>
-        <div class="gridwrap">
-          <div class="thumbs">
-            <div class="th sel"><img alt=""><div class="name">G1_01.png</div></div>
-            <div class="th sel"><img alt=""><div class="name">G1_02.png</div></div>
-            <div class="th"><img alt=""><div class="name">G1_03.png</div></div>
-            <div class="th"><img alt=""><div class="name">G1_04.png</div></div>
-            <div class="th"><img alt=""><div class="name">G1_05.png</div></div>
-            <div class="th"><img alt=""><div class="name">G1_06.png</div></div>
+        <div class="ctrl-row">
+          <div class="refs"><span class="rl">参考图:</span>
+            <div class="ref-th"><div class="tag">@图1</div></div>
+            <div class="ref-th"><div class="tag">@图2</div></div>
+            <div class="ref-add">＋</div>
           </div>
+          <div class="params">
+            <div class="pg"><label>画幅</label><select><option>16:9</option><option>9:16</option><option>1:1</option></select></div>
+            <div class="pg"><label>张数</label><input type="number" value="1" min="1" max="9" style="width:54px"></div>
+            <div class="pg"><label>质量</label><select><option>2K HD</option><option>1K</option></select></div>
+            <div class="pg"><label>参考强度</label><input type="range" min="0" max="1" step="0.05" value="0.6"></div>
+          </div>
+          <span class="grow"></span>
+          <button class="btn-gen">✦ 生成出图</button>
         </div>
       </div>
 
-      <!-- 右栏：出图参数（加宽 + 分组） -->
-      <div class="panel-col">
-        <div class="panelhead"><span class="t">出图参数</span><span class="ph-sp"></span><span class="ptag">批量队列</span></div>
-        <div class="panelbody">
-          <div class="pgroup">
-            <div class="glab">提示词</div>
-            <textarea class="pta">暴雨夜 城郊废品回收站 俯拍全景 电影级 HD</textarea>
-            <div class="presets">
-              <span class="preset">电影级质感</span><span class="preset">HD 高清</span><span class="preset">浅景深</span>
-              <span class="preset">体积光</span><span class="preset">35mm 颗粒</span><span class="preset">禁字幕水印</span>
-            </div>
-          </div>
-          <div class="pgroup">
-            <div class="glab" style="display:flex;align-items:center">参考图（图生图 · @标签）<span class="mode-badge">图文生图（自动）</span></div>
-            <div class="refs">
-              <div class="ref-th"><div class="tag">@图1</div></div>
-              <div class="ref-th"><div class="tag">@图2</div></div>
-              <div class="ref-add">＋</div>
-            </div>
-          </div>
-          <div class="pgroup">
-            <div class="glab">参数</div>
-            <div class="prow"><span class="k">画幅</span><select><option>16:9 横屏</option><option>9:16 竖屏</option><option>1:1</option></select></div>
-            <div class="prow"><span class="k">每条张数</span><input type="number" value="1" min="1" max="9"></div>
-            <div class="prow"><span class="k">质量</span><select><option>2K HD</option><option>1K 标准</option></select></div>
-            <div class="prow"><span class="k">参考强度</span><input type="range" min="0" max="1" step="0.05" value="0.6"></div>
-          </div>
+      <!-- ② 结果画廊 -->
+      <div class="gallery-wrap">
+        <div class="gallery-head">
+          <span class="t">生成结果</span><span class="cnt">4 张</span>
+          <span class="sp"></span>
+          <span class="prog">生成中 <div class="bar"><div class="fill"></div></div> 2 / 5</span>
+        </div>
+        <div class="gallery">
+          <div class="gcard"><img alt=""><div class="cap">G1_废品场全景_01</div></div>
+          <div class="gcard"><img alt=""><div class="cap">G1_废品场全景_02</div></div>
+          <div class="gcard"><img alt=""><div class="cap">G1_废品场全景_03</div></div>
+          <div class="gcard"><img alt=""><div class="cap">G1_废品场全景_04</div></div>
+          <div class="gcard empty">生成中…</div>
         </div>
       </div>
-    </div>
-
-    <div class="execbar">
-      <div class="prog-line"><span style="font-size:11.5px;color:var(--muted)">批量进度</span><div class="bar"><div class="fill"></div></div><span style="font-size:11.5px;color:var(--muted)"><b>0</b> / 2 · 待执行</span></div>
-      <button class="bbtn">预览首条</button>
-      <button class="bbtn exec">执行出图</button>
-      <span class="vhint">✓ 校验通过</span>
     </div>
   </div>
+  <div class="legend">说明：切到「拆图/去白边/拼图」时，仍用原「左缩略图网格 + 右参数侧栏」批处理布局（机械工具，不变）；唯「出图」用此生图工作室布局。</div>
 </div>
 </body>
 </html>
