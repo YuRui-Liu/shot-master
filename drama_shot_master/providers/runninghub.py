@@ -593,7 +593,17 @@ class LTXTaskBuilder:
                 ]
             return [{"nodeId": prof.resolution_node,
                      "fieldName": "resolution", "fieldValue": spec.resolution_preset}]
-        # 无分辨率节点（V3）→ 落 director 的 custom_width/custom_height
+        # 无分辨率节点（V3=高清导演台）→ 落 director 节点(672)的 custom_width/height。
+        # 真实工作流(comfyui_workflow/LTX2.3 高清导演台_api.json) node 672 的
+        # custom_width/height 是**字面整数**(1280/720)，不是连到别的节点的连线，
+        # node 638 GetImageSize 是孤儿节点(无连入/无引用)，不参与尺寸决策——故直接
+        # 覆盖 672 的 custom_width/height 即可控制输出尺寸。
+        # ⚠ 16:9 变正方形的根因(存疑点，标注供后续溯源)：node 672 与导演台 node 4
+        #   一样带 resize_method="maintain aspect ratio" + divisible_by=32。该模式下
+        #   custom_width/height 实为**外接框**，模型按**输入首帧图的宽高比**贴合此框；
+        #   若传入首帧图本身是正方形，输出仍是正方形——与这里设的 1280x720 无关。
+        #   因此这里把宽高设成 16:9 是必要但不充分条件，真正保证 16:9 还需上游出图/
+        #   裁切保证首帧图本身是 16:9（不在本 builder 职责内）。
         if spec.use_custom_resolution:
             w, h = spec.custom_width, spec.custom_height
         else:
