@@ -628,6 +628,40 @@ function voiceDesignForRole(voices, role) {
   try { return JSON.stringify(voices, null, 2); } catch { return ""; }
 }
 
+/* 语速下拉「1.0× 正常」→ 数值 1.0（解析失败回退 1.0） */
+function parseSpeed(label) {
+  const m = /([\d.]+)\s*[×x]/i.exec(label || "");
+  const v = m ? parseFloat(m[1]) : NaN;
+  return Number.isFinite(v) ? v : 1.0;
+}
+
+/* 单例 <audio> + toast，用于试听回放 / 生成配音成功提示 */
+let _previewAudio = null;
+function playPreviewAudio(path) {
+  if (!_previewAudio) { _previewAudio = new Audio(); }
+  // 后端返回本地临时路径 → 转 file:// 供 <audio> 回放
+  const url = /^(file|https?):/i.test(path) ? path : "file:///" + String(path).replace(/\\/g, "/").replace(/^\/+/, "");
+  _previewAudio.src = url;
+  _previewAudio.play().catch((e) => { toast("无法播放试听音频：" + (e && e.message || e)); });
+}
+function toast(msg) {
+  let el = document.getElementById("dubToast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "dubToast";
+    el.style.cssText =
+      "position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:9999;" +
+      "max-width:70vw;background:var(--panel);color:var(--fg);border:1px solid var(--border);" +
+      "border-left:3px solid var(--done);border-radius:8px;padding:11px 16px;font-size:13px;" +
+      "box-shadow:0 8px 28px rgba(0,0,0,.45);word-break:break-all;opacity:0;transition:opacity .2s;";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = "1";
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = "0"; }, 4000);
+}
+
 function wireActions() {
   document.querySelectorAll("button[data-act]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -665,16 +699,59 @@ function wireActions() {
         setTimeout(() => (btn.textContent = "保存"), 1200);
 
       } else if (act === "listen" || act === "dub") {
-        // 真实 TTS 配音合成路由后端暂未提供：
-        //   - media_agent /soundtrack 仅 BGM/文生音乐（compose_prompt / generate_bgm / batch_generate），非台词 TTS。
-        //   - 故「试听 / 生成配音」暂留占位反馈，待后端 TTS 合成端点就绪再接。
-        // TODO(后端 TTS 就绪)：POST {MEDIA_API}/<tts_route>
-        //   body 携带本卡参数：text=台词, voice=音色, emotion=情绪, speed=语速, episode_id, project_dir。
-        //   试听=返回临时音频 URL 回放；生成配音=落盘并入配音轨。
+        // 真实 TTS 接线：
+        //   试听    → POST {MEDIA_API}/tts/preview    {text,mode,language,style,speed} → {output:<flac 临时路径>}，用 <audio> 播放
+        //   生成配音 → POST {MEDIA_API}/tts/synthesize {同上 + out_dir:PROJECT/dub}        → {output:<flac>}，toast 成功+路径
         const isListen = act === "listen";
         const orig = isListen ? "▷ 试听" : "✦ 生成配音";
-        btn.textContent = isListen ? "▷ 试听中…（TTS 端点待接）" : "✦ 已入队（TTS 端点待接）";
-        setTimeout(() => (btn.textContent = orig), 1600);
+        const text = (shot && shot.line ? shot.line : "").trim();
+        if (!text) { alert("该镜头没有台词文本。"); return; }
+        // 音色取本卡「音色」下拉（design 模式音色设计描述）；语速取本卡「语速」下拉
+        const voiceSel = document.querySelector(`select[data-fld="voice"][data-shot="${n}"]`);
+        const speedSel = document.querySelector(`select[data-fld="speed"][data-shot="${n}"]`);
+        const style = voiceSel ? (voiceSel.value || "").trim() : "";
+        const speed = parseSpeed(speedSel ? speedSel.value : "");
+        const body = { text, mode: "design", language: "zh", style, speed };
+
+        if (!isListen) {
+          if (!PROJECT_DIR) { alert("请先在首页选择项目（缺少 ?project=）。"); return; }
+          body.out_dir = PROJECT_DIR + "/dub";
+        }
+
+        const route = isListen ? "/tts/preview" : "/tts/synthesize";
+        btn.disabled = true;
+        btn.textContent = isListen ? "▷ 试听中…" : "✦ 生成中…";
+        try {
+          const resp = await fetch(MEDIA_API + route, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          let data = {};
+          try { data = await resp.json(); } catch {}
+          if (!resp.ok) {
+            const hint = (data && data.detail && data.detail.hint) ||
+                         (data && data.error && data.error.hint) ||
+                         (data && (data.message || data.detail)) || ("HTTP " + resp.status);
+            throw new Error(typeof hint === "string" ? hint : JSON.stringify(hint));
+          }
+          const out = data && data.output;
+          if (!out) throw new Error("未返回 output 路径");
+          if (isListen) {
+            playPreviewAudio(out);                 // file://output 用 <audio> 回放
+            btn.textContent = "▷ 播放中…";
+            setTimeout(() => (btn.textContent = orig), 1600);
+          } else {
+            toast("配音已生成：" + out);
+            btn.textContent = "✦ 已生成 ✓";
+            setTimeout(() => (btn.textContent = orig), 1600);
+          }
+        } catch (e) {
+          alert((isListen ? "试听失败：" : "生成配音失败：") + e.message);
+          btn.textContent = orig;
+        } finally {
+          btn.disabled = false;
+        }
       }
     });
   });

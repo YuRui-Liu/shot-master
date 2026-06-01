@@ -282,6 +282,26 @@
     max-width: 1180px; padding: 38px; text-align: center; color: var(--faint);
     background: var(--panel); border: 1px dashed var(--border); border-radius: var(--radius);
   }
+
+  /* 生成结果（成片路径 / 内嵌预览 / 失败 hint） */
+  .vid-result { margin-top: 12px; }
+  .vid-result:empty { display: none; }
+  .vid-result .ok {
+    display: flex; flex-direction: column; gap: 8px;
+    background: rgba(78,201,143,.08); border: 1px solid #2f6b4f;
+    border-radius: var(--radius-sm); padding: 10px 12px;
+  }
+  .vid-result .ok .path { color: var(--done); font-size: 12px; word-break: break-all; }
+  .vid-result .ok .path b { color: var(--fg); }
+  .vid-result video {
+    width: 220px; max-width: 100%; border-radius: var(--radius-sm);
+    background: #000; border: 1px solid var(--border-lo);
+  }
+  .vid-result .err {
+    background: rgba(255,90,90,.08); border: 1px solid var(--err);
+    border-radius: var(--radius-sm); padding: 10px 12px;
+    color: var(--err); font-size: 12.5px;
+  }
 </style>
 </head>
 <body>
@@ -319,6 +339,20 @@
       <div class="align-note" id="alignNote">
         <span class="badge" id="alignCount">已按分镜顺序自动对齐 3 个镜头</span>
         分镜图 ↔ 分镜 自动对齐
+      </div>
+    </div>
+
+    <!-- LTX 画质模式（LTX 2.3 的两种模式：导演台 director / 高清导演台 hd_director；
+         与上方「工作模式」是两个维度，全局生效于本页所有「生成视频/图生视频」调用） -->
+    <div class="modebar">
+      <span class="lbl">LTX 画质模式</span>
+      <div class="seg" id="ltxSeg">
+        <button id="ltxDirector" class="on" data-ltx="director">导演台</button>
+        <button id="ltxHd" data-ltx="hd_director">高清导演台</button>
+      </div>
+      <div class="align-note" style="color:var(--blue)">
+        <span class="badge" style="background:rgba(74,158,255,.14);color:var(--blue);border-color:var(--blue-dim)">LTX 2.3</span>
+        <span id="ltxModeHint">导演台：速度优先</span>
       </div>
     </div>
 
@@ -442,6 +476,64 @@ async function runVideoPrompt({ onStatus, onShots, onError }) {
   }
 }
 
+/* ===== LTX 画质模式（全局）：director(导演台·默认) / hd_director(高清导演台) =====
+   这是 LTX 2.3 的两种生成模式，对应本页所有「生成视频/图生视频」调用的 mode。 */
+let ltxQualityMode = "director";
+
+/* 按当前画幅推断 aspect 字符串。本页暂以竖屏短剧为主（9:16），壳后续可经 ?aspect= 覆盖。 */
+const VIDEO_ASPECT = new URLSearchParams(location.search).get("aspect") || "9:16";
+
+/* 调真实图生视频/文生视频后端：POST {MEDIA_API}/video/ltx（同步，耗时长）。
+   契约：body={prompt, first_frame?, mode, fps, aspect?, out_dir, base_name}
+        → {output: 视频路径, mode, workflow_id, profile}；失败 {detail:{hint}} 或 {error:{hint}}。 */
+async function runVideoLtx({ prompt, firstFrame, baseName }) {
+  if (!PROJECT_DIR) {
+    throw { hint: "未选择项目，请先在首页选择/打开一个项目。" };
+  }
+  const body = {
+    prompt: prompt || "",
+    first_frame: firstFrame || null,
+    mode: ltxQualityMode,
+    fps: 24,
+    aspect: VIDEO_ASPECT,
+    out_dir: PROJECT_DIR + "/video",
+    base_name: baseName || "clip",
+  };
+  let resp;
+  try {
+    resp = await fetch(MEDIA_API + "/video/ltx", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw { hint: "无法连接生成服务（media）：" + ((e && e.message) || "网络错误") };
+  }
+  let j = null;
+  try { j = await resp.json(); } catch {}
+  if (!resp.ok) {
+    const err = (j && (j.detail || j.error)) || {};
+    throw err.hint ? err : { hint: (err.message || err.detail || "HTTP " + resp.status) };
+  }
+  return j || {};
+}
+
+/* 把 /video/ltx 成片结果渲染进结果槽：成片路径 + <video> 内嵌预览（file://）。 */
+function renderVideoOk(slot, res) {
+  if (!slot) return;
+  const out = (res && res.output) || "";
+  const src = out ? "file:///" + String(out).replace(/\\/g, "/").replace(/^\/+/, "") : "";
+  slot.innerHTML = `
+    <div class="ok">
+      <div class="path">成片：<b>${out || "(未返回路径)"}</b>${res && res.mode ? " · " + res.mode : ""}${res && res.profile ? " · " + res.profile : ""}</div>
+      ${src ? `<video src="${src}" controls preload="metadata"></video>` : ""}
+    </div>`;
+}
+function renderVideoErr(slot, err) {
+  if (!slot) return;
+  slot.innerHTML = `<div class="err">⚠ ${(err && (err.hint || err.message)) || "生成失败"}</div>`;
+}
+
 /* ===== LTX 2.3 提示词模板（取自《生成模型提示词工程指南》一、LTX Video 2.3） =====
    三个范例对应 LTX 不同的提示词「模式」与要点，chip 点击填入对应 textarea。 */
 const LTX_TEMPLATES = [
@@ -475,9 +567,9 @@ const LTX_TEMPLATES = [
 
 /* 三个镜头的元数据 + 缩略说明（stub 数据，体现「分镜图↔分镜」自动对齐） */
 const SHOTS = [
-  { n: 1, meta: ["全景", "俯拍", "固定", "4s"], desc: "雨夜废品场全景\n人群打伞站立" },
-  { n: 2, meta: ["中景", "平视", "缓慢推", "3s"], desc: "男主蹲于废铁堆\n翻看地图" },
-  { n: 3, meta: ["近景", "过肩（秦烈肩后）", "固定", "2s"], desc: "面部特写\n眼神警觉" }
+  { n: 1, meta: ["全景", "俯拍", "固定", "4s"], desc: "雨夜废品场全景\n人群打伞站立", frame: "" },
+  { n: 2, meta: ["中景", "平视", "缓慢推", "3s"], desc: "男主蹲于废铁堆\n翻看地图", frame: "" },
+  { n: 3, meta: ["近景", "过肩（秦烈肩后）", "固定", "2s"], desc: "面部特写\n眼神警觉", frame: "" }
 ];
 
 const PLACEHOLDER = "点「生成提示词」由 AI 看图生成图生视频提示词，或先选下方「范例」模板填入再编辑…";
@@ -520,6 +612,7 @@ function renderShots() {
           <span class="grow"></span>
           <button class="btn-i2v" data-act="i2v" data-shot="${s.n}">► 图生视频</button>
         </div>
+        <div class="vid-result" data-result="${s.n}"></div>
       </div>`;
     root.appendChild(card);
   });
@@ -577,12 +670,48 @@ function wireActions() {
         btn.textContent = "已保存 ✓";
         setTimeout(() => (btn.textContent = "保存"), 1200);
       } else if (act === "i2v") {
-        // TODO(图生视频)：真机接 media_agent LTX 2.3 video provider，例如
-        //   POST {MEDIA_API}/video/ltx  body={project_dir, episode_id, shot_id:n, prompt:ta.value, mode:"i2v", duration, fps}
-        //   后端尚无 LTX 路由 → 暂占位入队反馈，路由就绪后改为真实调用 + 轮询/SSE 取产物。
-        btn.textContent = "► 已入队";
-        setTimeout(() => (btn.textContent = "► 图生视频"), 1400);
+        // 图生视频：真机调 POST /video/ltx（同步、耗时长）。
+        // prompt=本卡 textarea；first_frame=该镜分镜图路径（stub 暂空）；mode=所选 LTX 画质模式。
+        if (btn.dataset.busy === "1") return;
+        btn.dataset.busy = "1";
+        const orig = "► 图生视频";
+        const slot = document.querySelector(`.vid-result[data-result="${n}"]`);
+        const shot = SHOTS.find((s) => String(s.n) === String(n));
+        btn.disabled = true;
+        btn.textContent = "⏳ 生成中…";
+        if (slot) slot.innerHTML = "";
+        try {
+          const res = await runVideoLtx({
+            prompt: ta.value,
+            firstFrame: shot ? shot.frame : "",
+            baseName: "shot_" + n,
+          });
+          renderVideoOk(slot, res);
+          btn.textContent = "✓ 已生成";
+        } catch (err) {
+          renderVideoErr(slot, err);
+          btn.textContent = "⚠ 生成失败";
+        }
+        setTimeout(() => {
+          btn.textContent = orig; btn.disabled = false; btn.dataset.busy = "";
+        }, 1600);
       }
+    });
+  });
+}
+
+/* LTX 画质模式切换（全局）：director(导演台·默认) / hd_director(高清导演台)。
+   只切全局 ltxQualityMode，下次「生成视频/图生视频」即用该 mode。 */
+function wireLtxMode() {
+  const seg = document.getElementById("ltxSeg");
+  const hint = document.getElementById("ltxModeHint");
+  const HINTS = { director: "导演台：速度优先", hd_director: "高清导演台：画质优先（更慢）" };
+  seg.querySelectorAll("button[data-ltx]").forEach((b) => {
+    b.addEventListener("click", () => {
+      ltxQualityMode = b.getAttribute("data-ltx");
+      seg.querySelectorAll("button[data-ltx]").forEach((x) =>
+        x.classList.toggle("on", x === b));
+      if (hint) hint.textContent = HINTS[ltxQualityMode] || "";
     });
   });
 }
@@ -680,6 +809,7 @@ function clipCardHTML(c, idx, total) {
         <span class="grow"></span>
         <button class="btn-i2v" data-act="genclip" data-id="${c.id}">► 生成视频</button>
       </div>
+      <div class="vid-result" data-clip-result="${c.id}"></div>
     </div>`;
 }
 
@@ -780,23 +910,39 @@ function wireClipCards() {
       if (b.dataset.busy === "1") return;
       b.dataset.busy = "1";
       const orig = "► 生成视频";
-      // 1) 取 LTX 提示词（整集 SSE），把 global_prompt 作为自由片段基底写入本卡
-      await runVideoPrompt({
-        onStatus: (m) => { b.textContent = "✦ " + m; },
-        onShots: (data) => {
-          if (ta && !ta.value.trim() && data && data.global_prompt) {
-            ta.value = data.global_prompt;
-          }
-        },
-        onError: (err) => {
-          if (ta && !ta.value.trim()) ta.value = "⚠ " + (err.hint || err.message || "生成失败");
-        },
-      });
-      // 2) TODO(图生视频/文生视频)：真机接 media_agent LTX 2.3 video provider，例如
-      //    POST {MEDIA_API}/video/ltx  body={project_dir, prompt:ta.value, mode:c.mode, duration:c.dur, camera:c.camera, first_frame, last_frame}
-      //    后端尚无 LTX 路由 → 暂以「已入队」占位，路由就绪后改为真实调用 + 取产物。
-      b.textContent = "► 已入队";
-      setTimeout(() => { b.textContent = orig; b.dataset.busy = ""; }, 1400);
+      const slot = document.querySelector(`.vid-result[data-clip-result="${id}"]`);
+      // 1) 提示词为空时，取整集 LTX 提示词的 global_prompt 作为本卡基底（自由片段无分镜序号）。
+      if (ta && !ta.value.trim()) {
+        await runVideoPrompt({
+          onStatus: (m) => { b.textContent = "✦ " + m; },
+          onShots: (data) => {
+            if (ta && !ta.value.trim() && data && data.global_prompt) {
+              ta.value = data.global_prompt;
+            }
+          },
+          onError: () => {},
+        });
+      }
+      // 2) 图生视频/文生视频：真机调 POST /video/ltx（同步、耗时长，所选 LTX 画质模式）。
+      //    first_frame：I2V 用本卡首帧（占位 UI 暂无真实路径 → 空）；T2V 不带首帧。
+      b.disabled = true;
+      b.textContent = "⏳ 生成中…";
+      if (slot) slot.innerHTML = "";
+      try {
+        const res = await runVideoLtx({
+          prompt: ta ? ta.value : "",
+          firstFrame: (c.mode === "i2v" && c.first) ? (c.firstPath || "") : "",
+          baseName: "clip_" + id,
+        });
+        renderVideoOk(slot, res);
+        b.textContent = "✓ 已生成";
+      } catch (err) {
+        renderVideoErr(slot, err);
+        b.textContent = "⚠ 生成失败";
+      }
+      setTimeout(() => {
+        b.textContent = orig; b.disabled = false; b.dataset.busy = "";
+      }, 1600);
     });
   });
 }
@@ -916,6 +1062,7 @@ function wireTaskSwitch() {
 renderShots();
 wireExamples();
 wireActions();
+wireLtxMode();
 wireModes();
 wireDirector();
 wireTaskSwitch();
