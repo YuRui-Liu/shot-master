@@ -440,6 +440,12 @@ const PROJECT_DIR = new URLSearchParams(location.search).get("project") || "";
 
 const $ = (id) => document.getElementById(id);
 
+/* 风格预览图 onerror：扩展名容错（preview 写 .jpg 但用户可能放 .png，反之亦然）——
+   首次失败换另一扩展名重试，再失败才移除露出分类色块渐变。 */
+const IMG_FALLBACK =
+  "if(this.dataset.t){this.remove();return;}this.dataset.t=1;" +
+  "this.src=/\\.png(\\?|$)/i.test(this.src)?this.src.replace(/\\.png/i,'.jpg'):this.src.replace(/\\.(jpe?g)/i,'.png');";
+
 /* —— 结构化选择本地状态（模板 chip + 自由文本叠加） —— */
 const state = {
   aspect: "16:9",
@@ -692,9 +698,11 @@ function renderStyleGrid() {
     const grad = CAT_GRAD[s.category] || CAT_GRAD._default;
     const el = document.createElement("div");
     el.className = "scard" + (s.style_id === spick.selected ? " on" : "");
-    /* 预览图优先（preview 字段，ideate 在 /ui/ 下相对路径同源可载）；加载失败 onerror 自移除，露出底层分类色块渐变 */
+    /* 预览图优先（preview 字段，ideate 在 /ui/ 下相对路径同源可载）。
+       扩展名容错：preview 写的是 .jpg，但用户可能放 .png（反之亦然）——
+       onerror 时先换另一扩展名重试，再不行才移除露出分类色块渐变。 */
     const img = s.preview
-      ? `<img class="sthumb-img" src="${esc(s.preview)}" alt="" loading="lazy" onerror="this.remove()">`
+      ? `<img class="sthumb-img" src="${esc(s.preview)}" alt="" loading="lazy" onerror="${esc(IMG_FALLBACK)}">`
       : "";
     el.innerHTML = `
       <div class="sthumb" style="background:${grad}">${img}<span class="scat">${esc(CAT_LABEL[s.category] || s.category || "风格")}</span></div>

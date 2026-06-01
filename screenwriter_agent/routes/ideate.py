@@ -53,13 +53,19 @@ def ideate_select(req: IdeateSelectReq):
             "error": {"code": "INTERNAL_ERROR",
                       "message": f"selected_id {req.selected_id} not in candidates",
                       "hint": "候选 id 不存在；可能候选已被替换。"}})
+    prev_selected = idea.get("selected_id")   # 改写前的旧选定（用于判断是否真的换了立意）
     idea["selected_id"] = req.selected_id
     idea["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     atomic_write_text(idea_path, json.dumps(idea, ensure_ascii=False, indent=2))
-    # 清除下游产物，避免切换创意后旧剧本/分镜仍然显示
-    purge_downstream(p, stage="script_outline")
+    # 仅当「换了不同的立意」才清下游（旧剧本/分镜已失效）。
+    # 重选同一个立意（如重开项目后再次点「推进」/重复确认）绝不清，
+    # 否则会误删用户已生成的 剧本/分镜/prompts（数据丢失 bug）。
+    purged: list[str] = []
+    if prev_selected != req.selected_id:
+        purged = purge_downstream(p, stage="script_outline")
     selected = next(c for c in idea["candidates"] if c["id"] == req.selected_id)
-    return {"saved": str(idea_path), "selected": selected}
+    return {"saved": str(idea_path), "selected": selected,
+            "selection_changed": prev_selected != req.selected_id, "purged": purged}
 
 
 @router.post("/ideate/chat")
