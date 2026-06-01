@@ -68,6 +68,54 @@ def parse_preset_wh(preset: str) -> Optional[tuple[int, int]]:
     return int(m.group(1)), int(m.group(2))
 
 
+def read_image_wh(path) -> Optional[tuple[int, int]]:
+    """用 Pillow 读图片真实像素 (宽, 高)；读不到/无 Pillow/任何异常 → None。
+
+    职责单一、绝不抛：调用方据 None 回退到预设分辨率，不崩。
+    """
+    if path is None:
+        return None
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            w, h = im.size
+        if w > 0 and h > 0:
+            return int(w), int(h)
+        return None
+    except Exception:  # noqa: BLE001 — 读图任何异常都回退，绝不让出图流程崩
+        return None
+
+
+def _round_to_multiple(value: int, multiple: int) -> int:
+    """把 value 四舍五入到 multiple 的整数倍，且至少为 multiple（>0）。"""
+    if multiple <= 0:
+        return max(1, value)
+    n = max(1, round(value / multiple))
+    return n * multiple
+
+
+def fit_box_to_aspect(width: int, height: int, *,
+                      short_side: int = 720,
+                      divisible_by: int = 32) -> tuple[int, int]:
+    """按给定 (宽,高) 的**宽高比**算出一个外接框，使框宽高比≈输入比，
+    短边≈short_side，且两边都对齐到 divisible_by 的整数倍。
+
+    LTXDirector resize_method="maintain aspect ratio" 下 custom_width/height
+    是外接框：框比==输入图比 → 不裁切/不 letterbox。短边锚定 short_side 控分辨率。
+    入参非法（<=0）时回退到 short_side×short_side 的近似方框。
+    """
+    if width <= 0 or height <= 0:
+        side = _round_to_multiple(short_side, divisible_by)
+        return side, side
+    if width >= height:           # 横图：高=短边
+        h = short_side
+        w = round(short_side * width / height)
+    else:                          # 竖图：宽=短边
+        w = short_side
+        h = round(short_side * height / width)
+    return _round_to_multiple(w, divisible_by), _round_to_multiple(h, divisible_by)
+
+
 def load_extras(profile: WorkflowProfile) -> list[dict]:
     """读 profile 的 extras yaml，返回 [{node, field, value}, …]；缺失/异常 → []。"""
     p = extras_path_for(profile)

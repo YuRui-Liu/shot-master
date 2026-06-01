@@ -75,6 +75,11 @@ class LTXDirectorSpec:
     custom_width: int = 1024
     custom_height: int = 1024
 
+    # 不截断：有首帧图时按其真实像素宽高比决定输出框比，避免 LTXDirector
+    # "maintain aspect ratio" 模式下框比≠图比导致的 letterbox/裁切。
+    # 默认开；显式 use_custom_resolution 时不生效（用户手动指定优先）。
+    fit_to_input_image: bool = True
+
     # 采样
     noise_seed: int | None = None        # None = 用模板默认（固定种子）
 
@@ -90,6 +95,16 @@ class LTXDirectorSpec:
 
     def total_length_seconds(self) -> float:
         return self.total_length_frames() / self.frame_rate
+
+    def first_image_path(self) -> Path | None:
+        """时间轴上第一段带图（image 段且有 image_path）的图片路径；无则 None。
+
+        用作「按输入首帧图宽高比出图」的尺寸基准——第一张图决定输出框比。
+        """
+        for s in self.segments:
+            if s.segment_type == "image" and s.image_path is not None:
+                return s.image_path
+        return None
 
     def unique_local_files(self) -> tuple[Path, ...]:
         """所有需要上传的本地资源路径（去重保序）。"""
@@ -409,6 +424,7 @@ import time
 
 from drama_shot_master.core.workflow_profiles import (
     WorkflowProfile, get_profile, load_extras, parse_preset_wh,
+    read_image_wh, fit_box_to_aspect,
 )
 
 
@@ -559,6 +575,24 @@ class LTXTaskBuilder:
         # （改接 LTXVAudioVAEDecode）需在 RunningHub 平台上改工作流本身。
         return items
 
+    def _fitted_wh(self, spec: LTXDirectorSpec) -> tuple[int, int] | None:
+        """「不截断」：有首帧图且 fit_to_input_image 开 → 按图真实像素宽高比算外接框。
+
+        读图用 Pillow（read_image_wh 容错），读不到/无图/开关关 → None，
+        调用方回退到预设分辨率，绝不崩。显式 use_custom_resolution 时不介入
+        （用户手动指定优先）。
+        """
+        if spec.use_custom_resolution or not spec.fit_to_input_image:
+            return None
+        img = spec.first_image_path()
+        if img is None:
+            return None
+        wh = read_image_wh(img)
+        if wh is None:
+            return None
+        w, h = wh
+        return fit_box_to_aspect(w, h)
+
     def _resolution_items(self, spec: LTXDirectorSpec) -> list[dict]:
         prof = self.profile
         if prof.resolution_node:
@@ -571,6 +605,18 @@ class LTXTaskBuilder:
                      "fieldName": "custom_width", "fieldValue": spec.custom_width},
                     {"nodeId": prof.resolution_node,
                      "fieldName": "custom_height", "fieldValue": spec.custom_height},
+                ]
+            # 不截断优先：首帧图比 → 外接框比，覆盖 custom 三件套。
+            fitted = self._fitted_wh(spec)
+            if fitted:
+                fw, fh = fitted
+                return [
+                    {"nodeId": prof.resolution_node,
+                     "fieldName": "use_custom_resolution", "fieldValue": True},
+                    {"nodeId": prof.resolution_node,
+                     "fieldName": "custom_width", "fieldValue": fw},
+                    {"nodeId": prof.resolution_node,
+                     "fieldName": "custom_height", "fieldValue": fh},
                 ]
             # 预设串：TTResolutionSelector 的 resolution widget 只认完整下拉标签
             # （如 "1280x720 (16:9) (横屏)"），传裸 "1280x720" 不匹配会落回节点默认。
@@ -604,11 +650,16 @@ class LTXTaskBuilder:
         #   若传入首帧图本身是正方形，输出仍是正方形——与这里设的 1280x720 无关。
         #   因此这里把宽高设成 16:9 是必要但不充分条件，真正保证 16:9 还需上游出图/
         #   裁切保证首帧图本身是 16:9（不在本 builder 职责内）。
+        # 不截断优先：首帧图比 → 外接框，覆盖 director 节点 custom_width/height。
         if spec.use_custom_resolution:
             w, h = spec.custom_width, spec.custom_height
         else:
-            wh = parse_preset_wh(spec.resolution_preset)
-            w, h = wh if wh else (spec.custom_width, spec.custom_height)
+            fitted = self._fitted_wh(spec)
+            if fitted:
+                w, h = fitted
+            else:
+                wh = parse_preset_wh(spec.resolution_preset)
+                w, h = wh if wh else (spec.custom_width, spec.custom_height)
         return [
             {"nodeId": prof.director_node, "fieldName": "custom_width", "fieldValue": w},
             {"nodeId": prof.director_node, "fieldName": "custom_height", "fieldValue": h},

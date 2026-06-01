@@ -47,6 +47,12 @@ class IdeateSelectReq(BaseModel):
     selected_id: str
 
 
+class ArchiveRestoreReq(BaseModel):
+    """POST /project/archive/restore：显式切回某个归档立意。"""
+    project_dir: str
+    idea_id: str
+
+
 class ScriptOptions(BaseModel):
     length_preset: str = "完整版"
     language_style: str = "口语化"

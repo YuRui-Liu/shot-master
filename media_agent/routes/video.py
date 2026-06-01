@@ -193,6 +193,8 @@ class LtxRequest(BaseModel):
     aspect: Optional[str] = None              # 旧字段别名
     custom_w: Optional[int] = None
     custom_h: Optional[int] = None
+    # 不截断：有首帧图时按图真实像素宽高比出图（默认开）。custom_w/h 时不生效。
+    fit_to_input_image: bool = True
 
     # ----- 采样 -----
     noise_seed: Optional[int] = None
@@ -302,6 +304,7 @@ def _do_ltx(req: LtxRequest) -> dict:
         "filename_prefix": req.eff_filename_prefix(),
         "output_dir": out_dir,
         "noise_seed": req.noise_seed,
+        "fit_to_input_image": bool(req.fit_to_input_image),
     }
     if req.epsilon is not None:
         spec_kwargs["epsilon"] = float(req.epsilon)

@@ -20,6 +20,10 @@ class AgentConfig:
     port: int = 18430
     log_level: str = "info"
     default_models: dict[str, str] = field(default_factory=lambda: dict(_DEFAULT_MODELS))
+    # 换立意时归档（而非删除）旧下游产物；关则回退旧 purge 行为（不建议）。
+    idea_switch_archive_enabled: bool = True
+    # 是否把 imggen/video/soundtrack 大产物也纳入归档（默认否，避免搬运大文件）。
+    idea_archive_include_media: bool = False
 
     @classmethod
     def from_args(cls, argv: list[str]) -> "AgentConfig":

@@ -10,13 +10,72 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from screenwriter_agent.core.atomic_write import atomic_write_text
-from screenwriter_agent.core.downstream import purge_downstream
+from screenwriter_agent.core.downstream import (
+    archive_downstream,
+    restore_downstream,
+)
 from screenwriter_agent.core.paths import idea_read_path, idea_write_path
 from screenwriter_agent.core.sse import sse_event
 from screenwriter_agent.core.template_loader import load_template
 from screenwriter_agent.models.requests import IdeateChatReq, IdeateSelectReq
 
 router = APIRouter()
+
+
+def _title_for(idea: dict, idea_id: str) -> str:
+    """从 创意.json candidates 取某 id 的标题；找不到返空串。"""
+    for c in idea.get("candidates", []):
+        if c.get("id") == idea_id:
+            return str(c.get("title") or "")
+    return ""
+
+
+def _record_archive(project_dir, archived: dict | None, idea_id: str,
+                    title: str) -> None:
+    """把一条归档记录写入 project.json.archive（去重 by idea_id，覆盖更新）。
+
+    manifest 缺失/坏档都不崩——记账失败不影响归档本身（文件已落盘）。
+    """
+    if not archived or not archived.get("dir"):
+        return
+    try:
+        import time as _t
+
+        from drama_shot_master.core.compass.manifest import (
+            load_manifest,
+            save_manifest,
+        )
+        m = load_manifest(project_dir)
+        entry = {
+            "idea_id": idea_id,
+            "title": title,
+            "dir": archived["dir"],
+            "archived_at": _t.strftime("%Y-%m-%dT%H:%M:%S"),
+            "files": list(archived.get("files") or []),
+        }
+        m.archive = [e for e in m.archive
+                     if (e or {}).get("idea_id") != idea_id]
+        m.archive.append(entry)
+        save_manifest(m, project_dir)
+    except Exception:
+        # 记账是尽力而为；归档/恢复的真实状态以文件系统为准
+        pass
+
+
+def _clear_archive_record(project_dir, idea_id: str) -> None:
+    """恢复某立意后，把它的 archive 记录移除（其产物已回项目根）。"""
+    try:
+        from drama_shot_master.core.compass.manifest import (
+            load_manifest,
+            save_manifest,
+        )
+        m = load_manifest(project_dir)
+        new = [e for e in m.archive if (e or {}).get("idea_id") != idea_id]
+        if len(new) != len(m.archive):
+            m.archive = new
+            save_manifest(m, project_dir)
+    except Exception:
+        pass
 
 
 def build_ideate_system_content(tpl_text: str, ctx: dict) -> str:
@@ -54,18 +113,39 @@ def ideate_select(req: IdeateSelectReq):
                       "message": f"selected_id {req.selected_id} not in candidates",
                       "hint": "候选 id 不存在；可能候选已被替换。"}})
     prev_selected = idea.get("selected_id")   # 改写前的旧选定（用于判断是否真的换了立意）
+    selection_changed = prev_selected != req.selected_id
+
+    archived: dict | None = None
+    restored: dict | None = None
+
+    # 换立意（且旧选定非空）→ 先把旧立意的下游产物**归档（绝不删除）**，
+    # 再若新立意有归档则恢复其产物。重选同一立意绝不动（防数据丢失）。
+    if selection_changed and prev_selected:
+        old_title = _title_for(idea, prev_selected)
+        res = archive_downstream(p, prev_selected, old_title)
+        _record_archive(p, res, prev_selected, old_title)
+        if res.get("dir"):
+            archived = {"idea_id": prev_selected, "title": old_title,
+                        "dir": res["dir"], "files": res["files"]}
+
     idea["selected_id"] = req.selected_id
     idea["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     atomic_write_text(idea_path, json.dumps(idea, ensure_ascii=False, indent=2))
-    # 仅当「换了不同的立意」才清下游（旧剧本/分镜已失效）。
-    # 重选同一个立意（如重开项目后再次点「推进」/重复确认）绝不清，
-    # 否则会误删用户已生成的 剧本/分镜/prompts（数据丢失 bug）。
-    purged: list[str] = []
-    if prev_selected != req.selected_id:
-        purged = purge_downstream(p, stage="script_outline")
+
+    if selection_changed:
+        restored = restore_downstream(p, req.selected_id)
+        if restored.get("files"):
+            new_title = _title_for(idea, req.selected_id)
+            restored = {"idea_id": req.selected_id, "title": new_title,
+                        "files": restored["files"]}
+            _clear_archive_record(p, req.selected_id)
+        else:
+            restored = None
+
     selected = next(c for c in idea["candidates"] if c["id"] == req.selected_id)
     return {"saved": str(idea_path), "selected": selected,
-            "selection_changed": prev_selected != req.selected_id, "purged": purged}
+            "selection_changed": selection_changed,
+            "archived": archived, "restored": restored}
 
 
 @router.post("/ideate/chat")
