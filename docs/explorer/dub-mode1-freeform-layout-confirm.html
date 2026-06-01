@@ -16,6 +16,13 @@
   .mode-seg { display: flex; background: #0f1120; border: 1px solid var(--border-lo); border-radius: 9px; padding: 3px; }
   .mode-seg button { background: transparent; color: var(--muted); border: none; padding: 6px 14px; border-radius: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
   .mode-seg button.on { background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; font-weight: 700; }
+  /* 并行任务下拉(仿视频生成,替代左侧任务栏) */
+  .task-switch { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .task-switch .lbl { color: var(--muted); font-size: 12.5px; }
+  .task-switch .trigger { display: flex; align-items: center; gap: 9px; background: var(--panel2); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 13px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .task-switch .trigger:hover { border-color: var(--mauve); }
+  .task-switch .pcount { font-size: 10.5px; color: var(--mauve); background: rgba(138,127,217,.18); border: 1px solid #4a3d6e; padding: 1px 7px; border-radius: 9px; }
+  .task-switch .caret { color: var(--mauve); font-size: 11px; }
 
   .body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 0 22px 18px; }
   /* 左：配音任务表 */
@@ -89,23 +96,15 @@
 <div class="head">
   <h1>配音 · 自由模式</h1>
   <div class="mode-seg"><button class="on">模式1 · 自由配音</button><button>模式2 · 剧集分镜对齐</button></div>
+  <!-- 并行任务下拉(仿视频生成,≤5,替代左侧任务栏) -->
+  <div class="task-switch">
+    <span class="lbl">并行任务</span>
+    <button class="trigger"><span>任务3 · 机械音</span><span class="pcount">3/5</span><span class="caret">▾</span></button>
+  </div>
 </div>
 
 <div class="body">
-  <!-- 左：任务表 -->
-  <div class="tasks">
-    <div class="th"><span class="t">配音任务</span><span class="add">＋ 新建任务</span></div>
-    <div class="tbl-head"><span>#</span><span>名称</span><span>模式</span><span></span></div>
-    <div class="list">
-      <div class="task-row on"><span class="idx">1</span><span class="nm">测试</span><span class="md">音色设计</span><span class="st ok"></span></div>
-      <div class="task-row"><span class="idx">2</span><span class="nm">赛博</span><span class="md">音色设计</span><span class="st"></span></div>
-      <div class="task-row"><span class="idx">3</span><span class="nm">机械音</span><span class="md clone">声音克隆</span><span class="st ok"></span></div>
-      <div class="task-row"><span class="idx">4</span><span class="nm">女职工</span><span class="md">音色设计</span><span class="st"></span></div>
-      <div class="task-row"><span class="idx">5</span><span class="nm">liveT</span><span class="md clone">声音克隆</span><span class="st"></span></div>
-    </div>
-  </div>
-
-  <!-- 右：当前任务编辑器 -->
+  <!-- 当前任务编辑器(铺满;任务切换走上方并行任务下拉) -->
   <div class="editor">
     <div class="ed-head"><input class="nm" type="text" value="机械音"> <span style="font-size:11.5px;color:var(--muted)">任务 3</span></div>
     <div class="ed-body">
