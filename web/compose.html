@@ -253,17 +253,34 @@
 /* ===== 壳内容页：API 基址从 URLSearchParams 读，默认 18430/18450 ===== */
 const SW_API    = new URLSearchParams(location.search).get('sw')    || 'http://127.0.0.1:18430'; // screenwriter_agent
 const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450'; // media_agent
-/* 转场接 media_agent /transition：
-     POST {MEDIA_API}/transition  body{mode:'analyze', clips:[...] }  → 逐切口 CV 评分(直方图/SIFT/光流)+AI推荐效果/时长（SSE 进度 N/总）
-     POST {MEDIA_API}/transition  body{mode:'render',  clips:[...], cuts:[...]} → ffmpeg xfade/acrossfade 渲染成片（SSE 进度） */
+const PROJECT   = new URLSearchParams(location.search).get('project') || '';                      // 壳已转发 ?project=
+/* 转场接 media_agent /transition（同步 JSON，非 SSE）：
+     POST {MEDIA_API}/transition/analyze {composition:{clips:[...]}} → {composition}
+       回填每个未锁定片段的 auto_transition/auto_duration/cv_scores（cv_scores={hist,feature,motion,score}）。
+       注意：切口转场参数挂在「前一个片段」上（clip[i].auto_transition = i→i+1 的转场）。
+     POST {MEDIA_API}/transition/render {composition, out_path} → {output}（成片路径）。
+   失败：FastAPI 抛 {detail} 或统一 {error:{code,message,hint}}，均显 hint/detail。 */
+
+/* ===== 转场效果 ↔ 中文标签映射（与后端 transition_analyzer / ffmpeg xfade 名一致） ===== */
+const FX_LABEL = {
+  dissolve: "叠化 (dissolve)", smoothleft: "推左 (smoothleft)", smoothright: "推右 (smoothright)",
+  smoothup: "推上 (smoothup)", smoothdown: "推下 (smoothdown)", circleopen: "圆开 (circleopen)",
+  fadeblack: "淡入黑 (fadeblack)", cut: "硬切 (cut)",
+};
+function fxLabel(fx) { return FX_LABEL[fx] || (fx ? `${fx}` : "叠化 (dissolve)"); }
+function catFor(total) {
+  if (total >= 0.7) return "高匹配 → 万能类（叠化）";
+  if (total >= 0.4) return "中匹配+运动 → 方向类（推进）";
+  return "低匹配 → 创意/硬切";
+}
 
 /* ===== stub 数据：片段 + 切口（cut 在两片段之间） ===== */
 const clips = [
-  { id: 1, name: "片段 01", dur: "0:08.4", shots: "3 镜", cls: "",   kept: true },
-  { id: 2, name: "片段 02", dur: "0:11.0 ✂", shots: "2 镜", cls: "c2", kept: true },
-  { id: 3, name: "片段 03", dur: "0:06.2", shots: "1 镜", cls: "c3", kept: true },
-  { id: 4, name: "片段 04", dur: "0:09.1", shots: "—",   cls: "c4", kept: false },
-  { id: 5, name: "片段 05", dur: "0:07.8", shots: "2 镜", cls: "",   kept: true },
+  { id: 1, name: "片段 01", dur: "0:08.4", durSec: 8.4,  shots: "3 镜", cls: "",   kept: true, path: "clip01.mp4" },
+  { id: 2, name: "片段 02", dur: "0:11.0 ✂", durSec: 11.0, shots: "2 镜", cls: "c2", kept: true, path: "clip02.mp4" },
+  { id: 3, name: "片段 03", dur: "0:06.2", durSec: 6.2,  shots: "1 镜", cls: "c3", kept: true, path: "clip03.mp4" },
+  { id: 4, name: "片段 04", dur: "0:09.1", durSec: 9.1,  shots: "—",   cls: "c4", kept: false, path: "clip04.mp4" },
+  { id: 5, name: "片段 05", dur: "0:07.8", durSec: 7.8,  shots: "2 镜", cls: "",   kept: true, path: "clip05.mp4" },
 ];
 /* 切口状态：ai | analyzing | manual | locked | cut；含 CV 评分拆解（hist 直方图 / sift 结构 / flow 光流）。 */
 const cuts = [
@@ -275,6 +292,91 @@ const cuts = [
 
 let selClip = 2;     // 当前预览片段
 let selCut  = "c12"; // 当前检查器切口
+
+/* ===== 组装 composition（从 ClipStrip 当前状态）=====
+   切口转场挂在「前一个 kept 片段」上：clip[i].user/auto_transition = i→i+1 的转场。 */
+function buildComposition() {
+  const kept = clips.filter((cl) => cl.kept);
+  const reelClips = clips.map((cl, idx) => {
+    // 找该片段「之后」的切口（a===cl.id），其转场参数写到本 clip 上
+    const cut = cuts.find((c) => c.a === cl.id);
+    const rc = {
+      clip_id: String(cl.id),
+      path: cl.path || cl.name,
+      keep: !!cl.kept,
+      duration: cl.durSec || 0,
+    };
+    if (cut) {
+      const isCut = cut.fx === "cut";
+      rc.locked = cut.status === "locked";
+      if (cut.status === "manual" || cut.status === "locked" || isCut) {
+        rc.user_transition = cut.fx;                  // 手动/锁定/硬切 → user 字段
+        rc.user_duration = isCut ? 0.0 : cut.dur;
+      } else {
+        rc.auto_transition = cut.fx;
+        rc.auto_duration = cut.dur;
+      }
+      if (cut.scores && Object.keys(cut.scores).length) {
+        rc.cv_scores = {
+          hist: cut.scores.hist, feature: cut.scores.sift,
+          motion: cut.scores.motion != null ? cut.scores.motion : (1 - (cut.scores.flow || 0)),
+          score: cut.total,
+        };
+      }
+    }
+    return rc;
+  });
+  return { clips: reelClips, fps: 30, width: 1920, height: 1080, output_prefix: PROJECT || "compose" };
+}
+
+/* ===== 把后端 composition 回填到页面 cuts/clips（更新圆点匹配分/效果） ===== */
+function applyComposition(comp) {
+  if (!comp || !comp.clips) return;
+  const byId = {};
+  comp.clips.forEach((rc) => { byId[String(rc.clip_id)] = rc; });
+  cuts.forEach((cut) => {
+    const rc = byId[String(cut.a)];               // 切口参数在前一个片段上
+    if (!rc) return;
+    const fx = rc.user_transition || rc.auto_transition || "dissolve";
+    cut.fx = fx;
+    cut.effect = fxLabel(fx);
+    const d = rc.user_duration != null ? rc.user_duration : (rc.auto_duration != null ? rc.auto_duration : 0.5);
+    cut.dur = fx === "cut" ? 0.0 : d;
+    const sc = rc.cv_scores || {};
+    if (Object.keys(sc).length) {
+      cut.scores = {
+        hist: sc.hist != null ? sc.hist : 0,
+        sift: sc.feature != null ? sc.feature : 0,          // 后端 feature → UI「SIFT/结构」
+        flow: sc.motion != null ? (1 - sc.motion) : 0,      // 后端 motion=运动差异 → UI「光流匹配」取 1-
+        motion: sc.motion,
+      };
+      cut.total = sc.score != null ? sc.score : cut.total;
+      cut.cat = catFor(cut.total);
+    }
+    if (rc.locked) cut.status = "locked";
+    else if (fx === "cut") cut.status = "cut";
+    else cut.status = "ai";                       // 分析回来的非硬切默认 AI 推荐
+  });
+}
+
+/* ===== 统一 POST JSON：解析 FastAPI {detail} 或统一 {error:{hint}} ===== */
+async function postJSON(url, body) {
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new Error("无法连接 media_agent（请确认服务已启动）");
+  }
+  let data = null;
+  try { data = await resp.json(); } catch (e) { /* ignore */ }
+  if (!resp.ok) {
+    const hint = (data && ((data.error && (data.error.hint || data.error.message)) || data.detail)) || `HTTP ${resp.status}`;
+    throw new Error(hint);
+  }
+  return data || {};
+}
 const EFFECTS = ["叠化 (dissolve)", "推进 (smoothleft)", "圆开 (circleopen)", "淡入黑 (fadeblack)", "硬切 (cut)"];
 
 const NODE_ICON = { ai: "⤬", analyzing: "◌", manual: "▷", locked: "◐", cut: "▭" };
@@ -406,46 +508,65 @@ function wireInspector(c) {
   });
 }
 
-/* ===== 一键智能转场 = CV 分析（占位：逐切口脉冲→填 AI 推荐，锁定项不覆盖） ===== */
-function analyze() {
+/* ===== 一键智能转场 = CV 分析（真机：POST /transition/analyze，锁定项后端跳过不覆盖） ===== */
+async function analyze() {
+  if (!PROJECT) { toast("请先在首页选择项目"); return; }
   const targets = cuts.filter((c) => c.status !== "locked");
   if (!targets.length) { toast("全部切口已锁定，无需分析"); return; }
-  let i = 0;
   document.getElementById("anaState").textContent = "✦ CV 分析中…（锁定项不覆盖）";
-  targets.forEach((c) => (c.status = "analyzing"));
+  targets.forEach((c) => (c.status = "analyzing"));   // 脉冲态
   renderStrip();
-  const tick = setInterval(() => {
-    if (i >= targets.length) {
-      clearInterval(tick);
-      document.getElementById("anaState").textContent = `✦ CV 分析完成 · ${targets.length} 切口已推荐（锁定项保留）`;
-      renderInspector();
-      // 真机：POST {MEDIA_API}/transition {mode:'analyze'} 读 SSE 逐切口回填 scores+effect+dur
-      return;
-    }
-    const c = targets[i++];
-    c.status = "ai";                              // stub：填 AI 推荐
-    document.getElementById("anaState").textContent = `✦ CV 分析中 ${i}/${targets.length} 切口…`;
-    renderStrip();
-  }, 600);
+  try {
+    const out = await postJSON(`${MEDIA_API}/transition/analyze`, { composition: buildComposition() });
+    applyComposition(out.composition);
+    const n = targets.length;
+    document.getElementById("anaState").textContent = `✦ CV 分析完成 · ${n} 切口已推荐（锁定项保留）`;
+    toast(`已完成 CV 分析：${n} 个切口回填推荐效果`);
+  } catch (e) {
+    targets.forEach((c) => (c.status = c.status === "analyzing" ? "manual" : c.status));  // 回退脉冲
+    document.getElementById("anaState").textContent = `✦ 分析失败 · ${e.message}`;
+    toast("分析失败：" + e.message);
+  }
+  renderStrip();
+  renderInspector();
 }
 
-/* ===== 生成成片（占位进度条；真机接 media_agent /transition mode:'render'） ===== */
+/* ===== 生成成片（真机：POST /transition/render，同步阻塞至 ffmpeg 完成 → {output}） ===== */
+let rendering = false;
 function render() {
+  if (rendering) return;
+  if (!PROJECT) { toast("请先在首页选择项目"); return; }
   const pf = document.getElementById("renderPf");
   const st = document.getElementById("renderSt");
-  let p = 0;
+  const tosoundBtn = document.querySelector('[data-act="tosound"]');
+  rendering = true;
   st.classList.add("act");
+  // 同步端点无进度流：渲染期间动画爬升到 ~90%，完成再补到 100%
+  let p = 0;
+  pf.style.width = "0%";
   const tick = setInterval(() => {
-    p += 8 + Math.random() * 10;
-    if (p >= 100) {
-      p = 100; clearInterval(tick);
-      st.textContent = "✓ 成片已生成（保留原音 acrossfade）· 可送去配乐";
-    } else {
-      st.textContent = `渲染中 ${Math.floor(p)}% · xfade/acrossfade 归一化 1080p/30fps`;
-    }
+    p = Math.min(90, p + 3 + Math.random() * 5);
     pf.style.width = p + "%";
-    // 真机：POST {MEDIA_API}/transition {mode:'render', clips, cuts} 读 SSE 进度
+    st.textContent = `渲染中 ${Math.floor(p)}% · xfade/acrossfade 归一化 1080p/30fps`;
   }, 380);
+  const out_path = `${PROJECT || "compose"}_reel.mp4`;
+  postJSON(`${MEDIA_API}/transition/render`, { composition: buildComposition(), out_path })
+    .then((res) => {
+      clearInterval(tick);
+      pf.style.width = "100%";
+      const output = res.output || out_path;
+      st.textContent = `✓ 成片已生成：${output}（保留原音 acrossfade）· 可送去配乐`;
+      if (res.warning) toast("提示：" + res.warning);
+      if (tosoundBtn) { tosoundBtn.dataset.output = output; tosoundBtn.removeAttribute("disabled"); }
+      toast("成片已生成：" + output);
+    })
+    .catch((e) => {
+      clearInterval(tick);
+      pf.style.width = "0%";
+      st.textContent = `✗ 渲染失败 · ${e.message}`;
+      toast("渲染失败：" + e.message);
+    })
+    .finally(() => { rendering = false; });
 }
 
 /* ===== 工具栏 / 预览 stub 接线 ===== */
@@ -459,7 +580,12 @@ function wireToolbar() {
         case "listdir":  toast("stub · 列出生成目录（真机 GET " + MEDIA_API + " 媒资目录）"); break;
         case "addclip":  toast("stub · 添加片段"); break;
         case "play":     toast("stub · 播放预览（真机串流片段/整片）"); break;
-        case "tosound":  toast("stub · 送去配乐（切到配乐工作区，接 " + SW_API + "/audio_prompt + media_agent /soundtrack）"); break;
+        case "tosound": {
+          const output = el.dataset.output;
+          if (!output) { toast("请先「生成成片」再送去配乐"); break; }
+          toast("送去配乐：" + output + "（切到配乐工作区）");
+          break;
+        }
       }
     });
   });

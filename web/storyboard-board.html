@@ -657,13 +657,110 @@
     $("bdToggle").textContent = collapsed ? "展开 ▼" : "收起 ▲";
   });
 
-  // 占位交互（仅提示，不调后端）
+  // 占位交互（仅提示，不调后端）—— 出图相关已接真实后端，其余保持占位
   function stub(name) { return () => alert(name + "：静态 mockup，未接后端。"); }
   $("autoBtn").addEventListener("click", stub("一键分镜"));
   $("splitBtn").addEventListener("click", stub("拆分镜"));
   $("genPromptBtn").addEventListener("click", stub("生成提示词"));
   $("saveBtn").addEventListener("click", stub("保存"));
-  $("genImgBtn").addEventListener("click", stub("生成分镜图（单图 HD）"));
+
+  // ---- 配置：API 地址 + 项目（壳已转发 ?project=） ----
+  const QS_TOP = new URLSearchParams(location.search);
+  const MEDIA = QS_TOP.get("media") || "http://127.0.0.1:18450";   // media_agent /imggen
+  const PROJECT = QS_TOP.get("project") || "";
+
+  // ---- 轻量 toast ----
+  let _toastTimer = null;
+  function toast(msg, kind) {
+    let el = document.getElementById("_toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "_toast";
+      el.style.cssText = "position:fixed;left:50%;bottom:28px;transform:translateX(-50%);" +
+        "max-width:560px;padding:10px 18px;border-radius:9px;font-size:13px;z-index:9999;" +
+        "box-shadow:0 12px 32px rgba(0,0,0,.5);white-space:pre-line;line-height:1.5;";
+      document.body.appendChild(el);
+    }
+    const ok = kind === "ok";
+    el.style.background = ok ? "rgba(78,201,143,.16)" : "rgba(243,139,168,.16)";
+    el.style.color = ok ? "var(--done)" : "var(--warn)";
+    el.style.border = "1px solid " + (ok ? "#2f6b50" : "#6e3a45");
+    el.textContent = msg;
+    el.style.display = "block";
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { el.style.display = "none"; }, kind === "ok" ? 3600 : 5200);
+  }
+
+  // 当前画幅 → size 像素串（横屏/竖屏）。HD 主路径：竖屏 1080x1920、横屏 1920x1080。
+  let curWide = false;   // false=9:16 竖屏（默认）, true=16:9 横屏
+  function curSize() { return curWide ? "1920x1080" : "1080x1920"; }
+
+  // file:// 引用：把本地路径转成可在壳内显示的 src
+  function fileSrc(p) {
+    const norm = String(p).replace(/\\/g, "/");
+    return "file:///" + norm.replace(/^\/+/, "");
+  }
+
+  // 错误提示：优先用后端 hint，其次 message/detail
+  async function errHint(resp) {
+    try {
+      const j = await resp.json();
+      const d = j && (j.detail !== undefined ? j.detail : j);
+      if (d && typeof d === "object") return d.hint || d.message || JSON.stringify(d);
+      if (d) return String(d);
+    } catch (_) {}
+    return "HTTP " + resp.status;
+  }
+
+  // ---- 生成分镜图（单图 HD）：POST {MEDIA}/imggen/generate ----
+  $("genImgBtn").addEventListener("click", async () => {
+    if (!PROJECT) { toast("请先在首页选择项目后再生成分镜图。"); return; }
+    const prompt = ($("prompt").value || "").trim();
+    if (!prompt) { toast("文生图提示词为空，请先填写提示词。"); return; }
+
+    const btn = $("genImgBtn");
+    const oldText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "⏳ 生成中…";
+    const ph = $("previewPh");
+    if (ph) ph.innerHTML = "生成中…<br><span class=\"faint\">单图 HD</span>";
+
+    try {
+      const resp = await fetch(MEDIA + "/imggen/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: prompt,
+          references: [],
+          size: curSize(),
+          n: 1,
+          out_dir: PROJECT + "/storyboard",
+          base_name: "shot",
+          ext: "png",
+        }),
+      });
+      if (!resp.ok) { toast("生成失败：" + (await errHint(resp))); return; }
+      const data = await resp.json();
+      const outputs = (data && data.outputs) || [];
+      if (!outputs.length) { toast("生成失败：未返回图片。"); return; }
+      // 首张显到右栏预览
+      const pv = $("preview");
+      pv.querySelectorAll("img._out").forEach(x => x.remove());
+      const img = document.createElement("img");
+      img.className = "_out";
+      img.src = fileSrc(outputs[0]);
+      img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;";
+      img.alt = "分镜图";
+      pv.appendChild(img);
+      if (ph) ph.style.display = "none";
+      toast("已生成分镜图：" + outputs[0], "ok");
+    } catch (e) {
+      toast("生成失败：" + (e && e.message ? e.message : e));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  });
 
   // 画幅 9:16 / 16:9 切换
   const arToggle = $("arToggle");
@@ -671,8 +768,14 @@
     const b = e.target.closest(".ar-btn"); if (!b) return;
     arToggle.querySelectorAll(".ar-btn").forEach(x => x.classList.toggle("active", x === b));
     const wide = b.dataset.ar === "wide";
-    $("preview").classList.toggle("wide", wide);
-    $("previewPh").innerHTML = (wide ? "16 : 9 横屏" : "9 : 16 竖屏") +
+    curWide = wide;
+    const pv = $("preview");
+    pv.classList.toggle("wide", wide);
+    // 切画幅清掉已生成的预览图，恢复占位
+    pv.querySelectorAll("img._out").forEach(x => x.remove());
+    const ph = $("previewPh");
+    ph.style.display = "";
+    ph.innerHTML = (wide ? "16 : 9 横屏" : "9 : 16 竖屏") +
       '<br>分镜图预览<br><span class="faint">（占位）</span>';
     $("sideMeta").innerHTML = (wide ? "画幅 16:9 · 横屏" : "画幅 9:16 · 短剧竖屏") +
       "<br>单图 HD · 视频基底帧";
@@ -922,8 +1025,10 @@
   $("previewBtn").addEventListener("click", () =>
     alert(TOOLS[curTool].preview + "：占位预览。真机叠加渲染。"));
   $("execBtn").addEventListener("click", () => {
+    if (curTool === "imggen") { execImggenBatch(); return; }
+    // 其余工具（拆图/去白边/拼图）由对应域接，本终端只接出图
     const t = TOOLS[curTool];
-    const total = curTool === "imggen" ? 2 : Math.max(1, selectedThumbs().length);
+    const total = Math.max(1, selectedThumbs().length);
     let done = 0;
     $("progFill").style.width = "0";
     $("progText").innerHTML = "<b>0</b> / " + total + " · 执行中…";
@@ -937,6 +1042,95 @@
       }
     }, 420);
   });
+
+  // ---- 自由模式·出图批量：POST {MEDIA}/imggen/batch_generate（SSE 进度）----
+  // 提示词面板每行一条 → 一个 GenRequest item。事件：progress / item_done / complete。
+  async function execImggenBatch() {
+    if (!PROJECT) { toast("请先在首页选择项目后再批量出图。"); return; }
+    const ta = $("panelBody").querySelector(".pta");
+    const lines = (ta && ta.value || "").split("\n").map(s => s.trim()).filter(Boolean);
+    if (!lines.length) { toast("提示词为空：每行一条提示词后再执行。"); return; }
+
+    // 面板内画幅 / 每条张数（取 sel-box / spin 的当前显示值，宽松解析）
+    const selBoxes = $("panelBody").querySelectorAll(".sel-box");
+    const arText = selBoxes[0] ? selBoxes[0].textContent.trim() : "9:16";
+    const wide = arText.indexOf("16:9") === 0;
+    const size = wide ? "1920x1080" : "1080x1920";
+    const spin = $("panelBody").querySelector(".spin input");
+    let n = parseInt(spin && spin.value, 10); if (!(n > 0)) n = 1;
+    const extBox = selBoxes[selBoxes.length - 1];
+    const ext = (extBox ? extBox.textContent.trim().split(/\s/)[0] : "PNG").toLowerCase() || "png";
+
+    const items = lines.map((p, i) => ({
+      prompt: p,
+      references: [],
+      size: size,
+      n: n,
+      out_dir: PROJECT + "/storyboard",
+      base_name: "batch_" + String(i + 1).padStart(2, "0"),
+      ext: ext,
+    }));
+    const total = items.length;
+
+    const execBtn = $("execBtn");
+    const oldText = execBtn.textContent;
+    execBtn.disabled = true;
+    execBtn.textContent = "执行中…";
+    $("progFill").style.width = "0";
+    $("progText").innerHTML = "<b>0</b> / " + total + " · 执行中…";
+
+    let done = 0, okCount = 0, failCount = 0;
+    try {
+      const resp = await fetch(MEDIA + "/imggen/batch_generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: items }),
+      });
+      if (!resp.ok || !resp.body) { toast("批量出图失败：" + (await errHint(resp))); return; }
+
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done: rdDone } = await reader.read();
+        if (rdDone) break;
+        buf += dec.decode(value, { stream: true });
+        // 按空行切 SSE 块
+        let sep;
+        while ((sep = buf.indexOf("\n\n")) !== -1) {
+          const block = buf.slice(0, sep);
+          buf = buf.slice(sep + 2);
+          let ev = "", dataStr = "";
+          block.split("\n").forEach(line => {
+            if (line.startsWith("event:")) ev = line.slice(6).trim();
+            else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+          });
+          if (!ev) continue;
+          let data = {};
+          try { data = dataStr ? JSON.parse(dataStr) : {}; } catch (_) {}
+          if (ev === "item_done") {
+            done++;
+            if (data.status === "ok") okCount++; else failCount++;
+            $("progFill").style.width = Math.round(done / total * 100) + "%";
+            $("progText").innerHTML = "<b>" + done + "</b> / " + total + " · 执行中…";
+          } else if (ev === "complete") {
+            $("progFill").style.width = "100%";
+            $("progText").innerHTML = "<b>" + (data.ok != null ? data.ok : okCount) + "</b> / " +
+              (data.total != null ? data.total : total) + " · 完成 ✓";
+          } else if (ev === "error") {
+            toast("批量出图失败：" + (data.hint || data.message || "未知错误"));
+          }
+        }
+      }
+      if (failCount > 0) toast("批量出图完成：成功 " + okCount + " · 失败 " + failCount, okCount > 0 ? "ok" : undefined);
+      else toast("批量出图完成：成功 " + okCount + " 条 → " + PROJECT + "/storyboard", "ok");
+    } catch (e) {
+      toast("批量出图失败：" + (e && e.message ? e.message : e));
+    } finally {
+      execBtn.disabled = false;
+      execBtn.textContent = oldText;
+    }
+  }
 
   // 初始渲染默认工具
   renderTool("imggen");

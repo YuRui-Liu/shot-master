@@ -345,6 +345,103 @@
 </div>
 
 <script>
+/* ===== 接活：后端约定（照编剧样板） =====
+   SW_API：screenwriter_agent（视频提示词 SSE 路由所在），默认 18430；可由壳传 ?sw= 覆盖。
+   MEDIA_API：media_agent（图生视频/LTX video provider 落在这里），默认 18450；?media= 覆盖。
+   PROJECT_DIR / EPISODE_ID：壳已把 ?project=、?episode= 转发到本页 URL。
+   真实路由（见 screenwriter_agent/routes/video_prompt.py）：
+     POST {SW_API}/video_prompt  body={project_dir, episode_id:"E1", options:{template_id:"ltx",fps,aspect_ratio,language}}
+     该路由对「整集分镜」一次性产出 {global_prompt, shots:[...]} 写入 shots.json；
+     事件：start{message} / status{phase} / partial{file,content(JSON 文本)} / done{saved_dir} / error{code,message,hint,raw}。
+     注意：本路由不发逐 token 的 delta（服务端累计后一次性回 partial.content），
+     故本页按 status 显进度、partial/done 拿整集结果后按 shot 序号分发到各卡 textarea。 */
+const SW_API = new URLSearchParams(location.search).get("sw") || "http://127.0.0.1:18430";
+const MEDIA_API = new URLSearchParams(location.search).get("media") || "http://127.0.0.1:18450";
+const PROJECT_DIR = new URLSearchParams(location.search).get("project") || "";
+const EPISODE_ID = new URLSearchParams(location.search).get("episode") || "E1";
+
+/* 解析单条 SSE 帧 → { event, data }（同 ideate 读法：event:/data:，data 为 JSON） */
+function parseSSE(chunk) {
+  let event = "message"; const dataLines = [];
+  chunk.split("\n").forEach((line) => {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+  });
+  if (!dataLines.length) return null;
+  let data = {};
+  try { data = JSON.parse(dataLines.join("\n")); } catch { data = { text: dataLines.join("\n") }; }
+  return { event, data };
+}
+
+/* 从整集结果对象里取第 n 个镜头的 local_prompt（容错多种字段命名）。 */
+function shotPromptFromData(obj, n) {
+  if (!obj || !Array.isArray(obj.shots)) return "";
+  // 优先按 shot 显式编号匹配，否则退化为数组顺序 n-1
+  const byNo = obj.shots.find((s) =>
+    String(s.shot_id ?? s.shot ?? s.n ?? s.index ?? "") === String(n));
+  const s = byNo || obj.shots[n - 1];
+  if (!s) return "";
+  return s.local_prompt || s.prompt || s.text || "";
+}
+
+/* 调 POST /video_prompt（整集 SSE）：status 显进度，partial/done 拿 {global_prompt,shots}。
+   onShots(obj)：拿到整集结果对象后由调用方决定如何分发到各卡。 */
+async function runVideoPrompt({ onStatus, onShots, onError }) {
+  if (!PROJECT_DIR) {
+    onError && onError({ hint: "未选择项目，请先在首页选择/打开一个项目。" });
+    return;
+  }
+  const body = {
+    project_dir: PROJECT_DIR,
+    episode_id: EPISODE_ID,
+    options: { template_id: "ltx", fps: 24, aspect_ratio: "9:16", language: "en" },
+  };
+  let resultObj = null;
+  try {
+    const resp = await fetch(SW_API + "/video_prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok || !resp.body) {
+      // 同步错误体：{error:{code,message,hint}}
+      let j = null; try { j = await resp.json(); } catch {}
+      throw j && j.error ? j.error : { hint: "HTTP " + resp.status };
+    }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
+        const evt = parseSSE(chunk);
+        if (!evt) continue;
+        if (evt.event === "start") {
+          onStatus && onStatus(evt.data.message || "正在生成…");
+        } else if (evt.event === "status") {
+          onStatus && onStatus(evt.data.phase === "streaming" ? "AI 生成中…" : (evt.data.phase || ""));
+        } else if (evt.event === "partial") {
+          try { resultObj = JSON.parse(evt.data.content || "{}"); } catch { resultObj = null; }
+          if (resultObj) onShots && onShots(resultObj);
+        } else if (evt.event === "done") {
+          if (resultObj) onShots && onShots(resultObj);
+          return resultObj;
+        } else if (evt.event === "error") {
+          throw evt.data || { hint: "生成失败" };
+        }
+      }
+    }
+    return resultObj;
+  } catch (e) {
+    onError && onError(e && (e.hint || e.message) ? e : { hint: (e && e.message) || "生成失败" });
+    return null;
+  }
+}
+
 /* ===== LTX 2.3 提示词模板（取自《生成模型提示词工程指南》一、LTX Video 2.3） =====
    三个范例对应 LTX 不同的提示词「模式」与要点，chip 点击填入对应 textarea。 */
 const LTX_TEMPLATES = [
@@ -445,19 +542,44 @@ function wireExamples() {
   });
 }
 
-/* 按钮 stub：仅占位提示，不接后端 */
+/* 按钮接活：
+   - gen：调整集 POST /video_prompt（SSE），整集结果按 shot 序号回填各卡 textarea；
+          本卡按钮显进度/失败 hint，其余卡也同时被填充（整集一次产出）。
+   - save：本地占位反馈（保存到项目由分镜/整集落盘处理，本页无单卡落盘端点）。
+   - i2v：图生视频 — 真机接 media_agent 的 LTX 2.3 video provider；后端尚无 LTX 路由，先占位+TODO。 */
 function wireActions() {
   document.querySelectorAll("button[data-act]").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const act = btn.getAttribute("data-act");
       const n = btn.getAttribute("data-shot");
       const ta = document.querySelector(`textarea[data-shot="${n}"]`);
       if (act === "gen") {
-        ta.value = "（stub）AI 正看 SHOT " + n + " 分镜图生成 LTX 2.3 图生视频提示词…\n实际接 screenwriter_agent POST /video_prompt (template_id='ltx', SSE)。";
+        if (btn.dataset.busy === "1") return;
+        btn.dataset.busy = "1";
+        const orig = btn.textContent;
+        const obj = await runVideoPrompt({
+          onStatus: (m) => { btn.textContent = "✦ " + m; },
+          onShots: (data) => {
+            // 整集结果：按序号回填所有 SHOT 卡（global_prompt 作为基底前缀仅本卡可选不强加）
+            document.querySelectorAll("textarea[data-shot]").forEach((t) => {
+              const sn = t.getAttribute("data-shot");
+              const p = shotPromptFromData(data, sn);
+              if (p) t.value = p;
+            });
+          },
+          onError: (err) => {
+            ta.value = "⚠ " + (err.hint || err.message || "生成失败");
+          },
+        });
+        btn.textContent = obj ? "✦ 已生成" : orig;
+        setTimeout(() => { btn.textContent = orig; btn.dataset.busy = ""; }, 1400);
       } else if (act === "save") {
         btn.textContent = "已保存 ✓";
         setTimeout(() => (btn.textContent = "保存"), 1200);
       } else if (act === "i2v") {
+        // TODO(图生视频)：真机接 media_agent LTX 2.3 video provider，例如
+        //   POST {MEDIA_API}/video/ltx  body={project_dir, episode_id, shot_id:n, prompt:ta.value, mode:"i2v", duration, fps}
+        //   后端尚无 LTX 路由 → 暂占位入队反馈，路由就绪后改为真实调用 + 轮询/SSE 取产物。
         btn.textContent = "► 已入队";
         setTimeout(() => (btn.textContent = "► 图生视频"), 1400);
       }
@@ -647,17 +769,34 @@ function wireClipCards() {
       });
     });
   });
-  // 单卡生成（占位）
+  // 导演台单卡生成：先调 /video_prompt 取整集 LTX 提示词，无 textarea 内容时用 global_prompt
+  // 作基底填入本卡（自由片段无分镜序号，故取 global_prompt 作起点，用户再按本卡 mode/时长/运镜编辑）。
+  // 真正「图生视频/文生视频」产物需 LTX 2.3 video provider，后端尚无 LTX 路由 → 占位 + TODO。
   document.querySelectorAll('button[data-act="genclip"]').forEach(b => {
-    b.addEventListener("click", () => {
+    b.addEventListener("click", async () => {
       const id = parseInt(b.getAttribute("data-id"), 10);
       const c = getClip(id);
-      b.textContent = "► 已入队";
-      setTimeout(() => { b.textContent = "► 生成视频"; }, 1400);
       const ta = document.querySelector(`textarea[data-clip="${id}"]`);
-      if (ta && !ta.value.trim()) {
-        ta.value = `（stub）按 ${c.mode.toUpperCase()} · ${c.dur}s · 运镜「${c.camera}」生成 LTX 2.3 视频…\n真机接 LTX 2.3 video 接口（自由片段，不走分镜对齐）。`;
-      }
+      if (b.dataset.busy === "1") return;
+      b.dataset.busy = "1";
+      const orig = "► 生成视频";
+      // 1) 取 LTX 提示词（整集 SSE），把 global_prompt 作为自由片段基底写入本卡
+      await runVideoPrompt({
+        onStatus: (m) => { b.textContent = "✦ " + m; },
+        onShots: (data) => {
+          if (ta && !ta.value.trim() && data && data.global_prompt) {
+            ta.value = data.global_prompt;
+          }
+        },
+        onError: (err) => {
+          if (ta && !ta.value.trim()) ta.value = "⚠ " + (err.hint || err.message || "生成失败");
+        },
+      });
+      // 2) TODO(图生视频/文生视频)：真机接 media_agent LTX 2.3 video provider，例如
+      //    POST {MEDIA_API}/video/ltx  body={project_dir, prompt:ta.value, mode:c.mode, duration:c.dur, camera:c.camera, first_frame, last_frame}
+      //    后端尚无 LTX 路由 → 暂以「已入队」占位，路由就绪后改为真实调用 + 取产物。
+      b.textContent = "► 已入队";
+      setTimeout(() => { b.textContent = orig; b.dataset.busy = ""; }, 1400);
     });
   });
 }

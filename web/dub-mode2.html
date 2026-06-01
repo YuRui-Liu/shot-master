@@ -310,10 +310,31 @@
 </div>
 
 <script>
-/* ===== 后端 API base（可由壳通过 ?sw= / ?media= 注入） ===== */
+/* ===== 后端 API base（可由壳通过 ?sw= / ?media= / ?project= 注入） ===== */
 const _qs = new URLSearchParams(location.search);
 const SW_API = _qs.get('sw') || 'http://127.0.0.1:18430';        // screenwriter_agent
-const MEDIA_API = _qs.get('media') || 'http://127.0.0.1:18450';  // media_agent（成片/分镜视频 + TTS）
+const MEDIA_API = _qs.get('media') || 'http://127.0.0.1:18450';  // media_agent（成片/分镜视频 + BGM）
+const PROJECT_DIR = _qs.get('project') || '';                    // 壳已转发 ?project=（项目根目录）
+
+/* 集数下拉「第 N 集」→ 后端 episode_id（route 要求 ^E[1-9]\d*$） */
+function currentEpisodeId() {
+  const v = (document.getElementById('epSelect') || {}).value || '';
+  const m = /(\d+)/.exec(v);
+  return m ? 'E' + m[1] : 'E1';
+}
+
+/* 解析单条 SSE 帧 → { event, data }（同 ideate：event:/data: 行，data 是 JSON） */
+function parseSSE(chunk) {
+  let event = 'message'; const dataLines = [];
+  chunk.split('\n').forEach((line) => {
+    if (line.startsWith('event:')) event = line.slice(6).trim();
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+  });
+  if (!dataLines.length) return null;
+  let data = {};
+  try { data = JSON.parse(dataLines.join('\n')); } catch { data = { text: dataLines.join('\n') }; }
+  return { event, data };
+}
 
 /* 视频预览源：留空＝占位；后续由壳/主控接 media_agent 成片或分镜动态视频地址。
    真实接线示例：GET {MEDIA_API}/preview?ep=1（或当前任务/集的成片 mp4）。
@@ -494,28 +515,166 @@ function wireExamples() {
   });
 }
 
-/* 按钮 stub：仅占位提示 + 注释真实接线 */
+/* ===== 真实接线：audio_prompt 是「集级」SSE 路由 =====
+   POST {SW_API}/audio_prompt
+   body: { project_dir, episode_id(^E[1-9]\d*$), options:{language,include_bgm_tags},
+           reasoning_effort }（creds 由壳/env 注入，缺省走 agent env）
+   事件序列（同 ideate 协议，event:/data:，data 是 JSON）：
+     start{message} → status{phase:"streaming_voice_design"} →
+     partial{file:"...voices.json", content:<json字符串>} →
+     status{phase:"streaming_sfx_cues"} →
+     partial{file:"...sfx_cues.json", content:<json字符串>} →
+     done{saved_dir} ；失败 error{code?,message,hint?,raw?}
+   注：本路由按整集生成「角色音色设计(voices.json)+分镜音效配表(sfx_cues.json)」，
+   非逐条台词。故单卡「生成配音提示词」复用该集级结果，从 voices.json 里
+   抽出本卡角色的音色/语气设计填入 textarea；整集只需跑一次，结果做轻量缓存。 */
+
+let _audioPromptCache = { ep: null, voices: null, sfx: null, inflight: null };
+
+/* 跑一次集级 audio_prompt SSE，回调 onStatus(phase) / 完成后 resolve{voices,sfx} */
+async function runAudioPrompt(onStatus) {
+  const ep = currentEpisodeId();
+  if (_audioPromptCache.ep === ep && _audioPromptCache.voices) {
+    return { voices: _audioPromptCache.voices, sfx: _audioPromptCache.sfx };
+  }
+  if (_audioPromptCache.inflight && _audioPromptCache.ep === ep) {
+    return _audioPromptCache.inflight;
+  }
+  _audioPromptCache.ep = ep;
+  _audioPromptCache.inflight = (async () => {
+    const body = {
+      project_dir: PROJECT_DIR,
+      episode_id: ep,
+      options: { language: "zh", include_bgm_tags: true },
+      reasoning_effort: "high",
+    };
+    const resp = await fetch(SW_API + "/audio_prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok || !resp.body) {
+      // 同步 JSON 错误体（400 等）：{error:{code,message,hint}}
+      let hint = "HTTP " + resp.status;
+      try { const j = await resp.json(); hint = (j.error && (j.error.hint || j.error.message)) || hint; } catch {}
+      throw new Error(hint);
+    }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "", voices = null, sfx = null;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
+        const evt = parseSSE(chunk);
+        if (!evt) continue;
+        if (evt.event === "status" && onStatus) onStatus(evt.data.phase || "");
+        else if (evt.event === "partial") {
+          let obj = null; try { obj = JSON.parse(evt.data.content); } catch {}
+          const f = evt.data.file || "";
+          if (/voices\.json$/.test(f)) voices = obj;
+          else if (/sfx_cues\.json$/.test(f)) sfx = obj;
+        } else if (evt.event === "error") {
+          throw new Error(evt.data.hint || evt.data.message || "生成失败");
+        }
+      }
+    }
+    _audioPromptCache.voices = voices;
+    _audioPromptCache.sfx = sfx;
+    return { voices, sfx };
+  })();
+  try { return await _audioPromptCache.inflight; }
+  finally { _audioPromptCache.inflight = null; }
+}
+
+/* 从 voices.json 里按角色名抽出本卡的音色/语气设计，拼成可读配音提示词。
+   voices.json 结构由模板决定，这里做宽松抽取：找含该角色名的条目，
+   把其字段（音色/音质/语气/节奏/情绪等）拼成多行文本；找不到则给整集 JSON 摘要。 */
+function voiceDesignForRole(voices, role) {
+  if (!voices) return "";
+  const fmtEntry = (o) => {
+    if (o == null) return "";
+    if (typeof o === "string") return o;
+    return Object.entries(o)
+      .filter(([k, v]) => v != null && typeof v !== "object")
+      .map(([k, v]) => `${k}：${v}`).join("\n");
+  };
+  // 常见形态：{characters:[{name,...}]} / {voices:[...]} / {角色:{...}} / 顶层数组
+  let list = [];
+  if (Array.isArray(voices)) list = voices;
+  else if (Array.isArray(voices.characters)) list = voices.characters;
+  else if (Array.isArray(voices.voices)) list = voices.voices;
+  else if (voices && typeof voices === "object") {
+    // 角色名为 key 的字典
+    for (const [k, v] of Object.entries(voices)) {
+      if (k === role || (typeof k === "string" && role && k.includes(role))) {
+        const body = fmtEntry(v);
+        if (body) return `角色：${k}\n${body}`;
+      }
+    }
+    list = Object.values(voices).filter(v => v && typeof v === "object");
+  }
+  const hit = list.find(o => o && typeof o === "object" &&
+    (o.name === role || o.role === role || o.character === role ||
+     (typeof o.name === "string" && role && o.name.includes(role))));
+  if (hit) {
+    const name = hit.name || hit.role || hit.character || role;
+    return `角色：${name}\n${fmtEntry(hit)}`;
+  }
+  // 兜底：返回整集音色设计 JSON（用户可自行裁剪）
+  try { return JSON.stringify(voices, null, 2); } catch { return ""; }
+}
+
 function wireActions() {
   document.querySelectorAll("button[data-act]").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const act = btn.getAttribute("data-act");
       const n = btn.getAttribute("data-shot");
       const ta = document.querySelector(`textarea[data-shot="${n}"]`);
+      const shot = SHOTS.find(s => String(s.n) === String(n));
+
       if (act === "gen") {
-        // 真实接线：screenwriter_agent POST {SW_API}/audio_prompt（SSE 流式吐配音提示词）
-        ta.value = "（stub）AI 正读 SHOT " + n + " 台词 + 分镜，生成配音指导（角色/语气/节奏/情绪曲线）…\n" +
-          "实际接 screenwriter_agent POST " + SW_API + "/audio_prompt （SSE 流式）。";
+        if (!PROJECT_DIR) { alert("请先在首页选择项目（缺少 ?project=）。"); return; }
+        const orig = btn.textContent;
+        btn.disabled = true; btn.textContent = "✦ 生成中…";
+        ta.value = "● 正在读取本集分镜+剧本，生成角色音色/语气设计…";
+        try {
+          const { voices } = await runAudioPrompt((phase) => {
+            ta.value = phase === "streaming_voice_design"
+              ? "● 正在生成角色音色设计…"
+              : phase === "streaming_sfx_cues"
+                ? "● 音色设计完成，正在生成分镜音效配表…"
+                : "● 生成中…";
+          });
+          const text = voiceDesignForRole(voices, shot ? shot.role : "");
+          ta.value = text || "（未在本集音色设计中匹配到该角色，请手动编辑或点「范例」填模板）";
+        } catch (e) {
+          ta.value = "⚠ 生成失败：" + e.message +
+            "\n（提示：需先在「分镜」步生成本集分镜；并在 设置→编剧 为「音频提示词」阶段选平台+模型）";
+        } finally {
+          btn.disabled = false; btn.textContent = orig;
+        }
+
       } else if (act === "save") {
+        // 暂无逐条台词配音提示词的持久化端点；audio_prompt 已把整集 voices.json/sfx_cues.json 落盘。
+        // TODO: 若后端新增逐卡保存端点，在此 POST {SW_API}/... 持久化 ta.value。
         btn.textContent = "已保存 ✓";
         setTimeout(() => (btn.textContent = "保存"), 1200);
-      } else if (act === "listen") {
-        // 真实接线：media_agent POST {SW_API}/soundtrack 或 TTS 试听端点，回放音频片段
-        btn.textContent = "▷ 试听中…";
-        setTimeout(() => (btn.textContent = "▷ 试听"), 1400);
-      } else if (act === "dub") {
-        // 真实接线：media_agent POST {SW_API}/soundtrack（或 TTS 合成端点），生成配音并入轨
-        btn.textContent = "✦ 已入队";
-        setTimeout(() => (btn.textContent = "✦ 生成配音"), 1400);
+
+      } else if (act === "listen" || act === "dub") {
+        // 真实 TTS 配音合成路由后端暂未提供：
+        //   - media_agent /soundtrack 仅 BGM/文生音乐（compose_prompt / generate_bgm / batch_generate），非台词 TTS。
+        //   - 故「试听 / 生成配音」暂留占位反馈，待后端 TTS 合成端点就绪再接。
+        // TODO(后端 TTS 就绪)：POST {MEDIA_API}/<tts_route>
+        //   body 携带本卡参数：text=台词, voice=音色, emotion=情绪, speed=语速, episode_id, project_dir。
+        //   试听=返回临时音频 URL 回放；生成配音=落盘并入配音轨。
+        const isListen = act === "listen";
+        const orig = isListen ? "▷ 试听" : "✦ 生成配音";
+        btn.textContent = isListen ? "▷ 试听中…（TTS 端点待接）" : "✦ 已入队（TTS 端点待接）";
+        setTimeout(() => (btn.textContent = orig), 1600);
       }
     });
   });
@@ -529,12 +688,33 @@ function wireModes() {
   m2.addEventListener("click", () => { m2.classList.add("on"); m1.classList.remove("on"); });
 }
 
-/* 顶部「一键分镜配音」stub：实际批量对每个 SHOT 调 /audio_prompt + /soundtrack */
+/* 顶部「一键分镜配音」：跑一次集级 audio_prompt（角色音色设计+分镜音效配表），
+   把每张卡按其角色从 voices.json 填入配音提示词；真实 TTS 合成待后端端点就绪。 */
 function wireOneClick() {
   const b = document.getElementById("oneClick");
-  b.addEventListener("click", () => {
-    b.textContent = "⚡ 批量配音中…";
-    setTimeout(() => (b.textContent = "⚡ 一键分镜配音"), 1600);
+  b.addEventListener("click", async () => {
+    if (!PROJECT_DIR) { alert("请先在首页选择项目（缺少 ?project=）。"); return; }
+    const orig = b.textContent;
+    b.disabled = true; b.textContent = "⚡ 生成音色设计中…";
+    try {
+      const { voices } = await runAudioPrompt((phase) => {
+        b.textContent = phase === "streaming_sfx_cues"
+          ? "⚡ 生成音效配表中…" : "⚡ 生成音色设计中…";
+      });
+      SHOTS.forEach((s) => {
+        const ta = document.querySelector(`textarea[data-shot="${s.n}"]`);
+        if (!ta) return;
+        const text = voiceDesignForRole(voices, s.role);
+        if (text) ta.value = text;
+      });
+      b.textContent = "⚡ 已填入音色设计 ✓";
+      setTimeout(() => (b.textContent = orig), 1600);
+    } catch (e) {
+      alert("一键分镜配音失败：" + e.message);
+      b.textContent = orig;
+    } finally {
+      b.disabled = false;
+    }
   });
 }
 
@@ -667,6 +847,10 @@ wireExamples();
 wireActions();
 wireModes();
 wireOneClick();
+/* 切集失效集级音色设计缓存（下次「生成」重新拉取该集 audio_prompt） */
+document.getElementById("epSelect").addEventListener("change", () => {
+  _audioPromptCache = { ep: null, voices: null, sfx: null, inflight: null };
+});
 document.getElementById("alignCount").textContent =
   `已按分镜顺序自动对齐 ${SHOTS.length} 个镜头`;
 </script>
