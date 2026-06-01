@@ -113,7 +113,9 @@
       <a data-key="asset_library" data-page="asset-library.html"   ><span class="ic">◈</span>资源库</a>
       <a data-key="storyboard"    data-page="storyboard-board.html"><span class="ic">▤</span>分镜板</a>
       <a data-key="video_gen"     data-page="video-mode2.html"     ><span class="ic">▶</span>视频生成</a>
-      <a data-key="video_post"    data-page="daw-soundtrack.html"  ><span class="ic">✂</span>视频后期</a>
+      <a data-key="smart_transition"  data-page="compose.html"   ><span class="ic">↗</span>智能转场</a>
+      <a data-key="smart_dubbing"    data-page="dub-mode2.html"   ><span class="ic">🎤</span>智能配音</a>
+      <a data-key="smart_soundtrack" data-page="daw-soundtrack.html"><span class="ic">♫</span>智能配乐</a>
       <div class="sp"></div>
       <div class="sep"></div>
       <a data-key="skills"        data-page="skills.html"          ><span class="ic">✦</span>技能库</a>
@@ -133,7 +135,7 @@
 </div>
 
 <script>
-  // hash 路由：#/<navKey> → 加载内容页(iframe)；video_post 为容器(子tab)；无页显占位。
+  // hash 路由：#/<navKey> → 加载内容页(iframe)；screenwriter 为容器(子tab)；无页显占位。
   const NAV = document.getElementById('nav');
   const VIEW = document.getElementById('view');
   const PH = document.getElementById('ph');
@@ -152,11 +154,6 @@
       { label: '剧本', page: 'script.html' },
       { label: '分镜', page: 'storyboard-script.html' },
       { label: '出图 Prompt', page: 'prompts.html' },
-    ],
-    video_post: [
-      { label: '智能转场', page: 'compose.html' },
-      { label: '配音', page: 'dub-mode2.html' },
-      { label: '配乐', page: 'daw-soundtrack.html' },
     ],
   };
 
