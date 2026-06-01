@@ -103,6 +103,79 @@ def compose_prompt(req: ComposePromptRequest):
     }
 
 
+# ---------- 1b) analyze_segment：对 [start,end] 区间抽帧 → vision 情绪分析 ----------
+#
+# 复用 sound_track_agent 现有多帧情绪标注（emotion_tagger.tag_emotion_multi）与
+# 情绪→ACE-Step tags 组装（prompt_composer.compose_acestep_inputs）。
+#
+# 两个重依赖各走模块级可注入工厂，测试 monkeypatch 即可零网络/零 ffmpeg：
+#   - _vision_provider_factory(cfg)：默认 build_soundtrack_provider（豆包 vision）；
+#     provider 须实现 generate(images, system_prompt, user_supplement)。
+#   - _frame_extractor(video, times, out_dir)：默认 mixdown.extract_frames_at（ffmpeg），
+#     返回与 times 一一对应的帧 png 路径列表。
+# global_style 取请求 hint（缺省给一个中性占位串），喂给 vision 情绪 prompt 与 tags 组装。
+
+def _default_vision_provider_factory(cfg):
+    from sound_track_agent.provider import build_soundtrack_provider
+    return build_soundtrack_provider(cfg)
+
+
+def _default_frame_extractor(video, times, out_dir):
+    from sound_track_agent.mixdown import extract_frames_at
+    return extract_frames_at(video, list(times), out_dir)
+
+
+# 可注入：测试替换为假 vision provider / 假抽帧（不触网、不触 ffmpeg）
+_vision_provider_factory = _default_vision_provider_factory
+_frame_extractor = _default_frame_extractor
+
+
+class AnalyzeSegmentRequest(BaseModel):
+    video: str
+    start_sec: float
+    end_sec: float
+    hint: Optional[str] = None         # 作品总体风格/情绪提示，喂给 vision 与 tags 组装
+
+
+@router.post("/analyze_segment")
+def analyze_segment(req: AnalyzeSegmentRequest):
+    """对 video 的 [start_sec, end_sec] 区间抽 start/mid/end 三帧 → 复用配乐 agent 的多帧
+    vision 情绪分析 → 返回 {labels, valence, arousal, intensity, suggested_tags}。
+
+    suggested_tags 复用 prompt_composer.compose_acestep_inputs（Instrumental/dialogue-
+    friendly 等）把情绪转 ACE-Step tags 串。vision provider 与抽帧均走模块级可注入工厂。
+    """
+    from sound_track_agent.emotion_tagger import tag_emotion_multi
+
+    start = float(req.start_sec)
+    end = float(req.end_sec)
+    if end <= start:
+        raise HTTPException(status_code=400, detail="end_sec 必须大于 start_sec")
+    if start < 0:
+        raise HTTPException(status_code=400, detail="start_sec 不能为负")
+
+    style = (req.hint or "").strip() or "neutral cinematic background"
+    duration = end - start
+    mid = (start + end) / 2.0
+    times = [start, mid, end]
+
+    cfg = _load_cfg()
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="analyze_seg_") as td:
+        frames = _frame_extractor(req.video, times, td)
+        provider = _vision_provider_factory(cfg)
+        tag = tag_emotion_multi(provider, list(frames), style)
+
+    suggested_tags, _bpm, _dur = compose_acestep_inputs(style, tag, duration)
+    return {
+        "labels": list(tag.labels),
+        "valence": float(tag.valence),
+        "arousal": float(tag.arousal),
+        "intensity": float(tag.intensity),
+        "suggested_tags": suggested_tags,
+    }
+
+
 # ---------- 2) generate_bgm：经可注入 client 工厂生成候选并落盘 ----------
 
 class GenerateBgmRequest(BaseModel):

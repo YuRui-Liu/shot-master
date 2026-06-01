@@ -3,299 +3,272 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>糯米AI · ⑥ 视频后期 · 配乐混音 DAW</title>
+<title>糯米AI · ⑥ 视频后期 · 配乐 DAW（视频预览 + 多轨道）</title>
 <link rel="stylesheet" href="tokens.css">
 <!-- wavesurfer.js v7（真实波形）。离线时改为本地：<script src="vendor/wavesurfer.min.js"></script> -->
 <script src="https://unpkg.com/wavesurfer.js@7"></script>
 <style>
   /* ============================================================
-     配乐 / 混音 DAW —— 静态 mockup（P4）
-     内容页硬规则：无自带标题栏/侧栏（壳 web/app.html 提供）；
-     复用 tokens.css 蓝紫设计系统变量与组件；品牌「糯米 AI」。
-     布局取自确认稿 docs/explorer/track-mixer-layout.html 方案 A
-     （左侧轨道头列：名称 + M/S + 音量条，与右侧波形轨垂直对齐）。
+     视频后期 · 配乐 DAW —— 按确认稿 v5 重建
+     docs/explorer/soundtrack-video-multitrack-layout-confirm.html
+     内容页硬规则：无自带标题栏/侧栏（壳 web/app.html 提供）；复用 tokens.css。
+     v5 布局：
+       ① 顶部固定中等高（视频 240px 驱动，flex-shrink:0，绝不挤压轨道）：
+          左 = 视频预览（按钮加载 mp4 → /file 加载到 <video>，进度条在视频下方，
+               支持框选时段 → [start,end]）；
+          右 = LLM 对话面板（收窄克制，与视频同高）。
+       ② 轨道区 flex 占满剩余 → 4 条固定主轨常驻可见（原声/BGM/SFX/对白）；
+          动态叠加轨在其下方区域内部滚动（overlay/list 加载，overlay/generate 新增，
+          overlay/remove 删）。
+     保留并复用 P2 既有后端调用（advance/mixdown/accent/sfx/overlay/wavesurfer/mediaUrl）。
      ============================================================ */
-  body { overflow: hidden; }
-  .daw { display: flex; flex-direction: column; height: 100vh; }
+  :root{ --video:#4a9eff; --bgm:#8b7fd9; --sfx:#4ec98f; --dialogue:#e0a85a; --overlay:#a78bfa; }
+  body { margin:0; background:var(--bg); color:var(--fg); height:100vh; overflow:hidden; display:flex; flex-direction:column; }
 
-  /* ---------- 顶部：标题 + 任务选择 ---------- */
-  .head {
-    display: flex; align-items: center; gap: 14px;
-    padding: 14px 20px; flex-wrap: wrap;
-    border-bottom: 1px solid var(--border-lo);
-  }
-  .head h1 {
-    margin: 0; font-size: 19px; letter-spacing: .4px;
-    background: linear-gradient(135deg, var(--blue), var(--mauve));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  .head .spacer { flex: 1; }
-  .head .task-select { min-width: 240px; }
-  .head .style-pill {
-    font-size: 11.5px; color: var(--mauve);
-    background: rgba(138,127,217,.16); border: 1px solid #4a3d6e;
-    padding: 4px 11px; border-radius: 12px;
-  }
+  /* ---------- 顶栏：标题 + 全局动作按钮 ---------- */
+  .head { display:flex; align-items:center; gap:10px; padding:12px 20px 8px; flex-shrink:0; flex-wrap:wrap; }
+  .head h1{ margin:0; font-size:18px; background:linear-gradient(135deg,var(--blue),var(--mauve)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .head .style-pill{ font-size:11.5px; color:var(--mauve); background:rgba(138,127,217,.16); border:1px solid #4a3d6e; padding:4px 11px; border-radius:12px; }
+  .head .sub{ display:flex; gap:6px; margin-left:auto; flex-wrap:wrap; }
+  .head .btn{ font-size:12.5px; padding:7px 13px; border-radius:8px; cursor:pointer; background:var(--panel2); color:var(--fg2); border:1px solid var(--border); }
+  .head .btn:hover{ border-color:var(--mauve); color:var(--fg); }
+  .head .btn:disabled{ opacity:.5; cursor:default; }
+  .head .btn.load{ color:var(--blue); border-color:var(--blue-dim); }
+  .head .btn.gen{ background:linear-gradient(135deg,var(--blue),var(--periw)); color:#06122a; font-weight:700; border:none; }
 
-  /* ---------- 走带控制条（transport） ---------- */
-  .transport {
-    display: flex; align-items: center; gap: 10px;
-    padding: 9px 20px; background: var(--navy);
-    border-bottom: 1px solid var(--border-lo);
-  }
-  .tbtn {
-    width: 36px; height: 34px; padding: 0;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 14px;
-    background: var(--panel2); color: var(--fg2);
-    border: 1px solid var(--border); border-radius: var(--radius-sm);
-  }
-  .tbtn:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
-  .tbtn.play {
-    background: linear-gradient(135deg, var(--blue), var(--periw));
-    color: #06122a; border: none; font-weight: 700;
-  }
-  .tbtn.rec { color: var(--err); }
-  .tbtn.rec:hover { border-color: var(--err); }
-  .timecode {
-    font-variant-numeric: tabular-nums; font-size: 17px; font-weight: 600;
-    color: var(--fg); letter-spacing: 1px;
-    background: var(--field); border: 1px solid var(--border);
-    border-radius: var(--radius-sm); padding: 5px 12px; margin-left: 4px;
-  }
-  .timecode .total { color: var(--faint); font-size: 13px; font-weight: 400; }
-  .transport .meta { color: var(--muted); font-size: 12px; }
-  .transport .meta b { color: var(--fg2); font-weight: 600; }
-  .transport .spacer { flex: 1; }
-  .master {
-    display: flex; align-items: center; gap: 8px;
-    color: var(--muted); font-size: 12px;
-  }
-  .master .vrange { width: 120px; }
+  .work { flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 12px; gap:12px; }
 
-  /* ---------- DAW 主体：左轨道头列 + 右时间线 ---------- */
-  .stage { flex: 1; display: flex; min-height: 0; }
+  /* ① 顶部 = 左视频预览(主焦点) | 右 LLM 对话(辅助·收窄)。固定中等高，flex-shrink:0 不挤轨道 */
+  .preview { flex-shrink:0; display:flex; gap:16px; align-items:stretch; }
+  .video-col { flex:0 0 auto; display:flex; flex-direction:column; gap:9px; }
+  .video-box { height:240px; aspect-ratio:16/9; width:auto; background:#06070d; border:1px solid var(--border); border-radius:12px; display:grid; place-items:center; color:var(--faint); font-size:13px; position:relative; overflow:hidden; box-shadow:0 8px 28px rgba(0,0,0,.4); }
+  .video-box video{ width:100%; height:100%; object-fit:contain; background:#000; display:none; }
+  .video-box .ph{ text-align:center; line-height:1.7; }
+  /* 视频下方：进度条(可框选) + 走带控制 */
+  .pv-ctrl { display:flex; flex-direction:column; gap:7px; }
+  .pv-ctrl .row{ display:flex; align-items:center; gap:10px; }
+  .pv-ctrl .tl{ flex:1; height:8px; background:var(--field); border-radius:4px; position:relative; cursor:pointer; border:1px solid var(--border); }
+  .pv-ctrl .tl .played{ position:absolute; left:0; top:0; bottom:0; width:0; background:linear-gradient(90deg,var(--blue-dim),var(--blue)); border-radius:4px; }
+  .pv-ctrl .tl .ph2{ position:absolute; left:0; top:-4px; width:3px; height:16px; background:var(--blue); border-radius:1px; box-shadow:0 0 6px var(--blue); }
+  .pv-ctrl .tl .sel{ position:absolute; left:0; width:0; top:-1px; bottom:-1px; background:rgba(167,139,250,.30); border:1px solid var(--overlay); border-radius:4px; display:none; pointer-events:none; }
+  .pv-ctrl .t{ font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .pv-ctrl .meta{ font-size:11.5px; color:var(--faint); }
+  .pv-ctrl .chip{ font-size:11px; color:var(--periw); border:1px solid var(--border); border-radius:9px; padding:3px 11px; cursor:pointer; user-select:none; }
+  .pv-ctrl .chip:hover{ border-color:var(--mauve); color:var(--fg); }
+  .pv-ctrl .chip.on{ background:rgba(167,139,250,.16); border-color:var(--overlay); color:var(--overlay); }
 
-  /* 左：轨道头列（方案 A） */
-  .heads {
-    width: 232px; flex-shrink: 0; background: var(--panel);
-    border-right: 1px solid var(--border); overflow-y: auto;
-  }
-  .heads-top {
-    height: 30px; display: flex; align-items: center; padding: 0 12px;
-    font-size: 11px; letter-spacing: .5px; text-transform: uppercase;
-    color: var(--periw); font-weight: 600;
-    border-bottom: 1px solid var(--border-lo);
-  }
-  .thead {
-    height: 84px; padding: 9px 12px; display: flex; flex-direction: column; gap: 7px;
-    border-bottom: 1px solid var(--border-lo);
-  }
-  .thead .row1 { display: flex; align-items: center; gap: 8px; }
-  .thead .swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
-  .thead .tname { font-size: 13px; font-weight: 600; color: var(--fg); }
-  .thead .tkind { font-size: 11px; color: var(--faint); margin-left: auto; }
-  .thead .row2 { display: flex; align-items: center; gap: 6px; }
-  .ms {
-    width: 24px; height: 24px; border-radius: 5px; cursor: pointer;
-    font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
-    background: var(--field); border: 1px solid var(--border); color: var(--text2, var(--fg2));
-    color: var(--fg2); user-select: none;
-  }
-  .ms.m.on { background: var(--err); color: #fff; border-color: var(--err); }
-  .ms.s.on { background: var(--warn); color: #1e1f22; border-color: var(--warn); }
-  .vol {
-    flex: 1; height: 6px; border-radius: 3px; position: relative; cursor: pointer;
-    background: var(--field); border: 1px solid var(--border); min-width: 40px;
-  }
-  .vol .fill {
-    position: absolute; left: 0; top: 0; bottom: 0;
-    background: linear-gradient(90deg, var(--blue-dim), var(--blue));
-    border-radius: 3px;
-  }
-  .vol .knob {
-    position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%;
-    background: #fff; transform: translate(-50%, -50%); box-shadow: 0 1px 3px rgba(0,0,0,.5);
-  }
-  .thead .pct { font-size: 11px; color: var(--muted); width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
-  /* 对白：只读占位（混在视频原声里，无独立 M/S/音量） */
-  .thead.readonly { opacity: .62; }
-  .thead.readonly .ro-tag {
-    font-size: 11px; color: var(--faint);
-    border: 1px dashed var(--border); border-radius: 5px; padding: 3px 8px;
-  }
+  /* 右：LLM 对话面板（辅助·克制：收窄+弱背景+标题降级） */
+  .chat-col { flex:1 1 0; min-width:0; max-width:360px; display:flex; flex-direction:column; background:var(--navy); border:1px solid var(--border-lo); border-radius:11px; overflow:hidden; }
+  .chat-hd { display:flex; align-items:center; gap:8px; padding:9px 13px; border-bottom:1px solid var(--border-lo); flex-shrink:0; }
+  .chat-hd .t{ font-size:11.5px; font-weight:600; color:var(--periw); }
+  .chat-hd .seg{ margin-left:auto; font-size:10px; color:var(--overlay); background:rgba(167,139,250,.12); border:1px solid #4a3d6e; border-radius:9px; padding:2px 9px; white-space:nowrap; }
+  .chat-body{ flex:1; overflow:auto; padding:12px 14px; display:flex; flex-direction:column; gap:9px; min-height:120px; }
+  .msg{ font-size:12px; line-height:1.55; padding:8px 11px; border-radius:9px; max-width:90%; word-break:break-word; }
+  .msg.sys{ align-self:center; color:var(--faint); font-size:11px; background:none; max-width:100%; text-align:center; }
+  .msg.u{ align-self:flex-end; background:rgba(74,158,255,.12); color:var(--fg2); }
+  .msg.a{ align-self:flex-start; background:var(--panel); color:var(--fg2); }
+  .msg.a .emo{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .msg.a .tag{ font-size:10.5px; color:#9bd6a4; border:1px solid #2c5a44; border-radius:8px; padding:1px 8px; }
+  .msg.a .tags{ margin-top:6px; font-size:11px; color:var(--periw); font-style:italic; }
+  .msg.a .gen{ margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+  .msg.a .gbtn{ font-size:11.5px; border-radius:7px; padding:5px 12px; cursor:pointer; border:none; }
+  .msg.a .gbtn.bgm{ background:linear-gradient(135deg,var(--bgm),#6a5fb0); color:#fff; }
+  .msg.a .gbtn.sfx{ background:linear-gradient(135deg,var(--sfx),#3aa978); color:#06231a; font-weight:600; }
+  .msg.a .gbtn:disabled{ opacity:.5; cursor:default; }
+  .msg.err{ align-self:flex-start; background:rgba(229,90,90,.12); color:var(--err); }
+  .chat-foot{ display:flex; gap:8px; padding:10px 14px; border-top:1px solid var(--border-lo); flex-shrink:0; }
+  .chat-foot input{ flex:1; background:var(--field); border:1px solid var(--border); border-radius:7px; color:var(--fg); padding:7px 10px; font-size:12.5px; }
+  .chat-foot .send{ background:var(--panel2); color:var(--fg2); border:1px solid var(--border); border-radius:7px; padding:7px 14px; font-size:12.5px; cursor:pointer; }
+  .chat-foot .recog{ background:rgba(74,158,255,.14); color:var(--blue); border:1px solid var(--blue-dim); border-radius:7px; padding:7px 12px; font-size:12px; cursor:pointer; white-space:nowrap; }
+  .chat-foot .recog:disabled,.chat-foot .send:disabled{ opacity:.5; cursor:default; }
 
-  /* 右：时间线区（标尺 + 波形轨 + 播放头） */
-  .timeline { flex: 1; position: relative; overflow: auto; background: var(--bg); }
-  .tl-inner { position: relative; min-width: 1400px; }
-  .ruler {
-    height: 30px; position: sticky; top: 0; z-index: 5;
-    background: var(--navy); border-bottom: 1px solid var(--border-lo);
-  }
-  .ruler canvas { display: block; width: 100%; height: 30px; }
-  .trk {
-    height: 84px; border-bottom: 1px solid var(--border-lo); position: relative;
-  }
-  /* wavesurfer 渲染容器（每轨一个 WaveSurfer 实例挂这里） */
-  .wave-host {
-    position: absolute; inset: 0; padding: 10px 0;
-    display: flex; align-items: center;
-  }
-  .wave-host > div { width: 100%; }
-  /* 无音源时的静态占位提示（覆盖在容器上，加载真实音频后由 JS 隐藏） */
-  .wave-ph {
-    position: absolute; inset: 0; display: flex; align-items: center; padding-left: 12px;
-    font-size: 11px; color: var(--faint); pointer-events: none;
-  }
-  .trk.readonly .wave-host { opacity: .62; }
-  /* 片段块叠在波形画布上（标注 clip 名 / 区间） */
-  .clip {
-    position: absolute; top: 12px; bottom: 12px; border-radius: 5px; z-index: 3;
-    display: flex; align-items: center; padding: 0 9px; overflow: hidden;
-    font-size: 11.5px; color: #fff; border: 1px solid rgba(255,255,255,.18);
-    box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: grab;
-  }
-  .clip .lab { font-weight: 600; white-space: nowrap; }
-  .clip .sub { margin-left: 8px; opacity: .7; font-size: 10.5px; }
+  /* ② 多轨道 DAW —— 4 固定主轨常驻 + 叠加轨内部滚动 */
+  .daw { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--border); border-radius:11px; overflow:hidden; position:relative; }
+  .THEAD_W{}  /* 轨道头列宽度统一变量：见 --thw */
+  .daw{ --thw:140px; --pps:58px; }   /* thw=轨头宽; pps=px/秒（与 ruler/playhead 对齐） */
 
-  /* 播放头：贯穿标尺 + 所有轨 */
-  .playhead {
-    position: absolute; top: 0; bottom: 0; width: 2px; z-index: 8;
-    background: var(--blue); pointer-events: none;
-    box-shadow: 0 0 8px var(--blue);
-  }
-  .playhead::before {
-    content: ''; position: absolute; top: 0; left: -5px;
-    border-left: 6px solid transparent; border-right: 6px solid transparent;
-    border-top: 8px solid var(--blue);
-  }
+  .ruler { height:24px; background:var(--navy); border-bottom:1px solid var(--border-lo); position:relative; flex-shrink:0; overflow:hidden; }
+  .ruler canvas{ display:block; height:24px; position:absolute; left:var(--thw); top:0; }
+  .ruler .lab{ position:absolute; left:0; top:0; width:var(--thw); height:24px; display:flex; align-items:center; padding-left:12px; font-size:10px; color:var(--periw); border-right:1px solid var(--border-lo); box-sizing:border-box; }
 
-  /* ---------- 卡点（accent）标记带 ---------- */
-  .accents { position: absolute; top: 30px; left: 0; right: 0; height: 0; z-index: 6; }
-  .accent {
-    position: absolute; top: 0; width: 0; height: 100%;
-    border-left: 1px dashed var(--mauve); opacity: .5;
-  }
-  .accent.big { border-left-color: var(--done); opacity: .85; }
-  .accent .dot {
-    position: absolute; top: -2px; left: -4px; width: 8px; height: 8px;
-    border-radius: 50%; background: var(--mauve);
-  }
-  .accent.big .dot { background: var(--done); box-shadow: 0 0 6px var(--done); }
+  .tracks-fixed { flex-shrink:0; position:relative; }
+  .tracks-overlay { flex:1; min-height:0; overflow-y:auto; position:relative; }
 
-  /* ---------- 底部状态/标注条 ---------- */
-  .foot {
-    padding: 9px 20px; border-top: 1px solid var(--border-lo);
-    background: var(--navy); display: flex; align-items: center; gap: 16px;
-    color: var(--muted); font-size: 12px; flex-wrap: wrap;
-  }
-  .foot .legend { display: inline-flex; align-items: center; gap: 6px; }
-  .foot .legend .sw { width: 11px; height: 11px; border-radius: 3px; }
-  .foot .note { color: var(--faint); }
-  .foot .spacer { flex: 1; }
-  .foot .api {
-    font-family: Consolas, monospace; font-size: 11px; color: var(--blue);
-    background: rgba(74,158,255,.1); border: 1px solid var(--blue-dim);
-    padding: 2px 8px; border-radius: 10px;
-  }
+  /* 播放头：贯穿固定轨（叠加轨内部滚动，单独画头不便，故只贯穿固定区 + ruler） */
+  .playhead { position:absolute; top:0; bottom:0; width:2px; background:var(--blue); z-index:6; pointer-events:none; box-shadow:0 0 8px var(--blue); left:var(--thw); }
+  .ph-ruler { position:absolute; top:0; height:24px; width:2px; background:var(--blue); z-index:7; pointer-events:none; left:var(--thw); }
+
+  .track { display:flex; align-items:stretch; height:60px; border-bottom:1px solid var(--border-lo); }
+  .track .thead { width:var(--thw); flex-shrink:0; background:var(--navy); border-right:1px solid var(--border-lo); padding:8px 10px; display:flex; flex-direction:column; gap:5px; box-sizing:border-box; }
+  .track .thead .nm{ font-size:12px; font-weight:600; display:flex; align-items:center; gap:6px; }
+  .track .thead .nm .dot{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+  .track .thead .nm .x{ margin-left:auto; font-size:11px; color:var(--muted); cursor:pointer; padding:0 3px; }
+  .track .thead .nm .x:hover{ color:var(--err); }
+  .track .thead .ctl{ display:flex; gap:5px; align-items:center; }
+  .track .thead .b{ font-size:9.5px; color:var(--muted); border:1px solid var(--border); border-radius:4px; padding:1px 6px; cursor:pointer; user-select:none; }
+  .track .thead .b.m.on{ background:var(--err); color:#fff; border-color:var(--err); }
+  .track .thead .b.s.on{ background:var(--warn); color:#1e1f22; border-color:var(--warn); }
+  .track .thead .ro{ font-size:9.5px; color:var(--faint); border:1px dashed var(--border); border-radius:4px; padding:2px 6px; }
+  .track .lane { flex:1; position:relative; overflow:hidden; background:repeating-linear-gradient(90deg,transparent,transparent calc(var(--pps) - 1px),var(--border-lo) calc(var(--pps) - 1px),var(--border-lo) var(--pps)); }
+  .track .lane .wave-host{ position:absolute; inset:0; display:flex; align-items:center; pointer-events:none; }
+  .track .lane .wave-ph{ position:absolute; inset:0; display:flex; align-items:center; padding-left:10px; font-size:10.5px; color:var(--faint); pointer-events:none; }
+  .clip { position:absolute; top:8px; bottom:8px; border-radius:6px; display:flex; align-items:center; padding:0 8px; font-size:10.5px; font-weight:600; overflow:hidden; z-index:3; border:1px solid rgba(255,255,255,.18); box-shadow:0 1px 4px rgba(0,0,0,.3); }
+  .clip .lab{ white-space:nowrap; } .clip .sub{ margin-left:7px; opacity:.7; font-size:9.5px; font-weight:400; }
+  .lane.video .clip{ background:linear-gradient(180deg,var(--video),#3a7fcc); color:#06122a; }
+  .lane.bgm .clip{ background:linear-gradient(180deg,var(--bgm),#6a5fb0); color:#fff; }
+  .lane.sfx .clip{ background:linear-gradient(180deg,var(--sfx),#3aa978); color:#06231a; }
+  .lane.dialogue .clip{ background:linear-gradient(180deg,var(--dialogue),#c2893f); color:#231603; }
+  .lane.overlay { background:#1a1626; }
+  .lane.overlay .clip{ background:repeating-linear-gradient(45deg,var(--overlay),var(--overlay) 6px,#7a5fd0 6px,#7a5fd0 12px); color:#fff; }
+  .clip.overlay-clip .x{ margin-left:6px; cursor:pointer; opacity:.85; } .clip.overlay-clip .x:hover{ opacity:1; }
+
+  /* 卡点标记带（贯穿固定轨区） */
+  .accents{ position:absolute; left:var(--thw); top:24px; right:0; bottom:0; z-index:5; pointer-events:none; }
+  .accent{ position:absolute; top:0; bottom:0; width:0; border-left:1px dashed var(--mauve); opacity:.5; }
+  .accent.big{ border-left-color:var(--done); opacity:.85; }
+  .accent .dot{ position:absolute; top:26px; left:-4px; width:8px; height:8px; border-radius:50%; background:var(--mauve); }
+  .accent.big .dot{ background:var(--done); box-shadow:0 0 6px var(--done); }
+
+  /* 叠加区分隔头 */
+  .ov-head { display:flex; align-items:center; gap:8px; padding:6px 12px; background:#15121f; border-bottom:1px solid var(--border-lo); font-size:11px; color:var(--mauve); flex-shrink:0; }
+  .ov-head .add{ margin-left:auto; font-size:11px; color:var(--blue); border:1px solid var(--blue-dim); border-radius:6px; padding:3px 10px; cursor:pointer; }
+  .ov-head .add:hover{ background:rgba(74,158,255,.12); }
+  .ov-empty{ padding:14px; font-size:11.5px; color:var(--faint); text-align:center; }
+
+  /* 底栏图例 + 状态 */
+  .foot { flex-shrink:0; display:flex; align-items:center; gap:14px; font-size:11.5px; color:var(--muted); flex-wrap:wrap; }
+  .foot .lg{ display:flex; align-items:center; gap:6px; } .foot .sw{ width:11px; height:11px; border-radius:3px; }
+  .foot .spacer{ flex:1; }
+  .foot .status{ color:var(--periw); }
+  .foot .api{ font-family:Consolas,monospace; font-size:11px; color:var(--blue); background:rgba(74,158,255,.1); border:1px solid var(--blue-dim); padding:2px 8px; border-radius:10px; }
+
+  @media (max-width:960px){ .preview{ flex-direction:column; } .video-box{ max-width:100%; width:100%; } .chat-col{ max-width:100%; } }
 </style>
 </head>
 <body>
 <!-- 壳内容页：标题栏/侧栏由 web/app.html（糯米 AI）统一提供，本页不自带 -->
-<div class="daw">
 
-  <!-- 顶部 -->
-  <div class="head">
-    <h1>⑥ 视频后期 · 配乐混音 DAW</h1>
-    <span class="style-pill" id="stylePill">整体风格：（未加载）</span>
-    <span class="spacer"></span>
-    <button class="ghost" id="btnAccentDetect" title="POST /soundtrack/accent/detect 光流爆点检测">⚡ 检测卡点</button>
-    <button class="ghost" id="btnAccentMix" title="POST /soundtrack/accent/mix 卡点泵感试听">⚡ 卡点混音</button>
-    <button class="ghost" id="btnSfxDetect" title="POST /soundtrack/sfx/detect 镜头+LLM 规划 SFX">🔊 SFX 检测</button>
-    <button class="ghost" id="btnSfxGen" title="POST /soundtrack/sfx/generate 批量生成 SFX">🔊 SFX 生成</button>
-    <button class="ghost" id="btnScore" title="POST /soundtrack/advance 推进配乐管线">✦ 自动配乐</button>
-    <button class="ghost" id="btnMixdown" title="POST /soundtrack/mixdown 多轨下混出片">⬇ 出片</button>
+<div class="head">
+  <h1>⑥ 视频后期 · 配乐</h1>
+  <span class="style-pill" id="stylePill">整体风格：（未加载）</span>
+  <div class="sub">
+    <button class="btn load" id="btnLoadVideo" title="选择成片 mp4 → 预览 + 抽原声轨">📂 加载视频</button>
+    <button class="btn" id="btnScore" title="POST /soundtrack/advance 推进配乐管线">⚡ 自动配乐</button>
+    <button class="btn" id="btnAccentDetect" title="POST /soundtrack/accent/detect 光流爆点检测">⚡ 检测卡点</button>
+    <button class="btn" id="btnAccentMix" title="POST /soundtrack/accent/mix 卡点泵感试听">⚡ 卡点混音</button>
+    <button class="btn" id="btnSfxDetect" title="POST /soundtrack/sfx/detect 镜头+LLM 规划 SFX">🔊 SFX 检测</button>
+    <button class="btn" id="btnSfxGen" title="POST /soundtrack/sfx/generate 批量生成 SFX">🔊 SFX 生成</button>
+    <button class="btn gen" id="btnMixdown" title="POST /soundtrack/mixdown 多轨下混出片">⬇ 出片(混音)</button>
   </div>
+</div>
 
-  <!-- 走带控制 -->
-  <div class="transport">
-    <button class="tbtn" id="btnStart" title="回到开头">⏮</button>
-    <button class="tbtn play" id="btnPlay" title="播放/暂停">►</button>
-    <button class="tbtn" id="btnStop" title="停止">■</button>
-    <button class="tbtn rec" title="（占位）">●</button>
-    <span class="timecode"><span id="tcCur">00:00.0</span> <span class="total" id="tcTotal">/ 00:00.0</span></span>
-    <span class="meta" id="transportMeta">未加载会话 · POST /soundtrack/advance 推进管线</span>
-    <span class="spacer"></span>
-    <div class="master">
-      <span>主输出</span>
-      <input class="vrange" type="range" min="0" max="150" value="100" id="masterVol">
-      <span id="masterPct" style="width:34px;">100%</span>
+<div class="work">
+  <!-- ① 顶部：左视频预览(下方进度可框选) | 右 LLM 对话 -->
+  <div class="preview">
+    <div class="video-col">
+      <div class="video-box" id="videoBox">
+        <div class="ph" id="videoPh">点「加载视频」选择成片<br>预览 + 抽原声轨</div>
+        <video id="pvVideo" preload="metadata" playsinline></video>
+      </div>
+      <div class="pv-ctrl">
+        <div class="row">
+          <span class="t" id="tcCur">00:00.0</span>
+          <div class="tl" id="tl">
+            <span class="played" id="tlPlayed"></span>
+            <span class="sel" id="tlSel"></span>
+            <span class="ph2" id="tlHead"></span>
+          </div>
+          <span class="t" id="tcTotal">00:00.0</span>
+        </div>
+        <div class="row">
+          <span class="chip" id="chipPlay">▶ 播放</span>
+          <span class="chip" id="chipStop">■ 停止</span>
+          <span class="chip on" id="chipSelMode" title="开启后在进度条按住拖动 = 框选时段">▱ 框选时段</span>
+          <span class="meta" id="pvMeta">在进度条<b style="color:var(--overlay)">框选时段</b> → 右侧对话识别情绪 / 生成</span>
+        </div>
+      </div>
     </div>
-  </div>
 
-  <!-- DAW 主体 -->
-  <div class="stage">
-    <!-- 左：轨道头列 -->
-    <div class="heads" id="heads">
-      <div class="heads-top">轨道</div>
-      <!-- 轨道头由 JS 渲染 -->
-    </div>
-
-    <!-- 右：时间线 -->
-    <div class="timeline" id="timeline">
-      <div class="tl-inner" id="tlInner">
-        <div class="ruler"><canvas id="rulerCanvas"></canvas></div>
-        <!-- 卡点标记带 -->
-        <div class="accents" id="accents"></div>
-        <!-- 波形轨由 JS 渲染 -->
-        <div id="lanes"></div>
-        <!-- 播放头 -->
-        <div class="playhead" id="playhead" style="left:0;"></div>
+    <!-- 右：LLM 对话（选时段→识别情绪→overlay/generate 出 BGM/SFX，落叠加轨） -->
+    <div class="chat-col">
+      <div class="chat-hd"><span class="t">✦ 配乐对话 · 情绪分析助手</span><span class="seg" id="chatSeg">未选中区间</span></div>
+      <div class="chat-body" id="chatBody">
+        <div class="msg sys">框选视频时段 → 「识别本段情绪」分析画面情绪 → 「生成 BGM / SFX」经 ACE-Step 工作流出音频，落进下方叠加轨；可继续描述需求改 prompt 重生。</div>
+      </div>
+      <div class="chat-foot">
+        <button class="recog" id="btnRecog" title="POST /soundtrack/analyze_segment 抽帧分析所选时段情绪">识别本段情绪</button>
+        <input type="text" id="chatInput" placeholder="描述需求 / 调整（如：再忧伤些、加心跳声、换欢快）…">
+        <button class="send" id="btnSend">发送</button>
       </div>
     </div>
   </div>
 
-  <!-- 底部标注 -->
+  <!-- ② 多轨道 -->
+  <div class="daw" id="daw">
+    <div class="ruler" id="ruler">
+      <span class="lab">轨道</span>
+      <canvas id="rulerCanvas"></canvas>
+    </div>
+
+    <!-- 4 固定主轨：常驻不滚 + 卡点带 + 播放头 -->
+    <div class="tracks-fixed" id="tracksFixed">
+      <div class="accents" id="accents"></div>
+      <div class="playhead" id="playhead"></div>
+      <!-- 轨道由 JS 渲染 -->
+    </div>
+
+    <!-- ③ 动态叠加轨：此区内部滚动（固定轨永远可见） -->
+    <div class="ov-head">动态叠加轨（框选区间 + prompt → 生成 BGM/SFX，可无限新增 · 此区滚动）
+      <span class="add" id="btnAddOverlay" title="用当前框选时段手动新增一条叠加（弹 prompt）">＋ 新增叠加</span>
+    </div>
+    <div class="tracks-overlay" id="tracksOverlay">
+      <div class="ov-empty" id="ovEmpty">暂无叠加片段 · 框选时段后在右侧对话「生成 BGM/SFX」即可新增</div>
+    </div>
+  </div>
+
   <div class="foot">
-    <span class="legend"><span class="sw" style="background:#8a5aa8;"></span>原声/对白</span>
-    <span class="legend"><span class="sw" style="background:var(--done);"></span>BGM</span>
-    <span class="legend"><span class="sw" style="background:var(--warn);"></span>SFX</span>
-    <span class="legend"><span class="sw" style="background:var(--done);border-radius:50%;"></span>大爆点</span>
-    <span class="legend"><span class="sw" style="background:var(--mauve);border-radius:50%;"></span>普通卡点</span>
+    <span class="lg"><i class="sw" style="background:var(--video)"></i>原声</span>
+    <span class="lg"><i class="sw" style="background:var(--bgm)"></i>BGM</span>
+    <span class="lg"><i class="sw" style="background:var(--sfx)"></i>SFX</span>
+    <span class="lg"><i class="sw" style="background:var(--dialogue)"></i>对白</span>
+    <span class="lg"><i class="sw" style="background:var(--overlay)"></i>动态叠加(斜纹)</span>
+    <span class="lg"><i class="sw" style="background:var(--blue);width:3px"></i>播放头(与视频同步)</span>
     <span class="spacer"></span>
-    <span class="note" id="footNote">wavesurfer.js 真实波形 · 播放头本地驱动（后端无 WS）</span>
-    <span class="api">POST /soundtrack/{advance,mixdown,accent,sfx,overlay}</span>
+    <span class="status" id="footStatus">未加载会话</span>
+    <span class="api">POST /soundtrack/{advance,mixdown,accent,sfx,overlay,analyze_segment}</span>
   </div>
 </div>
 
 <script>
-/* ===== 接活：后端约定（照视频/配音样板） =====
+/* ===== 接活：后端约定（照视频/配音样板 + media_agent/routes/soundtrack.py） =====
    MEDIA_API：media_agent，默认 18450；?media= 覆盖。本页全部走 /soundtrack/* 路由。
    PROJECT_DIR：壳把 ?project= 转发进来；配乐会话以 work_dir 为锚（facade 读写 work_dir/session.json）。
-     约定 work_dir = PROJECT_DIR + '/soundtrack'（与图生视频 PROJECT_DIR+'/video' 同套路；可由 ?workdir= 覆盖）。
-   VIDEO：成片 mp4 路径（accent/detect、sfx/detect、首次 advance 新建会话需要）；?video= 传入。
-   真实端点契约（见 media_agent/routes/soundtrack.py）：
+     约定 work_dir = PROJECT_DIR + '/soundtrack'（可由 ?workdir= 覆盖）。
+   VIDEO：成片 mp4 路径（?video= 传入；也可点「加载视频」手填）。
+   真实端点契约（见 soundtrack.py）：
      POST /soundtrack/advance  {work_dir, video?, global_style?, workflow_id, seeds_count, stop_after}
        → {stop_after, output, segments:[{index,t_start,t_end,duration,status,music_prompt,
             n_candidates,chosen_candidate,chosen_path,volume,emotion}], accents:[{t,intensity,confirmed}], global_style}
-     POST /soundtrack/mixdown  {work_dir,...} → {output: 成片 mp4}
+     POST /soundtrack/mixdown  {work_dir,...} → {output}
      POST /soundtrack/accent/detect {video, work_dir?} → {accents:[{t,intensity,confirmed}]}
-     POST /soundtrack/accent/mix    {work_dir,...}     → {preview: bgm wav}
-     POST /soundtrack/sfx/detect    {video, work_dir}  → {source_mp4, sfx_planned, shots:[{shot_index,t_start,t_end,...,chosen_path}]}
-     POST /soundtrack/sfx/generate  {work_dir}         → 同上 view（含 chosen_path）
-     POST /soundtrack/overlay/{generate,list,remove}   → {segment}/{segments}
-   后端无 WS / 无服务端播放头（见 soundtrack.py docstring）：播放头本地定时器驱动。
-   后端只产出本地音频/会话静态产物；media_agent 仅 /ui 静态托管 web/，无通用文件服务端点，
-   故波形/回放统一经 media_agent GET /file 端点取本地媒体（http 壳里禁 file://，会色块/取不到波形；
-   与 dub-mode2 / asset-library / compose 同约定 mediaUrl()）。 */
+     POST /soundtrack/accent/mix    {work_dir,...}     → {preview}
+     POST /soundtrack/sfx/detect    {video, work_dir}  → {source_mp4, sfx_planned, shots:[...]}
+     POST /soundtrack/sfx/generate  {work_dir}         → 同上 view
+     POST /soundtrack/overlay/generate {work_dir,kind,prompt,t_start,t_end,seg_id?} → {segment:{id,kind,lane,t_start,t_end,prompt,audio_path,volume,enabled,status}}
+     POST /soundtrack/overlay/list  {work_dir}          → {segments:[...]}
+     POST /soundtrack/overlay/remove{work_dir,seg_id}   → {removed, segments}
+     POST /soundtrack/analyze_segment {video,start_sec,end_sec,hint?}
+       → {labels:[英文情绪 2-4], valence(-1..1), arousal(0..1), intensity(0..1), suggested_tags(ACE-Step tags 串)}
+        （后端复用 emotion_tagger 多帧 vision 逻辑对所选时段抽帧分析；未就绪时本页降级提示，不崩。）
+   后端无 WS / 无服务端播放头：播放/走带是纯前端职责。视频 timeupdate 驱动轨道播放头。
+   波形/回放统一经 media_agent GET /file 取本地媒体（http 壳禁 file://）。 */
 const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450';
 const PROJECT_DIR = new URLSearchParams(location.search).get('project') || '';
 const WORK_DIR = new URLSearchParams(location.search).get('workdir')
   || (PROJECT_DIR ? PROJECT_DIR.replace(/[\\/]+$/, '') + '/soundtrack' : '');
-const VIDEO = new URLSearchParams(location.search).get('video') || '';
+let VIDEO = new URLSearchParams(location.search).get('video') || '';
 
-/* 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://，否则 wavesurfer 取不到波形）。
-   走 media_agent GET /file?path=…[&project=…]：绝对路径直读，相对路径附 project 解析。 */
+/* 本地媒体 URL 助手（替代 file://）。走 media_agent GET /file?path=…[&project=…]。 */
 function mediaUrl(p) {
   if (!p) return '';
   if (/^(https?:|data:|blob:)/.test(p)) return p;
@@ -303,7 +276,6 @@ function mediaUrl(p) {
   if (PROJECT_DIR && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += '&project=' + encodeURIComponent(PROJECT_DIR);
   return u;
 }
-/* 波形/音频源 src（保留原函数名，内部改走 mediaUrl —— wavesurfer ws.load(fileSrc(path)) 即走 /file）。 */
 function fileSrc(p) { return mediaUrl(p); }
 
 async function postJSON(path, body) {
@@ -316,254 +288,279 @@ async function postJSON(path, body) {
   try { data = await resp.json(); } catch (e) {}
   if (!resp.ok) {
     const msg = (data && (data.detail || (data.error && (data.error.hint || data.error.message)))) || ('HTTP ' + resp.status);
-    throw new Error(msg);
+    const err = new Error(msg); err.status = resp.status; throw err;
   }
   return data;
 }
 
-/* 时间线：总时长来自会话（段末或成片）；无会话时给一个占位时长仅用于画空标尺。 */
-let TOTAL = 24.0;            // 成片总时长（秒）——由 setTotal() 按真实会话覆盖
-const PX_PER_SEC = 58;       // 时间线缩放
+/* 时间线：总时长来自视频元数据 / 会话末段 / 成片。无源时给占位时长仅画空标尺。 */
+let TOTAL = 24.0;
+const PX_PER_SEC = 58;       // 与 CSS --pps 一致
 let TL_WIDTH = TOTAL * PX_PER_SEC;
 
-/* 真机由 setTrackSrc(trackId, url) 注入各轨音源（成片/BGM/SFX 输出）；
-   无后端会话时为空 → 各轨显示静态占位，不渲染波形（不再用 CDN demo 假音源）。 */
+/* 各轨音源（成片/BGM/SFX 输出）；无后端会话时为空 → 占位，不渲染波形。 */
 const TRACK_SRC = { orig: null, bgm: null, sfx: null, dlg: null };
 
-/* 轨道定义（取自确认稿：原声/BGM/SFX 三轨 + 对白只读占位）。
-   clips 初始为空，由真实会话 segments / sfx shots / overlay 填充。 */
+/* 4 条固定主轨（确认稿：原声/BGM/SFX/对白）。clips 由真实会话填充。 */
 const TRACKS = [
-  { id: 'orig', name: '视频原声', kind: 'AUDIO', color: '#3a5a8a', vol: 100, mute: false, solo: false, clips: [] },
-  { id: 'bgm',  name: 'BGM',     kind: 'MUSIC', color: '#4ec98f', vol: 80,  mute: false, solo: false, clips: [] },
-  { id: 'sfx',  name: 'SFX',     kind: 'FX',    color: '#c2884c', vol: 100, mute: false, solo: false, clips: [] },
-  { id: 'dlg',  name: '对白',    kind: '只读',  color: '#8a5aa8', readonly: true, clips: [] }
+  { id: 'orig', name: '原声', color: 'var(--video)',    vol: 100, mute: false, solo: false, clips: [] },
+  { id: 'bgm',  name: 'BGM',  color: 'var(--bgm)',      vol: 80,  mute: false, solo: false, clips: [] },
+  { id: 'sfx',  name: 'SFX',  color: 'var(--sfx)',      vol: 100, mute: false, solo: false, clips: [] },
+  { id: 'dlg',  name: '对白', color: 'var(--dialogue)', readonly: true, clips: [] },
 ];
 
-/* 卡点（accent points）—— 由 /accent/detect 或 advance 返回填充；big = 高强度 */
+/* 叠加片段（overlay.json）：{id,kind,lane,t_start,t_end,prompt,audio_path,status,...} */
+let OVERLAYS = [];
+/* 卡点（accent points）：{t,intensity,confirmed} */
 let ACCENTS = [];
+const ACCENT_BIG_THRESHOLD = 0.7;
 
-/* ---------- 渲染：轨道头列（方案 A） ---------- */
-function renderHeads() {
-  const root = document.getElementById('heads');
-  root.querySelectorAll('.thead').forEach(n => n.remove());   // 保留 .heads-top，清旧轨头
-  TRACKS.forEach((t, i) => {
-    const el = document.createElement('div');
-    el.className = 'thead' + (t.readonly ? ' readonly' : '');
-    if (t.readonly) {
-      el.innerHTML = `
-        <div class="row1">
-          <span class="swatch" style="background:${t.color}"></span>
-          <span class="tname">${t.name}</span>
-          <span class="tkind">${t.kind}</span>
-        </div>
-        <div class="row2"><span class="ro-tag">只读 · 混在原声内，无独立 M/S/音量</span></div>`;
-    } else {
-      el.innerHTML = `
-        <div class="row1">
-          <span class="swatch" style="background:${t.color}"></span>
-          <span class="tname">${t.name}</span>
-          <span class="tkind">${t.kind}</span>
-        </div>
-        <div class="row2">
-          <span class="ms m ${t.mute ? 'on' : ''}" data-trk="${i}" data-k="m">M</span>
-          <span class="ms s ${t.solo ? 'on' : ''}" data-trk="${i}" data-k="s">S</span>
-          <span class="vol" data-trk="${i}">
-            <span class="fill" style="width:${t.vol / 1.5}%"></span>
-            <span class="knob" style="left:${t.vol / 1.5}%"></span>
-          </span>
-          <span class="pct" id="pct-${i}">${t.vol}%</span>
-        </div>`;
-    }
-    root.appendChild(el);
-  });
-}
-
-/* ---------- wavesurfer 实例池（每轨一个；id -> WaveSurfer） ---------- */
-const WS = {};            // { trackId: WaveSurfer }
-const wsReady = {};       // { trackId: bool } 是否已 ready（用于联动播放/跳转）
-
-/* hex 颜色转 rgba（给波形 progress/wave 上不同透明度） */
-function rgba(hex, a) {
-  const m = hex.replace('#', '');
-  const r = parseInt(m.substring(0, 2), 16);
-  const g = parseInt(m.substring(2, 4), 16);
-  const b = parseInt(m.substring(4, 6), 16);
+/* hex/var 颜色 → rgba（var(--x) 直接交给浏览器，hex 自算透明度）。 */
+function withAlpha(color, a) {
+  if (color.indexOf('#') !== 0) return color;     // CSS 变量：波形条用纯色即可
+  const m = color.replace('#', '');
+  const r = parseInt(m.substring(0, 2), 16), g = parseInt(m.substring(2, 4), 16), b = parseInt(m.substring(4, 6), 16);
   return `rgba(${r},${g},${b},${a})`;
 }
+/* 把 CSS 变量解析成真实色值（wavesurfer 不认 var()）。 */
+function resolveColor(c) {
+  if (c.indexOf('var(') !== 0) return c;
+  const name = c.slice(4, -1).trim();
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
+}
 
-/* 创建一条音轨的 WaveSurfer 实例并渲染真实波形。
-   宽度铺满时间线（TL_WIDTH），与标尺/卡点像素对齐。 */
-function makeWave(track, hostEl, phEl) {
-  if (typeof WaveSurfer === 'undefined') return null;  // CDN 未加载（离线）→ 保留占位
+/* ---------- wavesurfer 实例池（每轨/每叠加片段一个） ---------- */
+const WS = {};            // { hostKey: WaveSurfer }
+const wsReady = {};       // { hostKey: bool }
+
+function makeWave(hostEl, color) {
+  if (typeof WaveSurfer === 'undefined') return null;
+  const c = resolveColor(color);
   const ws = WaveSurfer.create({
-    container: hostEl,
-    width: TL_WIDTH,
-    height: 60,
-    waveColor: rgba(track.color, 0.55),
-    progressColor: rgba(track.color, 0.95),
-    cursorColor: 'transparent',     // 播放头由全局 .playhead 统一画，关掉每轨游标
-    barWidth: 2, barGap: 1, barRadius: 2,
-    normalize: true,
-    interact: false,                // 定位走全局时间线点击 → 统一 seek
-    media: undefined,
+    container: hostEl, height: 44,
+    waveColor: withAlpha(c, 0.55), progressColor: withAlpha(c, 0.95),
+    cursorColor: 'transparent', barWidth: 2, barGap: 1, barRadius: 2, normalize: true,
+    interact: false,
   });
-  ws.on('ready', () => {
-    wsReady[track.id] = true;
-    if (phEl) phEl.style.display = 'none';   // 隐藏静态占位
-    // 音量 = 主输出 × 本轨音量；静音/独奏状态由 applyMuteSolo 接管
-    const master = (parseInt(document.getElementById('masterVol').value, 10) || 100) / 100;
-    try { ws.setVolume(Math.min(1, master * ((track.vol || 100) / 100))); } catch (e) {}
-    if (playing) { try { ws.play(); ws.seekTo(Math.max(0, Math.min(1, cur / (ws.getDuration() || TOTAL)))); } catch (e) {} }
-    applyMuteSolo();
-  });
-  ws.on('error', () => { if (phEl) phEl.textContent = '（波形加载失败：路径不可达 / 非音频）'; });
   return ws;
 }
 
-/* 对外接口：把 media_agent 成片/BGM/SFX 输出本地路径接到某条轨（自动 file:// 化）。
-   真机：setTrackSrc('orig', sess.output) / setTrackSrc('bgm', accentPreviewWav) 等。 */
+/* 对外：把本地音频路径接到某条固定主轨（自动 mediaUrl 化）。 */
 function setTrackSrc(trackId, path) {
   TRACK_SRC[trackId] = path || null;
-  const ws = WS[trackId];
+  const key = 'trk-' + trackId;
+  const ws = WS[key];
   const phEl = document.getElementById('waveph-' + trackId);
-  if (!ws || !path) { if (phEl) { phEl.style.display = ''; } wsReady[trackId] = false; return; }
-  wsReady[trackId] = false;
+  if (!ws) return;
+  if (!path) { if (phEl) phEl.style.display = ''; wsReady[key] = false; return; }
+  wsReady[key] = false;
   if (phEl) { phEl.style.display = ''; phEl.textContent = '加载波形…'; }
+  ws.un && ws.unAll && ws.unAll();
+  ws.on('ready', () => { wsReady[key] = true; if (phEl) phEl.style.display = 'none'; applyMuteSolo(); });
+  ws.on('error', () => { if (phEl) phEl.textContent = '（波形加载失败：路径不可达/非音频）'; });
   try { ws.load(fileSrc(path)); } catch (e) { if (phEl) phEl.textContent = '（波形加载失败）'; }
 }
-window.setTrackSrc = setTrackSrc;   // 暴露给主控/壳调用
+window.setTrackSrc = setTrackSrc;
 
-/* ---------- 渲染：波形轨（wavesurfer 容器）+ clip 块 ----------
-   可重复调用：先销毁旧 WaveSurfer 实例 + 清空 lanes，再按当前 TRACKS/TRACK_SRC 重建。 */
-function renderLanes() {
-  const lanes = document.getElementById('lanes');
-  Object.keys(WS).forEach(id => { try { WS[id].destroy(); } catch (e) {} delete WS[id]; delete wsReady[id]; });
-  lanes.innerHTML = '';
-  document.getElementById('tlInner').style.width = TL_WIDTH + 'px';
-  TRACKS.forEach((t) => {
+/* ---------- 渲染：4 固定主轨 ---------- */
+function renderFixedTracks() {
+  const root = document.getElementById('tracksFixed');
+  // 仅清旧 .track（保留 accents / playhead）
+  root.querySelectorAll('.track').forEach(n => n.remove());
+  Object.keys(WS).filter(k => k.indexOf('trk-') === 0).forEach(k => { try { WS[k].destroy(); } catch (e) {} delete WS[k]; delete wsReady[k]; });
+
+  TRACKS.forEach((t, i) => {
     const trk = document.createElement('div');
-    trk.className = 'trk' + (t.readonly ? ' readonly' : '');
+    trk.className = 'track';
+    const head = document.createElement('div');
+    head.className = 'thead';
+    if (t.readonly) {
+      head.innerHTML = `<div class="nm"><span class="dot" style="background:${t.color}"></span>${t.name}</div>
+        <div class="ctl"><span class="ro">只读 · 混在原声</span></div>`;
+    } else {
+      head.innerHTML = `<div class="nm"><span class="dot" style="background:${t.color}"></span>${t.name}</div>
+        <div class="ctl">
+          <span class="b m ${t.mute ? 'on' : ''}" data-trk="${i}" data-k="m">M</span>
+          <span class="b s ${t.solo ? 'on' : ''}" data-trk="${i}" data-k="s">S</span>
+        </div>`;
+    }
+    trk.appendChild(head);
 
-    // wavesurfer 渲染容器
-    const host = document.createElement('div');
-    host.className = 'wave-host';
-    host.id = 'wavehost-' + t.id;
-    trk.appendChild(host);
+    const lane = document.createElement('div');
+    lane.className = 'lane ' + (t.id === 'orig' ? 'video' : t.id === 'dlg' ? 'dialogue' : t.id);
 
-    // 静态占位（无音源 / 加载中显示，ready 后隐藏）
-    const ph = document.createElement('div');
-    ph.className = 'wave-ph';
-    ph.id = 'waveph-' + t.id;
+    const host = document.createElement('div'); host.className = 'wave-host'; host.id = 'wavehost-' + t.id;
+    host.style.width = TL_WIDTH + 'px';
+    lane.appendChild(host);
+
+    const ph = document.createElement('div'); ph.className = 'wave-ph'; ph.id = 'waveph-' + t.id;
     ph.textContent = t.readonly ? '对白混在原声内 · 无独立波形'
-      : (TRACK_SRC[t.id] ? '加载波形…' : '无音源 · 推进配乐管线 / 出片后注入');
-    trk.appendChild(ph);
+      : (TRACK_SRC[t.id] ? '加载波形…' : '无音源 · 推进配乐 / 出片后注入');
+    lane.appendChild(ph);
 
-    // clip 块（叠在波形上）
-    t.clips.forEach(c => {
+    (t.clips || []).forEach(c => lane.appendChild(makeClip(c, t.color)));
+    trk.appendChild(lane);
+    root.appendChild(trk);
+
+    if (!t.readonly) {
+      const ws = makeWave(host, t.color);
+      if (ws) {
+        const key = 'trk-' + t.id; WS[key] = ws;
+        const src = TRACK_SRC[t.id];
+        if (src) {
+          ws.on('ready', () => { wsReady[key] = true; ph.style.display = 'none'; applyMuteSolo(); });
+          ws.on('error', () => { ph.textContent = '（波形加载失败）'; });
+          try { ws.load(fileSrc(src)); } catch (e) { ph.textContent = '（波形加载失败）'; }
+        }
+      }
+    }
+  });
+  layoutAccents();
+}
+
+function makeClip(c, color) {
+  const clip = document.createElement('div');
+  clip.className = 'clip';
+  clip.style.left = (c.s * PX_PER_SEC) + 'px';
+  clip.style.width = Math.max(8, (c.e - c.s) * PX_PER_SEC - 2) + 'px';
+  clip.innerHTML = `<span class="lab">${c.lab}</span>${c.sub ? `<span class="sub">${c.sub}</span>` : ''}`;
+  if (c.title) clip.title = c.title;
+  return clip;
+}
+
+/* ---------- 渲染：动态叠加轨（按 kind+lane 分轨，内部滚动） ---------- */
+function renderOverlayTracks() {
+  const root = document.getElementById('tracksOverlay');
+  const empty = document.getElementById('ovEmpty');
+  Object.keys(WS).filter(k => k.indexOf('ov-') === 0).forEach(k => { try { WS[k].destroy(); } catch (e) {} delete WS[k]; delete wsReady[k]; });
+  root.querySelectorAll('.track').forEach(n => n.remove());
+
+  if (!OVERLAYS.length) { empty.style.display = ''; return; }
+  empty.style.display = 'none';
+
+  // 分组：同 kind 同 lane 一条叠加轨；按 kind(bgm先) + lane 排序，稳定标号
+  const groups = {};
+  OVERLAYS.forEach(s => {
+    const k = s.kind + '#' + (s.lane != null ? s.lane : 0);
+    (groups[k] = groups[k] || []).push(s);
+  });
+  const keys = Object.keys(groups).sort((a, b) => {
+    const [ka, la] = a.split('#'), [kb, lb] = b.split('#');
+    if (ka !== kb) return ka === 'bgm' ? -1 : 1;
+    return (+la) - (+lb);
+  });
+
+  keys.forEach((gk, gi) => {
+    const segs = groups[gk];
+    const kind = segs[0].kind;
+    const trk = document.createElement('div');
+    trk.className = 'track';
+    const head = document.createElement('div');
+    head.className = 'thead';
+    head.innerHTML = `<div class="nm"><span class="dot" style="background:var(--overlay)"></span>叠加 ${gi + 1}<span class="x" data-x-lane="${gk}" title="删除本叠加轨所有片段">✕</span></div>
+      <div class="ctl"><span class="ro">${kind.toUpperCase()}</span></div>`;
+    trk.appendChild(head);
+
+    const lane = document.createElement('div');
+    lane.className = 'lane overlay';
+    const host = document.createElement('div'); host.className = 'wave-host'; host.style.width = TL_WIDTH + 'px';
+    lane.appendChild(host);
+
+    segs.forEach((s, si) => {
       const clip = document.createElement('div');
-      clip.className = 'clip';
-      clip.style.left = (c.s * PX_PER_SEC) + 'px';
-      clip.style.width = Math.max(8, (c.e - c.s) * PX_PER_SEC - 2) + 'px';
-      clip.style.background = rgba(t.color, 0.32);
-      clip.style.borderColor = rgba(t.color, 0.5);
-      clip.innerHTML = `<span class="lab">${c.lab}</span>${c.sub ? `<span class="sub">${c.sub}</span>` : ''}`;
-      if (c.title) clip.title = c.title;
-      trk.appendChild(clip);
+      clip.className = 'clip overlay-clip';
+      clip.style.left = (s.t_start * PX_PER_SEC) + 'px';
+      clip.style.width = Math.max(8, (s.t_end - s.t_start) * PX_PER_SEC - 2) + 'px';
+      clip.innerHTML = `<span class="lab">${(s.prompt || s.kind).slice(0, 16)}</span>` +
+        `<span class="sub">${s.status || ''}</span>` +
+        `<span class="x" data-x-seg="${s.id}" title="删除此片段">✕</span>`;
+      clip.title = (s.prompt || '') + (s.audio_path ? '\n' + s.audio_path : '');
+      lane.appendChild(clip);
     });
 
-    lanes.appendChild(trk);
+    trk.appendChild(lane);
+    root.appendChild(trk);
 
-    // 建 WaveSurfer 实例并加载真实音源（无音源的只读轨/未注入轨仅显示占位）
-    const ws = makeWave(t, host, ph);
-    if (ws) {
-      WS[t.id] = ws;
-      const src = TRACK_SRC[t.id];
-      if (src) { try { ws.load(fileSrc(src)); } catch (e) { ph.textContent = '（波形加载失败）'; } }
+    // 叠加片段波形：取首个有 audio_path 的片段铺整轨（简化：每轨一条波形可视）
+    const withAudio = segs.find(s => s.audio_path);
+    if (withAudio) {
+      const ws = makeWave(host, 'var(--overlay)');
+      if (ws) {
+        const key = 'ov-' + gk; WS[key] = ws;
+        ws.on('ready', () => { wsReady[key] = true; });
+        ws.on('error', () => {});
+        try { ws.load(fileSrc(withAudio.audio_path)); } catch (e) {}
+      }
     }
   });
 }
 
-/* ---------- 渲染：时间标尺 ---------- */
-function drawRuler() {
-  const cv = document.getElementById('rulerCanvas');
-  const dpr = window.devicePixelRatio || 1;
-  const w = TL_WIDTH, h = 30;
-  cv.style.width = w + 'px';
-  cv.width = w * dpr; cv.height = h * dpr;
-  const ctx = cv.getContext('2d');
-  ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, w, h);
-  ctx.font = '10px Consolas, monospace';
-  ctx.textBaseline = 'bottom';
-  for (let sec = 0; sec <= TOTAL; sec++) {
-    const x = sec * PX_PER_SEC;
-    const major = sec % 2 === 0;
-    ctx.strokeStyle = major ? '#3a4060' : '#262943';
-    ctx.beginPath(); ctx.moveTo(x, major ? 12 : 20); ctx.lineTo(x, 30); ctx.stroke();
-    if (major) {
-      ctx.fillStyle = '#9aa0a6';
-      const mm = String(Math.floor(sec / 60)).padStart(2, '0');
-      const ss = String(sec % 60).padStart(2, '0');
-      ctx.fillText(`${mm}:${ss}`, x + 3, 12);
-    }
-  }
-}
-
-/* ---------- 渲染：卡点标记带（贯穿所有轨高度） ----------
-   ACCENTS 来自 /accent/detect 或 advance：{t, intensity, confirmed}。
-   big = intensity ≥ 阈值（高强度爆点，参与真·卡点对齐）。可重复调用。 */
-const ACCENT_BIG_THRESHOLD = 0.7;   // 与后端 mixdown/accent 默认 big_threshold 一致
-function renderAccents() {
+/* ---------- 卡点标记带 + 标尺 ---------- */
+function layoutAccents() {
   const root = document.getElementById('accents');
   root.innerHTML = '';
-  const fullH = TRACKS.length * 84;
-  root.style.height = fullH + 'px';
   ACCENTS.forEach(a => {
     const big = (typeof a.intensity === 'number') ? a.intensity >= ACCENT_BIG_THRESHOLD : !!a.big;
     const el = document.createElement('div');
     el.className = 'accent' + (big ? ' big' : '');
     el.style.left = (a.t * PX_PER_SEC) + 'px';
     el.innerHTML = '<span class="dot"></span>';
-    const inten = (typeof a.intensity === 'number') ? ` · 强度 ${a.intensity.toFixed(2)}` : '';
-    el.title = `卡点 ${a.t.toFixed(1)}s${inten}${big ? ' · 大爆点（真·卡点对齐）' : ''}${a.confirmed ? ' · 已确认' : ''}`;
     root.appendChild(el);
   });
 }
+function drawRuler() {
+  const cv = document.getElementById('rulerCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  const w = TL_WIDTH, h = 24;
+  cv.style.width = w + 'px';
+  cv.width = w * dpr; cv.height = h * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr); ctx.clearRect(0, 0, w, h);
+  ctx.font = '10px Consolas, monospace'; ctx.textBaseline = 'bottom';
+  const step = TOTAL > 120 ? 10 : (TOTAL > 40 ? 5 : 2);
+  for (let sec = 0; sec <= TOTAL; sec++) {
+    const x = sec * PX_PER_SEC, major = sec % step === 0;
+    ctx.strokeStyle = major ? '#3a4060' : '#262943';
+    ctx.beginPath(); ctx.moveTo(x, major ? 8 : 16); ctx.lineTo(x, 24); ctx.stroke();
+    if (major) {
+      ctx.fillStyle = '#9aa0a6';
+      const mm = String(Math.floor(sec / 60)).padStart(2, '0'), ss = String(sec % 60).padStart(2, '0');
+      ctx.fillText(`${mm}:${ss}`, x + 3, 9);
+    }
+  }
+}
 
-/* ---------- 走带 / 播放头 ----------
-   播放头位置：本地 requestAnimationFrame 驱动（后端无 WS / 无服务端播放时钟，
-   见 media_agent/routes/soundtrack.py docstring —— 播放/走带是纯前端职责）。
-   transport 播放/暂停联动各 wavesurfer 实例（波形 progress 同步走）。 */
-let playing = false, cur = 0, raf = null, last = 0;
-const playhead = document.getElementById('playhead');
-const tcCur = document.getElementById('tcCur');
+/* 重设总时长（视频元数据 / 会话末段 / 成片）→ 重画标尺 + 重新铺轨宽。 */
+function setTotal(sec) {
+  if (!(sec > 0)) return;
+  TOTAL = sec; TL_WIDTH = TOTAL * PX_PER_SEC;
+  document.getElementById('tcTotal').textContent = fmt(TOTAL);
+  drawRuler();
+  // 调整已建轨宽
+  document.querySelectorAll('.wave-host').forEach(h => h.style.width = TL_WIDTH + 'px');
+  layoutAccents();
+}
+
+/* ---------- 播放头 / 走带（视频 timeupdate 驱动；无视频时本地定时器） ---------- */
+let playing = false, cur = 0, raf = null, last = 0, hasVideo = false;
 function fmt(t) {
   const m = Math.floor(t / 60), s = (t % 60);
   return String(m).padStart(2, '0') + ':' + s.toFixed(1).padStart(4, '0');
 }
 function updateHead() {
-  playhead.style.left = (cur * PX_PER_SEC) + 'px';
-  tcCur.textContent = fmt(cur);
-}
-
-/* 把当前时间 cur 同步到所有 wavesurfer（按各自时长换算进度比例） */
-function syncWaves(seek) {
-  Object.keys(WS).forEach(id => {
-    const ws = WS[id];
-    if (!ws || !wsReady[id]) return;
-    const dur = ws.getDuration() || TOTAL;
-    if (seek) { try { ws.seekTo(Math.max(0, Math.min(1, cur / dur))); } catch (e) {} }
-  });
+  const x = cur * PX_PER_SEC;
+  document.getElementById('playhead').style.left = 'calc(var(--thw) + ' + x + 'px)';
+  document.getElementById('tcCur').textContent = fmt(cur);
+  const pct = TOTAL ? Math.min(100, (cur / TOTAL) * 100) : 0;
+  document.getElementById('tlPlayed').style.width = pct + '%';
+  document.getElementById('tlHead').style.left = pct + '%';
 }
 function wavesPlay(on) {
-  Object.keys(WS).forEach(id => {
-    const ws = WS[id];
-    if (!ws || !wsReady[id]) return;
-    try { on ? ws.play() : ws.pause(); } catch (e) {}
-  });
+  Object.keys(WS).forEach(id => { const ws = WS[id]; if (ws && wsReady[id]) { try { on ? ws.play() : ws.pause(); } catch (e) {} } });
 }
-
-/* 本地定时器推进（TODO：后端若日后提供服务端播放头/走带 API，可在此切换为权威时钟驱动） */
+function syncWaves() {
+  Object.keys(WS).forEach(id => { const ws = WS[id]; if (!ws || !wsReady[id]) return; const dur = ws.getDuration() || TOTAL; try { ws.seekTo(Math.max(0, Math.min(1, cur / dur))); } catch (e) {} });
+}
 function tick(ts) {
   if (!playing) return;
   if (!last) last = ts;
@@ -574,83 +571,169 @@ function tick(ts) {
 }
 function setPlay(on) {
   playing = on; last = 0;
-  document.getElementById('btnPlay').textContent = on ? '❚❚' : '►';
-  if (on) { syncWaves(true); wavesPlay(true); raf = requestAnimationFrame(tick); }
+  document.getElementById('chipPlay').textContent = on ? '❚❚ 暂停' : '▶ 播放';
+  const v = document.getElementById('pvVideo');
+  if (hasVideo) { on ? v.play() : v.pause(); return; }   // 视频驱动模式
+  // 无视频：本地定时器 + 波形回放
+  if (on) { syncWaves(); wavesPlay(true); raf = requestAnimationFrame(tick); }
   else { cancelAnimationFrame(raf); wavesPlay(false); }
 }
-
-/* 外部（点击定位/停止/回到开头）改 cur 后调用：刷新播放头 + 同步波形 */
 function seekTo(t) {
   cur = Math.max(0, Math.min(TOTAL, t));
-  updateHead();
-  syncWaves(true);
+  const v = document.getElementById('pvVideo');
+  if (hasVideo) { try { v.currentTime = cur; } catch (e) {} }
+  updateHead(); syncWaves();
 }
 
-/* 重设时间线总时长（来自真实会话 segments 末段 / 成片时长）并重画标尺+卡点带。 */
-function setTotal(sec) {
-  if (!(sec > 0)) return;
-  TOTAL = sec;
-  TL_WIDTH = TOTAL * PX_PER_SEC;
-  document.getElementById('tlInner').style.width = TL_WIDTH + 'px';
-  document.getElementById('tcTotal').textContent = '/ ' + fmt(TOTAL);
-  drawRuler();
-  renderAccents();
-}
-
-/* M/S 状态 → 各轨 wavesurfer 静音：有任一 Solo 亮时只放亮 S 的轨；否则放未 Mute 的轨。 */
+/* M/S → 各轨 wavesurfer 静音。 */
 function applyMuteSolo() {
-  const soloAny = TRACKS.some((t, i) => !t.readonly && document.querySelector(`.ms.s[data-trk="${i}"]`)?.classList.contains('on'));
+  const soloAny = TRACKS.some((t, i) => !t.readonly && document.querySelector(`.b.s[data-trk="${i}"]`)?.classList.contains('on'));
   TRACKS.forEach((t, i) => {
     if (t.readonly) return;
-    const muteOn = document.querySelector(`.ms.m[data-trk="${i}"]`)?.classList.contains('on');
-    const soloOn = document.querySelector(`.ms.s[data-trk="${i}"]`)?.classList.contains('on');
+    const muteOn = document.querySelector(`.b.m[data-trk="${i}"]`)?.classList.contains('on');
+    const soloOn = document.querySelector(`.b.s[data-trk="${i}"]`)?.classList.contains('on');
     const audible = soloAny ? soloOn : !muteOn;
-    const ws = WS[t.id];
+    const ws = WS['trk-' + t.id];
     if (ws) { try { ws.setMuted(!audible); } catch (e) {} }
   });
 }
 
-/* ---------- 顶栏状态/提示 ---------- */
-function setMeta(text) { document.getElementById('transportMeta').textContent = text; }
-function setStyle(s) {
-  document.getElementById('stylePill').textContent = '整体风格：' + (s && s.trim() ? s : '（未设置）');
-}
-function flashBtn(btn, busyText, ms) {
-  const old = btn.dataset.label || btn.textContent;
-  btn.dataset.label = old; btn.disabled = true; btn.textContent = busyText;
-  return () => { btn.disabled = false; btn.textContent = old; };
+/* ---------- 顶栏/状态 ---------- */
+function setStatus(t) { document.getElementById('footStatus').textContent = t; }
+function setStyle(s) { document.getElementById('stylePill').textContent = '整体风格：' + (s && String(s).trim() ? s : '（未设置）'); }
+function flashBtn(btn, busy) {
+  const old = btn.textContent; btn.disabled = true; btn.dataset._old = old; btn.textContent = busy;
+  return () => { btn.disabled = false; btn.textContent = btn.dataset._old || old; };
 }
 
-/* ---------- 由真实会话视图更新轨道/卡点/时间线 ----------
-   segments：advance 返回的 _session_segment_view（含 chosen_path / music_prompt / 区间）。 */
+/* ---------- 框选时段（进度条上拖动） ---------- */
+let SEL = null;            // {start, end} 秒
+let selMode = true;
+function pctOfX(clientX) {
+  const tl = document.getElementById('tl'); const r = tl.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+}
+function paintSel() {
+  const sel = document.getElementById('tlSel');
+  if (!SEL) { sel.style.display = 'none'; updateChatSeg(); return; }
+  const a = Math.min(SEL.start, SEL.end), b = Math.max(SEL.start, SEL.end);
+  sel.style.display = 'block';
+  sel.style.left = (TOTAL ? (a / TOTAL) * 100 : 0) + '%';
+  sel.style.width = (TOTAL ? ((b - a) / TOTAL) * 100 : 0) + '%';
+  updateChatSeg();
+}
+function updateChatSeg() {
+  const el = document.getElementById('chatSeg');
+  if (!SEL) { el.textContent = '未选中区间'; return; }
+  const a = Math.min(SEL.start, SEL.end), b = Math.max(SEL.start, SEL.end);
+  el.textContent = `选中 ${a.toFixed(1)}–${b.toFixed(1)}s（${(b - a).toFixed(1)}s）`;
+}
+function selRange() {
+  if (!SEL) return null;
+  const a = Math.min(SEL.start, SEL.end), b = Math.max(SEL.start, SEL.end);
+  if (b - a < 0.2) return null;
+  return { start: +a.toFixed(2), end: +b.toFixed(2) };
+}
+
+/* ---------- 对话 ---------- */
+function addMsg(cls, html) {
+  const body = document.getElementById('chatBody');
+  const el = document.createElement('div'); el.className = 'msg ' + cls; el.innerHTML = html;
+  body.appendChild(el); body.scrollTop = body.scrollHeight;
+  return el;
+}
+let LAST_ANALYSIS = null;       // 最近一次情绪分析结果（生成时带上 suggested_tags）
+
+async function recognizeEmotion() {
+  const r = selRange();
+  if (!r) { addMsg('sys', '请先在视频进度条上框选一段时段'); return; }
+  if (!VIDEO) { addMsg('sys', '缺成片路径（点「加载视频」或带 ?video=）'); return; }
+  const btn = document.getElementById('btnRecog'); const done = flashBtn(btn, '分析中…');
+  addMsg('u', `识别 ${r.start}–${r.end}s 这段的画面情绪`);
+  try {
+    const res = await postJSON('/soundtrack/analyze_segment', {
+      video: VIDEO, start_sec: r.start, end_sec: r.end,
+    });
+    LAST_ANALYSIS = res;
+    const labels = Array.isArray(res.labels) ? res.labels : [];
+    const tags = res.suggested_tags || '';
+    addMsg('a',
+      `已分析 ${r.start}–${r.end}s 画面情绪：` +
+      `<div class="emo">${labels.map(l => `<span class="tag">${l}</span>`).join('')}` +
+      `<span class="tag">valence ${num(res.valence)}</span><span class="tag">arousal ${num(res.arousal)}</span><span class="tag">intensity ${num(res.intensity)}</span></div>` +
+      (tags ? `<div class="tags">建议 ACE-Step tags：${tags}</div>` : '') +
+      `<div class="gen"><button class="gbtn bgm" data-gen="bgm">♪ 生成 BGM（ACE-Step）</button>` +
+      `<button class="gbtn sfx" data-gen="sfx">🔊 生成 SFX</button></div>`);
+  } catch (e) {
+    if (e.status === 404 || e.status === 405) {
+      addMsg('err', '情绪分析端点未就绪（/soundtrack/analyze_segment 待后端补；契约见页头）。仍可直接「生成 BGM/SFX」并在输入框给 prompt。');
+      // 仍给生成入口（用空 tags / 用户 prompt）
+      addMsg('a', '可直接生成（用你自定义的 prompt）：' +
+        `<div class="gen"><button class="gbtn bgm" data-gen="bgm">♪ 生成 BGM</button><button class="gbtn sfx" data-gen="sfx">🔊 生成 SFX</button></div>`);
+    } else {
+      addMsg('err', '情绪分析失败：' + e.message);
+    }
+  } finally { done(); }
+}
+function num(v) { return (typeof v === 'number') ? v.toFixed(2) : '—'; }
+
+/* 生成叠加片段：overlay/generate（kind + prompt + 框选时段）→ 落叠加轨。
+   prompt 优先级：输入框文字 > 上次情绪建议 tags > kind 兜底。 */
+async function generateOverlay(kind, btn) {
+  const r = selRange();
+  if (!r) { addMsg('sys', '请先框选时段再生成'); return; }
+  if (!WORK_DIR) { addMsg('sys', '未选择项目（缺 ?project=/?workdir=），无法生成'); return; }
+  const typed = document.getElementById('chatInput').value.trim();
+  let prompt = typed;
+  if (!prompt && LAST_ANALYSIS && LAST_ANALYSIS.suggested_tags) prompt = LAST_ANALYSIS.suggested_tags;
+  if (!prompt) prompt = (kind === 'bgm') ? 'instrumental background music' : 'ambient sound effect';
+  const done = btn ? flashBtn(btn, '生成中…') : () => {};
+  addMsg('u', `生成 ${kind.toUpperCase()} @ ${r.start}–${r.end}s：${prompt}`);
+  setStatus('POST /soundtrack/overlay/generate 生成中…（同步阻塞，耗时较长）');
+  try {
+    const res = await postJSON('/soundtrack/overlay/generate', {
+      work_dir: WORK_DIR, kind, prompt, t_start: r.start, t_end: r.end,
+    });
+    const seg = res.segment;
+    if (seg) {
+      OVERLAYS = OVERLAYS.filter(s => s.id !== seg.id).concat(seg);
+      renderOverlayTracks();
+      addMsg('a', `已生成 ${kind.toUpperCase()} 片段，落进叠加轨。可在输入框改 prompt 再生成调整。`);
+      setStatus('叠加片段已生成：' + (seg.audio_path || seg.id));
+    }
+    document.getElementById('chatInput').value = '';
+  } catch (e) {
+    addMsg('err', '生成失败：' + e.message);
+    setStatus('生成失败：' + e.message);
+  } finally { done(); }
+}
+
+/* 发送：把输入当作"继续调整"——若已分析过则按上次 kind 重生；否则提示先选 BGM/SFX。 */
+function sendChat() {
+  const txt = document.getElementById('chatInput').value.trim();
+  if (!txt) return;
+  addMsg('u', txt);
+  addMsg('a', '收到。点下方按钮按当前需求生成（输入框文字作为 prompt）：' +
+    `<div class="gen"><button class="gbtn bgm" data-gen="bgm">♪ 生成 BGM</button><button class="gbtn sfx" data-gen="sfx">🔊 生成 SFX</button></div>`);
+}
+
+/* ---------- 由真实会话视图更新轨道/卡点/时间线 ---------- */
 function applyAdvanceResult(res) {
   if (!res) return;
   if (typeof res.global_style === 'string') setStyle(res.global_style);
-
   const segs = Array.isArray(res.segments) ? res.segments : [];
-  // 时间线总时长 = 末段 t_end（无则保持）；成片 output 在则以其驱动原声轨波形。
-  if (segs.length) {
-    const end = Math.max(...segs.map(s => s.t_end || 0));
-    if (end > 0) setTotal(end);
-  }
-  // BGM 轨 clips：每段一个块（标 段号 / 状态 / 选中候选）。
+  if (segs.length) { const end = Math.max(...segs.map(s => s.t_end || 0)); if (end > 0) setTotal(end); }
   const bgm = TRACKS.find(t => t.id === 'bgm');
   bgm.clips = segs.map(s => ({
     s: s.t_start, e: s.t_end,
-    lab: 'BGM·段' + ((s.index ?? 0) + 1),
+    lab: 'BGM·段' + (((s.index != null ? s.index : 0)) + 1),
     sub: (s.status || '') + (s.n_candidates ? ` · ${s.chosen_candidate != null ? (s.chosen_candidate + 1) + '/' : ''}${s.n_candidates}候选` : ''),
     title: (s.music_prompt || '').slice(0, 200),
   }));
-  // 卡点
   if (Array.isArray(res.accents)) ACCENTS = res.accents;
-  // 成片（含混好的多轨）→ 原声轨波形 + 回放
   if (res.output) setTrackSrc('orig', res.output);
-
-  renderLanes();
-  renderAccents();
+  renderFixedTracks();
 }
-
-/* SFX 视图 → SFX 轨 clips（每个 planned 镜头一个块）。 */
 function applySfxResult(view) {
   if (!view || !Array.isArray(view.shots)) return;
   const sfx = TRACKS.find(t => t.id === 'sfx');
@@ -660,193 +743,209 @@ function applySfxResult(view) {
     sub: s.status || '',
     title: (s.prompt_short || '') + (s.chosen_path ? '\n' + s.chosen_path : ''),
   }));
-  renderLanes();
-}
-
-/* overlay 列表 → 按 kind 并入 bgm/sfx 轨（叠加子轨片段，标 [叠加]）。 */
-function applyOverlayList(segments) {
-  if (!Array.isArray(segments)) return;
-  ['bgm', 'sfx'].forEach(kind => {
-    const trk = TRACKS.find(t => t.id === kind);
-    if (!trk) return;
-    const base = trk.clips.filter(c => !c._overlay);
-    const ov = segments.filter(s => s.kind === kind).map(s => ({
-      s: s.t_start, e: s.t_end, lab: '[叠加] ' + (s.prompt || '').slice(0, 14),
-      sub: s.status || '', title: (s.prompt || '') + (s.audio_path ? '\n' + s.audio_path : ''), _overlay: true,
-    }));
-    trk.clips = base.concat(ov);
-  });
-  renderLanes();
+  renderFixedTracks();
 }
 
 /* ---------- 后端动作 ---------- */
 async function doAdvance(btn) {
-  if (!WORK_DIR) { setMeta('未选择项目（缺 ?project=/?workdir=），无法推进管线'); return; }
+  if (!WORK_DIR) { setStatus('未选择项目（缺 ?project=/?workdir=），无法推进'); return; }
   const done = flashBtn(btn, '配乐中…');
-  setMeta('POST /soundtrack/advance 推进中…（同步阻塞，耗时较长）');
+  setStatus('POST /soundtrack/advance 推进中…（同步阻塞，耗时较长）');
   try {
     const res = await postJSON('/soundtrack/advance', {
-      work_dir: WORK_DIR, video: VIDEO || undefined,
-      global_style: undefined,        // 已有 session 时后端忽略；首次新建需 video+global_style（由壳/设置注入）
+      work_dir: WORK_DIR, video: VIDEO || undefined, global_style: undefined,
       workflow_id: '', seeds_count: 2, stop_after: 'mix',
     });
     applyAdvanceResult(res);
-    setMeta('管线已推进至 ' + (res.stop_after || 'mix') + (res.output ? ' · 已出成片' : ''));
-  } catch (e) {
-    setMeta('配乐失败：' + e.message);
-  } finally { done(); }
+    setStatus('管线已推进至 ' + (res.stop_after || 'mix') + (res.output ? ' · 已出成片' : ''));
+  } catch (e) { setStatus('配乐失败：' + e.message); } finally { done(); }
 }
-
 async function doMixdown(btn) {
-  if (!WORK_DIR) { setMeta('未选择项目，无法出片'); return; }
+  if (!WORK_DIR) { setStatus('未选择项目，无法出片'); return; }
   const done = flashBtn(btn, '混音中…');
-  setMeta('POST /soundtrack/mixdown 多轨下混中…');
+  setStatus('POST /soundtrack/mixdown 多轨下混中…');
   try {
     const res = await postJSON('/soundtrack/mixdown', { work_dir: WORK_DIR });
-    if (res.output) { setTrackSrc('orig', res.output); renderLanes(); }
-    setMeta('出片完成：' + (res.output || ''));
-  } catch (e) {
-    setMeta('出片失败：' + e.message);
-  } finally { done(); }
+    if (res.output) { setTrackSrc('orig', res.output); }
+    setStatus('出片完成：' + (res.output || ''));
+  } catch (e) { setStatus('出片失败：' + e.message); } finally { done(); }
 }
-
 async function doAccentDetect(btn) {
-  if (!VIDEO) { setMeta('缺成片 ?video=，无法检测卡点'); return; }
+  if (!VIDEO) { setStatus('缺成片路径，无法检测卡点'); return; }
   const done = flashBtn(btn, '检测中…');
-  setMeta('POST /soundtrack/accent/detect 光流爆点检测中…');
+  setStatus('POST /soundtrack/accent/detect 光流爆点检测中…');
   try {
-    const res = await postJSON('/soundtrack/accent/detect', {
-      video: VIDEO, work_dir: WORK_DIR || undefined,
-    });
+    const res = await postJSON('/soundtrack/accent/detect', { video: VIDEO, work_dir: WORK_DIR || undefined });
     ACCENTS = Array.isArray(res.accents) ? res.accents : [];
-    renderAccents();
-    setMeta('检测到 ' + ACCENTS.length + ' 个卡点');
-  } catch (e) {
-    setMeta('卡点检测失败：' + e.message);
-  } finally { done(); }
+    layoutAccents();
+    setStatus('检测到 ' + ACCENTS.length + ' 个卡点');
+  } catch (e) { setStatus('卡点检测失败：' + e.message); } finally { done(); }
 }
-
 async function doAccentMix(btn) {
-  if (!WORK_DIR) { setMeta('未选择项目，无法卡点混音'); return; }
+  if (!WORK_DIR) { setStatus('未选择项目，无法卡点混音'); return; }
   const done = flashBtn(btn, '试听生成中…');
-  setMeta('POST /soundtrack/accent/mix 段拼接+对齐+泵感…');
+  setStatus('POST /soundtrack/accent/mix 段拼接+对齐+泵感…');
   try {
     const res = await postJSON('/soundtrack/accent/mix', { work_dir: WORK_DIR });
-    if (res.preview) { setTrackSrc('bgm', res.preview); renderLanes(); }
-    setMeta('卡点泵感试听已就绪：' + (res.preview || ''));
-  } catch (e) {
-    setMeta('卡点混音失败：' + e.message);
-  } finally { done(); }
+    if (res.preview) { setTrackSrc('bgm', res.preview); }
+    setStatus('卡点泵感试听已就绪：' + (res.preview || ''));
+  } catch (e) { setStatus('卡点混音失败：' + e.message); } finally { done(); }
 }
-
 async function doSfxDetect(btn) {
-  if (!VIDEO || !WORK_DIR) { setMeta('缺 ?video= 或 work_dir，无法 SFX 检测'); return; }
+  if (!VIDEO || !WORK_DIR) { setStatus('缺成片路径或 work_dir，无法 SFX 检测'); return; }
   const done = flashBtn(btn, '检测中…');
-  setMeta('POST /soundtrack/sfx/detect 镜头检测 + LLM 规划…');
+  setStatus('POST /soundtrack/sfx/detect 镜头检测 + LLM 规划…');
   try {
     const view = await postJSON('/soundtrack/sfx/detect', { video: VIDEO, work_dir: WORK_DIR });
     applySfxResult(view);
-    setMeta('SFX 规划：' + (view.shots ? view.shots.length : 0) + ' 个镜头');
-  } catch (e) {
-    setMeta('SFX 检测失败：' + e.message);
-  } finally { done(); }
+    setStatus('SFX 规划：' + (view.shots ? view.shots.length : 0) + ' 个镜头');
+  } catch (e) { setStatus('SFX 检测失败：' + e.message); } finally { done(); }
 }
-
 async function doSfxGenerate(btn) {
-  if (!WORK_DIR) { setMeta('未选择项目，无法生成 SFX'); return; }
+  if (!WORK_DIR) { setStatus('未选择项目，无法生成 SFX'); return; }
   const done = flashBtn(btn, '生成中…');
-  setMeta('POST /soundtrack/sfx/generate 批量生成 SFX 候选…');
+  setStatus('POST /soundtrack/sfx/generate 批量生成 SFX 候选…');
   try {
     const view = await postJSON('/soundtrack/sfx/generate', { work_dir: WORK_DIR });
     applySfxResult(view);
-    setMeta('SFX 生成完成');
-  } catch (e) {
-    setMeta('SFX 生成失败：' + e.message);
-  } finally { done(); }
+    setStatus('SFX 生成完成');
+  } catch (e) { setStatus('SFX 生成失败：' + e.message); } finally { done(); }
 }
-
-/* overlay/generate（框选生成叠加子轨）：DAW 暂无框选 UI（属 3a/3b 框选交互范畴），
-   端点已就绪。此处仅在加载时拉一次 overlay/list 把已有叠加子轨并入波形轨。
-   TODO：补框选交互后调 /soundtrack/overlay/generate 提交 {kind,prompt,t_start,t_end}。 */
 async function loadOverlayList() {
   if (!WORK_DIR) return;
   try {
     const res = await postJSON('/soundtrack/overlay/list', { work_dir: WORK_DIR });
-    applyOverlayList(res.segments || []);
+    OVERLAYS = Array.isArray(res.segments) ? res.segments : [];
+    renderOverlayTracks();
   } catch (e) { /* 无 overlay.json 时静默 */ }
 }
+async function removeOverlay(segId) {
+  if (!WORK_DIR) return;
+  try {
+    const res = await postJSON('/soundtrack/overlay/remove', { work_dir: WORK_DIR, seg_id: segId });
+    OVERLAYS = Array.isArray(res.segments) ? res.segments : OVERLAYS.filter(s => s.id !== segId);
+    renderOverlayTracks();
+    setStatus('已删除叠加片段 ' + segId);
+  } catch (e) { setStatus('删除失败：' + e.message); }
+}
 
-/* 加载时只做真正只读的拉取：overlay/list（纯读 overlay.json，不触发管线）。
-   后端无"只读会话状态"端点（advance 会真正推进阶段、跑重依赖），故不在 init 自动 advance，
-   避免开页即跑豆包/cv2/生成。会话段落/卡点/成片波形在用户点「自动配乐 / 检测卡点」后填充。
-   TODO：后端如补 GET /soundtrack/session（只读 segment view）可在此预加载段落与已有成片。 */
-async function loadSession() {
-  if (!WORK_DIR) { setMeta('未选择项目 · 用 ?project=/?workdir= 指定配乐工作目录'); return; }
-  setMeta('就绪 · 点「自动配乐」推进管线 / 「检测卡点」分析成片');
-  await loadOverlayList();
+/* ---------- 视频加载 ---------- */
+function loadVideo(path) {
+  if (!path) return;
+  VIDEO = path;
+  const v = document.getElementById('pvVideo'); const ph = document.getElementById('videoPh');
+  v.style.display = 'block'; ph.style.display = 'none';
+  hasVideo = true;
+  v.src = mediaUrl(path);
+  setStatus('已加载视频：' + path + ' · 抽原声轨可点「自动配乐 / 出片」');
+  // 视频原声直接接到原声轨（成片本身含原声）
+  setTrackSrc('orig', path);
+}
+function wireVideo() {
+  const v = document.getElementById('pvVideo');
+  v.addEventListener('loadedmetadata', () => { if (v.duration > 0) setTotal(v.duration); });
+  v.addEventListener('timeupdate', () => { cur = v.currentTime; updateHead(); });   // 视频驱动播放头
+  v.addEventListener('play', () => { playing = true; document.getElementById('chipPlay').textContent = '❚❚ 暂停'; });
+  v.addEventListener('pause', () => { playing = false; document.getElementById('chipPlay').textContent = '▶ 播放'; });
+  v.addEventListener('ended', () => { playing = false; document.getElementById('chipPlay').textContent = '▶ 播放'; });
+  v.addEventListener('error', () => { if (VIDEO) setStatus('视频加载失败（路径不可达？）：' + VIDEO); });
 }
 
 /* ---------- 交互绑定 ---------- */
 function wire() {
-  document.getElementById('btnPlay').addEventListener('click', () => setPlay(!playing));
-  document.getElementById('btnStop').addEventListener('click', () => { setPlay(false); seekTo(0); });
-  document.getElementById('btnStart').addEventListener('click', () => { seekTo(0); });
-
-  // 时间线点击定位播放头（同步各 wavesurfer 进度）
-  const inner = document.getElementById('tlInner');
-  inner.addEventListener('click', (e) => {
-    if (e.target.closest('.thead')) return;
-    const rect = inner.getBoundingClientRect();
-    const x = e.clientX - rect.left + document.getElementById('timeline').scrollLeft;
-    seekTo(x / PX_PER_SEC);
+  // 顶栏动作
+  document.getElementById('btnLoadVideo').addEventListener('click', () => {
+    const p = prompt('请输入成片 mp4 的本地路径：', VIDEO || '');
+    if (p && p.trim()) loadVideo(p.trim());
   });
-
-  // M / S / 音量 —— 事件委托到 #heads（轨头会随会话重渲染，委托后无需重绑）
-  const heads = document.getElementById('heads');
-  heads.addEventListener('click', (e) => {
-    const ms = e.target.closest('.ms');
-    if (ms) { ms.classList.toggle('on'); applyMuteSolo(); return; }
-    const v = e.target.closest('.vol');
-    if (v) {
-      const rect = v.getBoundingClientRect();
-      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      v.querySelector('.fill').style.width = (ratio * 100) + '%';
-      v.querySelector('.knob').style.left = (ratio * 100) + '%';
-      const i = v.getAttribute('data-trk');
-      const pct = Math.round(ratio * 150);
-      const pctEl = document.getElementById('pct-' + i); if (pctEl) pctEl.textContent = pct + '%';
-      const tk = TRACKS[i];
-      if (tk) { tk.vol = pct; const ws = WS[tk.id]; if (ws) { try { ws.setVolume(Math.min(1, pct / 100)); } catch (e2) {} } }
-    }
-  });
-
-  // 主输出音量（前端混音预览：缩放所有非静音轨）
-  const mv = document.getElementById('masterVol'), mp = document.getElementById('masterPct');
-  mv.addEventListener('input', () => {
-    mp.textContent = mv.value + '%';
-    const g = Math.min(1, mv.value / 100);
-    Object.keys(WS).forEach(id => { try { WS[id].setVolume(g * ((TRACKS.find(t => t.id === id)?.vol || 100) / 100)); } catch (e) {} });
-  });
-
-  // 真实后端动作
   document.getElementById('btnScore').addEventListener('click', (e) => doAdvance(e.currentTarget));
   document.getElementById('btnMixdown').addEventListener('click', (e) => doMixdown(e.currentTarget));
   document.getElementById('btnAccentDetect').addEventListener('click', (e) => doAccentDetect(e.currentTarget));
   document.getElementById('btnAccentMix').addEventListener('click', (e) => doAccentMix(e.currentTarget));
   document.getElementById('btnSfxDetect').addEventListener('click', (e) => doSfxDetect(e.currentTarget));
   document.getElementById('btnSfxGen').addEventListener('click', (e) => doSfxGenerate(e.currentTarget));
+
+  // 走带
+  document.getElementById('chipPlay').addEventListener('click', () => setPlay(!playing));
+  document.getElementById('chipStop').addEventListener('click', () => { setPlay(false); seekTo(0); });
+  document.getElementById('chipSelMode').addEventListener('click', (e) => {
+    selMode = !selMode; e.currentTarget.classList.toggle('on', selMode);
+    e.currentTarget.title = selMode ? '框选模式（拖动=选时段）' : '定位模式（点击=跳转）';
+  });
+
+  // 进度条：框选时段（拖动） / 定位（点击）
+  const tl = document.getElementById('tl');
+  let dragging = false, dragStart = 0;
+  tl.addEventListener('mousedown', (e) => {
+    const p = pctOfX(e.clientX) * TOTAL;
+    if (selMode) { dragging = true; dragStart = p; SEL = { start: p, end: p }; paintSel(); }
+    else { seekTo(p); }
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    SEL = { start: dragStart, end: pctOfX(e.clientX) * TOTAL }; paintSel();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return; dragging = false;
+    if (!selRange()) { SEL = null; paintSel(); }   // 误点（极短）→ 清空
+  });
+
+  // 对话面板
+  document.getElementById('btnRecog').addEventListener('click', recognizeEmotion);
+  document.getElementById('btnSend').addEventListener('click', sendChat);
+  document.getElementById('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+  // 委托：对话区内动态「生成 BGM/SFX」按钮
+  document.getElementById('chatBody').addEventListener('click', (e) => {
+    const g = e.target.closest('[data-gen]');
+    if (g) generateOverlay(g.getAttribute('data-gen'), g);
+  });
+
+  // 固定主轨 M/S（事件委托）
+  document.getElementById('tracksFixed').addEventListener('click', (e) => {
+    const b = e.target.closest('.b'); if (b) { b.classList.toggle('on'); applyMuteSolo(); }
+  });
+
+  // 叠加轨删除（片段 / 整轨）+ 新增叠加（手动框选+prompt）
+  document.getElementById('tracksOverlay').addEventListener('click', (e) => {
+    const xs = e.target.closest('[data-x-seg]'); if (xs) { removeOverlay(xs.getAttribute('data-x-seg')); return; }
+    const xl = e.target.closest('[data-x-lane]');
+    if (xl) {
+      const gk = xl.getAttribute('data-x-lane');
+      const ids = OVERLAYS.filter(s => (s.kind + '#' + (s.lane != null ? s.lane : 0)) === gk).map(s => s.id);
+      (async () => { for (const id of ids) await removeOverlay(id); })();
+    }
+  });
+  document.getElementById('btnAddOverlay').addEventListener('click', () => {
+    const r = selRange();
+    if (!r) { setStatus('先在进度条框选时段，再新增叠加'); return; }
+    const kind = (prompt('叠加类型 bgm / sfx：', 'bgm') || '').trim().toLowerCase();
+    if (kind !== 'bgm' && kind !== 'sfx') { setStatus('未知 kind（只接受 bgm/sfx）'); return; }
+    const p = prompt('生成 prompt：', LAST_ANALYSIS && LAST_ANALYSIS.suggested_tags || '');
+    if (p == null) return;
+    document.getElementById('chatInput').value = p;
+    generateOverlay(kind, document.getElementById('btnAddOverlay'));
+  });
+}
+
+/* ---------- 加载会话（仅只读拉取，不触发管线） ---------- */
+async function loadSession() {
+  if (!WORK_DIR) { setStatus('未选择项目 · 用 ?project=/?workdir= 指定配乐工作目录'); }
+  else { setStatus('就绪 · 框选时段对话生成 / 点「自动配乐」推进 / 「检测卡点」分析成片'); }
+  await loadOverlayList();
 }
 
 /* ---------- 启动 ---------- */
 function init() {
-  renderHeads();
-  renderLanes();      // 各轨建 WaveSurfer 实例（音源由后端会话注入，无则显占位）
+  renderFixedTracks();
+  renderOverlayTracks();
   drawRuler();
-  renderAccents();
+  layoutAccents();
   updateHead();
-  document.getElementById('tcTotal').textContent = '/ ' + fmt(TOTAL);
+  document.getElementById('tcTotal').textContent = fmt(TOTAL);
+  wireVideo();
   wire();
-  loadSession();      // 拉真实会话（含成片波形/段落/卡点）+ overlay 列表；无则留空提示
+  if (VIDEO) loadVideo(VIDEO);     // ?video= 自动加载
+  loadSession();
 }
 window.addEventListener('DOMContentLoaded', init);
 </script>
