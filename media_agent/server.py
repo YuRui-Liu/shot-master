@@ -49,6 +49,12 @@ def create_app(cfg: MediaAgentConfig | None = None) -> FastAPI:
     from .routes.skills import router as skills_router
     app.include_router(skills_router)
 
+    from .routes.assets import router as assets_router
+    app.include_router(assets_router)
+
+    from .routes.projects import router as projects_router
+    app.include_router(projects_router)
+
     # 静态同源托管 web/：经 http://127.0.0.1:18450/ui/ 访问（与 API 同源）。
     if _WEB_DIR.is_dir():
         app.mount("/ui", StaticFiles(directory=str(_WEB_DIR), html=True), name="ui")
