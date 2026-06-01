@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分镜布局重设计 · 确认稿</title>
+<link rel="stylesheet" href="../../web/tokens.css">
+<style>
+  /* ===== 确认稿：分镜「角色 + 镜头表」不局促版（整页竖向滚动 + 镜头表全宽 + 列宽调优） =====
+     对比旧版：旧版右侧被 340px 左栏压缩 + inner-scroll 小窗 → 角色/镜头表挤成一团；
+     构图列过宽、描述/风格列过窄。
+     新版要点：
+       ① 左侧「分集」从固定 340px 栏 → 收成顶部紧凑下拉/横条，把横向空间全留给镜头表；
+       ② 内容区整页竖向滚动(一长页)，不再是右侧小窗 inner-scroll；
+       ③ 镜头表 table-layout:fixed + colgroup 显式列宽：ID/时长/构图「窄」，描述/风格提示词「宽」。 */
+  body { margin: 0; background: var(--bg); color: var(--fg); }
+  .demo-note { background: rgba(74,158,255,.08); border-bottom: 1px solid var(--blue-dim);
+    padding: 10px 22px; font-size: 12.5px; color: var(--periw); }
+  .demo-note b { color: var(--blue); }
+
+  /* 整页滚动容器（关键：竖向一长页，不内嵌小窗） */
+  .page { max-width: 1280px; margin: 0 auto; padding: 18px 26px 80px; }
+
+  .work-head { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+  .work-head h1 { margin: 0; font-size: 21px; letter-spacing: .5px;
+    background: linear-gradient(135deg, var(--blue), var(--mauve));
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .work-head .pj { color: var(--muted); font-size: 12.5px; } .work-head .pj b { color: var(--fg2); }
+  .work-head .status { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+  .work-head .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--done); display: inline-block; margin-right: 6px; box-shadow: 0 0 6px var(--done); }
+
+  /* ① 分集收成顶部紧凑横条（替代 340px 左栏） */
+  .ep-strip { display: flex; align-items: center; gap: 10px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 14px; margin-bottom: 14px; }
+  .ep-strip .lab { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .ep-strip select { min-width: 220px; }
+  .ep-strip .chips { display: flex; gap: 6px; overflow-x: auto; flex: 1; }
+  .ep-chip { white-space: nowrap; font-size: 12px; color: var(--fg2); background: var(--field);
+    border: 1px solid var(--border); border-radius: 14px; padding: 5px 12px; cursor: pointer; }
+  .ep-chip.on { background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; font-weight: 600; border-color: transparent; }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; }
+  .card .ct { font-size: 12.5px; font-weight: 600; color: var(--periw); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .card .ct .sp { flex: 1; } .card .ct .faint { color: var(--faint); font-weight: 400; font-size: 11px; }
+
+  /* 全局头 */
+  .gh-row { display: flex; gap: 22px; margin-bottom: 10px; flex-wrap: wrap; }
+  .gh-row .f label { font-size: 11.5px; color: var(--muted); margin-right: 6px; }
+  .gh-row .f .v { font-size: 13px; color: var(--fg); font-weight: 600; }
+  .gh-style textarea { width: 100%; box-sizing: border-box; background: var(--field); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--fg2); padding: 9px 11px; font: inherit; line-height: 1.6; resize: vertical; min-height: 56px; }
+
+  /* 角色行：卡片自动换行(wrap)，不再挤 */
+  .chars { display: flex; flex-wrap: wrap; gap: 12px; }
+  .char { flex: 1 1 320px; min-width: 280px; background: var(--field); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 12px; }
+  .char .nm { font-size: 13px; color: var(--fg); font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 7px; }
+  .char .nm .lock { font-size: 9.5px; color: var(--mauve); background: rgba(138,127,217,.16); border: 1px solid #4a3d6e; padding: 1px 7px; border-radius: 8px; }
+  .char textarea { width: 100%; box-sizing: border-box; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--fg2); padding: 7px 9px; font: inherit; font-size: 12px; line-height: 1.5; resize: vertical; min-height: 40px; }
+
+  /* ③ 镜头表全宽 + table-layout:fixed + 列宽调优 */
+  table.shots { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+  table.shots th, table.shots td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-lo); vertical-align: top; }
+  table.shots th { color: var(--muted); font-weight: 600; font-size: 11px; }
+  table.shots td.id-col { color: var(--mauve); font-weight: 700; white-space: nowrap; }
+  table.shots td .ed { width: 100%; box-sizing: border-box; background: var(--field); border: 1px solid transparent;
+    border-radius: 6px; color: var(--fg); font: inherit; font-size: 12px; padding: 6px 8px; outline: none; resize: vertical; min-height: 34px; line-height: 1.55; }
+  table.shots td .ed:focus { border-color: var(--mauve); }
+  table.shots td .num { background: none; border: none; color: var(--blue); font-weight: 600; width: 100%; }
+  /* 斑马纹增强可读性 */
+  table.shots tbody tr:nth-child(even) { background: rgba(255,255,255,.015); }
+  table.shots tbody tr:hover { background: rgba(74,158,255,.05); }
+
+  .legend { font-size: 11.5px; color: var(--faint); margin: 4px 0 18px; }
+  .legend b { color: var(--periw); }
+</style>
+</head>
+<body>
+<div class="demo-note">
+  <b>分镜布局重设计 · 确认稿</b> —— 解决「角色+镜头表局促」。改动：① 左侧 340px「分集」栏 → 顶部紧凑下拉+横条（横向空间全给镜头表）；② 整页竖向滚动（一长页），不再右侧小窗 inner-scroll；③ 镜头表全宽 + <b>构图列收窄</b>、<b>描述/风格提示词列加宽</b>（table-layout:fixed）。请在浏览器查看是否满意，确认后我据此改 storyboard-script.html。
+</div>
+
+<div class="page">
+  <div class="work-head">
+    <h1>③ 分镜脚本 · STORYBOARD</h1>
+    <span class="pj">项目：<b>E:\DramaAsserts\P-003_叽里咕噜</b></span>
+    <div class="status"><span class="dot"></span>后端已连接 · v0.1.0</div>
+  </div>
+
+  <!-- ① 分集横条（替代左栏） -->
+  <div class="ep-strip">
+    <span class="lab">分集</span>
+    <select>
+      <option>第 1 集 · 密室惊悚</option><option>第 2 集 · 雨夜追逐</option><option>第 3 集 · 真相反转</option>
+    </select>
+    <div class="chips">
+      <span class="ep-chip on">E1 密室惊悚</span><span class="ep-chip">E2 雨夜追逐</span>
+      <span class="ep-chip">E3 真相反转</span><span class="ep-chip">E4 …</span>
+    </div>
+  </div>
+
+  <!-- 全局头 -->
+  <div class="card">
+    <div class="ct">全局头<span class="sp"></span><span class="faint">比例 16:9 · 总时长 75s</span></div>
+    <div class="gh-row">
+      <div class="f"><label>标题</label><span class="v">密室惊悚</span></div>
+      <div class="f"><label>比例</label><span class="v">16:9</span></div>
+      <div class="f"><label>总时长</label><span class="v">75 s</span></div>
+    </div>
+    <div class="gh-style">
+      <textarea>Modern mystery horror short drama, dark cool tone with fluorescent green and rust accents, damp decaying texture, handheld camera style, fast cuts, building oppressive tension</textarea>
+    </div>
+  </div>
+
+  <!-- 角色行（wrap 不挤） -->
+  <div class="card">
+    <div class="ct">角色（Character Lock）<span class="sp"></span><span class="faint">＋ 添加角色</span></div>
+    <div class="chars">
+      <div class="char"><div class="nm">阿杰 <span class="lock">LOCK</span></div>
+        <textarea>impatient man in black jacket with gloves</textarea></div>
+      <div class="char"><div class="nm">小美 <span class="lock">LOCK</span></div>
+        <textarea>young woman in white dress, long black hair, pale skin</textarea></div>
+      <div class="char"><div class="nm">老刘 <span class="lock">LOCK</span></div>
+        <textarea>middle-aged detective, grey trench coat, tired eyes</textarea></div>
+    </div>
+  </div>
+
+  <!-- ③ 镜头表全宽 + 列宽调优 -->
+  <div class="card">
+    <div class="ct">镜头表<span class="sp"></span><span class="faint">10 个镜头</span></div>
+    <div class="legend">列宽：<b>ID / 时长 / 构图</b> 收窄（字少），<b>描述 / 风格提示词</b> 加宽（内容多）。</div>
+    <table class="shots">
+      <colgroup>
+        <col style="width:64px"><col style="width:70px"><col style="width:120px"><col><col style="width:34%">
+      </colgroup>
+      <thead><tr><th>ID</th><th>时长</th><th>构图</th><th>描述</th><th>风格提示词 (stylePrompt)</th></tr></thead>
+      <tbody>
+        <tr><td class="id-col">S01_07</td><td><input class="num" value="3"></td>
+          <td><textarea class="ed">中景</textarea></td>
+          <td><textarea class="ed">阿杰戴黑手套，急切地翻找抽屉，手指因紧张而颤抖，背景是斑驳潮湿的墙面</textarea></td>
+          <td><textarea class="ed">Modern mystery horror, handheld, fluorescent green key light, shallow depth of field</textarea></td></tr>
+        <tr><td class="id-col">S01_08</td><td><input class="num" value="2"></td>
+          <td><textarea class="ed">特写</textarea></td>
+          <td><textarea class="ed">抽屉里露出一张泛黄的旧照片，照片边缘卷曲，落满灰尘</textarea></td>
+          <td><textarea class="ed">extreme close-up, dust particles in light beam, cold rust tone</textarea></td></tr>
+        <tr><td class="id-col">S01_09</td><td><input class="num" value="4"></td>
+          <td><textarea class="ed">过肩</textarea></td>
+          <td><textarea class="ed">小美站在门口阴影中，缓缓抬头直视镜头，眼神空洞，长发遮住半张脸</textarea></td>
+          <td><textarea class="ed">Modern mystery horror, oppressive backlight silhouette, fast cut tension</textarea></td></tr>
+        <tr><td class="id-col">S01_10</td><td><input class="num" value="3"></td>
+          <td><textarea class="ed">广角</textarea></td>
+          <td><textarea class="ed">密室全景，绿色荧光灯管忽明忽暗，墙上爬满锈迹与水渍，气氛压抑</textarea></td>
+          <td><textarea class="ed">wide shot, flickering fluorescent green, damp decaying texture, dark cool tone</textarea></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

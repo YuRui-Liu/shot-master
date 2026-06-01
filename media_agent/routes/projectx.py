@@ -158,6 +158,54 @@ def project_clips(project: str, sub: str = ""):
     return {"clips": clips}
 
 
+@router.get("/project/files")
+def project_files(project: str, sub: str = "", ext: str = ""):
+    """列出项目目录（或 project/sub 子目录）下的文件，按扩展名可选过滤。
+
+    返回 {files:[{name,path(posix),size}]}，按文件名排序（非递归）。
+    - ext：逗号分隔的扩展名（小写、不含点，如 "md,json"）；空则不过滤。
+    - project 空 → 400；目录不存在 → 空列表（不报错）。
+    """
+    proj = (project or "").strip()
+    if not proj:
+        raise HTTPException(status_code=400, detail="project 不能为空")
+    base = Path(proj)
+    sub_clean = (sub or "").strip()
+    target = base / sub_clean if sub_clean else base
+
+    # 扩展名过滤集合：小写、去点、去空
+    ext_set = {
+        e.strip().lstrip(".").lower()
+        for e in (ext or "").split(",")
+        if e.strip()
+    }
+
+    files: list[dict] = []
+    if not target.is_dir():
+        return {"files": files}
+
+    try:
+        entries = sorted(target.iterdir(), key=lambda p: p.name.lower())
+    except OSError:
+        return {"files": files}
+
+    for p in entries:
+        if not p.is_file():
+            continue
+        if ext_set and p.suffix.lstrip(".").lower() not in ext_set:
+            continue
+        try:
+            size = p.stat().st_size
+        except OSError:
+            size = 0
+        files.append({
+            "name": p.name,
+            "path": p.as_posix(),
+            "size": size,
+        })
+    return {"files": files}
+
+
 @router.get("/project/overview")
 def project_overview(project: str):
     """读项目 manifest + 目录统计，聚合概览。project=项目目录。"""

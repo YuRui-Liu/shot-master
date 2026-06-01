@@ -249,6 +249,11 @@
         e.source.postMessage({ type: 'pick.result', reqId: d.reqId, nobridge: true }, '*');
       }
     }
+    // 打开本地目录/文件(资源管理器)：经壳调 Qt openPath；无桥则忽略(页内自行 toast 路径)。
+    else if (d.type === 'open.path' && d.path) {
+      const fp = window.filepick;
+      if (fp && typeof fp.openPath === 'function') { try { fp.openPath(d.path); } catch (err) {} }
+    }
   });
 
   links.forEach(a => a.addEventListener('click', () => go(a.dataset.key)));

@@ -242,6 +242,7 @@ let activeEp = null;
 let SB = null;              // 当前集 分镜.json（来自 storyboardScript localStorage）
 const fileStatus = {};      // {<abs path>: "missing"|"streaming"|"done"} per active episode（持久化）
 const fileContent = {};     // {<abs path>: text} 已加载/已生成 文本镜像（持久化）
+const backendPath = {};     // {<abs path>: <后端 posix path>} discoverEpFiles 记录，喂 /file 更可靠（不持久化）
 let currentFile = null;     // 当前预览的 abs path
 let busy = false;
 
@@ -402,6 +403,38 @@ function selectEp(epId) {
   rebuildTree();
   $("btnAll").disabled = !SB;
   $("btnRegen").disabled = !SB;
+  discoverEpFiles(epId);   // BUG D：从后端拉本集已落盘产物，标 done 并补进树
+}
+
+/* ---------- 后端产物发现（BUG D：二次打开）----------
+   init/选集时 GET {MEDIA_API}/project/files 列本集 prompts/E{id}/ 下两个子目录的 .md，
+   把真实存在的文件标 done（点击即用 C1 的 /file 读正文）。/project/files 非递归，
+   故分别列 角色参考图/ 与 N宫格/ 子目录。优先后端；后端无/空则保留 localStorage 状态。
+   注：发现到的文件即使不在本地推算树里（如分组数与当前 gridMode 不符），也会按目录分组补入。 */
+async function discoverEpFiles(epId) {
+  if (!PROJECT_DIR || !epId) return;
+  const subBase = "prompts/" + epId;
+  const subs = ["角色参考图", "N宫格"];
+  let found = false;
+  await Promise.all(subs.map(async (subName) => {
+    try {
+      const url = MEDIA_API + "/project/files?project=" + encodeURIComponent(PROJECT_DIR) +
+        "&sub=" + encodeURIComponent(subBase + "/" + subName) + "&ext=md";
+      const r = await fetch(url);
+      if (!r.ok) return;
+      const j = await r.json();
+      (j.files || []).forEach((f) => {
+        // 用本地分隔符的 abs path 作为 key（与树推算的 absPath 对齐）
+        const abs = joinPath(epDir(epId), subName, f.name);
+        if (fileStatus[abs] !== "done") fileStatus[abs] = "done";
+        // 记录后端真实（posix）path，供 /file 读取兜底（toProjectRel 也能算出）
+        backendPath[abs] = f.path;
+        found = true;
+      });
+    } catch (_) {}
+  }));
+  if (epId !== activeEp) return;  // 期间切走了
+  if (found) { renderEpbar(); rebuildTree(); saveLocal(); }
 }
 
 /* ---------- 产物树（按 SB + groups 推算预期文件 → 状态点） ---------- */
@@ -424,6 +457,9 @@ function buildGroups(sb) {
 function rebuildTree() {
   const root = $("tree");
   if (!SB) {
+    // 无上游 分镜.json：但后端可能已有落盘产物（BUG D 二次打开/换机）→ 按 discoverEpFiles
+    // 标 done 的本集文件，按子目录前缀分组渲染，点击仍走 C1 读正文。否则提示去分镜页。
+    if (renderBackendOnlyTree(root)) return;
     root.innerHTML = '<div class="tree-empty">本集无 分镜.json。<br>请先在「分镜」页生成该集分镜脚本。</div>';
     $("treeCount").textContent = "";
     return;
@@ -458,8 +494,11 @@ function rebuildTree() {
 
   root.innerHTML = html;
   $("treeCount").textContent = total + " 个产物";
+  bindTreeRows(root);
+}
 
-  // 绑定行点击 + 单组生成
+/* 绑定产物树行点击（预览，C1）+ 单组生成按钮。SB 树与后端兜底树共用。 */
+function bindTreeRows(root) {
   root.querySelectorAll(".tree-file").forEach((el) => {
     const p = el.dataset.path;
     el.addEventListener("click", (e) => {
@@ -473,6 +512,39 @@ function rebuildTree() {
       genGroup(parseInt(btn.dataset.gi, 10));
     });
   });
+}
+
+/* 无 SB 时的后端兜底树：列 discoverEpFiles 标 done 的本集文件（按子目录前缀分组）。
+   返回 true 表示已渲染（有后端产物），false 表示本集无后端产物（交由 SB-empty 提示）。 */
+function renderBackendOnlyTree(root) {
+  if (!activeEp) return false;
+  const dir = epDir(activeEp);
+  // 收集本集已 done 的文件，按所在子目录分组（角色参考图 / N宫格 / 其它）
+  const buckets = {};
+  Object.keys(fileStatus).forEach((p) => {
+    if (fileStatus[p] !== "done") return;
+    if (p.indexOf(dir + SEP) !== 0) return;
+    const tail = p.slice(dir.length + SEP.length);
+    const parts = tail.split(/[\\/]/);
+    const group = parts.length > 1 ? parts[0] : "其它";
+    (buckets[group] = buckets[group] || []).push({ abs: p, name: parts[parts.length - 1] });
+  });
+  const groupNames = Object.keys(buckets);
+  if (!groupNames.length) return false;
+
+  let html = "";
+  let total = 0;
+  groupNames.sort().forEach((g) => {
+    const items = buckets[g].sort((a, b) => a.name.localeCompare(b.name));
+    html += '<div class="tree-group"><div class="tg-head">📁 ' + esc(g) +
+      ' <span class="cnt">(' + items.length + ')</span></div>';
+    items.forEach((it) => { html += fileRow(it.abs, it.name, null); total++; });
+    html += "</div>";
+  });
+  root.innerHTML = html;
+  $("treeCount").textContent = total + " 个产物（后端，无分镜.json）";
+  bindTreeRows(root);
+  return true;
 }
 
 function fileRow(absPath, name, groupIndex) {
@@ -494,27 +566,74 @@ function setFileStatus(absPath, status) {
 }
 function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
 
-/* ---------- 预览文件 ----------
-   无后端「读单文件」GET → 用 fileContent 本地镜像（partial 后由 done 不带正文，
-   故 partial 时正文未知；这里预览展示「已生成（落盘在项目目录），正文未在本页缓存」占位，
-   仅当本页本会话内生成并缓存过才有正文。TODO：后端加 GET /prompts/file?path= 可拉真源。 */
-function openFile(absPath) {
+/* ---------- 读后端单文件（BUG C1 + BUG D 共用）----------
+   GET {MEDIA_API}/file?path=<rel|abs>&project=<dir> → 流式返回，.then(r=>r.text()) 取正文。
+   path 优先用文件相对项目根的 posix 路径（prompts/E{id}/...）；media_agent 的 /file
+   绝对/相对均可解析（相对以 project 为基）。404 等抛错由调用方捕获回退。 */
+async function fetchFileText(absPath) {
+  // 优先用 discoverEpFiles 记录的后端真实 path（posix，最可靠），否则客户端相对化
+  const rel = backendPath[absPath] || toProjectRel(absPath);
+  const url = MEDIA_API + "/file?path=" + encodeURIComponent(rel) +
+    "&project=" + encodeURIComponent(PROJECT_DIR);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return await r.text();
+}
+
+/* abs path → 相对项目根的 posix 子路径（喂 /file?path=）。无法相对化则原样返回。 */
+function toProjectRel(absPath) {
+  if (!PROJECT_DIR) return absPath;
+  const a = String(absPath).replace(/\\/g, "/");
+  const base = String(PROJECT_DIR).replace(/\\/g, "/").replace(/\/+$/, "");
+  if (a.toLowerCase().indexOf(base.toLowerCase() + "/") === 0) {
+    return a.slice(base.length + 1);
+  }
+  return absPath;  // 已是相对或不在项目下，直接交后端
+}
+
+/* ---------- 预览文件（BUG C1）----------
+   点产物树某条 → 优先 GET /file 取真源正文显示在预览区（替换“未缓存正文”占位）；
+   后端读不到（未生成/404/无后端）才回退 localStorage 镜像 fileContent，再回退占位。
+   读到的正文写回 fileContent 镜像并标 done，供离线复用。 */
+async function openFile(absPath) {
   currentFile = absPath;
   rebuildTreeSelOnly();
   const name = absPath.split(/[\\/]/).pop();
   $("pvName").textContent = "预览：" + name;
-  const st = fileStatus[absPath];
-  if (fileContent[absPath] != null) {
-    $("promptEditor").value = fileContent[absPath];
-    $("promptEditor").disabled = false;
-  } else if (st === "done") {
-    $("promptEditor").value = "（该文件已生成并落盘到项目 prompts/ 目录；本页未缓存正文。\n打开 prompts/ 目录可查看；或在本页重新生成以缓存正文。）";
-    $("promptEditor").disabled = true;
-  } else {
-    $("promptEditor").value = "（未生成。点「⚡ 全量生成」或该组「✦ 本组」由 AI 生成。）";
-    $("promptEditor").disabled = true;
-  }
+  const ed = $("promptEditor");
+  ed.disabled = true;
   $("btnSave").disabled = true;
+
+  // 1) 先尝试后端真源（优先后端）
+  if (PROJECT_DIR) {
+    ed.value = "（读取中…）";
+    try {
+      const text = await fetchFileText(absPath);
+      if (currentFile !== absPath) return;   // 期间已切换文件，丢弃
+      fileContent[absPath] = text;
+      setFileStatus(absPath, "done");
+      saveLocal();
+      ed.value = text;
+      ed.disabled = false;
+      $("btnSave").disabled = true;
+      return;
+    } catch (_) {
+      if (currentFile !== absPath) return;
+      // 落到回退分支
+    }
+  }
+
+  // 2) 回退：本页 localStorage 缓存正文
+  if (fileContent[absPath] != null) {
+    ed.value = fileContent[absPath];
+    ed.disabled = false;
+  } else if (fileStatus[absPath] === "done") {
+    ed.value = "（该文件已生成并落盘到项目 prompts/ 目录；当前读不到正文。\n点「📂 打开 prompts/」在资源管理器查看，或在本页重新生成。）";
+    ed.disabled = true;
+  } else {
+    ed.value = "（未生成。点「⚡ 全量生成」或该组「✦ 本组」由 AI 生成。）";
+    ed.disabled = true;
+  }
 }
 
 function rebuildTreeSelOnly() {
@@ -626,12 +745,44 @@ function saveFile() {
   /* TODO: 后端无写文件路由；本页 save 仅落 localStorage 镜像，未回写项目 prompts/*.md。 */
 }
 
-/* ---------- 打开 prompts 目录（壳可拦此 postMessage 做本地打开） ---------- */
+/* ---------- 打开 prompts 目录（BUG C2）----------
+   经壳中继 open.path → Qt window.filepick.openPath 打开 OS 资源管理器。
+   未指定项目则忽略；优先打开本集 prompts/E{id}/，无活动集回退项目级 prompts/。
+   无桥时静默（toast 兜底提示绝对路径，便于用户手动定位）。 */
 $("btnOpenDir").addEventListener("click", () => {
-  if (!activeEp) return;
-  window.parent && window.parent.postMessage(
-    { type: "prompts.openDir", path: epDir(activeEp) }, "*");
+  if (!PROJECT_DIR) { toast("未指定项目目录"); return; }
+  const target = activeEp ? epDir(activeEp) : joinPath(PROJECT_DIR, "prompts");
+  let bridged = false;
+  try {
+    if (window.parent) {
+      window.parent.postMessage({ type: "open.path", path: target }, "*");
+      bridged = true;
+    }
+  } catch (_) {}
+  // 无父窗/被拦截时也给用户路径提示（壳侧无桥会静默忽略，这里兜底）
+  if (!bridged) toast(target);
+  else toast("已请求打开：" + target);
 });
+
+/* 轻量 toast（无依赖；右下角短暂提示） */
+let _toastTimer = null;
+function toast(msg) {
+  let el = $("toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    el.style.cssText =
+      "position:fixed;right:22px;bottom:22px;max-width:60vw;z-index:9999;" +
+      "background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);" +
+      "color:var(--fg);font-size:12px;padding:10px 14px;box-shadow:0 6px 24px rgba(0,0,0,.4);" +
+      "opacity:0;transition:opacity .2s;white-space:pre-wrap;word-break:break-all;";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  requestAnimationFrame(() => (el.style.opacity = "1"));
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => (el.style.opacity = "0"), 2600);
+}
 
 /* ---------- 推进到视频提示词（壳 video_post 子向导）---------- */
 $("btnAdvance").addEventListener("click", () => {

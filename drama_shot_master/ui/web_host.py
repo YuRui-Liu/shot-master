@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QUrl, Qt, QObject, Slot, QFile, QIODevice
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QMainWindow, QFileDialog
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineScript
@@ -65,6 +66,26 @@ class _FilePick(QObject):
     def chooseFiles(self) -> str:
         files, _ = QFileDialog.getOpenFileNames(self._win, "选择文件")
         return "\n".join(files) if files else ""
+
+    @Slot(str)
+    def openPath(self, path: str):
+        """在系统文件管理器中打开目录/文件所在位置（window.filepick.openPath）。
+
+        - 空/None/不存在路径安全忽略，不抛异常。
+        - path 为文件时打开其所在目录（便于定位）；为目录时直接打开。
+        - 优先 QDesktopServices.openUrl(QUrl.fromLocalFile(...))。
+        """
+        try:
+            if not path:
+                return
+            p = Path(path)
+            if not p.exists():
+                return
+            target = p if p.is_dir() else p.parent
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
+        except Exception:
+            # 桥方法绝不向 JS 侧抛异常
+            return
 
 
 class WebHostWindow(QMainWindow):

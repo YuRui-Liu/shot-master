@@ -252,6 +252,103 @@ function restoreLocal() {
   if (s.active && EPISODES.some((e) => e.id === s.active)) selectEp(s.active);
 }
 
+/* ---------- 二次打开：从后端读回分集/正文（BUGD 契约） ----------
+   [列目录] GET {MEDIA_API}/project/files?project=&ext=md → {files:[{name,path,size}]}
+   [读内容] GET {MEDIA_API}/file?path=<相对项目|绝对>&project=<dir> → fetch().then(r=>r.text())
+   后端落盘：剧本索引=剧本.json{episodes:[{id,title,summary}]}；分集正文=剧本_E{id}.md（旧 剧本.md=E1）。
+   优先后端，读不到静默回退 localStorage；不抛错、不阻塞其余 init。 */
+const RE_EP_MD = /^剧本_(E[1-9]\d*)\.md$/;   // 剧本_E12.md → E12
+function epNum(id) { const m = /^E(\d+)$/.exec(id); return m ? parseInt(m[1], 10) : 0; }
+
+async function mediaGet(path) {
+  // path 形如 "/project/files?...";相对路径喂 /file 时由后端用 project 解析
+  return fetch(MEDIA_API + path);
+}
+
+/* 列项目根的 .md，挑出剧本分集 → 返回有序集 id 列表（含旧 剧本.md=E1）。 */
+async function listEpisodeMds() {
+  if (!PROJECT_DIR) return [];
+  try {
+    const r = await mediaGet("/project/files?project=" + encodeURIComponent(PROJECT_DIR) + "&ext=md");
+    if (!r.ok) return [];
+    const j = await r.json().catch(() => ({}));
+    const ids = [];
+    (j.files || []).forEach((f) => {
+      const m = RE_EP_MD.exec(f.name || "");
+      if (m) ids.push(m[1]);
+      else if (f.name === "剧本.md" && !ids.includes("E1")) ids.push("E1"); // 旧单文件 = E1
+    });
+    return [...new Set(ids)].sort((a, b) => epNum(a) - epNum(b));
+  } catch (_) { return []; }
+}
+
+/* 读 剧本.json 索引（title/summary 来源，可缺）→ {E1:{title,summary},...} 或 null。 */
+async function readScriptIndex() {
+  if (!PROJECT_DIR) return null;
+  try {
+    const r = await mediaGet("/file?path=" + encodeURIComponent("剧本.json")
+      + "&project=" + encodeURIComponent(PROJECT_DIR));
+    if (!r.ok) return null;                          // 404 = 无索引（仅有 .md 也行）
+    const obj = JSON.parse(await r.text());
+    const map = {};
+    (obj.episodes || []).forEach((e) => {
+      if (e && e.id) map[e.id] = { title: e.title || "", summary: e.summary || "" };
+    });
+    return map;
+  } catch (_) { return null; }
+}
+
+/* 读单集正文：剧本_E{id}.md（E1 兜底旧 剧本.md）。返回文本或 null。 */
+async function readEpisodeMd(id) {
+  const tryNames = ["剧本_" + id + ".md"];
+  if (id === "E1") tryNames.push("剧本.md");
+  for (const name of tryNames) {
+    try {
+      const r = await mediaGet("/file?path=" + encodeURIComponent(name)
+        + "&project=" + encodeURIComponent(PROJECT_DIR));
+      if (r.ok) return await r.text();
+    } catch (_) { /* 试下一个名字 */ }
+  }
+  return null;
+}
+
+/* init：从后端读回分集与正文，覆盖 EPISODES/epContent/epStatus 并渲染。
+   返回是否成功读到至少一集（false → 调用方回退 localStorage）。 */
+async function loadFromBackend() {
+  const ids = await listEpisodeMds();
+  const idx = await readScriptIndex();
+  // 集合并集：索引里有的 + 落盘 .md 有的，按编号排序去重
+  const idSet = new Set(ids);
+  if (idx) Object.keys(idx).forEach((k) => idSet.add(k));
+  const allIds = [...idSet].sort((a, b) => epNum(a) - epNum(b));
+  if (!allIds.length) return false;
+
+  // 并行读各集正文
+  const texts = await Promise.all(allIds.map((id) => readEpisodeMd(id)));
+
+  EPISODES = allIds.map((id, i) => {
+    const meta = (idx && idx[id]) || {};
+    return { id, title: meta.title || "", summary: meta.summary || "" };
+  });
+  allIds.forEach((id, i) => {
+    const t = texts[i];
+    if (t != null) { epContent[id] = t; epStatus[id] = t.trim() ? "done" : "idle"; }
+  });
+
+  renderEpList();
+  $("btnAll").disabled = EPISODES.length === 0;
+  // 恢复 active：优先 localStorage 记录的 active（若仍存在），否则首集
+  let act = null;
+  try {
+    const s = JSON.parse(localStorage.getItem(LS_SCRIPT) || "null");
+    if (s && s.active && EPISODES.some((e) => e.id === s.active)) act = s.active;
+  } catch (_) {}
+  if (!act && EPISODES.length) act = EPISODES[0].id;
+  if (act) selectEp(act);
+  saveLocal();   // 后端数据写回 localStorage 镜像，下次离线也有
+  return true;
+}
+
 /* 读立意页选定的立意（sessionStorage，同源跨页共享）→ 继承上下文显示 */
 function readSelectedIdea() {
   try {
@@ -548,11 +645,21 @@ $("stepIdeate").addEventListener("click", () => {
   window.parent && window.parent.postMessage({ type: "script.back", stage: "ideate" }, "*");
 });
 
-checkHealth();
-renderEpList();
-restoreLocal();           // 恢复分集/正文持久化（切页/重启不丢）
-readSelectedIdea();       // 显示立意页选定的立意（继承上下文）
-showInheritedContext();   // 域W3：只读显示当前选中题材/风格名
+/* init：先恢复参数（集数/时长/语言风格）与 localStorage 镜像作即时占位，
+   再异步从后端读回分集/正文覆盖（二次打开权威源）；后端读不到则保留 localStorage。 */
+async function init() {
+  checkHealth();
+  renderEpList();
+  restoreLocal();             // 即时占位：参数 + 上次分集/正文（无后端/离线时即终态）
+  readSelectedIdea();         // 显示立意页选定的立意（继承上下文）
+  showInheritedContext();     // 域W3：只读显示当前选中题材/风格名
+  try {
+    await loadFromBackend();  // 二次打开：后端有则覆盖；读不到静默保留 localStorage
+  } catch (e) {
+    console.warn("[script] 后端读回失败，沿用 localStorage：", e && e.message);
+  }
+}
+init();
 </script>
 </body>
 </html>

@@ -384,6 +384,72 @@ function restoreLocal() {
   if (s && s.active && EPISODES.some((e) => e.id === s.active)) selectEp(s.active);
 }
 
+/* ---------- 二次打开：从后端读回各集分镜（优先后端，否则保留 localStorage） ----------
+   契约（媒体后端 MEDIA_API）：
+     列目录 GET /project/files?project=<dir>&ext=json → {files:[{name,path,size}]}（非递归）
+     读内容 GET /file?path=<相对项目或绝对>&project=<dir> → 流式文件（.json 也可，fetch().text()）
+   落盘文件名（screenwriter_agent）：分镜_E{id}.json（旧单文件 分镜.json 仅映射 E1）。
+   文件内容即校验后 storyboard：{title,aspectRatio,fps,totalDuration,globalStyle,characters,shots}。
+   warnings 不落盘，故后端读回的集 warns 置空。任何步骤失败均静默回退 localStorage。 */
+async function loadFromBackend() {
+  if (!PROJECT_DIR || !MEDIA_API) return;
+  let files = [];
+  try {
+    const r = await fetch(MEDIA_API + "/project/files?" + new URLSearchParams({ project: PROJECT_DIR, ext: "json" }));
+    if (!r.ok) return;
+    const j = await r.json().catch(() => null);
+    files = (j && Array.isArray(j.files)) ? j.files : [];
+  } catch (_) { return; }
+
+  // 文件名 → 集 id：分镜_E{n}.json；旧 分镜.json → E1
+  const found = [];   // [{id, path}]
+  for (const f of files) {
+    const name = f && f.name || "";
+    let m = name.match(/^分镜_(E\d+)\.json$/);
+    let id = m ? m[1] : (name === "分镜.json" ? "E1" : null);
+    if (id) found.push({ id, path: f.path || name });
+  }
+  if (!found.length) return;
+
+  // 旧 分镜.json 与 分镜_E1.json 同时存在时，优先后者（去重，保留先遇到的 分镜_ 命名）
+  const byId = {};
+  for (const it of found) {
+    if (!byId[it.id] || /分镜_E/.test(it.path)) byId[it.id] = it;
+  }
+
+  let changed = false;
+  await Promise.all(Object.values(byId).map(async (it) => {
+    try {
+      const r = await fetch(MEDIA_API + "/file?" + new URLSearchParams({ path: it.path, project: PROJECT_DIR }));
+      if (!r.ok) return;
+      const txt = await r.text();
+      const sb = JSON.parse(txt);
+      if (sb && typeof sb === "object") {
+        epSB[it.id] = sb;          // 后端优先：覆盖 localStorage 缓存
+        epStatus[it.id] = "done";
+        epWarns[it.id] = [];       // warnings 不落盘
+        changed = true;
+      }
+    } catch (_) { /* 单集读不到/解析失败：静默跳过该集 */ }
+  }));
+
+  if (!changed) return;
+
+  // 后端有分镜但本页尚无对应分集条目时，补出占位集条目（避免列表空/选不到）
+  for (const id of Object.keys(byId)) {
+    if (!EPISODES.some((e) => e.id === id)) {
+      EPISODES.push({ id, title: (epSB[id] && epSB[id].title) || "", summary: "" });
+    }
+  }
+  EPISODES.sort((a, b) => (parseInt((a.id || "").slice(1), 10) || 0) - (parseInt((b.id || "").slice(1), 10) || 0));
+
+  saveLocal();
+  renderEpList();
+  $("btnAll").disabled = EPISODES.length === 0;
+  // 若当前已选中集刚被后端覆盖，则重渲右栏 + 按钮态
+  if (activeEp && epSB[activeEp]) { renderSB(epSB[activeEp]); refreshButtonsForActive(); }
+}
+
 /* 继承剧本页分集（key nuomi.script.state.<project>，见 web/script.html saveLocal） */
 function inheritEpisodesFromScript() {
   try {
@@ -765,6 +831,7 @@ $("btnAll").addEventListener("click", genAll);
 checkHealth();
 restoreLocal();
 readInheritedContext();
+loadFromBackend();   // 二次打开：从后端读回各集分镜（优先后端，静默回退 localStorage）
 </script>
 </body>
 </html>

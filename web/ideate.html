@@ -762,16 +762,19 @@ function refreshInjection() {
   const ep = $("episodes").value || "-";
   const dur = $("duration").value || "-";
   const cc = $("candCount").value || "-";
-  $("injSpec").textContent = `${state.aspect} · ${ep}集 · 单集${dur}s · 候选${cc}`;
+  /* 注：原先这里还写 $("injSpec")，但下方会整段重建 injectBody（销毁 injSpec 元素），
+     第二次起 $("injSpec")=null → 抛错中断 refreshInjection，导致面板永远停在首屏默认值（BUG A）。
+     已去掉对独立 injSpec 节点的写入，规格统一由下方 rows 重建，保证每次都实时更新。 */
   $("genN").textContent = cc;
+  const subTxt = (state.genre.sub && state.genre.sub.length) ? " +" + esc(state.genre.sub.join("·")) : "";
   const rows = [];
   rows.push(state.genre.id
-    ? `<span><b>题材规则</b>：<span class="k">${esc(state.genre.name)}${state.genre.sub.length ? " +" + esc(state.genre.sub.join("·")) : ""}</span> ${esc(state.genre.meta)}</span>`
+    ? `<span><b>题材规则</b>：<span class="k">${esc(state.genre.name)}${subTxt}</span> ${esc(state.genre.meta)}</span>`
     : `<span><b>题材规则</b>：<span class="k">（未选题材）</span> 选模板后显示爽点矩阵 / 节奏 / 守则</span>`);
   rows.push(state.style.ref
     ? `<span><b>风格</b>：<span class="k">${esc(state.style.name)}</span> ${esc(state.style.meta)}</span>`
     : `<span><b>风格</b>：<span class="k">（未选风格）</span> 选风格圣经后显示镜头语言 / 护栏</span>`);
-  rows.push(`<span><b>规格</b>：<span id="injSpec2">${state.aspect} · ${ep}集 · 单集${dur}s · 候选${cc}</span></span>`);
+  rows.push(`<span><b>规格</b>：<span class="k">${state.aspect} · ${ep}集 · 单集${dur}s · 候选${cc}</span></span>`);
   $("injectBody").innerHTML = rows.join("");
 }
 ["episodes", "duration", "candCount"].forEach((id) =>
@@ -1051,8 +1054,111 @@ $("advanceBtn").addEventListener("click", async () => {
     { type: "ideate.advance", stage: "script", selected_id: state.selectedId }, "*");
 });
 
-/* 启动：恢复项目级持久化（切页/重启回显 候选/历史/表单，解决「立意切界面消失」） */
-restoreState();
+/* ============== BUG D：二次打开优先从后端读回 创意.json ==============
+   契约：GET {MEDIA_API}/file?path=创意.json&project=<dir> → 流式文件 →text→JSON.parse
+         {input, messages, candidates, selected_id}。兼容旧文件名 idea.json。
+   优先级：后端有内容 → 以后端为准回填 state+表单；否则回退 localStorage(restoreState)。
+   读不到(404/无项目/解析失败) → 静默回退，不报错阻断。 */
+async function fetchBackendIdea() {
+  if (!PROJECT_DIR) return null;   // 无项目 → 不读后端，回退本地
+  const names = ["创意.json", "idea.json"];
+  for (const name of names) {
+    try {
+      const url = MEDIA_API + "/file?path=" + encodeURIComponent(name) +
+        "&project=" + encodeURIComponent(PROJECT_DIR);
+      const r = await fetch(url);
+      if (!r.ok) continue;                       // 404/其他 → 试下一个文件名
+      const txt = (await r.text()).trim();
+      if (!txt) continue;
+      const j = JSON.parse(txt);
+      if (j && typeof j === "object") return j;  // 命中即用（创意.json 优先于 idea.json）
+    } catch (e) {
+      console.warn("[ideate] 读后端 " + name + " 失败，继续回退：", e.message);
+    }
+  }
+  return null;
+}
+
+/* 用后端 创意.json 回填 state + 表单（input 字段对齐 collectContext / ideate_page）。
+   genre/style 的展示名(name/meta)不在 input 里 → 用模板库映射出中文名补全 chip。 */
+async function applyBackendIdea(data) {
+  const input = data.input || {};
+
+  /* —— 表单标量 —— */
+  if (input.core_idea != null) $("coreIdea").value = input.core_idea;
+  if (Array.isArray(input.genre_tags)) $("genreTags").value = input.genre_tags.join(", ");
+  if (input.visual_style != null) $("visualStyle").value = input.visual_style;
+  if (input.episode_count != null) $("episodes").value = input.episode_count;
+  if (input.duration_sec != null) $("duration").value = input.duration_sec;
+  if (input.candidate_count != null) $("candCount").value = input.candidate_count;
+  if (input.aspect_ratio) setAspect(input.aspect_ratio);
+
+  /* —— 题材：input.genre = {genre(id), sub:[id...]}；用题材库映射出中文名补全 chip —— */
+  const gi = input.genre || {};
+  const gid = gi.genre || gi.id || "";
+  if (gid) {
+    let glist = [];
+    try { glist = await loadGenres(); } catch {}
+    const idToName = {}; glist.forEach((g) => { idToName[g.genre_id] = g.display_name; });
+    const idToOne = {};  glist.forEach((g) => { idToOne[g.genre_id] = g.one_liner; });
+    const subIds = Array.isArray(gi.sub) ? gi.sub : [];
+    /* sub 在 state/chip 里以中文名展示（与 genreOk 写入口径一致）：能映射的转中文名，否则保留原值 */
+    const subNames = subIds.map((s) => idToName[s] || s).filter(Boolean);
+    state.genre = {
+      id: gid,
+      name: idToName[gid] || gid,
+      sub: subNames,
+      meta: idToOne[gid] || ("已选 " + (idToName[gid] || gid)),
+    };
+    $("genreChip").textContent = state.genre.name;
+    const subChip = $("genreSubChip");
+    if (subNames.length) { subChip.textContent = "+" + subNames.join("·"); subChip.style.display = ""; }
+    else subChip.style.display = "none";
+    $("genreMeta").textContent = state.genre.meta;
+  }
+
+  /* —— 风格：input.style_bible = {ref}；用风格库映射出中文名 + meta 补全 chip —— */
+  const sref = (input.style_bible || {}).ref || "";
+  if (sref) {
+    let slist = [];
+    try { slist = await loadStyles(); } catch {}
+    const s = slist.find((x) => x.style_id === sref);
+    state.style = s
+      ? { ref: s.style_id, name: s.name_cn,
+          meta: [s.style_id, CAT_LABEL[s.category] || s.category, s.prompt_suffix].filter(Boolean).join(" · ") }
+      : { ref: sref, name: sref, meta: sref };
+    $("styleChip").textContent = state.style.name;
+    $("styleMeta").textContent = state.style.meta;
+  }
+
+  /* —— 候选 / 选中 / 历史 —— */
+  state.candidates = Array.isArray(data.candidates) ? data.candidates : [];
+  state.selectedId = data.selected_id || data.selectedId || "";
+  state.messages = Array.isArray(data.messages) ? data.messages : [];
+
+  renderCandidates();
+  renderHistory();
+  if (state.selectedId) $("advanceBtn").disabled = false;
+  refreshInjection();
+  saveState();   // 后端口径回写本地镜像，保持一致
+}
+
+/* 启动：后端 创意.json 优先；读不到回退 localStorage（切页/重启回显，解决「立意切界面消失」） */
+(async function initState() {
+  let backend = null;
+  try { backend = await fetchBackendIdea(); } catch {}
+  /* 后端有内容(input 或 候选 或 历史任一非空)则以后端为准，否则回退本地持久化 */
+  const hasBackend = backend && (
+    (backend.input && Object.keys(backend.input).length) ||
+    (Array.isArray(backend.candidates) && backend.candidates.length) ||
+    (Array.isArray(backend.messages) && backend.messages.length)
+  );
+  if (hasBackend) {
+    try { await applyBackendIdea(backend); return; }
+    catch (e) { console.warn("[ideate] 回填后端数据失败，回退本地：", e.message); }
+  }
+  restoreState();
+})();
 
 /* —— 健康检查 —— */
 (async function health() {
