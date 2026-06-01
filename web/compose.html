@@ -291,18 +291,18 @@ const CLIPS_SUB_DEFAULT = "video";   // 视频成片常落在 <project>/video（
 let clipsSub = CLIPS_SUB_DEFAULT;
 let clipsLoaded = false;             // 是否已从后端成功拉到真实片段
 
-/* 本地路径 → 壳内可显示 file:// src（与 asset-library.html refImgSrc 一致）。
-   后端 path 相对项目目录 → 先拼 PROJECT 再转 file://；已是绝对/协议则原样。 */
-function fileSrc(path) {
-  if (!path) return "";
-  let p = String(path).replace(/\\/g, "/");
-  const isAbs = /^[A-Za-z]:/.test(p) || p.startsWith("/") || /^(file|https?):/i.test(p);
-  if (/^(file|https?):/i.test(p)) return p;
-  if (!isAbs && PROJECT) {
-    p = String(PROJECT).replace(/\\/g, "/").replace(/\/+$/, "") + "/" + p.replace(/^\/+/, "");
-  }
-  return "file:///" + p.replace(/^\/+/, "");
+/* 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）。
+   走 media_agent GET /file?path=…[&project=…]：绝对路径直读，相对路径附 project 解析。
+   本页项目目录变量名为 PROJECT。 */
+function mediaUrl(p) {
+  if (!p) return "";
+  if (/^(https?:|data:|blob:)/.test(p)) return p;
+  var u = MEDIA_API + "/file?path=" + encodeURIComponent(p);
+  if (PROJECT && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += "&project=" + encodeURIComponent(PROJECT);
+  return u;
 }
+/* 片段缩略图/媒体 src（保留原函数名，内部改走 mediaUrl 消除色块/空白）。 */
+function fileSrc(path) { return mediaUrl(path); }
 
 /* 视频片段缩略图：无现成抽帧端点 → 若存在同名图(.jpg/.png/.webp)用首帧图；
    否则返回空（renderStrip 退化为「文件名卡片」，不造假抽帧）。 */

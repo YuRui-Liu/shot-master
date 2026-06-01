@@ -114,9 +114,16 @@
   }
   .asset:hover { border-color: var(--mauve); }
   .asset .ph {
-    aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center;
+    position: relative; aspect-ratio: 16 / 9;
+    display: flex; align-items: center; justify-content: center;
     color: var(--faint); font-size: 11px; text-align: center; padding: 0 8px;
-    background: linear-gradient(160deg, #20243a, #14172a);
+    background: linear-gradient(160deg, #20243a, #14172a); overflow: hidden;
+  }
+  .asset .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* 视频缩略角标 */
+  .asset .ph .vtag {
+    position: absolute; right: 6px; bottom: 6px; font-size: 9px; color: #cdd6f4;
+    background: rgba(8,10,20,.7); border-radius: 6px; padding: 1px 6px;
   }
   .asset .cap { padding: 7px 9px; }
   .asset .cap .nm { font-size: 11.5px; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -206,6 +213,12 @@ const _qs = new URLSearchParams(location.search);
 const MEDIA_API = _qs.get("media") || "http://127.0.0.1:18450";   // media_agent（项目概览聚合）
 const PROJECT_DIR = _qs.get("project") || "";                     // 项目目录；空则保留占位
 
+/* [A] 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）。 */
+function mediaUrl(p){ if(!p) return ''; if(/^(https?:|data:|blob:)/.test(p)) return p;
+  var u = MEDIA_API + '/file?path=' + encodeURIComponent(p);
+  if (PROJECT_DIR && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += '&project=' + encodeURIComponent(PROJECT_DIR);
+  return u; }
+
 /* 概览阶段卡片 key → 壳左栏导航键（app.html data-key）。
    立意/剧本归「剧本创作」；分镜+出图都落「分镜板」；视频→视频生成；配音配乐+成片→视频后期。 */
 const STAGE_NAV = {
@@ -268,31 +281,88 @@ function renderFlow(stages) {
   });
 }
 
-/* ---- 最近产物（静态占位）---- */
-const RECENT = [
-  { nm: "角色 · 林晚（参考图）", sub: "资源库 · 角色", kind: "立绘" },
-  { nm: "场景 · 雨夜废品场",     sub: "资源库 · 场景", kind: "场景图" },
-  { nm: "1-3 审讯室对峙",        sub: "分镜 · 第1集",  kind: "分镜图" },
-  { nm: "道具 · 旧地图",         sub: "资源库 · 道具", kind: "道具图" },
-  { nm: "1-1 城郊废品站",        sub: "分镜 · 第1集",  kind: "分镜图" },
-  { nm: "片头主题（草稿）",       sub: "配乐 · 项目级",  kind: "音频" },
+/* ---- 最近产物（接真实 /project/clips）----
+   GET {MEDIA_API}/project/clips?project=<dir>&sub=<子目录> →
+   {clips:[{name, path(posix), kind:"image"|"video", size}]}。
+   从若干常见出图/视频输出目录拉取并合并，取最近的若干条；无→空态。 */
+const RECENT_MAX = 8;
+// 出图(shots)、视频碎片(clips)、成片(exports) 输出目录 + 项目根。
+const RECENT_SUBS = [
+  { sub: "shots",   label: "出图" },
+  { sub: "clips",   label: "视频" },
+  { sub: "exports", label: "成片" },
+  { sub: "",        label: "产物" },
 ];
-function renderRecent() {
+
+function renderRecentEmpty(msg) {
+  const root = document.getElementById("recent");
+  root.innerHTML =
+    `<div style="grid-column:1/-1;color:var(--faint);font-size:12px;` +
+    `border:1px dashed var(--border);border-radius:var(--radius);` +
+    `padding:22px;text-align:center;">${esc(msg || "暂无产物")}</div>`;
+}
+
+function renderRecent(items) {
   const root = document.getElementById("recent");
   root.innerHTML = "";
-  RECENT.forEach(r => {
+  if (!items || !items.length) { renderRecentEmpty("暂无产物"); return; }
+  items.forEach(r => {
     const el = document.createElement("div");
     el.className = "asset";
+    const url = mediaUrl(r.path);
+    const vtag = r.kind === "video" ? `<span class="vtag">▶</span>` : "";
+    // 缩略图：图/视频均尝试 <img>（视频可能无缩略 → onerror 回退文字占位）。
+    const ph = url
+      ? `<img src="${esc(url)}" alt="" loading="lazy"
+             onerror="this.parentNode.textContent=this.alt||'无预览';">${vtag}`
+      : esc(r.name);
     el.innerHTML = `
-      <div class="ph">${r.nm}</div>
+      <div class="ph">${ph}</div>
       <div class="cap">
-        <div class="nm" title="${r.nm}">${r.nm}</div>
-        <div class="sub">${r.sub}</div>
-        <span class="kind">${r.kind}</span>
+        <div class="nm" title="${esc(r.name)}">${esc(r.name)}</div>
+        <div class="sub">${esc(r.subLabel || "")}</div>
+        <span class="kind">${r.kind === "video" ? "视频" : "图片"}</span>
       </div>`;
-    el.addEventListener("click", () => console.log("[overview] open asset:", r.nm));
+    el.addEventListener("click", () => navTo("asset_library"));
     root.appendChild(el);
   });
+}
+
+/* 拉一个子目录的 clips（失败/空 → 空数组，不抛）。 */
+async function fetchClips(sub) {
+  try {
+    let u = MEDIA_API + "/project/clips?project=" + encodeURIComponent(PROJECT_DIR);
+    if (sub) u += "&sub=" + encodeURIComponent(sub);
+    const r = await fetch(u);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return Array.isArray(data.clips) ? data.clips : [];
+  } catch (e) { return []; }
+}
+
+/* 进页拉最近产物：并行拉多个输出目录，合并去重，取最近若干条。
+   端点无 mtime → 文件名降序近似「最近」（出图/视频按递增编号命名）。 */
+async function loadRecent() {
+  if (!PROJECT_DIR) { renderRecentEmpty("选择项目后展示最近产物。"); return; }
+  try {
+    const results = await Promise.all(RECENT_SUBS.map(s => fetchClips(s.sub)));
+    const seen = new Set();
+    let merged = [];
+    results.forEach((clips, i) => {
+      const label = RECENT_SUBS[i].label;
+      clips.forEach(c => {
+        if (!c || !c.path || seen.has(c.path)) return;
+        if (/(^|\/)cover\.(jpg|jpeg|png|webp)$/i.test(c.path)) return; // 跳过封面
+        seen.add(c.path);
+        merged.push(Object.assign({ subLabel: label }, c));
+      });
+    });
+    merged.sort((a, b) => String(b.name).localeCompare(String(a.name)));
+    renderRecent(merged.slice(0, RECENT_MAX));
+  } catch (e) {
+    console.warn("[overview] 拉取最近产物失败：", e);
+    renderRecentEmpty("无法连接后端，最近产物暂不可用。");
+  }
 }
 
 /* ---- 快捷入口（nav 用壳左栏导航键）---- */
@@ -423,7 +493,7 @@ document.getElementById("editBible").addEventListener("click", () => navTo("scre
 document.getElementById("nextGo").addEventListener("click", () => navTo("screenwriter"));
 document.getElementById("moreRecent").addEventListener("click", () => navTo("asset_library"));
 
-renderRecent();   // 最近产物：后端暂无聚合，保留静态占位
+loadRecent();     // 最近产物：接 /project/clips 真实数据
 renderQuick();
 loadOverview();
 </script>

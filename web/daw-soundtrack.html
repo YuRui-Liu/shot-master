@@ -286,19 +286,25 @@
      POST /soundtrack/overlay/{generate,list,remove}   → {segment}/{segments}
    后端无 WS / 无服务端播放头（见 soundtrack.py docstring）：播放头本地定时器驱动。
    后端只产出本地音频/会话静态产物；media_agent 仅 /ui 静态托管 web/，无通用文件服务端点，
-   故波形/回放统一用 file://（与 dub-mode2 / video-mode2 / asset-library 同约定）。 */
+   故波形/回放统一经 media_agent GET /file 端点取本地媒体（http 壳里禁 file://，会色块/取不到波形；
+   与 dub-mode2 / asset-library / compose 同约定 mediaUrl()）。 */
 const MEDIA_API = new URLSearchParams(location.search).get('media') || 'http://127.0.0.1:18450';
 const PROJECT_DIR = new URLSearchParams(location.search).get('project') || '';
 const WORK_DIR = new URLSearchParams(location.search).get('workdir')
   || (PROJECT_DIR ? PROJECT_DIR.replace(/[\\/]+$/, '') + '/soundtrack' : '');
 const VIDEO = new URLSearchParams(location.search).get('video') || '';
 
-/* 本地路径 → 可在壳内播放/取波形的 src（file://，同 dub-mode2/asset-library 约定） */
-function fileSrc(p) {
+/* 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://，否则 wavesurfer 取不到波形）。
+   走 media_agent GET /file?path=…[&project=…]：绝对路径直读，相对路径附 project 解析。 */
+function mediaUrl(p) {
   if (!p) return '';
-  if (/^(file|https?):/i.test(p)) return p;
-  return 'file:///' + String(p).replace(/\\/g, '/').replace(/^\/+/, '');
+  if (/^(https?:|data:|blob:)/.test(p)) return p;
+  var u = MEDIA_API + '/file?path=' + encodeURIComponent(p);
+  if (PROJECT_DIR && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += '&project=' + encodeURIComponent(PROJECT_DIR);
+  return u;
 }
+/* 波形/音频源 src（保留原函数名，内部改走 mediaUrl —— wavesurfer ws.load(fileSrc(path)) 即走 /file）。 */
+function fileSrc(p) { return mediaUrl(p); }
 
 async function postJSON(path, body) {
   const resp = await fetch(MEDIA_API + path, {

@@ -54,35 +54,46 @@
     margin: 4px 0 2px; opacity: .9;
   }
 
-  /* ===== 最近项目 coverflow：焦点居中，按时间向两旁退远 ===== */
+  /* ===== 最近项目 coverflow：焦点居中，按时间向两旁退远。
+         参考「炫酷界面.jpg」：项目卡为竖向海报（更宽更长，约 9:16），
+         封面铺满卡片，标题/副标题压在底部渐隐遮罩上。 ===== */
   .recent {
     position: relative; z-index: 1; width: 100%; max-width: 1180px;
-    height: 300px; display: flex; align-items: center; justify-content: center;
+    height: 440px; display: flex; align-items: center; justify-content: center;
   }
   .card {
     position: absolute; border-radius: 14px; border: 1px solid var(--border);
     overflow: hidden; background: linear-gradient(160deg, #1c2038, #12152400);
     box-shadow: 0 12px 30px rgba(0,0,0,.45); cursor: pointer;
-    transition: transform .3s, opacity .3s, box-shadow .3s, left .3s;
+    transition: transform .3s, opacity .3s, box-shadow .3s, left .3s, width .3s, height .3s;
   }
+  /* 封面铺满整卡（无图时为蓝紫渐变占位）；底部叠 meta 遮罩。
+     .cv 既可能是 <img>（真实封面）也可能是 <div>（渐变占位）。 */
   .card .cv {
-    height: 64%; background: linear-gradient(135deg, #243a5a, #3a2746);
-    position: relative; background-size: cover; background-position: center;
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; display: block;
+    background: linear-gradient(135deg, #243a5a, #3a2746);
+    background-size: cover; background-position: center;
   }
-  .card .meta { padding: 10px 12px; }
-  .card .nm { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card .dt { font-size: 10px; color: var(--faint); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .meta {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+    padding: 14px 14px 12px;
+    background: linear-gradient(180deg, rgba(8,10,20,0), rgba(8,10,20,.55) 45%, rgba(8,10,20,.88));
+  }
+  .card .nm { font-size: 15px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .dt { font-size: 11px; color: #cdd6f4; opacity: .85; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card .badge {
-    position: absolute; top: 8px; left: 8px; font-size: 8.5px; color: #bcd4f5;
-    background: rgba(13,16,32,.6); border: 1px solid #2c4a6e; border-radius: 8px; padding: 1px 7px;
+    position: absolute; top: 10px; left: 10px; z-index: 2; font-size: 9px; color: #bcd4f5;
+    background: rgba(13,16,32,.62); border: 1px solid #2c4a6e; border-radius: 8px; padding: 2px 8px;
   }
-  /* 位置类（由 JS 按与焦点的距离赋予 c0 / l1 / r1 / l2 / r2 / hidden） */
-  .card.c0 { width: 230px; height: 280px; z-index: 5; left: 50%; margin-left: -115px;
-    border-color: #2c4a6e; box-shadow: 0 0 0 1px var(--blue), 0 16px 40px rgba(74,158,255,.22); }
-  .card.l1 { width: 185px; height: 236px; left: calc(50% - 350px); opacity: .78; z-index: 4; transform: perspective(900px) rotateY(18deg); }
-  .card.r1 { width: 185px; height: 236px; left: calc(50% + 165px); opacity: .78; z-index: 4; transform: perspective(900px) rotateY(-18deg); }
-  .card.l2 { width: 150px; height: 196px; left: calc(50% - 500px); opacity: .45; z-index: 3; transform: perspective(900px) rotateY(26deg); }
-  .card.r2 { width: 150px; height: 196px; left: calc(50% + 350px); opacity: .45; z-index: 3; transform: perspective(900px) rotateY(-26deg); }
+  /* 位置类（由 JS 按与焦点的距离赋予 c0 / l1 / r1 / l2 / r2 / hidden）。
+     焦点卡为竖向海报（更宽更长），两旁渐次缩小退远。 */
+  .card.c0 { width: 264px; height: 410px; z-index: 5; left: 50%; margin-left: -132px;
+    border-color: #2c4a6e; box-shadow: 0 0 0 1px var(--blue), 0 18px 46px rgba(74,158,255,.26); }
+  .card.l1 { width: 210px; height: 330px; left: calc(50% - 400px); opacity: .78; z-index: 4; transform: perspective(1000px) rotateY(18deg); }
+  .card.r1 { width: 210px; height: 330px; left: calc(50% + 190px); opacity: .78; z-index: 4; transform: perspective(1000px) rotateY(-18deg); }
+  .card.l2 { width: 168px; height: 262px; left: calc(50% - 560px); opacity: .42; z-index: 3; transform: perspective(1000px) rotateY(26deg); }
+  .card.r2 { width: 168px; height: 262px; left: calc(50% + 392px); opacity: .42; z-index: 3; transform: perspective(1000px) rotateY(-26deg); }
   .card.hidden { opacity: 0; pointer-events: none; z-index: 1; }
 
   /* 左右切换箭头 */
@@ -271,7 +282,26 @@
 const _qs = new URLSearchParams(location.search);
 const MEDIA_API = _qs.get("media") || "http://127.0.0.1:18450";  // media_agent（项目列表/新建）
 const SW_API    = _qs.get("sw")    || "http://127.0.0.1:18430";  // screenwriter_agent（预留）
+const PROJECT_DIR = _qs.get("project") || "";                     // 当前项目目录（封面相对路径解析用）
 void SW_API;
+
+/* [A] 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）。 */
+function mediaUrl(p){ if(!p) return ''; if(/^(https?:|data:|blob:)/.test(p)) return p;
+  var u = MEDIA_API + '/file?path=' + encodeURIComponent(p);
+  if (PROJECT_DIR && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += '&project=' + encodeURIComponent(PROJECT_DIR);
+  return u; }
+
+/* 把 ISO 时间（如 '2026-06-01T02:52:10.622766+00:00'）格式化为 '2026-06-01 02:52'。
+   非法/空串原样返回（便于 demo 用「刚刚 · 12集」等可读串直接透传）。 */
+function fmtTime(iso){
+  if (!iso) return '';
+  var t = Date.parse(iso);
+  if (isNaN(t)) return String(iso);
+  var d = new Date(t);
+  var pad = function(n){ return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+         ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
 
 /* 占位示例项目（读不到后端时回退；时间倒序，最新在前）。
    真机由 GET {MEDIA_API}/projects/list 替换。 */
@@ -286,6 +316,15 @@ const DEMO_PROJECTS = [
 let projects = [];   // 最终用于渲染的项目（后端或 demo）
 let focus = 0;       // 当前焦点卡 index
 let usingDemo = false;
+
+/* 约定封面路径：项目目录(绝对) + 分隔符 + cover.jpg。
+   按 path 自身的分隔符拼（win 用 \，否则 /）。demo/空路径返回空串。 */
+function coverPath(path) {
+  if (!path || path.startsWith("(demo)")) return "";
+  const sep = path.indexOf("\\") >= 0 ? "\\" : "/";
+  const trimmed = path.replace(/[\\/]+$/, "");
+  return trimmed + sep + "cover.jpg";
+}
 
 /* —— 把「与焦点的相对位置」映射到 coverflow 位置类 —— */
 function posClass(i) {
@@ -320,12 +359,18 @@ function renderRecent() {
     card.className = "card " + posClass(i);
     card.dataset.idx = String(i);
     const badge = p.badge ? `<span class="badge">${esc(p.badge)}</span>` : "";
-    const cvStyle = p.cover ? ` style="background-image:url('${esc(p.cover)}')"` : "";
+    // 封面：项目目录约定封面（cover.jpg 等）→ mediaUrl；无图/加载失败回退渐变占位。
+    const cvUrl = p.cover ? mediaUrl(p.cover) : "";
+    const cvBg = cvUrl
+      ? `<img class="cv" src="${esc(cvUrl)}" alt="" onerror="this.style.display='none'">`
+      : `<div class="cv"></div>`;
+    // 时间可读化：opened_at 优先（已可读则透传），否则用 ISO last_opened 格式化。
+    const dt = esc(p.opened_at || fmtTime(p.last_opened) || "");
     card.innerHTML = `
-      <div class="cv"${cvStyle}>${badge}</div>
+      ${cvBg}${badge}
       <div class="meta">
         <div class="nm">${esc(p.name)}</div>
-        <div class="dt">${esc(p.opened_at || p.path || "")}</div>
+        <div class="dt">${dt}</div>
       </div>`;
     card.addEventListener("click", () => {
       const idx = i;
@@ -374,13 +419,20 @@ async function loadProjects() {
       const list = Array.isArray(data) ? data : (data && data.projects) || [];
       // 后端字段：name / path / opened_at(最后打开) / badge? / cover?；时间倒序
       list.sort((a, b) => tsOf(b) - tsOf(a));
-      projects = list.map(p => ({
-        name: p.name || p.title || "(未命名)",
-        path: p.path || p.dir || "",
-        badge: p.badge || p.genre || "",
-        cover: p.cover || p.thumbnail || "",
-        opened_at: p.opened_at_text || p.opened_at || p.last_opened || p.path || "",
-      }));
+      projects = list.map(p => {
+        const path = p.path || p.dir || "";
+        return {
+          name: p.name || p.title || "(未命名)",
+          path,
+          badge: p.badge || p.genre || "",
+          // 封面：后端显式 cover/thumbnail 优先；否则按约定取项目目录下 cover.jpg
+          // （加载失败时 <img onerror> 回退渐变占位，不会留破图）。
+          cover: p.cover || p.thumbnail || coverPath(path),
+          // 时间：可读串(opened_at_text)优先；否则交给 fmtTime 处理 ISO。
+          opened_at: p.opened_at_text || "",
+          last_opened: p.last_opened || p.opened_at || p.updated_at || p.mtime || "",
+        };
+      });
       usingDemo = false;
       focus = 0;
       renderRecent();

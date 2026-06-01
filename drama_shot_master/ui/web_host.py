@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QUrl, Qt, QObject, Slot, QFile, QIODevice
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow, QFileDialog
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineScript
 from PySide6.QtWebChannel import QWebChannel
@@ -43,6 +43,30 @@ class _WinCtl(QObject):
             wh.startSystemMove()
 
 
+class _FilePick(QObject):
+    """暴露给 JS 的文件/目录选择对象（window.filepick）。
+
+    两个 Slot 均带 result，JS 经 QWebChannel 以回调取返回值：
+        window.filepick.chooseDir(function(path){...})
+        window.filepick.chooseFiles(function(paths){...})  // 换行分隔
+    取消选择时返回空串 ''。
+    """
+
+    def __init__(self, win: QMainWindow):
+        super().__init__(win)
+        self._win = win
+
+    @Slot(result=str)
+    def chooseDir(self) -> str:
+        path = QFileDialog.getExistingDirectory(self._win, "选择目录")
+        return path or ""
+
+    @Slot(result=str)
+    def chooseFiles(self) -> str:
+        files, _ = QFileDialog.getOpenFileNames(self._win, "选择文件")
+        return "\n".join(files) if files else ""
+
+
 class WebHostWindow(QMainWindow):
     """加载本地 HTML 页面的 QWebEngine 窗口。
 
@@ -62,37 +86,47 @@ class WebHostWindow(QMainWindow):
         s.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
         s.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
 
+        # filepick 与所有模式都需要；winctl 仅无边框模式注册。
+        self._channel = QWebChannel(self)
+        self._filepick = _FilePick(self)
+        self._channel.registerObject("filepick", self._filepick)
         if frameless:
             self._winctl = _WinCtl(self)
-            self._channel = QWebChannel(self)
             self._channel.registerObject("winctl", self._winctl)
-            self.view.page().setWebChannel(self._channel)
-            self._inject_winctl_bridge()
+        self.view.page().setWebChannel(self._channel)
+        self._inject_winctl_bridge(with_winctl=frameless)
 
         self.view.load(page_url)
         self.setCentralWidget(self.view)
 
-    def _inject_winctl_bridge(self):
-        """注入 qwebchannel.js + 建立 window.winctl（DocumentCreation 早于页面脚本）。"""
+    def _inject_winctl_bridge(self, with_winctl: bool = True):
+        """注入 qwebchannel.js + 建立 window.filepick(总是) / window.winctl(无边框时)。
+
+        DocumentCreation 注入早于页面脚本，确保桥对象在页面用到前就绪。
+        """
         f = QFile(":/qtwebchannel/qwebchannel.js")
         if not f.open(QIODevice.ReadOnly):
             return
         js = bytes(f.readAll().data()).decode("utf-8")
         f.close()
+        winctl_line = (
+            "window.winctl = ch.objects.winctl;\n"
+            "              document.documentElement.setAttribute('data-host','qt');"
+        ) if with_winctl else ""
         setup = js + """
         (function(){
           function bind(){
             new QWebChannel(qt.webChannelTransport, function(ch){
-              window.winctl = ch.objects.winctl;
-              document.documentElement.setAttribute('data-host','qt');
+              window.filepick = ch.objects.filepick;
+              %s
             });
           }
           if (window.qt && qt.webChannelTransport) bind();
           else document.addEventListener('DOMContentLoaded', bind);
         })();
-        """
+        """ % winctl_line
         script = QWebEngineScript()
-        script.setName("winctl-bridge")
+        script.setName("qwebchannel-bridge")
         script.setSourceCode(setup)
         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
         script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)

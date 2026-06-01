@@ -229,6 +229,11 @@
   .scard .sthumb {
     height: 78px; position: relative; display: flex; align-items: flex-start; padding: 7px 9px;
   }
+  /* 参考图覆盖整个缩略区（onerror 时被移除 → 露出底层分类色块渐变）；.scat 徽标 z 层在上 */
+  .scard .sthumb-img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .scard .sthumb .scat { position: relative; z-index: 1; }
   .scard .scat {
     font-size: 9.5px; font-weight: 700; color: #fff; padding: 2px 8px; border-radius: 7px;
     background: rgba(0,0,0,.35); backdrop-filter: blur(2px);
@@ -573,6 +578,7 @@ async function loadStyles() {
       category: s.category || "",
       name_cn: s.name_cn || s.name || s.display_name || s.style_id || "未命名风格",
       prompt_suffix: (s.prompt_suffix || s.suffix || "").trim(),
+      preview: (s.preview || "").trim(),   // 后端透传的参考图相对路径（/ui/ 下同源）；空则回退分类色块
     })).filter((s) => s.style_id);
     lib.styles = mapped.length ? mapped : STYLE_FALLBACK;
   } catch (e) {
@@ -686,8 +692,12 @@ function renderStyleGrid() {
     const grad = CAT_GRAD[s.category] || CAT_GRAD._default;
     const el = document.createElement("div");
     el.className = "scard" + (s.style_id === spick.selected ? " on" : "");
+    /* 预览图优先（preview 字段，ideate 在 /ui/ 下相对路径同源可载）；加载失败 onerror 自移除，露出底层分类色块渐变 */
+    const img = s.preview
+      ? `<img class="sthumb-img" src="${esc(s.preview)}" alt="" loading="lazy" onerror="this.remove()">`
+      : "";
     el.innerHTML = `
-      <div class="sthumb" style="background:${grad}"><span class="scat">${esc(CAT_LABEL[s.category] || s.category || "风格")}</span></div>
+      <div class="sthumb" style="background:${grad}">${img}<span class="scat">${esc(CAT_LABEL[s.category] || s.category || "风格")}</span></div>
       <div class="sbody">
         <div class="sname">${esc(s.name_cn)}</div>
         <div class="ssuf">${esc(s.prompt_suffix || s.style_id)}</div>
@@ -802,10 +812,16 @@ function renderCandidates() {
     const id = c.id || ("c" + (i + 1));
     const el = document.createElement("div");
     el.className = "cand" + (id === state.selectedId ? " sel" : "");
-    const tags = (c.tags || []).map((t) => `<span class="tg">${esc(t)}</span>`).join("");
+    // tags：优先用 c.tags；否则用后端的 highlights(亮点) + angle(切入角度) 拼徽标
+    let tagArr = Array.isArray(c.tags) ? c.tags.slice() : [];
+    if (!tagArr.length) {
+      if (c.highlights) tagArr.push(c.highlights);
+      if (c.angle) tagArr.push(c.angle);
+    }
+    const tags = tagArr.map((t) => `<span class="tg">${esc(t)}</span>`).join("");
     el.innerHTML = `
       <div class="ct">${esc(c.title || ("候选 " + (i + 1)))}</div>
-      <div class="cd">${esc(c.desc || c.summary || "")}</div>
+      <div class="cd">${esc(c.desc || c.summary || c.angle || "")}</div>
       ${tags ? `<div class="tags">${tags}</div>` : ""}`;
     el.addEventListener("click", () => {
       state.selectedId = id;
@@ -911,15 +927,59 @@ function parseSSE(chunk) {
   return { event, data };
 }
 
-/* done：优先用事件里的 candidates，否则尝试从累计文本解析 JSON 候选 */
+/* done：候选解析。
+   关键契约：/ideate/chat 的 done 事件 payload = {saved, result:{candidates:[...], raw_text}}，
+   候选嵌在 data.result.candidates（不是顶层 data.candidates）！后端候选字段 =
+   {id,title,angle,summary,highlights}。多重回退保证「只要有输出就有可选卡片」：
+   ① data.result.candidates → ② 顶层 data.candidates(兼容) → ③ acc 里的 JSON →
+   ④ 从 raw 文本本地合成(按「候选 N」/「---」切，再不行整段成单卡)。 */
 function finishStream(data, acc) {
-  let cands = data.candidates;
+  const result = data.result || {};
+  let cands = result.candidates;
+  if (!Array.isArray(cands) || !cands.length) cands = data.candidates;
   if (!Array.isArray(cands) || !cands.length) cands = tryParseCandidates(acc);
+  const rawText = (result.raw_text || acc || "").trim();
+  if (!Array.isArray(cands) || !cands.length) cands = synthCandidates(rawText);
   if (Array.isArray(cands) && cands.length) state.candidates = cands;   // 续聊：有新候选才替换，无则保留
-  if (acc && acc.trim()) state.messages.push({ role: "assistant", content: acc });  // 累积 assistant 轮供下一轮深挖
+  if (rawText) state.messages.push({ role: "assistant", content: rawText });  // 累积 assistant 轮供下一轮深挖
   renderCandidates();
   renderHistory();
   saveState();
+}
+
+/* 本地兜底合成候选（后端解析为空 / LLM 不守格式时，保证有可选卡片推进）。
+   先按「候选 N」标记切，再按 --- 分隔块切，都不行则整段成单卡。 */
+function synthCandidates(raw) {
+  if (!raw) return [];
+  const out = [];
+  const byNum = raw.split(/(?:^|\n)\s*[#＃]*\s*候选\s*([0-9]+)/);
+  if (byNum.length >= 3) {
+    for (let i = 1; i < byNum.length; i += 2) {
+      const body = (byNum[i + 1] || "").trim();
+      out.push({ id: "c" + byNum[i].trim(), title: synthField(body, "标题") || ("候选 " + byNum[i].trim()),
+        angle: synthField(body, "切入角度"), summary: synthField(body, "摘要|核心") || body.slice(0, 140),
+        highlights: synthField(body, "亮点|看点") });
+    }
+    if (out.length) return out;
+  }
+  const blocks = raw.split(/\n\s*-{3,}\s*\n/).map((b) => b.trim()).filter(Boolean);
+  if (blocks.length > 1) {
+    blocks.forEach((body, i) => {
+      const t = synthField(body, "标题"), s = synthField(body, "摘要|核心");
+      if (t || s) out.push({ id: "c" + (i + 1), title: t || ("候选 " + (i + 1)),
+        angle: synthField(body, "切入角度"), summary: s || body.slice(0, 140),
+        highlights: synthField(body, "亮点|看点") });
+    });
+    if (out.length) return out;
+  }
+  // 整段成单卡
+  return [{ id: "c1", title: synthField(raw, "标题") || (raw.split("\n")[0] || "立意候选").slice(0, 24),
+    angle: synthField(raw, "切入角度"), summary: synthField(raw, "摘要|核心") || raw.slice(0, 160),
+    highlights: synthField(raw, "亮点|看点") }];
+}
+function synthField(text, keyRe) {
+  const m = text.match(new RegExp("(?:" + keyRe + ")\\s*[：:]\\s*(.+?)(?=\\n|$)"));
+  return m ? m[1].trim() : "";
 }
 
 /* 续聊历史渲染（首轮系统式指令不展示；assistant 轮折叠为简讯） */

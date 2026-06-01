@@ -230,6 +230,25 @@
     else if (d.type === 'nav' && d.key) {
       if (links.some(x => x.dataset.key === d.key)) go(d.key);
     }
+    // 文件/目录选择中继：iframe 内容页无法直连 QWebChannel(只注入主帧)，
+    // 故经壳调 window.filepick 原生对话框，结果回传给请求方 iframe。
+    else if (d.type === 'pick.request' && e.source) {
+      const fp = window.filepick;
+      const fn = d.mode === 'dir' ? 'chooseDir' : 'chooseFiles';
+      if (fp && typeof fp[fn] === 'function') {
+        try {
+          fp[fn]((ret) => {
+            const paths = ret ? String(ret).split(/\n+/).map(s => s.trim()).filter(Boolean) : [];
+            e.source.postMessage({ type: 'pick.result', reqId: d.reqId, paths }, '*');
+          });
+        } catch (err) {
+          e.source.postMessage({ type: 'pick.result', reqId: d.reqId, nobridge: true }, '*');
+        }
+      } else {
+        // 纯浏览器(无 Qt 桥) → 通知请求页回退手动粘贴
+        e.source.postMessage({ type: 'pick.result', reqId: d.reqId, nobridge: true }, '*');
+      }
+    }
   });
 
   links.forEach(a => a.addEventListener('click', () => go(a.dataset.key)));

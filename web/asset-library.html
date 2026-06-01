@@ -182,18 +182,17 @@ function uiStatus(e) {
   return "empty";
 }
 
-/* 本地路径 → 壳内可显示 src（file://，与 storyboard-board fileSrc 一致）。
-   后端 path 相对项目目录 → 先拼 PROJECT_DIR 再转 file://。 */
-function refImgSrc(path) {
-  if (!path) return "";
-  let p = String(path).replace(/\\/g, "/");
-  const isAbs = /^[A-Za-z]:/.test(p) || p.startsWith("/") || /^(file|https?):/i.test(p);
-  if (/^(file|https?):/i.test(p)) return p;
-  if (!isAbs && PROJECT_DIR) {
-    p = String(PROJECT_DIR).replace(/\\/g, "/").replace(/\/+$/, "") + "/" + p.replace(/^\/+/, "");
-  }
-  return "file:///" + p.replace(/^\/+/, "");
+/* 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）。
+   走 media_agent GET /file?path=…[&project=…]：绝对路径直读，相对路径附 project 解析。 */
+function mediaUrl(p) {
+  if (!p) return "";
+  if (/^(https?:|data:|blob:)/.test(p)) return p;
+  var u = MEDIA_API + "/file?path=" + encodeURIComponent(p);
+  if (PROJECT_DIR && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += "&project=" + encodeURIComponent(PROJECT_DIR);
+  return u;
 }
+/* 参考图缩略图 src（保留原函数名，内部改走 mediaUrl 消除色块）。 */
+function refImgSrc(path) { return mediaUrl(path); }
 
 /* 实拉三类 ref_index（GET /assets/refs?project=<dir>）。
    无 project / 失败 → 保持空 entries + 友好提示，不抛错。 */

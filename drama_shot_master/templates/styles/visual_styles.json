@@ -15,7 +15,8 @@
       },
       "prompt_suffix": "cinematic, warm tungsten grade, shallow depth of field, film grain",
       "ref_fingerprint": "neutral studio flat lighting, even key, no dramatic shadow",
-      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay",
+      "preview": "style-previews/real_cinematic-warm-v1.jpg"
     },
     {
       "style_id": "real/cinematic-cool-v1",
@@ -30,7 +31,8 @@
       },
       "prompt_suffix": "cinematic, teal-and-orange cool grade, crisp contrast, anamorphic flare",
       "ref_fingerprint": "neutral studio flat lighting, even key, no dramatic shadow",
-      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay",
+      "preview": "style-previews/real_cinematic-cool-v1.jpg"
     },
     {
       "style_id": "real/doc-natural-v1",
@@ -45,7 +47,8 @@
       },
       "prompt_suffix": "naturalistic, available daylight, handheld realism, true-to-life color",
       "ref_fingerprint": "neutral studio flat lighting, even key, no dramatic shadow",
-      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay",
+      "preview": "style-previews/real_doc-natural-v1.jpg"
     },
     {
       "style_id": "2D/anime-cel-v1",
@@ -60,7 +63,8 @@
       },
       "prompt_suffix": "anime cel-shaded, clean line art, vivid pastel palette, soft gradient sky",
       "ref_fingerprint": "neutral flat lighting, even key, plain color blocking",
-      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay",
+      "preview": "style-previews/2D_anime-cel-v1.jpg"
     },
     {
       "style_id": "2D/guofeng-ink-v1",
@@ -75,7 +79,8 @@
       },
       "prompt_suffix": "chinese ink wash painting, calligraphic brush lines, rice-paper texture, muted earth tones",
       "ref_fingerprint": "neutral flat lighting, even key, plain color blocking",
-      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay",
+      "preview": "style-previews/2D_guofeng-ink-v1.jpg"
     },
     {
       "style_id": "3D/pixar-stylized-v1",
@@ -90,7 +95,8 @@
       },
       "prompt_suffix": "Pixar-style stylized 3D render, soft global illumination, rounded forms, subsurface skin",
       "ref_fingerprint": "neutral three-point soft key, even fill, no rim drama",
-      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay",
+      "preview": "style-previews/3D_pixar-stylized-v1.jpg"
     },
     {
       "style_id": "3D/photoreal-octane-v1",
@@ -105,7 +111,8 @@
       },
       "prompt_suffix": "photorealistic 3D render, physically-based materials, HDRI lighting, ray-traced reflections",
       "ref_fingerprint": "neutral HDRI even lighting, no dramatic shadow",
-      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay"
+      "negative_suffix": "no subtitles, no watermark, no split frame, no text overlay",
+      "preview": "style-previews/3D_photoreal-octane-v1.jpg"
     }
   ]
 }

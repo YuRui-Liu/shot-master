@@ -1,0 +1,11 @@
+# 风格圣经参考图目录
+# 用户手动放置参考图（命名 = visual_styles.json 各 style 的 preview 文件名）：
+#   real/cinematic-warm-v1  → real_cinematic-warm-v1.jpg
+#   real/cinematic-cool-v1  → real_cinematic-cool-v1.jpg
+#   real/doc-natural-v1     → real_doc-natural-v1.jpg
+#   2D/anime-cel-v1         → 2D_anime-cel-v1.jpg
+#   2D/guofeng-ink-v1       → 2D_guofeng-ink-v1.jpg
+#   3D/pixar-stylized-v1    → 3D_pixar-stylized-v1.jpg
+#   3D/photoreal-octane-v1  → 3D_photoreal-octane-v1.jpg
+# 命名规范：'style-previews/' + style_id 的 '/' 替换为 '_' + '.jpg'
+# 同源 /ui/style-previews/ 可访问；缺图时 ideate.html 自动回退分类色块。

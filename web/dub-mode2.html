@@ -786,13 +786,22 @@ function parseSpeed(label) {
   return Number.isFinite(v) ? v : 1.0;
 }
 
+/* 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）。
+   走 media_agent GET /file?path=…[&project=…]：绝对路径直读，相对路径附 project 解析。 */
+function mediaUrl(p) {
+  if (!p) return "";
+  if (/^(https?:|data:|blob:)/.test(p)) return p;
+  var u = MEDIA_API + "/file?path=" + encodeURIComponent(p);
+  if (PROJECT_DIR && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += "&project=" + encodeURIComponent(PROJECT_DIR);
+  return u;
+}
+
 /* 单例 <audio> + toast，用于试听回放 / 生成配音成功提示 */
 let _previewAudio = null;
 function playPreviewAudio(path) {
   if (!_previewAudio) { _previewAudio = new Audio(); }
-  // 后端返回本地临时路径 → 转 file:// 供 <audio> 回放
-  const url = /^(file|https?):/i.test(path) ? path : "file:///" + String(path).replace(/\\/g, "/").replace(/^\/+/, "");
-  _previewAudio.src = url;
+  // 后端返回本地临时路径 → 经 /file 端点回放（http 壳里禁 file://，否则播放不出/色块）
+  _previewAudio.src = mediaUrl(path);
   _previewAudio.play().catch((e) => { toast("无法播放试听音频：" + (e && e.message || e)); });
 }
 function toast(msg) {

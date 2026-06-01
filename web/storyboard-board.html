@@ -269,6 +269,15 @@
   .pta { width: 100%; min-height: 88px; resize: vertical; background: var(--field); border: 1px solid var(--border); border-radius: 6px; color: var(--fg); font: inherit; font-size: 12px; line-height: 1.55; padding: 8px 10px; outline: none; }
   .pta:focus { border-color: var(--mauve); }
 
+  /* 预制专业提示词片段（快捷词 chips）——点击插入提示词光标处 */
+  .quick-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+  .qchip {
+    font: inherit; font-size: 11px; color: var(--periw);
+    background: rgba(139,127,217,.12); border: 1px solid #443c66;
+    border-radius: 9px; padding: 3px 10px; cursor: pointer; white-space: nowrap;
+  }
+  .qchip:hover { color: #06122a; background: linear-gradient(135deg, var(--blue), var(--periw)); border-color: transparent; }
+
   /* 自定义数字微调框 + 选择框（对齐确认稿质感，替代裸 input/select）*/
   .spin { display: flex; align-items: center; background: var(--field); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; flex: 1; }
   .spin input { flex: 1; background: transparent; border: none; outline: none; color: var(--fg); font: inherit; font-size: 12px; padding: 6px 9px; width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
@@ -809,10 +818,43 @@
   let curWide = false;   // false=9:16 竖屏（默认）, true=16:9 横屏
   function curSize() { return curWide ? "1920x1080" : "1080x1920"; }
 
-  // file:// 引用：把本地路径转成可在壳内显示的 src
-  function fileSrc(p) {
-    const norm = String(p).replace(/\\/g, "/");
-    return "file:///" + norm.replace(/^\/+/, "");
+  // [A] 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）
+  // 共享前端契约：照抄。MEDIA_API/PROJECT_DIR 取页内现有法（MEDIA/PROJECT 别名）。
+  const MEDIA_API0 = MEDIA;      // media_agent 基址（含 /file 端点）
+  const PROJECT_DIR = PROJECT;   // 当前项目目录（相对路径解析基）
+  function mediaUrl(p) {
+    if (!p) return "";
+    if (/^(https?:|data:|blob:)/.test(p)) return p;
+    let u = MEDIA_API0 + "/file?path=" + encodeURIComponent(p);
+    if (PROJECT_DIR && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += "&project=" + encodeURIComponent(PROJECT_DIR);
+    return u;
+  }
+  // 兼容旧调用名
+  function fileSrc(p) { return mediaUrl(p); }
+
+  // [B] 原生文件/目录选择（经壳中继，绕 iframe）。回调 cb(paths:string[])。
+  let _pkSeq = 0;
+  function pickNative(mode, cb) {
+    const reqId = "pk_" + (++_pkSeq);
+    function onMsg(e) {
+      const d = e.data || {};
+      if (d.type === "pick.result" && d.reqId === reqId) {
+        window.removeEventListener("message", onMsg);
+        if (d.nobridge) {
+          const t = prompt("粘贴路径(多条换行/分号分隔)：") || "";
+          cb(t.split(/[\n;]+/).map(s => s.trim()).filter(Boolean));
+        } else cb(d.paths || []);
+      }
+    }
+    window.addEventListener("message", onMsg);
+    window.parent.postMessage({ type: "pick.request", mode: mode, reqId: reqId }, "*");
+  }
+
+  // 给 <img>/缩略图统一加 onerror 占位回退（避免裂图）
+  function imgFallback(el) {
+    el.addEventListener("error", function () {
+      el.style.visibility = "hidden";
+    }, { once: true });
   }
 
   // 错误提示：优先用后端 hint，其次 message/detail
@@ -859,7 +901,7 @@
       card.title = "点击把 @" + r.label + " 插入提示词\n" + r.path;
       const thumb = document.createElement("div");
       thumb.className = "thumb";
-      thumb.style.backgroundImage = "url('" + fileSrc(r.path) + "')";
+      thumb.style.backgroundImage = "url('" + mediaUrl(r.path) + "')";
       const tag = document.createElement("span");
       tag.className = "tag";
       tag.textContent = "@" + r.label;
@@ -889,16 +931,16 @@
     updateRefMode();
   }
   function addRefImgs() {
-    const raw = prompt("粘贴参考图绝对路径（每行一个，或用 ; 分隔）：", "");
-    if (raw == null) return;
-    const paths = raw.split(/[\n;]+/).map(s => s.trim()).filter(Boolean);
-    let added = 0;
-    paths.forEach(p => {
-      const norm = p.replace(/\\/g, "/");
-      refs.push({ path: norm, label: nextRefLabel() });
-      added++;
+    pickNative("files", (paths) => {
+      let added = 0;
+      (paths || []).forEach(p => {
+        const norm = String(p).replace(/\\/g, "/").trim();
+        if (!norm) return;
+        refs.push({ path: norm, label: nextRefLabel() });
+        added++;
+      });
+      if (added) { renderRefs(); toast("已添加 " + added + " 张参考图（图生图）。", "ok"); }
     });
-    if (added) { renderRefs(); toast("已添加 " + added + " 张参考图（图生图）。", "ok"); }
   }
   function renameRef(idx) {
     const cur = refs[idx]; if (!cur) return;
@@ -960,9 +1002,10 @@
       pv.querySelectorAll("img._out").forEach(x => x.remove());
       const img = document.createElement("img");
       img.className = "_out";
-      img.src = fileSrc(outputs[0]);
+      img.src = mediaUrl(outputs[0]);
       img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;";
       img.alt = "分镜图";
+      imgFallback(img);
       pv.appendChild(img);
       if (ph) ph.style.display = "none";
       if (activeTaskId) setTaskStatus(activeTaskId, "done");
@@ -1026,10 +1069,18 @@
         <div class="pgroup">
           <div class="glab">提示词</div>
           <div class="prow" style="display:block;margin:0">
-            <textarea class="pta" placeholder="每行一条提示词，批量出图…">暴雨夜 城郊废品回收站 俯拍全景 电影级 HD
+            <textarea class="pta" id="batchPrompt" placeholder="每行一条提示词，批量出图…">暴雨夜 城郊废品回收站 俯拍全景 电影级 HD
 雨夜追逐 手持跟拍 霓虹反光 电影级 HD</textarea>
           </div>
-          <div class="phint">每行一条 → 批量入队；可套用当前 <b>STYLE BIBLE</b> 的 ref_fingerprint。</div>
+          <div class="quick-chips" id="quickChips"></div>
+          <div class="phint">每行一条 → 批量入队；点上方词条插入光标处。可套用当前 <b>STYLE BIBLE</b> 的 ref_fingerprint。</div>
+        </div>
+        <div class="pgroup">
+          <div class="ghead-sw"><span class="glab">参考图（图生图）</span><span class="refimg-mode" id="batchGenMode">文生图</span></div>
+          <div class="refimg-row" id="batchRefRow">
+            <div class="refimg-add" id="batchAddRef">＋ 添加<br>参考图</div>
+          </div>
+          <div class="phint">添加即对<b>每条</b>提示词图生图；点卡片把 @标签插入提示词。空=文生图。</div>
         </div>
         <div class="pgroup">
           <div class="glab">画幅 / 数量</div>
@@ -1142,6 +1193,111 @@
   const win = document.querySelector(".batch-win");
   let curTool = "imggen";
 
+  // 预制专业提示词片段库（照搬 drama_shot_master/core/imggen_presets.py 的 QUICK_PROMPTS）
+  const QUICK_PROMPTS = [
+    ["三视图", "三视图（正面、侧面、背面），白色纯色背景，人物角色设计图，"],
+    ["人设", "角色人设参考图，白色纯色背景，正面、背面、侧面展示，"],
+    ["2D", "2D平面画风，动漫风格，"],
+    ["360°", "生成该图的360全景图，360度水平无死角，180度垂直全视角覆盖，画面完整连贯.首尾无缝衔接，无畸变.无拉伸.无黑边.无裁切"],
+    ["3D", "3D建模风格，CG渲染，"],
+    ["国漫", "中国漫画风格，线条流畅，"],
+    ["特写", "特写镜头，面部细节，"],
+    ["中焦", "标准镜头，透视正常，"],
+    ["广角", "广角镜头，透视变形，场景开阔，"],
+  ];
+  // 在文本域光标处插入（无选区则追加）
+  function insertAtTextarea(ta, text) {
+    if (!ta) return;
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    if (s != null) {
+      ta.value = ta.value.slice(0, s) + text + ta.value.slice(e);
+      ta.selectionStart = ta.selectionEnd = s + text.length;
+    } else { ta.value += text; }
+    ta.focus();
+  }
+  // ---- 自由模式·批量出图参考图（图生图 / @标签）—— batchRefs: [{path,label}] ----
+  let batchRefs = [];
+  function batchNextLabel() {
+    const used = new Set(batchRefs.map(r => r.label));
+    let i = 1; while (used.has("图" + i)) i++;
+    return "图" + i;
+  }
+  function updateBatchMode() {
+    const el = $("batchGenMode");
+    if (!el) return;
+    const ta = $("batchPrompt");
+    const hasTxt = ((ta && ta.value) || "").trim().length > 0;
+    const hasRef = batchRefs.length > 0;
+    el.textContent = (hasRef && hasTxt ? "图文生图" : hasRef ? "图生图" : "文生图") + "（自动）";
+  }
+  function renderBatchRefs() {
+    const row = $("batchRefRow");
+    if (!row) return;
+    row.querySelectorAll(".refimg-card").forEach(x => x.remove());
+    const addBtn = $("batchAddRef");
+    batchRefs.forEach((r, idx) => {
+      const card = document.createElement("div");
+      card.className = "refimg-card";
+      card.title = "点击把 @" + r.label + " 插入提示词\n" + r.path;
+      const thumb = document.createElement("div");
+      thumb.className = "thumb";
+      thumb.style.backgroundImage = "url('" + mediaUrl(r.path) + "')";
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = "@" + r.label;
+      const ops = document.createElement("div");
+      ops.className = "ops";
+      ops.innerHTML = '<span class="op rn" title="改名">✎</span><span class="op rm" title="删除">✕</span>';
+      card.appendChild(thumb); card.appendChild(tag); card.appendChild(ops);
+      card.addEventListener("click", (e) => {
+        if (e.target.closest(".op")) return;
+        insertAtTextarea($("batchPrompt"), "@" + r.label + " ");
+      });
+      ops.querySelector(".rn").addEventListener("click", () => {
+        const v = prompt("参考图 @标签：", r.label);
+        if (v == null) return;
+        const name = v.trim().replace(/^@/, "");
+        if (name) { r.label = name; renderBatchRefs(); }
+      });
+      ops.querySelector(".rm").addEventListener("click", () => { batchRefs.splice(idx, 1); renderBatchRefs(); });
+      row.insertBefore(card, addBtn);
+    });
+    updateBatchMode();
+  }
+  function wireBatchRefs() {
+    const add = $("batchAddRef");
+    if (add) add.addEventListener("click", () => {
+      pickNative("files", (paths) => {
+        let added = 0;
+        (paths || []).forEach(p => {
+          const norm = String(p).replace(/\\/g, "/").trim();
+          if (!norm) return;
+          batchRefs.push({ path: norm, label: batchNextLabel() });
+          added++;
+        });
+        if (added) { renderBatchRefs(); toast("已添加 " + added + " 张参考图（图生图）。", "ok"); }
+      });
+    });
+    const ta = $("batchPrompt");
+    if (ta) ta.addEventListener("input", updateBatchMode);
+    renderBatchRefs();
+  }
+
+  // 渲染快捷词 chips（仅出图工具有）
+  function renderQuickChips() {
+    const box = $("quickChips");
+    if (!box) return;
+    box.innerHTML = "";
+    QUICK_PROMPTS.forEach(([label, text]) => {
+      const c = document.createElement("span");
+      c.className = "qchip";
+      c.textContent = label;
+      c.title = text;
+      c.addEventListener("click", () => insertAtTextarea($("batchPrompt"), text));
+      box.appendChild(c);
+    });
+  }
+
   function renderTool(tool) {
     curTool = tool;
     const t = TOOLS[tool];
@@ -1162,6 +1318,8 @@
       sw.addEventListener("click", () => sw.classList.toggle("off")));
     $("panelBody").querySelectorAll(".detbtn").forEach(b =>
       b.addEventListener("click", () => runDetect(b.dataset.det)));
+    // 出图工具：渲染预制专业提示词片段库（快捷词 chips）+ 参考图区
+    if (tool === "imggen") { renderQuickChips(); wireBatchRefs(); }
     updateValidity();
   }
 
@@ -1231,11 +1389,12 @@
     }
   }
 
-  // ---- 输出目录：点击可改（壳内无原生目录选择器，用 prompt 兜底）----
+  // ---- 输出目录：原生目录选择（回退粘贴）----
   $("pickDir").addEventListener("click", () => {
-    const cur = $("outDir").textContent.trim();
-    const v = prompt("输出目录（绝对路径）：", cur);
-    if (v != null && v.trim()) $("outDir").textContent = v.trim();
+    pickNative("dir", (paths) => {
+      const v = (paths && paths[0] || "").replace(/\\/g, "/").trim();
+      if (v) $("outDir").textContent = v;
+    });
   });
   function outDir() {
     const v = ($("outDir").textContent || "").trim();
@@ -1255,29 +1414,38 @@
     th.innerHTML = '<div class="img"></div><div class="check"></div><div class="ord"></div>' +
       '<div class="name"></div>';
     th.querySelector(".name").textContent = name;
-    // 真实文件用 file:// 缩略
+    // 真实文件经壳 /file 端点缩略（http 页面禁 file://），用 <img> 以便 onerror 回退
     const im = th.querySelector(".img");
-    im.style.backgroundImage = "url('" + fileSrc(norm) + "')";
-    im.style.backgroundSize = "cover";
-    im.style.backgroundPosition = "center";
+    const pic = document.createElement("img");
+    pic.src = mediaUrl(norm);
+    pic.alt = name;
+    pic.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+    imgFallback(pic);
+    im.appendChild(pic);
     $("thumbs").appendChild(th);
     return th;
   }
-  function addSources() {
-    const raw = prompt("粘贴源图绝对路径（每行一个，或用 ; 分隔）：", "");
-    if (raw == null) return;
-    const paths = raw.split(/[\n;]+/).map(s => s.trim()).filter(Boolean);
-    if (!paths.length) return;
+  // 已添加的源图路径集合（去重）
+  function existingSrcPaths() {
+    return new Set([...$("thumbs").querySelectorAll(".th[data-path]")].map(t => t.dataset.path));
+  }
+  function addSourcePaths(paths) {
+    const list = (paths || []).map(p => String(p).replace(/\\/g, "/").trim()).filter(Boolean);
+    if (!list.length) return;
     // 首次添加真实源图时，移除占位缩略图
     if ($("thumbs").querySelector(".th[data-path]") == null)
       $("thumbs").querySelectorAll(".th[data-ph]").forEach(x => x.remove());
+    const have = existingSrcPaths();
     let added = 0;
-    paths.forEach(p => { if (addThumb(p)) added++; });
+    list.forEach(p => { if (!have.has(p) && addThumb(p)) { have.add(p); added++; } });
     refreshGridMode(); updateValidity();
     if (added) toast("已添加 " + added + " 张源图。", "ok");
+    else toast("未新增源图（可能已存在或路径为空）。");
   }
-  $("addSrc").addEventListener("click", addSources);
-  $("openDir").addEventListener("click", addSources);
+  // 「＋ 添加源图…」→ 原生多选文件
+  $("addSrc").addEventListener("click", () => pickNative("files", addSourcePaths));
+  // 「打开目录…」→ 原生选目录（壳返回目录下图片路径；回退粘贴）
+  $("openDir").addEventListener("click", () => pickNative("dir", addSourcePaths));
 
   // 选中缩略图 → 真实路径列表（按 DOM/选择顺序）。无 data-path 的占位项被忽略。
   function selectedPaths() {
@@ -1520,9 +1688,10 @@
   // 提示词面板每行一条 → 一个 GenRequest item。事件：progress / item_done / complete。
   async function execImggenBatch() {
     if (!PROJECT) { toast("请先在首页选择项目后再批量出图。"); return; }
-    const ta = $("panelBody").querySelector(".pta");
+    const ta = $("batchPrompt") || $("panelBody").querySelector(".pta");
     const lines = (ta && ta.value || "").split("\n").map(s => s.trim()).filter(Boolean);
-    if (!lines.length) { toast("提示词为空：每行一条提示词后再执行。"); return; }
+    const refPathsBatch = batchRefs.map(r => r.path);
+    if (!lines.length && !refPathsBatch.length) { toast("提示词为空，且无参考图——请先填写或添加参考图。"); return; }
 
     // 面板内画幅 / 每条张数（取 sel-box / spin 的当前显示值，宽松解析）
     const selBoxes = $("panelBody").querySelectorAll(".sel-box");
@@ -1536,7 +1705,7 @@
 
     const items = lines.map((p, i) => ({
       prompt: p,
-      references: [],
+      references: refPathsBatch,   // 非空 = 对每条图生图（provider 自动判定）
       size: size,
       n: n,
       out_dir: PROJECT + "/storyboard",

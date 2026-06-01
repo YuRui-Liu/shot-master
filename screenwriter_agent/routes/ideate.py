@@ -165,7 +165,14 @@ async def ideate_chat(req: IdeateChatReq, request: Request):
 
 
 def _parse_candidates_loose(raw: str) -> list[dict]:
-    """MVP 简化解析：按 '候选 N' 切段。精修留 P2。"""
+    """宽松解析候选。
+
+    主路径：按 '候选 N' 切段（模板 §候选输出格式：`候选 N｜标题：…`）。
+    回退1：模板要求候选间用 `---` 分隔——若无 '候选 N' 标记，按 `---` 切块，
+            每块含 标题/摘要 即成一候选（容忍 LLM 漏写编号）。
+    回退2：仍为空但有正文 → 整段兜底成单候选（保证前端有可选卡片推进，
+            不至于因 LLM 不守格式而完全卡死链路）。
+    """
     import re
     out = []
     parts = re.split(r"(?:^|\n)\s*[#＃]*\s*候选\s*([0-9]+)", raw)
@@ -178,6 +185,32 @@ def _parse_candidates_loose(raw: str) -> list[dict]:
                         "summary": _extract(body, "摘要|核心"),
                         "highlights": _extract(body, "亮点|看点"),
                         "est_duration": 60})
+        return out
+
+    # 回退1：按 --- 分隔块
+    blocks = [b.strip() for b in re.split(r"\n\s*-{3,}\s*\n", raw) if b.strip()]
+    for i, body in enumerate(blocks, 1):
+        title = _first_line(body, "标题")
+        summary = _extract(body, "摘要|核心")
+        if not title and not summary:
+            continue
+        out.append({"id": f"c{i}", "title": title or f"候选 {i}",
+                    "angle": _extract(body, "切入角度"),
+                    "summary": summary or body[:120],
+                    "highlights": _extract(body, "亮点|看点"),
+                    "est_duration": 60})
+    if out:
+        return out
+
+    # 回退2：整段兜底成单候选（LLM 完全未守格式时仍可选中推进）
+    text = raw.strip()
+    if text:
+        out.append({"id": "c1",
+                    "title": _first_line(text, "标题") or text.splitlines()[0][:24],
+                    "angle": _extract(text, "切入角度"),
+                    "summary": _extract(text, "摘要|核心") or text[:160],
+                    "highlights": _extract(text, "亮点|看点"),
+                    "est_duration": 60})
     return out
 
 
