@@ -598,7 +598,8 @@ function renderStrip() {
           if (oldErr) oldErr.remove();
           const playIcon = pvBox.querySelector(".play");
           if (playIcon) playIcon.style.display = "none";
-          const src = fileSrc(cl.path.replace(/\\/g, '/'));
+          const rawPath = typeof cl.path === "string" ? cl.path : "";
+          const src = fileSrc(rawPath.replace(/\\/g, "/"));
           const vid = document.createElement("video");
           vid.src = src;
           vid.controls = true;
