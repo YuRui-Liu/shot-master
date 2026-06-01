@@ -61,3 +61,80 @@ def has_audio_stream(video_path: str) -> bool:
         return bool((proc.stdout or b"").strip())
     except Exception:
         return True
+
+
+def probe_video_meta(video_path: str) -> dict:
+    """单次 ffprobe 提取视频元信息（时长/宽高/fps/编码/has_audio）。
+
+    返回 dict 含: duration(float秒), width(int), height(int), fps(float),
+                     codec(str), has_audio(bool)
+    探测失败时返回全默认值（不抛）。
+    """
+    fallback = {
+        "duration": 0.0,
+        "width": 0,
+        "height": 0,
+        "fps": 0.0,
+        "codec": "",
+        "has_audio": False,
+    }
+    cmd = [
+        ffprobe_path(), "-v", "error",
+        "-show_entries",
+        "stream=index,codec_type,codec_name,width,height,r_frame_rate:"
+        "format=duration",
+        "-of", "json", str(video_path),
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, check=False)
+        data = json.loads(proc.stdout or b"{}")
+    except Exception:
+        return fallback
+
+    # --- duration from format ---
+    try:
+        duration = float(data.get("format", {}).get("duration") or 0.0)
+    except (TypeError, ValueError):
+        duration = 0.0
+
+    # --- first video stream ---
+    width = 0
+    height = 0
+    fps = 0.0
+    codec = ""
+    has_audio = False
+
+    streams = data.get("streams") or []
+    for s in streams:
+        ct = (s.get("codec_type") or "").lower()
+        if ct == "video":
+            width = int(s.get("width") or 0)
+            height = int(s.get("height") or 0)
+            codec = s.get("codec_name") or ""
+            # r_frame_rate is a string like "30000/1001"
+            rfr = s.get("r_frame_rate") or ""
+            if rfr and "/" in rfr:
+                parts = rfr.split("/")
+                try:
+                    fps = float(parts[0]) / float(parts[1])
+                except (ValueError, ZeroDivisionError):
+                    fps = 0.0
+            break  # only first video stream
+        if ct == "audio":
+            has_audio = True
+
+    # re-scan for audio in case audio stream appeared before video
+    if not has_audio:
+        for s in streams:
+            if (s.get("codec_type") or "").lower() == "audio":
+                has_audio = True
+                break
+
+    return {
+        "duration": duration,
+        "width": width,
+        "height": height,
+        "fps": round(fps, 3),
+        "codec": codec,
+        "has_audio": has_audio,
+    }

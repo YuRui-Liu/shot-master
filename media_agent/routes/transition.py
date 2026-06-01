@@ -7,7 +7,9 @@ render 跑 ffmpeg（长耗时，同样线程池）。
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -18,6 +20,8 @@ from drama_shot_master.core.transition_analyzer import analyze_composition
 from drama_shot_master.core import transition_render as tr
 
 from media_agent.core.sse import sse_event
+
+logger = logging.getLogger(__name__)
 
 
 def _compute_total_duration(comp: CompositionModel) -> float:
@@ -43,11 +47,61 @@ router = APIRouter(prefix="/transition")
 
 class CompositionRequest(BaseModel):
     composition: dict
+    project: str = ""  # optional: base directory for resolving relative clip paths
+
+
+def _resolve_and_validate_clip_paths(
+    composition: dict, project: str = ""
+) -> tuple[list[str], list[str]]:
+    """Resolve clip paths and validate existence.
+
+    Returns (valid_absolute_paths, missing_paths).
+    If ``project`` is provided, relative paths are resolved against it.
+    Missing or non-existent paths are excluded from analysis.
+    """
+    valid: list[str] = []
+    missing: list[str] = []
+    for clip in composition.get("clips", []):
+        raw = str(clip.get("path", "") or "")
+        if not raw:
+            missing.append(raw or "<empty>")
+            continue
+        p = Path(raw)
+        if not p.is_absolute():
+            if project:
+                p = Path(project) / raw
+            else:
+                logger.warning(
+                    "Clip path is relative and no project provided, cannot resolve: %s", raw
+                )
+                missing.append(raw)
+                continue
+        if p.exists():
+            valid.append(raw)
+        else:
+            logger.warning("Clip file not found, skipping: %s", p)
+            missing.append(raw)
+    return valid, missing
 
 
 @router.post("/analyze")
 def analyze(req: CompositionRequest):
-    """对每个未锁定切口跑 CV，回填 auto_transition/auto_duration/cv_scores。"""
+    """对每个未锁定切口跑 CV，回填 auto_transition/auto_duration/cv_scores。
+
+    先校验所有 clip path 是否存在；缺失的剪除，相对路径必须搭配 project。
+    """
+    missing = _resolve_and_validate_clip_paths(req.composition, req.project)[1]
+    if missing:
+        logger.warning(
+            "analyze: %d clip path(s) missing or unresolvable, cutting from analysis",
+            len(missing),
+        )
+        req.composition["clips"] = [
+            c
+            for c in req.composition.get("clips", [])
+            if str(c.get("path", "")) not in missing
+        ]
+
     comp = CompositionModel.from_dict(req.composition)
     analyze_composition(comp)
     return {"composition": comp.to_dict()}
