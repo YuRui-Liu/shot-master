@@ -791,11 +791,12 @@ async function runVideoLtx(arg) {
   let body;
   if (arg && arg.__timeline) { body = arg.body; }
   else {
-    const { prompt, firstFrame, baseName: bn, mode } = arg || {};
+    const { prompt, firstFrame, baseName: bn, mode, duration } = arg || {};
     body = {
       prompt: prompt || "", first_frame: firstFrame || null,
       mode: mode || "director", fps: dirState.fps || 24,
       aspect: "9:16", out_dir: PROJECT_DIR + "/video", base_name: bn || "clip",
+      ...(duration != null ? { duration } : {}),
     };
   }
   let resp;
@@ -818,9 +819,13 @@ function renderVideoOk(slot, res) {
   if (!slot) return;
   const out = (res && res.output) || "";
   const src = out ? mediaUrl(out) : "";
+  // 构建可点击的文件路径（file:// 协议，HTTP 页面中点击仅复制到剪贴板或不跳转，给出提示）
+  const pathHtml = out
+    ? `<span title="点击复制路径" onclick="navigator.clipboard.writeText('${out.replace(/'/g, "\\'")}');this.style.color='var(--done)';setTimeout(()=>this.style.color='',1800)" style="cursor:pointer;border-bottom:1px dashed var(--muted);user-select:all;">${out}</span>`
+    : "(未返回路径)";
   slot.innerHTML = `
     <div class="ok">
-      <div class="path">成片：<b>${out || "(未返回路径)"}</b>${res && res.mode ? " · " + res.mode : ""}${res && res.profile ? " · " + res.profile : ""}</div>
+      <div class="path">成片：${pathHtml}${res && res.mode ? " · " + res.mode : ""}${res && res.profile ? " · " + res.profile : ""}<br><span style="font-size:10px;color:var(--muted);">（点击路径复制到剪贴板 · 浏览器内可通过 file:// 直接打开；或路由到媒体 URL 在下方预览）</span></div>
       ${src ? `<video src="${src}" controls preload="metadata"></video>` : ""}
     </div>`;
 }
@@ -1852,12 +1857,14 @@ function wireActions() {
         const shotId = ta.getAttribute("data-shotid") || n;
         // 首帧：优先已发现的分镜图（imggen/shot_{shotId}_NN），退回分镜 JSON 字段
         const firstFrame = sbState.shotImages[String(shotId)] || (shot ? shotFrame(shot) : "");
+        const shotDuration = (shot && typeof shot.duration === "number") ? shot.duration : parseFloat(shot && shot.duration) || null;
         btn.disabled = true; btn.textContent = "⏳ 生成中…";
         if (slot) slot.innerHTML = "";
         try {
           const res = await runVideoLtx({
             prompt: ta.value, firstFrame: firstFrame,
             baseName: "shot_" + shotId, mode: wfToMode(document.getElementById("workflowSelect2").value),
+            duration: shotDuration,
           });
           renderVideoOk(slot, res); btn.textContent = "✓ 已生成";
         } catch (err) { renderVideoErr(slot, err); btn.textContent = "⚠ 生成失败"; }

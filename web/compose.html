@@ -48,7 +48,9 @@
     background: rgba(138,127,217,.14); border: 1px solid #4a3d6e;
     border-radius: 10px; padding: 2px 10px;
   }
-  .strip { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 8px; }
+  .strip { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 8px; scroll-behavior: smooth; }
+  .strip::-webkit-scrollbar { height: 6px; }
+  .strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
   /* 片段卡 */
   .clip {
@@ -90,6 +92,11 @@
     position: absolute; top: 6px; left: 30px; font-size: 8.5px; color: var(--mauve);
     background: rgba(138,127,217,.16); border: 1px solid #4a3d6e; border-radius: 3px; padding: 0 5px; line-height: 16px;
   }
+  .clip-idx {
+    position: absolute; top: 6px; left: 30px; font-size: 9.5px; font-weight: 700;
+    color: var(--fg); background: rgba(8,9,16,.65); border-radius: 3px; padding: 0 6px; line-height: 17px;
+  }
+  .clip .kindbadge { left: 54px; }   /* 有编号时右移 */
   .clip.add { border-style: dashed; background: transparent; }
   .clip.add .thumb { background: none; display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 26px; }
 
@@ -208,6 +215,8 @@
     <input id="subDir" class="ep-select" style="min-width:120px;max-width:160px"
            placeholder="子目录(如 video)" title="GET /project/clips 的 sub 参数（生成视频子目录）">
     <button class="btn-soft" data-act="listdir">⟳ 列出生成目录</button>
+    <input id="extDir" class="ep-select" style="min-width:120px;max-width:160px;border-style:dashed;" placeholder="外部路径（局部的）" title="添加外部文件夹路径导入片段，不持久落盘，关软件丢失">
+    <button class="btn-soft" data-act="addext" title="从外部路径导入片段">＋ 外部导入</button>
     <button class="btn-soft" data-act="addclip">＋ 添加片段</button>
     <!-- 主 CTA：智能转场=CV 分析触发（不直接出片） -->
     <button class="btn-analyze" data-act="analyze">✦ 一键智能转场</button>
@@ -463,6 +472,45 @@ async function postJSON(url, body) {
   }
   return data || {};
 }
+
+/* ===== 外部路径导入片段（不持久落盘，关软件丢失） ===== */
+async function loadExternal() {
+  const extEl = document.getElementById("extDir");
+  const dir = (extEl && extEl.value || "").trim();
+  if (!dir) { toast("请先在「外部路径」输入框中填写文件夹路径"); return; }
+  if (!dir.match(/^[a-zA-Z]:[\\/]/) && !dir.startsWith("/")) {
+    toast("外部路径需为绝对路径（如 E:\\\\MyClips 或 /home/user/clips）"); return;
+  }
+  if (!PROJECT) { toast("请先选择项目（外部路径导入需要项目便于获取相对路径）"); return; }
+  toast("列出外部目录中…");
+  try {
+    const data = await getJSON(MEDIA_API + "/project/clips?" + new URLSearchParams({ project: PROJECT, sub: dir }).toString());
+    const list = (data && data.clips) || [];
+    if (!list.length) { toast("外部目录下没有可用的视频/图片文件"); return; }
+    const startId = clips.length ? Math.max(...clips.map(c => c.id)) + 1 : 1;
+    const newClips = list.map((c, i) => ({
+      id: startId + i,
+      name: c.name || "外部片段 " + String(i + 1).padStart(2, "0"),
+      dur: durLabel(typeof c.duration === "number" ? c.duration : 0),
+      durSec: typeof c.duration === "number" ? c.duration : 0,
+      shots: c.shots || "—",
+      cls: ["", "c2", "c3", "c4"][i % 4],
+      kept: true,
+      path: c.path || c.name,
+      kind: c.kind === "image" ? "image" : "video",
+      thumb: c.thumb || "",
+      trimIn: null, trimOut: null,
+      _external: true,
+    }));
+    newClips.forEach(c => clips.push(c));
+    rebuildCutsFromOrder();
+    renderStrip(); renderInspector(); renderTrim();
+    toast("已从外部路径导入 " + newClips.length + " 个片段（不持久落盘，关软件丢失）");
+  } catch (e) {
+    if (e.status === 404) { toast("外部路径不可用：目录不存在或无权限访问"); }
+    else { toast("外部导入失败：" + e.message); }
+  }
+}
 const EFFECTS = ["叠化 (dissolve)", "推进 (smoothleft)", "圆开 (circleopen)", "淡入黑 (fadeblack)", "硬切 (cut)"];
 
 const NODE_ICON = { ai: "⤬", analyzing: "◌", manual: "▷", locked: "◐", cut: "▭" };
@@ -492,6 +540,7 @@ function renderStrip() {
         ${thumbImg}
         <div class="keep" data-keep="${cl.id}">${cl.kept ? "✓" : ""}</div>
         <div class="grip" title="拖拽排序">⠿</div>
+        <div class="clip-idx">${i + 1}</div>
         ${cl.shots && cl.shots !== "—" ? `<div class="shots">${esc(cl.shots)}</div>` : ""}
         ${trimmed ? `<div class="trimmed">✂ 已裁</div>` : ""}
         ${cl.kind === "image" ? `<div class="kindbadge">图</div>` : ""}
@@ -504,6 +553,16 @@ function renderStrip() {
         return;
       }
       selClip = cl.id;                 // 点卡片预览 → 同步 trim 条
+      // 视频片段播放预览
+      if (cl.kind === "video" && cl.path) {
+        const pvBox = document.querySelector(".player");
+        if (pvBox) {
+          const src = fileSrc(cl.path);
+          pvBox.innerHTML = `<video src="${src}" controls autoplay preload="auto" style="width:100%;max-height:400px;border-radius:8px;background:#000;"
+            onerror="this.nextElementSibling && (this.nextElementSibling.style.display='')"></video>
+            <div style="display:none;color:var(--muted);font-size:11px;padding:40px;text-align:center;">视频无法播放 · 尝试点击路径直接访问文件</div>`;
+        }
+      }
       document.getElementById("pvTag").textContent = `预览：${cl.name}（也可切「整片预览」）`;
       renderStrip();
       renderTrim();
@@ -842,8 +901,21 @@ function wireToolbar() {
         case "render":   render();  break;
         case "listdir":  loadClips(); break;
         case "addclip":  loadClips(); break;
+        case "addext":  loadExternal(); break;
         case "trim":     trimSelected(); break;
-        case "play":     toast("stub · 播放预览（真机串流片段/整片，暂无串流端点）"); break;
+        case "play": {
+          const cl = clips.find(c => c.id === selClip);
+          if (cl && cl.kind === "video" && cl.path) {
+            const pvBox = document.querySelector(".player");
+            if (pvBox) {
+              const src = fileSrc(cl.path);
+              pvBox.innerHTML = `<video src="${src}" controls autoplay style="width:100%;max-height:400px;border-radius:8px;background:#000;"></video>`;
+            }
+          } else {
+            toast("请先选中一个视频片段");
+          }
+          break;
+        }
         case "tosound": {
           const output = el.dataset.output;
           if (!output) { toast("请先「生成成片」再送去配乐"); break; }

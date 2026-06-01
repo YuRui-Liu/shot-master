@@ -172,6 +172,16 @@
   }
   .side-meta { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.7; }
 
+  /* 灯箱：点击分镜图全屏查看 */
+  .lightbox { position: fixed; inset: 0; z-index: 6000; display: flex; align-items: center; justify-content: center; }
+  .lightbox .lb-overlay { position: absolute; inset: 0; background: rgba(8,9,18,.88); cursor: pointer; }
+  .lightbox .lb-body { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; }
+  .lightbox .lb-close { position: absolute; top: -36px; right: 0; color: var(--fg2); font-size: 22px; cursor: pointer; padding: 8px; }
+  .lightbox .lb-close:hover { color: var(--fg); }
+  .lightbox .lb-info { position: absolute; bottom: -30px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 11px; }
+  .preview { cursor: pointer; }  /* 可点击放大 */
+  .preview:hover { border-color: var(--mauve); }
+
   /* ===== 工作模式切换 seg ===== */
   .mode-seg {
     display: inline-flex; background: var(--field); border: 1px solid var(--border);
@@ -560,6 +570,15 @@
           画幅 9:16 · 短剧竖屏<br>
           单图 HD · 视频基底帧
         </div>
+        <!-- 全屏灯箱预览（点击分镜图打开） -->
+        <div class="lightbox" id="imgLightbox" hidden>
+          <div class="lb-overlay" id="lbOverlay"></div>
+          <div class="lb-body">
+            <img id="lbImg" alt="分镜图原图" style="max-width:92vw;max-height:92vh;object-fit:contain;border-radius:10px;box-shadow:0 12px 48px rgba(0,0,0,.55);">
+            <div class="lb-close" id="lbClose">✕</div>
+            <div class="lb-info" id="lbInfo"></div>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -821,6 +840,23 @@
     el.addEventListener("error", function () {
       el.style.visibility = "hidden";
     }, { once: true });
+  }
+
+  // ---- 灯箱：点击分镜图全屏查看 ----
+  function setupLightbox() {
+    const lb = $("imgLightbox"), lbImg = $("lbImg"), lbClose = $("lbClose"), lbOverlay = $("lbOverlay"), lbInfo = $("lbInfo");
+    if (!lb || !lbImg) return;
+    const pv = $("preview");
+    if (pv) pv.addEventListener("click", (e) => {
+      const img = e.target.closest("img._out");
+      if (!img || !img.src) return;
+      lbImg.src = img.src;
+      lbInfo.textContent = img.alt || "分镜图原图";
+      lb.hidden = false;
+    });
+    const close = () => { lb.hidden = true; };
+    lbClose.addEventListener("click", close);
+    lbOverlay.addEventListener("click", close);
   }
 
   // 错误提示：优先用后端 hint，其次 message/detail
@@ -1147,6 +1183,7 @@
   bindShotEditors();
   // 初次进页自动读分镜
   loadStoryboards();
+  setupLightbox();
 
   // ---- 出图产物约定（分镜视角）：out_dir=PROJECT/imggen，base_name=shot_{shotId} ----
   //   产物落盘 imggen/shot_{shotId}_NN.png；重载时按 shot_{shotId}_ 前缀过滤还原预览。
