@@ -128,6 +128,39 @@
   .advance { margin-top: 12px; width: 100%; }
   .advance:disabled { filter: grayscale(.6) brightness(.7); }
 
+  /* ===== 往期立意（归档区切回入口） ===== */
+  .out .out-head .arch-toggle {
+    margin-left: auto; font-size: 11px; color: var(--periw); cursor: pointer; user-select: none;
+    border: 1px solid var(--border); border-radius: 10px; padding: 2px 10px;
+    background: var(--panel2); transition: all .12s;
+  }
+  .out .out-head .arch-toggle:hover { border-color: var(--mauve); color: var(--mauve); }
+  .out .out-head .arch-toggle.on { color: #06122a; background: linear-gradient(135deg, var(--blue), var(--periw)); border-color: transparent; font-weight: 600; }
+  /* toggle 在右；流式 pill 出现时它也保留在右侧，pill 推到其右边 */
+  .out .out-head .stream-pill { margin-left: 8px; }
+
+  .archives { display: none; margin: 0 0 11px; padding: 11px 12px; background: var(--navy); border: 1px solid var(--border-lo); border-radius: var(--radius-sm); }
+  .archives.on { display: block; }
+  .archives .arch-head { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; flex-wrap: wrap; }
+  .archives .arch-title { font-size: 11px; color: var(--periw); font-weight: 600; letter-spacing: .5px; }
+  .archives .arch-hint { font-size: 10.5px; color: var(--faint); flex: 1; min-width: 120px; }
+  .archives .arch-refresh { cursor: pointer; color: var(--faint); font-size: 13px; padding: 1px 6px; border-radius: 6px; user-select: none; }
+  .archives .arch-refresh:hover { color: var(--fg); background: var(--panel2); }
+  .archives .arch-list { display: flex; flex-direction: column; gap: 7px; max-height: 220px; overflow: auto; }
+  .archives .arch-empty { font-size: 11.5px; color: var(--faint); text-align: center; padding: 14px 8px; }
+  .arch-item { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 11px; }
+  .arch-item.active { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+  .arch-item .ai-main { flex: 1; min-width: 0; }
+  .arch-item .ai-title { font-size: 12.5px; color: var(--fg); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .arch-item .ai-meta { font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+  .arch-item .ai-cur { display: inline-block; font-size: 9.5px; color: #06122a; background: var(--blue); border-radius: 8px; padding: 1px 8px; margin-left: 6px; font-weight: 600; }
+  .arch-item .ai-restore {
+    font-size: 11px; color: var(--blue); border: 1px solid var(--blue-dim); border-radius: 6px;
+    padding: 5px 12px; background: rgba(74,158,255,.06); cursor: pointer; white-space: nowrap;
+  }
+  .arch-item .ai-restore:hover { background: rgba(74,158,255,.14); }
+  .arch-item .ai-restore:disabled { color: var(--faint); border-color: var(--border); background: var(--panel2); cursor: default; }
+
   /* 续聊：多轮深挖/调整立意 */
   .followup { margin-top: 12px; border-top: 1px solid var(--border-lo); padding-top: 12px; }
   .followup .fu-lab { font-size: 11px; color: var(--periw); font-weight: 600; margin-bottom: 7px; }
@@ -357,7 +390,18 @@
     <div class="card out">
       <div class="out-head">
         <span class="ot">立意候选（<span id="candCountLbl">0</span>）</span>
+        <span class="arch-toggle" id="archToggle" title="查看并切回往期立意（会归档当前立意下游、恢复所选立意剧本）">⤺ 往期立意</span>
         <span class="stream-pill" id="streamPill">● 流式生成中…</span>
+      </div>
+
+      <!-- 往期立意：归档区列表 + 切回（GET /project/archives；POST /project/archive/restore） -->
+      <div class="archives" id="archives">
+        <div class="arch-head">
+          <span class="arch-title">往期立意</span>
+          <span class="arch-hint" id="archHint">点「切回」会归档当前立意的下游产物、恢复所选立意的剧本。</span>
+          <span class="arch-refresh" id="archRefresh" title="刷新列表">↻</span>
+        </div>
+        <div class="arch-list" id="archList"><div class="arch-empty">加载往期立意…</div></div>
       </div>
       <div class="cands" id="cands">
         <div class="empty">填好左侧 context，点「生成候选」，AI 流式产出立意候选；点选一张后可推进到剧本阶段。</div>
@@ -1337,6 +1381,140 @@ async function applyBackendIdea(data) {
   try { await restoreMetaFromOverview(await fetchProjectMeta()); }
   catch (e) { console.warn("[ideate] manifest 权威恢复失败（不阻断）：", e.message); }
 })();
+
+/* ============== 往期立意：归档区列表 + 切回 ==============
+   契约（与 /ideate/select 同域 = SW_API）：
+     GET  {SW_API}/project/archives?project=<dir>
+       → { archives:[{idea_id, title, dir, archived_at, file_count, is_active}] }
+     POST {SW_API}/project/archive/restore { project_dir, idea_id }
+       → { selected, selection_changed, archived, restored }
+   切回语义：归档当前 selected 的下游 + 恢复 idea_id 的归档剧本 + 设 selected_id=idea_id。
+   容错：无 project / 失败 → 列表区出错误提示，不崩；不动其它状态。 */
+let _archLoaded = false;
+
+function archToast(msg) {
+  /* 轻量提示：壳内无 toast 组件，统一 alert（与既有 advance/select 失败口径一致）。 */
+  alert(msg);
+}
+function fmtArchTime(s) {
+  if (!s) return "时间未知";
+  return String(s).replace("T", " ");
+}
+
+async function loadArchives() {
+  const list = $("archList");
+  if (!PROJECT_DIR) {
+    $("archHint").textContent = "未选择项目，无法读取往期立意。";
+    list.innerHTML = `<div class="arch-empty">暂无往期立意（未选择项目）</div>`;
+    return;
+  }
+  list.innerHTML = `<div class="arch-empty">加载往期立意…</div>`;
+  let archives = [];
+  try {
+    const url = SW_API + "/project/archives?project=" + encodeURIComponent(PROJECT_DIR);
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    archives = Array.isArray(j.archives) ? j.archives : [];
+  } catch (e) {
+    console.warn("[ideate] 读 /project/archives 失败：", e.message);
+    list.innerHTML = `<div class="arch-empty">读取往期立意失败（${esc(e.message)}）</div>`;
+    return;
+  }
+  _archLoaded = true;
+  renderArchives(archives);
+}
+
+function renderArchives(archives) {
+  const list = $("archList");
+  if (!archives.length) {
+    list.innerHTML = `<div class="arch-empty">暂无往期立意（切换立意后，被归档的旧剧本会出现在这里）</div>`;
+    return;
+  }
+  list.innerHTML = "";
+  archives.forEach((a) => {
+    const el = document.createElement("div");
+    el.className = "arch-item" + (a.is_active ? " active" : "");
+    const title = a.title || a.idea_id || "未命名立意";
+    const meta = `归档于 ${esc(fmtArchTime(a.archived_at))} · ${a.file_count || 0} 个文件`;
+    el.innerHTML = `
+      <div class="ai-main">
+        <div class="ai-title">${esc(title)}${a.is_active ? `<span class="ai-cur">当前</span>` : ""}</div>
+        <div class="ai-meta">${meta}</div>
+      </div>
+      <button class="ai-restore"${a.is_active ? " disabled" : ""} data-id="${esc(a.idea_id)}" data-title="${esc(title)}">切回</button>`;
+    list.appendChild(el);
+  });
+}
+
+/* 容器委托：点「切回」→ 二次确认 → POST restore → 成功后刷新立意页状态 */
+$("archList").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest(".ai-restore");
+  if (!btn || btn.disabled) return;
+  const ideaId = btn.getAttribute("data-id");
+  const title = btn.getAttribute("data-title") || ideaId;
+  if (!ideaId) return;
+  if (!confirm(
+    `切回往期立意「${title}」？\n\n` +
+    "这会：\n" +
+    "· 把【当前立意】的下游产物（剧本等）归档；\n" +
+    "· 恢复【该立意】此前归档的剧本产物；\n" +
+    "· 把项目的选定立意设为该立意。\n\n确认切回？")) return;
+
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = "切回中…";
+  try {
+    let resp;
+    try {
+      resp = await fetch(SW_API + "/project/archive/restore", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_dir: PROJECT_DIR, idea_id: ideaId }),
+      });
+    } catch (netErr) {
+      throw new Error("无法连接编剧后端（" + (netErr.message || "网络错误") + "）");
+    }
+    if (!resp.ok) {
+      let detail = "";
+      try {
+        const j = await resp.json();
+        detail = (j && j.error && (j.error.hint || j.error.message)) || "";
+      } catch { try { detail = (await resp.text()).slice(0, 160); } catch {} }
+      throw new Error("HTTP " + resp.status + (detail ? "：" + detail : ""));
+    }
+    const data = await resp.json();
+    /* 切回成功：重读后端 创意.json（selected_id 已变）回填立意页，再刷新归档列表。
+       fetchBackendIdea/applyBackendIdea 会重渲染候选 + 选中 + 历史，并 saveState 同步本地镜像。 */
+    try {
+      const backend = await fetchBackendIdea();
+      if (backend) await applyBackendIdea(backend);
+    } catch (e) { console.warn("[ideate] 切回后回填立意页失败（不阻断）：", e.message); }
+    try { await restoreMetaFromOverview(await fetchProjectMeta()); } catch {}
+    await loadArchives();
+    /* 通知壳：选定立意已变，相关页（剧本/分镜/概览）可刷新（壳监听 ideate.restored，可选） */
+    try {
+      window.parent && window.parent.postMessage(
+        { type: "ideate.restored", selected_id: ideaId,
+          selection_changed: !!data.selection_changed }, "*");
+    } catch {}
+    const sel = (data.selected && (data.selected.title || data.selected.id)) || title;
+    archToast(`已切回立意「${sel}」。\n当前选定立意的剧本已恢复，可重新进入剧本阶段继续。`);
+  } catch (e) {
+    console.warn("[ideate] /project/archive/restore 失败：", e);
+    archToast("切回失败，未改动当前立意。\n\n" + (e.message || e) +
+      "\n\n请检查编剧后端是否运行 / 项目是否正确，修复后重试。");
+    btn.disabled = false; btn.textContent = old;
+  }
+});
+
+/* 展开/收起入口：首次展开时拉一次列表 */
+$("archToggle").addEventListener("click", () => {
+  const panel = $("archives");
+  const opening = !panel.classList.contains("on");
+  panel.classList.toggle("on", opening);
+  $("archToggle").classList.toggle("on", opening);
+  if (opening && !_archLoaded) loadArchives();
+});
+$("archRefresh").addEventListener("click", () => loadArchives());
 
 /* —— 健康检查 —— */
 (async function health() {

@@ -285,6 +285,84 @@
     background: linear-gradient(135deg, var(--done), #3aa978); color: #06231a; font-weight: 700;
   }
   .actions .grow { flex: 1; }
+
+  /* ===== 模式1 · 自由配音台（与模式2 互斥显示；照确认稿 dub-mode1-freeform-layout-confirm.html） ===== */
+  #mode1Root { max-width: 1180px; }
+  .m1-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+  .m1-head h2 { margin: 0; font-size: 18px;
+    background: linear-gradient(135deg, var(--blue), var(--mauve)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .m1-task-switch { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .m1-task-switch .lbl { color: var(--muted); font-size: 12.5px; }
+  .m1-task-switch select { min-width: 240px; }
+  .m1-task-switch .add {
+    font-size: 12px; color: var(--blue); border: 1px solid var(--blue-dim);
+    border-radius: 6px; padding: 7px 12px; cursor: pointer; background: transparent;
+  }
+  .m1-task-switch .add[disabled] { opacity: .4; cursor: not-allowed; }
+  .m1-task-switch .pcount { font-size: 11px; color: var(--mauve);
+    background: rgba(138,127,217,.18); border: 1px solid #4a3d6e; padding: 2px 9px; border-radius: 9px; }
+
+  .m1-editor { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    display: flex; flex-direction: column; overflow: hidden; }
+  .m1-ed-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border-lo); }
+  .m1-ed-head input.nm { flex: 1; max-width: 280px; font: inherit; background: var(--field);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--fg); padding: 7px 11px; outline: none; }
+  .m1-ed-head input.nm:focus { border-color: var(--mauve); }
+  .m1-ed-head .tag { font-size: 11.5px; color: var(--muted); }
+  .m1-ed-body { padding: 16px; display: flex; gap: 16px; }
+  .m1-main { flex: 1; min-width: 0; }
+  .m1-presets { width: 248px; flex-shrink: 0; background: var(--navy);
+    border: 1px solid var(--border-lo); border-radius: 9px; padding: 12px 13px; align-self: flex-start; }
+  .m1-presets .pt { font-size: 11px; color: var(--periw); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 10px; }
+  .m1-presets .pgrp { margin-bottom: 13px; }
+  .m1-presets .pgl { font-size: 11px; color: var(--muted); margin-bottom: 7px; }
+  .m1-presets .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .m1-presets .pchip { font-size: 11.5px; color: var(--periw); background: rgba(138,127,217,.14);
+    border: 1px solid #4a3d6e; border-radius: 12px; padding: 4px 10px; cursor: pointer; }
+  .m1-presets .pchip:hover { background: rgba(138,127,217,.24); filter: none; }
+  @media (max-width: 1000px){ .m1-ed-body { flex-direction: column; } .m1-presets { width: auto; } }
+  .m1-mrow { display: flex; gap: 10px; margin-bottom: 14px; }
+  .m1-mbtn { flex: 1; text-align: center; padding: 9px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--field); color: var(--fg2); cursor: pointer; font-size: 13px; }
+  .m1-mbtn.on { border-color: var(--blue); background: rgba(74,158,255,.12); color: var(--fg); font-weight: 600; box-shadow: 0 0 0 1px var(--blue); }
+  .m1-grp { background: var(--navy); border: 1px solid var(--border-lo); border-radius: 9px; padding: 13px 14px; margin-bottom: 13px; }
+  .m1-grp .glab { font-size: 11px; color: var(--periw); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 11px; }
+  .m1-frow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .m1-frow:last-child { margin-bottom: 0; }
+  .m1-frow > label { font-size: 12px; color: var(--fg2); width: 96px; flex-shrink: 0; }
+  .m1-frow input[type=text], .m1-frow select { flex: 1; font: inherit; background: var(--field);
+    border: 1px solid var(--border); border-radius: 7px; color: var(--fg); padding: 7px 10px; outline: none; }
+  .m1-frow input[type=text]:focus { border-color: var(--mauve); }
+  .m1-frow input[type=range] { flex: 1; accent-color: var(--blue); }
+  .m1-frow .pick { font-size: 11.5px; color: var(--blue); border: 1px solid var(--blue-dim);
+    border-radius: 6px; padding: 6px 11px; cursor: pointer; white-space: nowrap; background: transparent; }
+  .m1-frow .num { font: inherit; max-width: 80px; }
+  .m1-frow .rngval { color: var(--blue); font-size: 12px; min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+  .m1-text-hero { width: 100%; box-sizing: border-box; min-height: 92px; resize: vertical; font: inherit;
+    font-size: 13.5px; line-height: 1.6; background: var(--field); border: 1.5px solid var(--blue-dim);
+    border-radius: 10px; color: var(--fg); padding: 11px 13px; outline: none; }
+  .m1-text-hero:focus { border-color: var(--blue); }
+  .m1-emo-seg { display: flex; gap: 6px; flex-wrap: wrap; }
+  .m1-emo-seg .e { font-size: 11.5px; color: var(--fg2); border: 1px solid var(--border); border-radius: 14px; padding: 5px 12px; cursor: pointer; }
+  .m1-emo-seg .e.on { background: rgba(138,127,217,.18); border-color: var(--mauve); color: var(--mauve); font-weight: 600; }
+  .m1-emo-extra { margin-top: 11px; display: none; }
+  .m1-emo-extra.show { display: block; }
+  .m1-emo-extra textarea { width: 100%; box-sizing: border-box; min-height: 60px; resize: vertical; font: inherit;
+    background: var(--field); border: 1px solid var(--border); border-radius: 7px; color: var(--fg); padding: 8px 10px; outline: none; }
+  .m1-emo-extra .sub-input { width: 100%; box-sizing: border-box; font: inherit; background: var(--field);
+    border: 1px solid var(--border); border-radius: 7px; color: var(--fg); padding: 8px 10px; outline: none; }
+  .m1-vec { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .m1-vec .vc { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+  .m1-vec .vc input { width: 100%; box-sizing: border-box; font: inherit; background: var(--field);
+    border: 1px solid var(--border); border-radius: 6px; color: var(--fg); padding: 5px 7px; outline: none; }
+  .m1-clone-only { display: none; }
+  .m1-design-only { display: none; }
+  .m1-ed-foot { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-top: 1px solid var(--border-lo); background: var(--navy); }
+  .m1-ed-foot .grow { flex: 1; }
+  .m1-ed-foot button { font: inherit; font-size: 13px; padding: 8px 18px; border-radius: 8px; cursor: pointer; }
+  .m1-btn-sec { background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); }
+  .m1-btn-listen { background: rgba(74,158,255,.14); color: var(--blue); border: 1px solid var(--blue-dim); }
+  .m1-btn-gen { background: linear-gradient(135deg, var(--done), #3aa978); color: #06231a; font-weight: 700; border: none; }
 </style>
 </head>
 <body>
@@ -307,13 +385,6 @@
       <button class="btn-oneclick" id="oneClick">⚡ 一键分镜配音</button>
     </div>
 
-    <!-- 并行任务切换器（最多 5 个并行任务，替代旧左侧任务栏） -->
-    <div class="taskbar">
-      <span class="lbl">⛁ 并行任务</span>
-      <select class="task-select" id="taskSelect"></select>
-      <span class="cap">最多 <b>5</b> 个并行任务 · 切换即聚焦该任务上下文</span>
-    </div>
-
     <!-- 工作模式切换 -->
     <div class="modebar">
       <span class="lbl">工作模式</span>
@@ -321,10 +392,127 @@
         <button id="m1">模式1 · 自由配音台</button>
         <button id="m2" class="on">模式2 · 剧集分镜对齐</button>
       </div>
-      <div class="align-note">
+      <div class="align-note" id="alignNote">
         <span class="badge" id="alignCount">已按分镜顺序自动对齐 3 个镜头</span>
         分镜图 ↔ 台词 自动对齐
       </div>
+    </div>
+
+    <!-- ===== 模式1 · 自由配音台（默认隐藏，点「模式1」显示） ===== -->
+    <div id="mode1Root" style="display:none">
+      <div class="m1-head">
+        <h2>配音 · 自由模式</h2>
+        <div class="m1-task-switch">
+          <span class="lbl">并行任务</span>
+          <select id="m1TaskSelect"></select>
+          <button class="add" id="m1AddTask" title="新增并行配音任务（最多 5 个）">＋ 新任务</button>
+          <span class="pcount" id="m1TaskCount">1/5</span>
+        </div>
+      </div>
+
+      <div class="m1-editor">
+        <div class="m1-ed-head">
+          <input class="nm" type="text" id="m1Name" placeholder="任务名称">
+          <span class="tag" id="m1Tag">任务 1</span>
+        </div>
+        <div class="m1-ed-body">
+          <div class="m1-main">
+            <div class="m1-mrow">
+              <div class="m1-mbtn on" id="m1ModeDesign" data-m1mode="design">音色设计</div>
+              <div class="m1-mbtn" id="m1ModeClone" data-m1mode="clone">声音克隆</div>
+            </div>
+
+            <div class="m1-grp">
+              <div class="glab">台词文本</div>
+              <textarea class="m1-text-hero" id="m1Text" placeholder="输入要合成的台词文本…（右侧专业提示词可点击插入情感/语气描述）"></textarea>
+            </div>
+
+            <!-- 音色设计：风格描述 -->
+            <div class="m1-grp m1-design-only" id="m1DesignGrp">
+              <div class="glab">音色设计</div>
+              <div class="m1-frow"><label>音色风格</label><input type="text" id="m1Style" placeholder="如 低沉磁性男声 / 御姐成熟女声 / 冷静中性旁白"></div>
+            </div>
+
+            <!-- 声音克隆参数 -->
+            <div class="m1-grp m1-clone-only" id="m1CloneGrp">
+              <div class="glab">声音克隆参数</div>
+              <div class="m1-frow"><label>说话人参考音频</label><input type="text" id="m1Speaker" placeholder="如 E:/voices/qinlie_ref.wav（后端读取并上传）"><span class="pick" id="m1PickSpeaker">选参考音频</span></div>
+              <div class="m1-frow"><label>情感强度 α</label><input type="range" id="m1Alpha" min="0" max="2" step="0.05" value="1"><span class="rngval" id="m1AlphaVal">1.00</span></div>
+              <div class="m1-frow"><label>情感模式</label>
+                <div class="m1-emo-seg" id="m1EmoSeg">
+                  <span class="e on" data-emo="1" title="仅用参考音频复刻，情感强度可调">默认(随参考音频)</span>
+                  <span class="e" data-emo="2" title="用一句话描述目标情感">文本情绪</span>
+                  <span class="e" data-emo="3" title="另传一段参考情感音频">语音情绪模仿</span>
+                  <span class="e" data-emo="4" title="8 维情感向量精细控制">情感向量</span>
+                </div>
+              </div>
+              <!-- 情感文本（emo_mode 2） -->
+              <div class="m1-emo-extra" data-emoextra="2">
+                <div class="pgl" style="font-size:11px;color:var(--muted);margin-bottom:6px">情感文本描述（emo_text）</div>
+                <textarea id="m1EmoText" placeholder="用一句话描述目标情感，如「压抑克制、强忍怒意，尾音下沉」"></textarea>
+              </div>
+              <!-- 情感音频（emo_mode 3） -->
+              <div class="m1-emo-extra" data-emoextra="3">
+                <div class="pgl" style="font-size:11px;color:var(--muted);margin-bottom:6px">情感参考音频路径（emo_audio，本地路径）</div>
+                <div class="m1-frow" style="margin-bottom:0">
+                  <input type="text" class="sub-input" id="m1EmoAudio" placeholder="如 E:/voices/emo_angry.wav（仅情感参考，与说话人不同）">
+                  <span class="pick" id="m1PickEmoAudio">选情感音频</span>
+                </div>
+              </div>
+              <!-- 情感向量（emo_mode 4，8 维 = EMO_VECTOR_LABELS 顺序） -->
+              <div class="m1-emo-extra" data-emoextra="4">
+                <div class="pgl" style="font-size:11px;color:var(--muted);margin-bottom:8px">情感向量（8 维，0~1.2，顺序对齐后端 EMO_VECTOR_LABELS）</div>
+                <div class="m1-vec" id="m1Vec"></div>
+              </div>
+            </div>
+
+            <div class="m1-grp">
+              <div class="glab">采样参数</div>
+              <div class="m1-frow"><label>语速</label><input type="range" id="m1Speed" min="0.5" max="2" step="0.05" value="1"><span class="rngval" id="m1SpeedVal">1.00x</span></div>
+              <div class="m1-frow">
+                <label>temperature</label><input type="text" class="num" id="m1Temp" value="0.8">
+                <label style="width:auto">top_p</label><input type="text" class="num" id="m1TopP" value="0.8">
+                <label style="width:auto">top_k</label><input type="text" class="num" id="m1TopK" value="30">
+              </div>
+            </div>
+
+            <div class="m1-grp">
+              <div class="glab">输出</div>
+              <div class="m1-frow"><label>文件名前缀</label><input type="text" id="m1Prefix" placeholder="如 dub_机械音（空=自动时间戳）"></div>
+              <div class="m1-frow"><label>保存路径</label><input type="text" id="m1OutDir" placeholder="（空=项目 dub/ 目录）"><span class="pick" id="m1PickOutDir">选择…</span></div>
+            </div>
+          </div>
+
+          <aside class="m1-presets">
+            <div class="pt">专业提示词</div>
+            <div class="pgrp"><div class="pgl">情绪</div><div class="chips">
+              <span class="pchip">愤怒</span><span class="pchip">悲伤</span><span class="pchip">冷峻</span><span class="pchip">急促</span><span class="pchip">沙哑低沉</span><span class="pchip">温柔</span>
+            </div></div>
+            <div class="pgrp"><div class="pgl">语气/节奏</div><div class="chips">
+              <span class="pchip">停顿</span><span class="pchip">加重</span><span class="pchip">气声</span><span class="pchip">渐弱</span><span class="pchip">咬字清晰</span>
+            </div></div>
+            <div class="pgrp"><div class="pgl">音色风格</div><div class="chips">
+              <span class="pchip">机械音</span><span class="pchip">播音腔</span><span class="pchip">少年音</span><span class="pchip">御姐音</span><span class="pchip">磁性男声</span>
+            </div></div>
+          </aside>
+        </div>
+        <div class="m1-ed-foot">
+          <span class="grow"></span>
+          <button class="m1-btn-listen" id="m1Listen">▷ 试听</button>
+          <button class="m1-btn-sec" id="m1Save">保存</button>
+          <button class="m1-btn-gen" id="m1Synth">✦ 合成配音</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 模式2 · 剧集分镜对齐（原内容，整体可整块隐藏） ===== -->
+    <div id="mode2Root">
+
+    <!-- 并行任务切换器（最多 5 个并行任务，替代旧左侧任务栏） -->
+    <div class="taskbar">
+      <span class="lbl">⛁ 并行任务</span>
+      <select class="task-select" id="taskSelect"></select>
+      <span class="cap">最多 <b>5</b> 个并行任务 · 切换即聚焦该任务上下文</span>
     </div>
 
     <!-- 视频预览窗口：配音时对着画面对口型/卡点（成片/分镜动态预览） -->
@@ -366,6 +554,8 @@
 
     <!-- SHOT/台词卡列表（由 JS 渲染） -->
     <div class="shots" id="shots"></div>
+
+    </div><!-- /#mode2Root -->
   </main>
 </div>
 
@@ -1015,12 +1205,325 @@ function wireActions() {
   });
 }
 
-/* 工作模式切换（本页默认模式2 高亮；点模式1 仅切高亮，stub） */
+/* 工作模式切换：模式1(自由配音台) / 模式2(剧集分镜对齐) 互斥显示。
+   切换时连带显隐共享的集/镜下拉、一键分镜配音、对齐提示（这些只属于模式2）。 */
+function applyMode(mode) {
+  const isM1 = mode === "m1";
+  document.getElementById("mode1Root").style.display = isM1 ? "" : "none";
+  document.getElementById("mode2Root").style.display = isM1 ? "none" : "";
+  // 模式2 专属的顶栏控件（集/镜下拉、一键分镜配音、对齐提示）在模式1 下隐藏
+  ["epSelect", "shotSelect", "oneClick", "alignNote"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isM1 ? "none" : "";
+  });
+}
 function wireModes() {
   const m1 = document.getElementById("m1");
   const m2 = document.getElementById("m2");
-  m1.addEventListener("click", () => { m1.classList.add("on"); m2.classList.remove("on"); });
-  m2.addEventListener("click", () => { m2.classList.add("on"); m1.classList.remove("on"); });
+  m1.addEventListener("click", () => { m1.classList.add("on"); m2.classList.remove("on"); applyMode("m1"); });
+  m2.addEventListener("click", () => { m2.classList.add("on"); m1.classList.remove("on"); applyMode("m2"); });
+}
+
+/* ===================================================================== *
+ * 模式1 · 自由配音台
+ * - 并行任务下拉（≤5），每任务独立 state（模式/台词/克隆参数/采样/前缀/路径）。
+ * - 试听 → POST {MEDIA_API}/tts/preview；合成 → /tts/synthesize（out_dir=保存路径或 PROJECT/dub，base_name=前缀）。
+ * - clone 入参对齐 media_agent/routes/tts.py SynthesizeRequest。
+ * ===================================================================== */
+const M1_MAX_TASKS = 5;
+function m1NewTask(i) {
+  return {
+    name: "配音任务 " + i,
+    mode: "design",                 // 'design' | 'clone'
+    text: "",
+    style: "",                      // design 音色风格
+    speaker: "",                    // clone 说话人参考音频路径
+    alpha: 1.0,                     // 情感强度 emo_alpha
+    emo: 1,                         // 情感子模式 1..4
+    emoText: "",                    // emo_mode 2
+    emoAudio: "",                   // emo_mode 3
+    emoVec: new Array(EMO_VECTOR_LABELS.length).fill(0), // emo_mode 4
+    speed: 1.0,
+    temp: "0.8", topP: "0.8", topK: "30",
+    prefix: "", outDir: "",
+  };
+}
+const m1Tasks = [m1NewTask(1)];
+let m1Cur = 0;
+
+const m1El = (id) => document.getElementById(id);
+
+/* 把当前编辑器各控件值写回 m1Tasks[m1Cur]（切任务/合成前调用） */
+function m1Collect() {
+  const t = m1Tasks[m1Cur]; if (!t) return;
+  t.name = m1El("m1Name").value;
+  t.text = m1El("m1Text").value;
+  t.style = m1El("m1Style").value;
+  t.speaker = m1El("m1Speaker").value;
+  t.alpha = parseFloat(m1El("m1Alpha").value) || 0;
+  t.emoText = m1El("m1EmoText").value;
+  t.emoAudio = m1El("m1EmoAudio").value;
+  t.speed = parseFloat(m1El("m1Speed").value) || 1.0;
+  t.temp = m1El("m1Temp").value;
+  t.topP = m1El("m1TopP").value;
+  t.topK = m1El("m1TopK").value;
+  t.prefix = m1El("m1Prefix").value;
+  t.outDir = m1El("m1OutDir").value;
+  // emo / mode 已在交互时实时写入 state；情感向量从输入框读
+  const cells = document.querySelectorAll('#m1Vec input[data-vecidx]');
+  cells.forEach((c) => {
+    const idx = parseInt(c.getAttribute("data-vecidx"), 10);
+    const v = parseFloat(c.value);
+    if (idx >= 0 && idx < t.emoVec.length && Number.isFinite(v)) t.emoVec[idx] = v;
+  });
+}
+
+/* 据 t.mode / t.emo 显隐 设计/克隆区块、情感子区块、按钮高亮 */
+function m1ApplyVisibility() {
+  const t = m1Tasks[m1Cur]; if (!t) return;
+  const isClone = t.mode === "clone";
+  m1El("m1ModeDesign").classList.toggle("on", !isClone);
+  m1El("m1ModeClone").classList.toggle("on", isClone);
+  m1El("m1DesignGrp").style.display = isClone ? "none" : "block";
+  m1El("m1CloneGrp").style.display = isClone ? "block" : "none";
+  // 情感子模式高亮 + 子区块显隐
+  document.querySelectorAll('#m1EmoSeg .e').forEach((e) =>
+    e.classList.toggle("on", String(e.getAttribute("data-emo")) === String(t.emo)));
+  document.querySelectorAll('.m1-emo-extra').forEach((el) =>
+    el.classList.toggle("show", isClone && String(el.getAttribute("data-emoextra")) === String(t.emo)));
+}
+
+/* 把 m1Tasks[m1Cur] 灌入编辑器控件 */
+function m1Load() {
+  const t = m1Tasks[m1Cur]; if (!t) return;
+  m1El("m1Name").value = t.name;
+  m1El("m1Tag").textContent = "任务 " + (m1Cur + 1);
+  m1El("m1Text").value = t.text;
+  m1El("m1Style").value = t.style;
+  m1El("m1Speaker").value = t.speaker;
+  m1El("m1Alpha").value = t.alpha;
+  m1El("m1AlphaVal").textContent = parseFloat(t.alpha).toFixed(2);
+  m1El("m1EmoText").value = t.emoText;
+  m1El("m1EmoAudio").value = t.emoAudio;
+  m1El("m1Speed").value = t.speed;
+  m1El("m1SpeedVal").textContent = parseFloat(t.speed).toFixed(2) + "x";
+  m1El("m1Temp").value = t.temp;
+  m1El("m1TopP").value = t.topP;
+  m1El("m1TopK").value = t.topK;
+  m1El("m1Prefix").value = t.prefix;
+  m1El("m1OutDir").value = t.outDir;
+  // 情感向量输入框
+  document.querySelectorAll('#m1Vec input[data-vecidx]').forEach((c) => {
+    const idx = parseInt(c.getAttribute("data-vecidx"), 10);
+    c.value = t.emoVec[idx] != null ? t.emoVec[idx] : 0;
+  });
+  m1ApplyVisibility();
+}
+
+function m1RenderTaskSelect() {
+  const sel = m1El("m1TaskSelect");
+  sel.innerHTML = m1Tasks
+    .map((t, i) => `<option value="${i}" ${i === m1Cur ? "selected" : ""}>${(t.name || ("任务 " + (i + 1)))}${t.mode === "clone" ? " · 克隆" : " · 设计"}</option>`)
+    .join("");
+  m1El("m1TaskCount").textContent = m1Tasks.length + "/" + M1_MAX_TASKS;
+  m1El("m1AddTask").disabled = m1Tasks.length >= M1_MAX_TASKS;
+}
+
+function m1RenderVec() {
+  const wrap = m1El("m1Vec");
+  wrap.innerHTML = EMO_VECTOR_LABELS.map((lab, i) =>
+    `<div class="vc"><label>${EMO_VECTOR_CN[i]} · ${lab}</label>` +
+    `<input type="number" min="0" max="1.2" step="0.05" value="0" data-vecidx="${i}"></div>`
+  ).join("");
+}
+
+/* 把文本插入台词大编辑区（光标处；专业提示词 chip 用） */
+function m1InsertText(snippet) {
+  const ta = m1El("m1Text");
+  const s = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+  const e = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+  const v = ta.value;
+  // 与前文之间补一个分隔，避免黏连
+  const sep = (s > 0 && !/\s$/.test(v.slice(0, s))) ? "，" : "";
+  ta.value = v.slice(0, s) + sep + snippet + v.slice(e);
+  const pos = s + sep.length + snippet.length;
+  ta.focus(); ta.setSelectionRange(pos, pos);
+}
+
+/* 组 /tts/* 请求体（含校验）：返回 {ok,body} 或 {err} */
+function m1BuildBody() {
+  const t = m1Tasks[m1Cur];
+  const text = (t.text || "").trim();
+  if (!text) return { err: "请先填写台词文本。" };
+  const sampling = {};
+  const tp = parseFloat(t.temp), pp = parseFloat(t.topP), pk = parseInt(t.topK, 10);
+  if (Number.isFinite(tp)) sampling.temperature = tp;
+  if (Number.isFinite(pp)) sampling.top_p = pp;
+  if (Number.isFinite(pk)) sampling.top_k = pk;
+  if (t.mode === "clone") {
+    const speaker = (t.speaker || "").trim();
+    if (!speaker) return { err: "声音克隆需要「说话人参考音频」路径。" };
+    const body = {
+      text, mode: "clone", language: CLONE_LANGUAGE,
+      speaker_file: speaker,
+      emo_mode: t.emo,
+      emo_alpha: Number.isFinite(t.alpha) ? t.alpha : 1.0,
+      speed: t.speed,
+      sampling: Object.keys(sampling).length ? sampling : undefined,
+    };
+    if (t.emo === 2) {
+      if (!(t.emoText || "").trim()) return { err: "文本情绪模式需要填写「情感文本描述」。" };
+      body.emo_text = t.emoText.trim();
+    } else if (t.emo === 3) {
+      if (!(t.emoAudio || "").trim()) return { err: "语音情绪模仿模式需要「情感参考音频」路径。" };
+      body.emo_audio_file = t.emoAudio.trim();
+    } else if (t.emo === 4) {
+      body.emo_vector = t.emoVec.slice();
+    }
+    return { ok: true, body };
+  }
+  // design
+  return {
+    ok: true,
+    body: {
+      text, mode: "design", language: "zh",
+      style: (t.style || "").trim(),
+      speed: t.speed,
+      sampling: Object.keys(sampling).length ? sampling : undefined,
+    },
+  };
+}
+
+async function m1Run(isListen, btn) {
+  m1Collect();
+  const built = m1BuildBody();
+  if (built.err) { alert(built.err); return; }
+  const body = built.body;
+  if (!isListen) {
+    const t = m1Tasks[m1Cur];
+    const outDir = (t.outDir || "").trim();
+    if (outDir) body.out_dir = outDir;
+    else {
+      if (!PROJECT_DIR) { alert("未填保存路径且未选项目（缺少 ?project=），无法定位输出目录。"); return; }
+      body.out_dir = PROJECT_DIR + "/dub";
+    }
+    const prefix = (t.prefix || "").trim();
+    if (prefix) body.base_name = prefix;
+  }
+  const route = isListen ? "/tts/preview" : "/tts/synthesize";
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = isListen ? "▷ 试听中…" : "✦ 合成中…";
+  try {
+    const resp = await fetch(MEDIA_API + route, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    let data = {};
+    try { data = await resp.json(); } catch {}
+    if (!resp.ok) {
+      const hint = (data && data.detail && data.detail.hint) ||
+                   (data && data.error && data.error.hint) ||
+                   (data && (data.message || data.detail)) || ("HTTP " + resp.status);
+      throw new Error(typeof hint === "string" ? hint : JSON.stringify(hint));
+    }
+    const out = data && data.output;
+    if (!out) throw new Error("未返回 output 路径");
+    if (isListen) {
+      playPreviewAudio(out);
+      btn.textContent = "▷ 播放中…";
+      setTimeout(() => (btn.textContent = orig), 1600);
+    } else {
+      toast("配音已合成：" + out);
+      btn.textContent = "✦ 已合成 ✓";
+      setTimeout(() => (btn.textContent = orig), 1600);
+    }
+  } catch (e) {
+    alert((isListen ? "试听失败：" : "合成配音失败：") + e.message);
+    btn.textContent = orig;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function wireMode1() {
+  m1RenderVec();
+  m1RenderTaskSelect();
+  m1Load();
+
+  // 任务下拉切换：先把当前编辑器存回，再切
+  m1El("m1TaskSelect").addEventListener("change", (e) => {
+    m1Collect();
+    const idx = parseInt(e.target.value, 10);
+    if (idx >= 0 && idx < m1Tasks.length) { m1Cur = idx; m1Load(); m1RenderTaskSelect(); }
+  });
+
+  // 新任务（≤5）
+  m1El("m1AddTask").addEventListener("click", () => {
+    if (m1Tasks.length >= M1_MAX_TASKS) return;
+    m1Collect();
+    m1Tasks.push(m1NewTask(m1Tasks.length + 1));
+    m1Cur = m1Tasks.length - 1;
+    m1RenderTaskSelect(); m1Load();
+  });
+
+  // 设计 / 克隆 模式切换
+  document.querySelectorAll('.m1-mbtn[data-m1mode]').forEach((b) => {
+    b.addEventListener("click", () => {
+      m1Tasks[m1Cur].mode = b.getAttribute("data-m1mode");
+      m1ApplyVisibility(); m1RenderTaskSelect();
+    });
+  });
+
+  // 情感子模式 1..4
+  document.querySelectorAll('#m1EmoSeg .e').forEach((e) => {
+    e.addEventListener("click", () => {
+      m1Tasks[m1Cur].emo = parseInt(e.getAttribute("data-emo"), 10) || 1;
+      m1ApplyVisibility();
+    });
+  });
+
+  // 情感强度 / 语速滑块回显 + 写 state
+  const alpha = m1El("m1Alpha"), alphaVal = m1El("m1AlphaVal");
+  alpha.addEventListener("input", () => {
+    m1Tasks[m1Cur].alpha = parseFloat(alpha.value) || 0;
+    alphaVal.textContent = parseFloat(alpha.value).toFixed(2);
+  });
+  const speed = m1El("m1Speed"), speedVal = m1El("m1SpeedVal");
+  speed.addEventListener("input", () => {
+    m1Tasks[m1Cur].speed = parseFloat(speed.value) || 1.0;
+    speedVal.textContent = parseFloat(speed.value).toFixed(2) + "x";
+  });
+
+  // 任务名实时回显到下拉
+  m1El("m1Name").addEventListener("input", () => {
+    m1Tasks[m1Cur].name = m1El("m1Name").value;
+    m1RenderTaskSelect();
+  });
+
+  // 路径选择占位（浏览器无原生本地选择器，提示手填；壳可后续接桥）
+  const pickHint = (input) => {
+    const v = prompt("请输入本地路径：", input.value || "");
+    if (v != null) input.value = v;
+  };
+  m1El("m1PickSpeaker").addEventListener("click", () => pickHint(m1El("m1Speaker")));
+  m1El("m1PickEmoAudio").addEventListener("click", () => pickHint(m1El("m1EmoAudio")));
+  m1El("m1PickOutDir").addEventListener("click", () => pickHint(m1El("m1OutDir")));
+
+  // 专业提示词 chips → 插入台词
+  document.querySelectorAll('.m1-presets .pchip').forEach((chip) => {
+    chip.addEventListener("click", () => m1InsertText(chip.textContent.trim()));
+  });
+
+  // 底部动作
+  m1El("m1Listen").addEventListener("click", (e) => m1Run(true, e.currentTarget));
+  m1El("m1Synth").addEventListener("click", (e) => m1Run(false, e.currentTarget));
+  m1El("m1Save").addEventListener("click", (e) => {
+    m1Collect();
+    const b = e.currentTarget; const orig = b.textContent;
+    b.textContent = "已保存 ✓"; setTimeout(() => (b.textContent = orig), 1200);
+  });
 }
 
 /* 顶部「一键分镜配音」：跑一次集级 audio_prompt（角色音色设计+分镜音效配表），
@@ -1182,7 +1685,9 @@ wireExamples();
 wireCloneControls();
 wireActions();
 wireModes();
+wireMode1();
 wireOneClick();
+applyMode("m2");   // 默认模式2（与 #m2.on 一致）
 /* 切集失效集级音色设计缓存（下次「生成」重新拉取该集 audio_prompt） */
 document.getElementById("epSelect").addEventListener("change", () => {
   _audioPromptCache = { ep: null, voices: null, sfx: null, inflight: null };
