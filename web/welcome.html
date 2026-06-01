@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · 首页 · WELCOME</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ===== 壳内容页：无自带标题栏/侧栏（由 web/app.html 壳「糯米 AI」统一提供）。
+         本页只负责首页内容：hero 大标题 + 新建/打开 + 最近项目 coverflow。 ===== */
+  body { overflow: hidden; background: radial-gradient(ellipse at 50% 0%, #161a30, var(--bg) 70%); }
+  .home {
+    position: relative; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 30px 24px 0;
+  }
+  /* hero 顶部柔光 */
+  .glow {
+    position: absolute; left: 50%; top: 30px; transform: translateX(-50%);
+    width: 560px; height: 220px; pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse, rgba(74,158,255,.18), transparent 70%);
+    filter: blur(34px);
+  }
+
+  /* ===== hero ===== */
+  .hero { position: relative; z-index: 1; text-align: center; padding: 30px 0 26px; }
+  .hero .title {
+    font-size: 38px; font-weight: 800; letter-spacing: 2px; line-height: 1.15;
+    background: linear-gradient(95deg, #fff, #cdd6f4 55%, var(--periw));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero .tag { font-size: 14px; color: var(--muted); letter-spacing: 5px; margin-top: 14px; }
+  .hero .btns { display: flex; gap: 16px; justify-content: center; margin-top: 28px; }
+  .hero .btn {
+    font-size: 15px; font-weight: 600; padding: 13px 38px; border-radius: 11px;
+    letter-spacing: 1px; cursor: pointer; border: none; color: #06122a;
+    transition: filter .15s, transform .05s;
+  }
+  .hero .btn:hover { filter: brightness(1.08); }
+  .hero .btn:active { transform: translateY(1px); }
+  .hero .btn.pri {
+    background: linear-gradient(90deg, var(--blue), var(--periw));
+    box-shadow: 0 8px 22px rgba(74,158,255,.30);
+  }
+  .hero .btn.sec {
+    background: rgba(30,32,60,.6); border: 1px solid #2a2a4a; color: var(--fg2);
+  }
+  .hero .btn.sec:hover { filter: none; border-color: var(--mauve); color: var(--fg); }
+
+  /* ===== 最近项目区标题 ===== */
+  .recent-label {
+    position: relative; z-index: 1; font-size: 11px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--periw); font-weight: 600;
+    margin: 4px 0 2px; opacity: .9;
+  }
+
+  /* ===== 最近项目 coverflow：焦点居中，按时间向两旁退远 ===== */
+  .recent {
+    position: relative; z-index: 1; width: 100%; max-width: 1180px;
+    height: 300px; display: flex; align-items: center; justify-content: center;
+  }
+  .card {
+    position: absolute; border-radius: 14px; border: 1px solid var(--border);
+    overflow: hidden; background: linear-gradient(160deg, #1c2038, #12152400);
+    box-shadow: 0 12px 30px rgba(0,0,0,.45); cursor: pointer;
+    transition: transform .3s, opacity .3s, box-shadow .3s, left .3s;
+  }
+  .card .cv {
+    height: 64%; background: linear-gradient(135deg, #243a5a, #3a2746);
+    position: relative; background-size: cover; background-position: center;
+  }
+  .card .meta { padding: 10px 12px; }
+  .card .nm { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .dt { font-size: 10px; color: var(--faint); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .badge {
+    position: absolute; top: 8px; left: 8px; font-size: 8.5px; color: #bcd4f5;
+    background: rgba(13,16,32,.6); border: 1px solid #2c4a6e; border-radius: 8px; padding: 1px 7px;
+  }
+  /* 位置类（由 JS 按与焦点的距离赋予 c0 / l1 / r1 / l2 / r2 / hidden） */
+  .card.c0 { width: 230px; height: 280px; z-index: 5; left: 50%; margin-left: -115px;
+    border-color: #2c4a6e; box-shadow: 0 0 0 1px var(--blue), 0 16px 40px rgba(74,158,255,.22); }
+  .card.l1 { width: 185px; height: 236px; left: calc(50% - 350px); opacity: .78; z-index: 4; transform: perspective(900px) rotateY(18deg); }
+  .card.r1 { width: 185px; height: 236px; left: calc(50% + 165px); opacity: .78; z-index: 4; transform: perspective(900px) rotateY(-18deg); }
+  .card.l2 { width: 150px; height: 196px; left: calc(50% - 500px); opacity: .45; z-index: 3; transform: perspective(900px) rotateY(26deg); }
+  .card.r2 { width: 150px; height: 196px; left: calc(50% + 350px); opacity: .45; z-index: 3; transform: perspective(900px) rotateY(-26deg); }
+  .card.hidden { opacity: 0; pointer-events: none; z-index: 1; }
+
+  /* 左右切换箭头 */
+  .arrow {
+    position: absolute; top: 50%; transform: translateY(-50%); width: 34px; height: 34px;
+    border-radius: 50%; background: rgba(20,24,44,.7); border: 1px solid #2a2a4a;
+    display: flex; align-items: center; justify-content: center; color: var(--muted);
+    z-index: 6; cursor: pointer; font-size: 18px; user-select: none;
+  }
+  .arrow:hover { border-color: var(--mauve); color: var(--fg); }
+  .arrow.lft { left: 18px; } .arrow.rgt { right: 18px; }
+  .arrow.disabled { opacity: .3; pointer-events: none; }
+
+  /* 分页圆点 */
+  .dots { position: relative; z-index: 1; display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--border); cursor: pointer; transition: all .2s; }
+  .dots i.on { background: var(--blue); width: 18px; border-radius: 4px; }
+
+  /* 空态 / 加载态 */
+  .recent-empty {
+    position: relative; z-index: 1; color: var(--faint); font-size: 13px;
+    border: 1px dashed var(--border); border-radius: var(--radius);
+    padding: 30px 40px; text-align: center; max-width: 520px;
+  }
+  .recent-empty b { color: var(--fg2); }
+
+  /* 隐藏文件选择 input */
+  #dirPicker { display: none; }
+</style>
+</head>
+<body>
+<!-- 作为壳内容页：自带标题栏/侧栏已移除，由 web/app.html 壳(糯米 AI)统一提供 -->
+<div class="home">
+  <div class="glow"></div>
+
+  <!-- hero -->
+  <div class="hero">
+    <div class="title">糯米AI分镜影视创作台</div>
+    <div class="tag">剧本 · 分镜 · 视频 · 后期配音配乐</div>
+    <div class="btns">
+      <button class="btn pri" id="btnNew">＋ 新建项目</button>
+      <button class="btn sec" id="btnOpen">打开目录</button>
+    </div>
+  </div>
+
+  <!-- 最近项目 -->
+  <div class="recent-label">最近项目</div>
+  <div class="recent" id="recent">
+    <span class="arrow lft" id="arrowL">‹</span>
+    <span class="arrow rgt" id="arrowR">›</span>
+    <!-- 卡片由 JS 渲染 -->
+  </div>
+  <div class="dots" id="dots"></div>
+</div>
+
+<!-- 打开目录：用本地目录选择（壳/Electron 下走原生；浏览器降级为 webkitdirectory） -->
+<input type="file" id="dirPicker" webkitdirectory directory>
+
+<script>
+/* ===== 壳内容页：API 基址从 URLSearchParams 读，默认 18450/18430（与其它内容页一致） ===== */
+const _qs = new URLSearchParams(location.search);
+const MEDIA_API = _qs.get("media") || "http://127.0.0.1:18450";  // media_agent（项目列表/新建）
+const SW_API    = _qs.get("sw")    || "http://127.0.0.1:18430";  // screenwriter_agent（预留）
+void SW_API;
+
+/* 占位示例项目（读不到后端时回退；时间倒序，最新在前）。
+   真机由 GET {MEDIA_API}/projects/list 替换。 */
+const DEMO_PROJECTS = [
+  { name: "真千金归来",  path: "(demo)/zhenqianjin",  badge: "短剧 · P-006", opened_at: "刚刚 · 12集" },
+  { name: "替嫁新娘",    path: "(demo)/tijia",        badge: "短剧",          opened_at: "昨天" },
+  { name: "星海之歌",    path: "(demo)/xinghai",      badge: "MV",            opened_at: "2天前" },
+  { name: "三月日记",    path: "(demo)/march",        badge: "",              opened_at: "3天前" },
+  { name: "广告·新茶",   path: "(demo)/newtea",       badge: "广告",          opened_at: "5天前" },
+];
+
+let projects = [];   // 最终用于渲染的项目（后端或 demo）
+let focus = 0;       // 当前焦点卡 index
+let usingDemo = false;
+
+/* —— 把「与焦点的相对位置」映射到 coverflow 位置类 —— */
+function posClass(i) {
+  const d = i - focus;
+  if (d === 0)  return "c0";
+  if (d === -1) return "l1";
+  if (d === 1)  return "r1";
+  if (d === -2) return "l2";
+  if (d === 2)  return "r2";
+  return "hidden";
+}
+
+/* —— 渲染最近项目 coverflow —— */
+function renderRecent() {
+  const root = document.getElementById("recent");
+  // 移除旧卡（保留两个箭头）
+  root.querySelectorAll(".card").forEach(el => el.remove());
+
+  if (!projects.length) {
+    const empty = document.createElement("div");
+    empty.className = "recent-empty";
+    empty.innerHTML = `还没有项目。点上方 <b>＋ 新建项目</b> 开始，或 <b>打开目录</b> 载入已有项目。`;
+    root.appendChild(empty);
+    document.getElementById("arrowL").classList.add("disabled");
+    document.getElementById("arrowR").classList.add("disabled");
+    renderDots();
+    return;
+  }
+
+  projects.forEach((p, i) => {
+    const card = document.createElement("div");
+    card.className = "card " + posClass(i);
+    card.dataset.idx = String(i);
+    const badge = p.badge ? `<span class="badge">${esc(p.badge)}</span>` : "";
+    const cvStyle = p.cover ? ` style="background-image:url('${esc(p.cover)}')"` : "";
+    card.innerHTML = `
+      <div class="cv"${cvStyle}>${badge}</div>
+      <div class="meta">
+        <div class="nm">${esc(p.name)}</div>
+        <div class="dt">${esc(p.opened_at || p.path || "")}</div>
+      </div>`;
+    card.addEventListener("click", () => {
+      const idx = i;
+      if (idx === focus) openProject(p);   // 点焦点卡 → 打开
+      else { focus = idx; renderRecent(); } // 点旁卡 → 切到焦点
+    });
+    root.appendChild(card);
+  });
+
+  document.getElementById("arrowL").classList.toggle("disabled", focus <= 0);
+  document.getElementById("arrowR").classList.toggle("disabled", focus >= projects.length - 1);
+  renderDots();
+}
+
+function renderDots() {
+  const dots = document.getElementById("dots");
+  dots.innerHTML = "";
+  projects.forEach((_, i) => {
+    const d = document.createElement("i");
+    if (i === focus) d.className = "on";
+    d.addEventListener("click", () => { focus = i; renderRecent(); });
+    dots.appendChild(d);
+  });
+}
+
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/* —— 选中项目 → 通知壳：壳据此设 project_dir 并跳到概览/剧本创作 —— */
+function openProject(p) {
+  if (!p || !p.path) return;
+  window.parent && window.parent.postMessage(
+    { type: "project.open", path: p.path, name: p.name || "" }, "*");
+}
+
+/* —— 加载最近项目：GET {MEDIA_API}/projects/list —— */
+async function loadProjects() {
+  try {
+    const r = await fetch(MEDIA_API + "/projects/list");
+    if (r.ok) {
+      const data = await r.json();
+      // 兼容 {projects:[...]} 或直接 [...]
+      const list = Array.isArray(data) ? data : (data && data.projects) || [];
+      // 后端字段：name / path / opened_at(最后打开) / badge? / cover?；时间倒序
+      list.sort((a, b) => tsOf(b) - tsOf(a));
+      projects = list.map(p => ({
+        name: p.name || p.title || "(未命名)",
+        path: p.path || p.dir || "",
+        badge: p.badge || p.genre || "",
+        cover: p.cover || p.thumbnail || "",
+        opened_at: p.opened_at_text || p.opened_at || p.last_opened || p.path || "",
+      }));
+      usingDemo = false;
+      focus = 0;
+      renderRecent();
+      return;
+    }
+  } catch (e) { /* 后端未连接 → 回退 demo */ }
+  // 回退占位
+  usingDemo = true;
+  projects = DEMO_PROJECTS.slice();
+  focus = 0;
+  renderRecent();
+}
+
+// 解析时间戳用于倒序（容忍多种字段/格式）
+function tsOf(p) {
+  const v = p.opened_at || p.last_opened || p.mtime || p.updated_at;
+  if (typeof v === "number") return v;
+  const t = Date.parse(v);
+  return isNaN(t) ? 0 : t;
+}
+
+/* —— 新建项目：POST {MEDIA_API}/projects/create {name, projects_root} —— */
+async function createProject() {
+  const name = (window.prompt("新建项目名称：", "") || "").trim();
+  if (!name) return;
+  // projects_root 可由壳通过 ?root= 传入；无则交后端用默认根目录
+  const projects_root = _qs.get("root") || "";
+  try {
+    const r = await fetch(MEDIA_API + "/projects/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, projects_root }),
+    });
+    if (r.ok) {
+      const data = await r.json().catch(() => ({}));
+      const path = data.path || data.dir || "";
+      // 新建成功 → 直接通知壳打开（壳设 project_dir 并跳到概览/剧本创作）
+      openProject({ name: data.name || name, path });
+      return;
+    }
+    alert("新建项目失败（后端返回 " + r.status + "）。");
+  } catch (e) {
+    // 后端未连接：demo 下给出占位提示（不静默吞掉）
+    if (usingDemo) alert("当前为演示模式（后端未连接），新建项目需连上 media_agent。");
+    else alert("新建项目失败：无法连接后端 " + MEDIA_API + "。");
+  }
+}
+
+/* —— 打开目录：壳/Electron 下应由壳弹原生目录选择；浏览器降级用 webkitdirectory 取目录名 —— */
+function openDir() {
+  // 优先：通知壳弹原生「打开目录」对话框（壳处理后自行 project.open）
+  window.parent && window.parent.postMessage({ type: "project.openDirRequest" }, "*");
+  // 浏览器降级：用隐藏的目录选择器（仅能拿到相对路径/目录名，真机以壳原生为准）
+  const picker = document.getElementById("dirPicker");
+  picker.value = "";
+  picker.click();
+}
+
+document.getElementById("dirPicker").addEventListener("change", (e) => {
+  const files = e.target.files;
+  if (!files || !files.length) return;
+  // webkitRelativePath 形如 "<目录名>/sub/file"，取首段作目录名（真机由壳给绝对路径）
+  const rel = files[0].webkitRelativePath || "";
+  const dirName = rel.split("/")[0] || "";
+  if (dirName) openProject({ name: dirName, path: dirName });
+});
+
+document.getElementById("btnNew").addEventListener("click", createProject);
+document.getElementById("btnOpen").addEventListener("click", openDir);
+
+document.getElementById("arrowL").addEventListener("click", () => {
+  if (focus > 0) { focus--; renderRecent(); }
+});
+document.getElementById("arrowR").addEventListener("click", () => {
+  if (focus < projects.length - 1) { focus++; renderRecent(); }
+});
+
+// 键盘左右切焦点
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft" && focus > 0) { focus--; renderRecent(); }
+  else if (e.key === "ArrowRight" && focus < projects.length - 1) { focus++; renderRecent(); }
+});
+
+loadProjects();
+</script>
+</body>
+</html>

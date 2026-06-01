@@ -102,6 +102,7 @@
   const links = [...NAV.querySelectorAll('a')];
   const LABEL = Object.fromEntries(links.map(a => [a.dataset.key, a.textContent.trim()]));
   const Q = location.search ? location.search.slice(1) : '';
+  let PROJECT = new URLSearchParams(location.search).get('project') || '';
 
   // 视频后期 = 容器：智能转场 / 配音 / 配乐 三子页切换
   const SUBROUTES = {
@@ -114,7 +115,9 @@
 
   function loadPage(page) {
     PH.hidden = true; VIEW.hidden = false;
-    const q = Q ? (page.includes('?') ? '&' : '?') + Q : '';
+    let params = Q;
+    if (PROJECT) params = (params ? params + '&' : '') + 'project=' + encodeURIComponent(PROJECT);
+    const q = params ? (page.includes('?') ? '&' : '?') + params : '';
     VIEW.src = page + q;
   }
   function showPlaceholder(name) {
@@ -150,9 +153,32 @@
     document.title = '糯米 AI · ' + (LABEL[key] || '');
   }
 
+  // 首页(welcome) 选/建项目 → 设 PROJECT → 正常路由；项目页经 ?project= 拿目录。
+  function openProject(path) {
+    if (!path) return;
+    PROJECT = path;
+    const nm = path.split(/[\\/]/).filter(Boolean).pop() || path;
+    const pe = document.getElementById('proj'); if (pe) pe.textContent = nm;
+    SUBNAV.hidden = true;
+    go('overview');
+  }
+  window.addEventListener('message', (e) => {
+    const d = e.data || {};
+    if (d.type === 'project.open' && d.path) openProject(d.path);
+  });
+
   links.forEach(a => a.addEventListener('click', () => go(a.dataset.key)));
   window.addEventListener('hashchange', () => go((location.hash.replace('#/', '') || 'storyboard')));
-  go((location.hash.replace('#/', '') || 'storyboard'));
+
+  if (PROJECT) {
+    go(location.hash.replace('#/', '') || 'storyboard');
+  } else {
+    // 无项目 → 落首页选/建项目（welcome.html 经 postMessage 通知本壳）
+    links.forEach(x => x.classList.remove('active'));
+    SUBNAV.hidden = true;
+    loadPage('welcome.html');
+    document.title = '糯米 AI · 首页';
+  }
 
   // 窗控桥：无边框时 window.winctl 由 QWebChannel 注入；纯浏览器中无则忽略。
   function wc(fn) { try { if (window.winctl && window.winctl[fn]) window.winctl[fn](); } catch (e) {} }
