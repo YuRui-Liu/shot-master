@@ -20,6 +20,9 @@ def test_get_config_returns_dict_with_known_keys():
         "runninghub_base_url", "llm_providers", "imggen_provider",
         "soundtrack_workflow_id", "current_translator",
         "pipeline_lock_enabled", "screenwriter_models", "projects_root",
+        # #7 回归：视频生成 Workflow ID 表 + 编剧平台 必须能 GET 回读，
+        # 否则切界面回填为空（LTX2.3 导演台 Workflow ID 丢失）。
+        "workflow_ids", "screenwriter_provider",
     ):
         assert key in body, f"缺字段 {key}"
 
@@ -59,6 +62,26 @@ def test_put_config_drops_projects_root(monkeypatch):
     assert r.status_code == 200, r.text
     assert "projects_root" not in captured
     assert captured == {"imggen_model": "m"}
+
+
+def test_put_config_workflow_ids_merges_not_replaces(monkeypatch):
+    """#7 回归：前端只 PUT 一个 workflow id，不能冲掉盘上其它键（如 director_v3）。"""
+    from media_agent.routes import config as config_mod
+    captured = {}
+
+    class FakeCfg:
+        workflow_ids = {"director_v3": "OLD", "ltx_director": "PREV"}
+
+        def update_settings(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(config_mod, "load_config", lambda: FakeCfg())
+    # 只更新 ltx_director 这一键
+    r = client.put("/config", json={"workflow_ids": {"ltx_director": "NEW123"}})
+    assert r.status_code == 200, r.text
+    # director_v3 保留、ltx_director 被更新
+    assert captured["workflow_ids"] == {
+        "director_v3": "OLD", "ltx_director": "NEW123"}
 
 
 # ---------- /recent/* ----------

@@ -633,29 +633,48 @@ const gpick = { primary: "", subs: [], list: [] };
 
 function gUsed() { return (gpick.primary ? 1 : 0) + gpick.subs.length; }
 
-function renderGenreGrid() {
+/* 防闪烁：①整张网格一次性 innerHTML 赋值（不在循环里 append → 不逐卡 reflow）；
+   ②卡片只构建一次(buildGenreGrid)；选中态变化只切 class(syncGenreSel)，不重建 DOM；
+   ③事件用容器委托(bindGenreGrid 一次)，不每卡挂监听。 */
+let _genreBuilt = false, _genreBuiltList = null;
+function buildGenreGrid() {
   const grid = $("genreGrid");
-  if (!gpick.list.length) { grid.innerHTML = `<div class="mempty">题材库为空</div>`; return; }
-  grid.innerHTML = "";
-  gpick.list.forEach((g) => {
-    const isPrimary = g.genre_id === gpick.primary;
-    const isSub = gpick.subs.includes(g.genre_id);
-    const el = document.createElement("div");
-    el.className = "gcard" + (isPrimary ? " primary" : isSub ? " sub" : "");
-    el.innerHTML = `
+  if (!gpick.list.length) { grid.innerHTML = `<div class="mempty">题材库为空</div>`; _genreBuilt = false; return; }
+  _genreBuiltList = gpick.list;
+  grid.innerHTML = gpick.list.map((g) => `
+    <div class="gcard" data-g="${esc(g.genre_id)}">
       <div class="gname">${esc(g.display_name)}</div>
       <div class="gone">${esc(g.one_liner)}</div>
-      <span class="gbadge" data-g="${esc(g.genre_id)}">${isPrimary ? "主题材" : isSub ? "副 ✓" : "副 +"}</span>`;
-    /* 卡片主区 → 设为主题材 */
-    el.addEventListener("click", () => gSetPrimary(g.genre_id));
-    /* 右下角徽标 → 切换副题材（阻止冒泡到主区） */
-    el.querySelector(".gbadge").addEventListener("click", (ev) => { ev.stopPropagation(); gToggleSub(g.genre_id); });
-    grid.appendChild(el);
+      <span class="gbadge" data-badge="${esc(g.genre_id)}">副 +</span>
+    </div>`).join("");
+  _genreBuilt = true;
+}
+/* 仅同步选中态 class + 徽标文案 + 状态行（不动 DOM 结构，零 reflow 抖动） */
+function syncGenreSel() {
+  const grid = $("genreGrid");
+  grid.querySelectorAll(".gcard").forEach((el) => {
+    const id = el.getAttribute("data-g");
+    const isPrimary = id === gpick.primary;
+    const isSub = gpick.subs.includes(id);
+    el.className = "gcard" + (isPrimary ? " primary" : isSub ? " sub" : "");
+    const badge = el.querySelector(".gbadge");
+    if (badge) badge.textContent = isPrimary ? "主题材" : isSub ? "副 ✓" : "副 +";
   });
   const pName = (gpick.list.find((x) => x.genre_id === gpick.primary) || {}).display_name || "未选";
   $("genreCur").innerHTML = `主：<b>${esc(pName)}</b>${gpick.subs.length ? " +" + gpick.subs.length : ""}`;
   $("genreStatus").textContent = `主题材：${gpick.primary ? esc(pName) : "未选"}　副题材：${gpick.subs.length} 个　（已用 ${gUsed()} / ${STACK_MAX}）`;
 }
+function renderGenreGrid() {
+  if (!_genreBuilt || _genreBuiltList !== gpick.list) buildGenreGrid();
+  if (_genreBuilt) syncGenreSel();
+}
+/* 容器委托：只绑一次（徽标 → 副；卡片其它区 → 主） */
+$("genreGrid").addEventListener("click", (ev) => {
+  const badge = ev.target.closest(".gbadge");
+  if (badge) { ev.stopPropagation(); gToggleSub(badge.getAttribute("data-badge")); return; }
+  const card = ev.target.closest(".gcard");
+  if (card) gSetPrimary(card.getAttribute("data-g"));
+});
 function gSetPrimary(id) {
   gpick.primary = id;
   gpick.subs = gpick.subs.filter((s) => s !== id);   // 主不可同时为副
@@ -708,34 +727,63 @@ $("genreOk").addEventListener("click", () => {
 /* ============== 风格库选择器（tab + 分类筛选 + 卡片单选） ============== */
 const spick = { selected: "", category: "all", list: [] };
 
-function renderStyleGrid() {
+/* 防闪烁：分类筛选只切「卡片显隐」(syncStyleSel 用 hidden class)，不重建 DOM；
+   选中态只切 .on class。整网格只在库变化时一次性 innerHTML 构建(buildStyleGrid)，
+   不在循环里逐卡 append → 无逐卡 reflow 抖动；事件容器委托一次。 */
+let _styleBuilt = false, _styleBuiltList = null;
+function buildStyleGrid() {
   const grid = $("styleGrid");
-  const filtered = spick.category === "all" ? spick.list : spick.list.filter((s) => s.category === spick.category);
-  if (!filtered.length) { grid.innerHTML = `<div class="mempty">该分类暂无风格</div>`; return; }
-  grid.innerHTML = "";
-  filtered.forEach((s) => {
+  if (!spick.list.length) { grid.innerHTML = `<div class="mempty">该分类暂无风格</div>`; _styleBuilt = false; return; }
+  _styleBuiltList = spick.list;
+  grid.innerHTML = spick.list.map((s) => {
     const grad = CAT_GRAD[s.category] || CAT_GRAD._default;
-    const el = document.createElement("div");
-    el.className = "scard" + (s.style_id === spick.selected ? " on" : "");
     /* 预览图优先（preview 字段，ideate 在 /ui/ 下相对路径同源可载）。
        扩展名容错：preview 写的是 .jpg，但用户可能放 .png（反之亦然）——
        onerror 时先换另一扩展名重试，再不行才移除露出分类色块渐变。 */
     const img = s.preview
       ? `<img class="sthumb-img" src="${esc(s.preview)}" alt="" loading="lazy" onerror="${esc(IMG_FALLBACK)}">`
       : "";
-    el.innerHTML = `
+    return `
+    <div class="scard" data-s="${esc(s.style_id)}" data-cat="${esc(s.category || "")}">
       <div class="sthumb" style="background:${grad}">${img}<span class="scat">${esc(CAT_LABEL[s.category] || s.category || "风格")}</span></div>
       <div class="sbody">
         <div class="sname">${esc(s.name_cn)}</div>
         <div class="ssuf">${esc(s.prompt_suffix || s.style_id)}</div>
-      </div>`;
-    el.addEventListener("click", () => { spick.selected = s.style_id; renderStyleGrid(); });
-    grid.appendChild(el);
+      </div>
+    </div>`;
+  }).join("");
+  _styleBuilt = true;
+}
+/* 同步：分类显隐 + 选中态 + 状态行（零 DOM 结构变动）。无可见卡片时给空提示。 */
+function syncStyleSel() {
+  const grid = $("styleGrid");
+  let visible = 0;
+  grid.querySelectorAll(".scard").forEach((el) => {
+    const id = el.getAttribute("data-s");
+    const cat = el.getAttribute("data-cat");
+    const show = spick.category === "all" || cat === spick.category;
+    el.style.display = show ? "" : "none";
+    if (show) visible++;
+    el.classList.toggle("on", id === spick.selected);
   });
+  let empty = grid.querySelector(".mempty.scat-empty");
+  if (!visible) {
+    if (!empty) { empty = document.createElement("div"); empty.className = "mempty scat-empty"; grid.appendChild(empty); }
+    empty.textContent = "该分类暂无风格"; empty.style.display = "";
+  } else if (empty) { empty.style.display = "none"; }
   const cur = spick.list.find((x) => x.style_id === spick.selected);
   $("styleCur").innerHTML = "当前：" + (cur ? `<b>${esc(cur.name_cn)}</b>` : "未选");
   $("styleStatus").textContent = cur ? `已选：${esc(cur.name_cn)}（${esc(cur.style_id)}）` : "未选风格";
 }
+function renderStyleGrid() {
+  if (!_styleBuilt || _styleBuiltList !== spick.list) buildStyleGrid();
+  if (_styleBuilt) syncStyleSel();
+}
+/* 容器委托：只绑一次（点卡片 → 单选） */
+$("styleGrid").addEventListener("click", (ev) => {
+  const card = ev.target.closest(".scard");
+  if (card) { spick.selected = card.getAttribute("data-s"); syncStyleSel(); }
+});
 
 /* tab 切换：模板（实）/ 自定义·AI（占位） */
 $("styleTabs").querySelectorAll(".mtab").forEach((t) => {
@@ -1108,6 +1156,75 @@ $("advanceBtn").addEventListener("click", async () => {
   }
 });
 
+/* ============== 题材/风格权威恢复源：GET /project/overview ==============
+   根因：创意.json input 被后端模型剥离了 genre/style_bible，applyBackendIdea/
+   restoreState 都拿不到真实题材/风格 → 切页清空、概览待定。manifest 才是
+   PUT /project/meta 落盘后的权威源；overview 端点把它读出来：
+     GET {MEDIA_API}/project/overview?project=<dir>
+       → { genre: <genre_id 字符串>, bible: {ref,name}|字符串|dict, ... }
+   这里只取 genre 与 bible 作为题材/风格的**权威恢复**：
+     - genre id → 用 loadGenres 映射出中文名补全 chip；
+     - style 用 bible.ref / bible.name（persistMeta 写入口径）补全 chip。
+   读不到 / 无项目 / 解析失败 → 返回 null，静默回退，绝不阻断。 */
+async function fetchProjectMeta() {
+  if (!PROJECT_DIR) return null;
+  try {
+    const url = MEDIA_API + "/project/overview?project=" + encodeURIComponent(PROJECT_DIR);
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j && typeof j === "object") ? j : null;
+  } catch (e) {
+    console.warn("[ideate] 读 /project/overview 失败，跳过权威恢复：", e.message);
+    return null;
+  }
+}
+
+/* 用 manifest（overview）权威恢复题材/风格 chip。仅在 state 当前无值时填充
+   （已有值——来自 创意.json input 或本地——不被覆盖）。genre 为 id 字符串；
+   bible 为 {ref,name} / 字符串 / dict 三种形态都吃。 */
+async function restoreMetaFromOverview(meta) {
+  if (!meta) return;
+
+  /* —— 题材：meta.genre = genre_id 字符串 —— */
+  const gid = (typeof meta.genre === "string") ? meta.genre.trim()
+            : (meta.genre && (meta.genre.genre || meta.genre.id)) || "";
+  if (gid && !state.genre.id) {
+    let glist = [];
+    try { glist = await loadGenres(); } catch {}
+    const g = glist.find((x) => x.genre_id === gid);
+    state.genre = {
+      id: gid,
+      name: g ? g.display_name : gid,
+      sub: state.genre.sub || [],
+      meta: g ? (g.one_liner || ("已选 " + g.display_name)) : ("已选 " + gid),
+    };
+    $("genreChip").textContent = state.genre.name;
+    const subChip = $("genreSubChip");
+    if (state.genre.sub.length) { subChip.textContent = "+" + state.genre.sub.join("·"); subChip.style.display = ""; }
+    else subChip.style.display = "none";
+    $("genreMeta").textContent = state.genre.meta;
+  }
+
+  /* —— 风格：meta.bible = {ref,name} | 字符串 | dict({description}) —— */
+  const b = meta.bible;
+  const sref = (b && typeof b === "object") ? (b.ref || "") : "";
+  const sname = (b && typeof b === "object") ? (b.name || "") : "";
+  if (sref && !state.style.ref) {
+    let slist = [];
+    try { slist = await loadStyles(); } catch {}
+    const s = slist.find((x) => x.style_id === sref);
+    state.style = s
+      ? { ref: s.style_id, name: s.name_cn,
+          meta: [s.style_id, CAT_LABEL[s.category] || s.category, s.prompt_suffix].filter(Boolean).join(" · ") }
+      : { ref: sref, name: sname || sref, meta: [sref, sname].filter(Boolean).join(" · ") || sref };
+    $("styleChip").textContent = state.style.name;
+    $("styleMeta").textContent = state.style.meta;
+  }
+
+  if (gid || sref) { refreshInjection(); saveState(); }
+}
+
 /* ============== BUG D：二次打开优先从后端读回 创意.json ==============
    契约：GET {MEDIA_API}/file?path=创意.json&project=<dir> → 流式文件 →text→JSON.parse
          {input, messages, candidates, selected_id}。兼容旧文件名 idea.json。
@@ -1197,7 +1314,10 @@ async function applyBackendIdea(data) {
   saveState();   // 后端口径回写本地镜像，保持一致
 }
 
-/* 启动：后端 创意.json 优先；读不到回退 localStorage（切页/重启回显，解决「立意切界面消失」） */
+/* 启动：后端 创意.json 优先；读不到回退 localStorage（切页/重启回显，解决「立意切界面消失」）。
+   ★ 题材/风格权威恢复：创意.json input 被后端模型剥离了 genre/style_bible，所以
+   无论走哪条分支都可能拿不到题材/风格——最后一律用 manifest（GET /project/overview）
+   做权威补全（restoreMetaFromOverview 仅在 state 无值时填，不覆盖已有值）。 */
 (async function initState() {
   let backend = null;
   try { backend = await fetchBackendIdea(); } catch {}
@@ -1207,11 +1327,15 @@ async function applyBackendIdea(data) {
     (Array.isArray(backend.candidates) && backend.candidates.length) ||
     (Array.isArray(backend.messages) && backend.messages.length)
   );
+  let applied = false;
   if (hasBackend) {
-    try { await applyBackendIdea(backend); return; }
+    try { await applyBackendIdea(backend); applied = true; }
     catch (e) { console.warn("[ideate] 回填后端数据失败，回退本地：", e.message); }
   }
-  restoreState();
+  if (!applied) restoreState();
+  /* 题材/风格用 manifest 权威补全（在 创意.json / 本地之后，仅填补空缺） */
+  try { await restoreMetaFromOverview(await fetchProjectMeta()); }
+  catch (e) { console.warn("[ideate] manifest 权威恢复失败（不阻断）：", e.message); }
 })();
 
 /* —— 健康检查 —— */

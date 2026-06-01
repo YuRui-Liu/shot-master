@@ -217,3 +217,54 @@ def test_generate_ref_unknown_kind_400(tmp_path, monkeypatch):
     r = client.post("/assets/refs/generate", json={
         "project": str(pdir), "kind": "nope", "entity_id": "x"})
     assert r.status_code == 400
+
+
+# ---------- 角色三视图 prompt 增广（#4） ----------
+
+class _CapturingProvider:
+    """记录最后一次传入的 prompt，供断言增广关键词。"""
+    last_prompt = ""
+
+    def generate(self, prompt, references, *, size, n):
+        type(self).last_prompt = prompt
+        return [b"FAKE"]
+
+
+def _patch_capturing(monkeypatch):
+    _CapturingProvider.last_prompt = ""
+    monkeypatch.setattr(
+        assets_mod, "_provider_factory", lambda cfg: _CapturingProvider())
+    monkeypatch.setattr(assets_mod, "_load_cfg", lambda: object())
+
+
+def test_generate_character_prompt_injects_three_view(tmp_path, monkeypatch):
+    """角色类 generate 必须把三视图/无背景约束注入 provider 收到的 prompt。"""
+    _patch_capturing(monkeypatch)
+    pdir = _make_project(tmp_path)
+    r = client.post("/assets/refs/generate", json={
+        "project": str(pdir), "kind": "characters",
+        "entity_id": "女主", "prompt": "红衣少女"})
+    assert r.status_code == 200, r.text
+    sent = _CapturingProvider.last_prompt
+    # 原始描述保留
+    assert "红衣少女" in sent
+    # 三视图关键词
+    assert "three-view" in sent
+    assert "front side back" in sent
+    # 无场景背景约束
+    assert "no scene background" in sent
+    assert "full body reference" in sent
+
+
+def test_generate_scene_prompt_no_turnaround(tmp_path, monkeypatch):
+    """场景/道具类不注入角色三视图约束（它们就该带场景）。"""
+    _patch_capturing(monkeypatch)
+    pdir = _make_project(tmp_path)
+    r = client.post("/assets/refs/generate", json={
+        "project": str(pdir), "kind": "scenes",
+        "entity_id": "咖啡馆", "prompt": "温馨咖啡馆"})
+    assert r.status_code == 200, r.text
+    sent = _CapturingProvider.last_prompt
+    assert sent == "温馨咖啡馆"
+    assert "three-view" not in sent
+    assert "no scene background" not in sent

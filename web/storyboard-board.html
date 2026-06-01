@@ -220,6 +220,8 @@
   .gridhead .gh-sp { flex: 1; }
   .gridhead .mini { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
   .gridhead .mini:hover { color: var(--fg2); border-color: var(--blue-dim); }
+  .gridhead .indir { font-size: 10.5px; color: var(--muted); background: var(--field); border: 1px solid var(--border); border-radius: 9px; padding: 2px 9px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gridhead .indir #inDirPath { color: var(--fg2); }
   .gridwrap { flex: 1; overflow: auto; padding: 14px 16px; }
   .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 12px; }
   .th { position: relative; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--border); background: #10131f; cursor: pointer; aspect-ratio: 1/1; }
@@ -682,9 +684,11 @@
           <div class="gridhead">
             <span class="t" id="gridTitle">源图</span>
             <span class="bmode" id="gridMode">多选 · 已选 3 张</span>
+            <span class="indir" id="inDirChip" title="输入目录（载图源）" hidden>📁 <span id="inDirPath"></span></span>
             <span class="gh-sp"></span>
             <span class="mini" id="addSrc">＋ 添加源图…</span>
-            <span class="mini" id="openDir">打开目录</span>
+            <span class="mini" id="pickInDir">选择输入目录…</span>
+            <span class="mini" id="openInDir" hidden>打开输入目录</span>
             <span class="mini" id="refreshSrc">↻ 刷新</span>
             <span class="mini" id="selAll">全选</span>
             <span class="mini" id="selClear">清空</span>
@@ -1107,12 +1111,13 @@
     $("shotDuration").value = (s.duration != null ? s.duration : "");
     $("shotDescription").value = s.description || "";
     if ($("prompt")) $("prompt").value = s.stylePrompt || "";
-    // 切镜清掉上一镜的预览图，恢复占位
+    // 切镜：清掉上一镜预览后，按 shot_{shotId}_ 前缀重载本镜已生成图（持久可见）
     const pv = $("preview");
     if (pv) {
       pv.querySelectorAll("img._out").forEach((x) => x.remove());
       const ph = $("previewPh"); if (ph) ph.style.display = "";
     }
+    reloadShotPreview();
     updateRefMode();
     void ss;
   }
@@ -1143,6 +1148,54 @@
   // 初次进页自动读分镜
   loadStoryboards();
 
+  // ---- 出图产物约定（分镜视角）：out_dir=PROJECT/imggen，base_name=shot_{shotId} ----
+  //   产物落盘 imggen/shot_{shotId}_NN.png；重载时按 shot_{shotId}_ 前缀过滤还原预览。
+  function curShotId() {
+    const s = curShot();
+    if (s && s.shotId) return String(s.shotId);
+    if (SB.curShotIdx >= 0) return (SB.curEp || "E1") + "-" + (SB.curShotIdx + 1);
+    return "";
+  }
+  // shotId → 文件名安全前缀（路径分隔/空白等替换为 _，与落盘 base_name 一致）
+  function shotPrefix(shotId) {
+    return "shot_" + String(shotId || "").replace(/[^0-9A-Za-z一-龥_-]+/g, "_");
+  }
+
+  // 已生成的分镜图重载：列 imggen 目录，过滤 shot_{shotId}_ 前缀 → 填右栏预览（持久可见）
+  async function reloadShotPreview() {
+    const pv = $("preview");
+    if (!pv) return;
+    pv.querySelectorAll("img._out").forEach((x) => x.remove());
+    const ph = $("previewPh");
+    const sid = curShotId();
+    if (!PROJECT || !MEDIA || !sid) { if (ph) ph.style.display = ""; return; }
+    const pfx = shotPrefix(sid);
+    try {
+      const r = await fetch(MEDIA + "/project/files?" + new URLSearchParams({
+        project: PROJECT, sub: "imggen", ext: "png,jpg,jpeg,webp",
+      }));
+      if (!r.ok) { if (ph) ph.style.display = ""; return; }
+      const j = await r.json().catch(() => null);
+      const files = (j && Array.isArray(j.files)) ? j.files : [];
+      // 仅取本镜前缀产物，按名排序取末张（最新 NN）
+      const mine = files
+        .filter((f) => f && typeof f.name === "string" && f.name.indexOf(pfx) === 0)
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      // 仅当仍是同一镜头时再渲染（异步期间可能已切镜）
+      if (curShotId() !== sid) return;
+      if (!mine.length) { if (ph) ph.style.display = ""; return; }
+      const latest = mine[mine.length - 1];
+      const img = document.createElement("img");
+      img.className = "_out";
+      img.src = mediaUrl(latest.path);
+      img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;";
+      img.alt = "分镜图";
+      imgFallback(img);
+      pv.appendChild(img);
+      if (ph) ph.style.display = "none";
+    } catch (_) { if (ph) ph.style.display = ""; }
+  }
+
   // ---- 生成分镜图（单图 HD）：POST {MEDIA}/imggen/generate ----
   $("genImgBtn").addEventListener("click", async () => {
     if (!PROJECT) { toast("请先在首页选择项目后再生成分镜图。"); return; }
@@ -1167,8 +1220,8 @@
           references: refPaths(),     // 非空 = 图生图（由 provider 自动判定）
           size: curSize(),
           n: 1,
-          out_dir: PROJECT + "/storyboard",
-          base_name: "shot",
+          out_dir: PROJECT + "/imggen",      // [出图产物约定] 分镜视角统一落盘 imggen/
+          base_name: shotPrefix(curShotId()), // shot_{shotId} → 产物 shot_{shotId}_NN.png（按前缀重载）
           ext: "png",
         }),
       });
@@ -1221,6 +1274,8 @@
       '<br>分镜图预览<br><span class="faint">（占位）</span>';
     $("sideMeta").innerHTML = (wide ? "画幅 16:9 · 横屏" : "画幅 9:16 · 短剧竖屏") +
       "<br>单图 HD · 视频基底帧";
+    // 切画幅后重载本镜已生成图（与产物画幅无关，仍持久可见）
+    reloadShotPreview();
   });
 
   /* ============================================================
@@ -1772,9 +1827,13 @@
     if (!od) { toast("无输出目录（请先选择项目或输出目录）。"); return; }
     window.parent.postMessage({ type: "open.path", path: od }, "*");
   });
-  // outdir 区「↻ 刷新」→ 出图工具刷新结果画廊；其余工具刷新源图网格
+  // outdir 区「↻ 刷新」→ 出图工具刷新结果画廊；拆/拼/去白边无结果画廊，刷新即打开输出目录看结果。
   $("refreshOutDir").addEventListener("click", () => {
-    if (curTool === "imggen") refreshGallery(); else refreshSrcGrid();
+    if (curTool === "imggen") { refreshGallery(); return; }
+    const od = outDir();
+    if (!od) { toast("无输出目录（请先选择项目或输出目录）。"); return; }
+    window.parent.postMessage({ type: "open.path", path: od }, "*");
+    toast("已在文件管理器打开输出目录查看结果。", "ok");
   });
 
   // ---- 源图：缩略图网格当前没有真实路径，用「＋ 添加源图…」填真实 src_path ----
@@ -1818,36 +1877,76 @@
     if (added) toast("已添加 " + added + " 张源图。", "ok");
     else toast("未新增源图（可能已存在或路径为空）。");
   }
-  // 「＋ 添加源图…/选择目录」→ 原生多选文件/目录（pickNative；壳目录会返回其下图片路径，回退粘贴）
+  // ===========================================================
+  // 输入目录（源图来源）—— 与输出目录（结果落盘）语义分离：
+  //   输入目录 = 载图源：选择后「刷新」=列该目录图片填进网格。
+  //   输出目录 = 结果落盘：拆/拼/去白边 写到其下 split/combine/trim 子目录。
+  // ===========================================================
+  let inputDir = "";   // 当前输入目录（绝对或相对项目）；空=未选
+
+  function setInputDir(dir) {
+    inputDir = (dir || "").replace(/\\/g, "/").trim();
+    const chip = $("inDirChip"), openBtn = $("openInDir");
+    if (inputDir) {
+      if ($("inDirPath")) $("inDirPath").textContent = inputDir;
+      if (chip) { chip.hidden = false; chip.title = "输入目录（载图源）\n" + inputDir; }
+      if (openBtn) openBtn.hidden = false;
+    } else {
+      if (chip) chip.hidden = true;
+      if (openBtn) openBtn.hidden = true;
+    }
+  }
+
+  // 「＋ 添加源图…」→ 原生多选文件（pickNative files；回退粘贴）。添加单张/多张到网格。
   $("addSrc").addEventListener("click", () => pickNative("files", addSourcePaths));
-  // 「打开目录」→ 在系统文件管理器打开输出目录（postMessage open.path → 壳调 Qt openPath）
-  $("openDir").addEventListener("click", () => {
-    const od = outDir();
-    if (!od) { toast("无输出目录（请先选择项目或输出目录）。"); return; }
-    window.parent.postMessage({ type: "open.path", path: od }, "*");
+
+  // 「选择输入目录…」→ 原生目录选择器（pickNative dir），选定后立即载入其下图片到网格。
+  $("pickInDir").addEventListener("click", () => {
+    pickNative("dir", (paths) => {
+      const v = (paths && paths[0] || "").replace(/\\/g, "/").trim();
+      if (!v) return;
+      setInputDir(v);
+      loadInputDir();
+    });
   });
-  // 「↻ 刷新」→ 重新 GET /project/files 列输出目录图片，重载源图网格（应对外部新增图）
-  async function refreshSrcGrid() {
-    if (!PROJECT || !MEDIA) { toast("请先在首页选择项目后再刷新。"); return; }
-    const od = outDir();
-    if (!od) { toast("无输出目录。"); return; }
-    let sub = "";
-    const odNorm = od.replace(/\\/g, "/");
-    const projNorm = String(PROJECT).replace(/\\/g, "/").replace(/\/+$/, "");
-    if (odNorm.indexOf(projNorm + "/") === 0) sub = odNorm.slice(projNorm.length + 1);
+
+  // 「打开输入目录」→ 系统文件管理器打开输入目录。
+  $("openInDir").addEventListener("click", () => {
+    if (!inputDir) { toast("尚未选择输入目录。"); return; }
+    window.parent.postMessage({ type: "open.path", path: inputDir }, "*");
+  });
+
+  // 列输入目录图片 → 重载源图网格（GET /project/files；输入目录在项目内则用 sub，否则绝对路径）。
+  async function loadInputDir() {
+    if (!inputDir) { toast("请先「选择输入目录…」。"); return; }
+    if (!MEDIA) { toast("无可用媒体服务。"); return; }
+    const dirNorm = inputDir.replace(/\\/g, "/").replace(/\/+$/, "");
+    const projNorm = String(PROJECT || "").replace(/\\/g, "/").replace(/\/+$/, "");
+    // 输入目录在项目内 → sub 相对路径；否则把整目录当 project 根列（绝对目录）。
+    let qp;
+    if (projNorm && dirNorm.indexOf(projNorm + "/") === 0) {
+      qp = { project: PROJECT, sub: dirNorm.slice(projNorm.length + 1), ext: "png,jpg,jpeg,webp" };
+    } else if (projNorm && dirNorm === projNorm) {
+      qp = { project: PROJECT, sub: "", ext: "png,jpg,jpeg,webp" };
+    } else {
+      qp = { project: dirNorm, sub: "", ext: "png,jpg,jpeg,webp" };
+    }
     try {
-      const r = await fetch(MEDIA + "/project/files?" + new URLSearchParams({
-        project: PROJECT, sub: sub, ext: "png,jpg,jpeg,webp",
-      }));
-      if (!r.ok) { toast("刷新失败：" + (await errHint(r))); return; }
+      const r = await fetch(MEDIA + "/project/files?" + new URLSearchParams(qp));
+      if (!r.ok) { toast("载入输入目录失败：" + (await errHint(r))); return; }
       const j = await r.json().catch(() => null);
       const files = (j && Array.isArray(j.files)) ? j.files : [];
-      // 清空现有网格（含占位）后重载
-      $("thumbs").innerHTML = "";
+      $("thumbs").innerHTML = "";   // 清空现有网格（含占位）后重载
       files.forEach(f => addThumb(f.path));
       resetSelection(); updateValidity();
-      toast(files.length ? ("已重载 " + files.length + " 张（" + (sub || "项目根") + "）。") : "输出目录暂无图片。", files.length ? "ok" : undefined);
-    } catch (e) { toast("刷新失败：" + (e && e.message ? e.message : e)); }
+      toast(files.length ? ("已从输入目录载入 " + files.length + " 张。") : "输入目录暂无图片。", files.length ? "ok" : undefined);
+    } catch (e) { toast("载入输入目录失败：" + (e && e.message ? e.message : e)); }
+  }
+
+  // 「↻ 刷新」→ 已选输入目录则重载该目录；否则提示先选输入目录或添加源图。
+  function refreshSrcGrid() {
+    if (inputDir) { loadInputDir(); return; }
+    toast("请先「选择输入目录…」再刷新，或用「＋ 添加源图…」逐张添加。");
   }
   $("refreshSrc").addEventListener("click", refreshSrcGrid);
 

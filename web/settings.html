@@ -503,7 +503,6 @@ const FORMS = {
         row('Base URL', `<input class="inp" data-cfg="imggen_base_url" placeholder="https://ark.cn-beijing.volces.com" value="${htmlesc(getCfg('imggen_base_url'))}">`) +
         row('模型名', `<input class="inp" data-cfg="imggen_model" placeholder="如 doubao-seedream-..." value="${htmlesc(getCfg('imggen_model'))}">`) +
         row('API Key', `<input class="inp pw" type="password" data-cfg="imggen_api_key" placeholder="未填" value="${htmlesc(getCfg('imggen_api_key'))}">`) +
-        row('输出目录', `<input class="inp" data-cfg="imggen_output_dir" placeholder="空 = 用项目默认" value="${htmlesc(getCfg('imggen_output_dir'))}">`) +
         row('水印', `<span class="tg ${getCfg('imggen_watermark', false) ? 'on' : ''}" data-tg="imggen_watermark"><span class="knob"></span></span>
                     <span class="tg-note">${getCfg('imggen_watermark', false) ? '开' : '关'}</span>`) +
         row('默认宫格', `<select class="sel" data-cfg="prompts_default_grid">${gridOpt('single', '单帧')}${gridOpt('4', '四宫格')}${gridOpt('9', '九宫格')}</select>`,
@@ -535,8 +534,7 @@ const FORMS = {
     return `<p class="intro">配音（TTS）走 RunningHub 工作流（绑 <code>cfg.dub_*</code>）。真机经 media_agent <code>/tts</code>。</p>` +
       card('配音工作流',
         row('音色设计 WF', `<input class="inp" data-dubwf="voice_design" placeholder="工作流 ID" value="${htmlesc(wf.voice_design || '')}">`) +
-        row('声音克隆 WF', `<input class="inp" data-dubwf="voice_clone" placeholder="工作流 ID" value="${htmlesc(wf.voice_clone || '')}">`) +
-        row('输出目录', `<input class="inp" data-cfg="dub_output_dir" placeholder="空 = 用项目默认" value="${htmlesc(getCfg('dub_output_dir'))}">`)) +
+        row('声音克隆 WF', `<input class="inp" data-dubwf="voice_clone" placeholder="工作流 ID" value="${htmlesc(wf.voice_clone || '')}">`)) +
       card('采样参数',
         row('temperature', `<input class="inp num" type="number" step="0.1" data-dubsamp="temperature" value="${htmlesc(samp.temperature != null ? samp.temperature : 0.8)}">`) +
         row('top_p', `<input class="inp num" type="number" step="0.05" data-dubsamp="top_p" value="${htmlesc(samp.top_p != null ? samp.top_p : 0.8)}">`) +
@@ -548,7 +546,6 @@ const FORMS = {
     return `<p class="intro">配乐 / BGM 生成后端（绑 <code>cfg.soundtrack_*</code>，ACE-Step / RunningHub）。真机经 media_agent <code>/soundtrack</code>。</p>` +
       card('配乐后端',
         row('工作流 ID', `<input class="inp" data-cfg="soundtrack_workflow_id" placeholder="工作流 ID" value="${htmlesc(getCfg('soundtrack_workflow_id'))}">`) +
-        row('输出目录', `<input class="inp" data-cfg="soundtrack_output_dir" placeholder="空 = 用项目默认" value="${htmlesc(getCfg('soundtrack_output_dir'))}">`) +
         row('候选数', `<input class="inp num" type="number" step="1" data-cfg="soundtrack_seeds_count" data-num="int" value="${htmlesc(getCfg('soundtrack_seeds_count', 2))}">`) +
         row('交叉淡化', `<input class="inp num" type="number" step="0.1" data-cfg="soundtrack_crossfade" data-num="float" value="${htmlesc(getCfg('soundtrack_crossfade', 0.5))}"> 秒`) +
         row('末尾淡出', `<span class="tg ${getCfg('soundtrack_fade_out', false) ? 'on' : ''}" data-tg="soundtrack_fade_out"><span class="knob"></span></span>
@@ -811,11 +808,21 @@ function testConnection(btn) {
     return { base, key, model };
   };
 
+  // 后端 {ok, message} → hint：始终把后端 message 文本显示出来（成功/失败都带），
+  // message 缺省时再退回通用文案。前缀 ✓/✗ 让成败一眼可辨（若 message 自带则不重复加）。
+  const showResult = (r) => {
+    const ok = !!(r && r.ok);
+    let msg = (r && typeof r.message === 'string') ? r.message.trim() : '';
+    if (!msg) msg = ok ? '连接成功' : '测试失败';
+    const glyph = ok ? '✓' : '✗';
+    if (!/^[✓✗]/.test(msg)) msg = glyph + ' ' + msg;
+    setHint(ok, msg);
+  };
   const run = (path, body, validate) => {
     if (validate) { const err = validate(body); if (err) { setHint(false, err); return; } }
     btn.disabled = true; const old = btn.textContent; btn.textContent = '测试中…';
     api(path, body)
-      .then(r => setHint(!!(r && r.ok), (r && r.message) || (r && r.ok ? '✓ 连接成功' : '✗ 测试失败')))
+      .then(showResult)
       .catch(e => setHint(false, '✗ ' + e.message))
       .finally(() => { btn.disabled = false; btn.textContent = old; });
   };

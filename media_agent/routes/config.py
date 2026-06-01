@@ -62,7 +62,10 @@ _EXPOSE_FIELDS = (
     "screenwriter_models",
     "screenwriter_project_root",
     "screenwriter_stage_assignments",
+    "screenwriter_provider",
     "prompts_default_grid",
+    # 视频生成 Workflow ID 表（LTX2.3 导演台等；切界面回填靠它）
+    "workflow_ids",
     # 流程锁 / 项目根
     "pipeline_lock_enabled",
     "comfyui_url",
@@ -103,5 +106,13 @@ def put_config(body: ConfigBody):
     payload = body.model_dump(exclude_unset=True)
     payload.pop("projects_root", None)  # 非 Config 字段，update_settings 会忽略但显式剔除更干净
     cfg = load_config()
+    # workflow_ids 是多界面共享的 dict（director_v3 / LTX2.3 导演台 各占一键）：
+    # 前端常只 PUT 自己那一键，若整体替换会丢掉其它键。这里做浅合并——
+    # 把当前盘上的表与 body 给到的键合并后再落盘（update_settings 仍是整体写）。
+    incoming_workflow_ids = payload.get("workflow_ids")
+    if isinstance(incoming_workflow_ids, dict):
+        merged = dict(getattr(cfg, "workflow_ids", None) or {})
+        merged.update(incoming_workflow_ids)
+        payload["workflow_ids"] = merged
     cfg.update_settings(**payload)
     return {"ok": True}

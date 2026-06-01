@@ -36,6 +36,26 @@ _KINDS = _paths.RESOURCE_KINDS  # ("characters", "scenes", "props")
 # 提取/生成默认来源标记（对齐 RefEntry.source 语义：ai-generated）
 _AI_SOURCE = "ai-generated"
 
+# 角色 ref 图约束：角色生成的是「三视图设计图」（正/侧/背），纯色/无背景全身参考，
+# 供后续出图作角色一致性参照。场景/道具类不加此约束（它们就是要带场景）。
+_CHARACTER_TURNAROUND_HINT = (
+    "three-view character design sheet, character turnaround, "
+    "front side back views, full body reference, "
+    "plain white neutral background, no scene background, no environment, "
+    "consistent character design"
+)
+
+
+def _augment_prompt_for_kind(prompt: str, kind: str) -> str:
+    """按资源种类增广提示词。
+
+    characters：追加三视图/无背景全身参考约束（避免与场景类混在一起）；
+    scenes/props：原样返回（不加角色约束）。
+    """
+    if kind == "characters":
+        return f"{prompt}, {_CHARACTER_TURNAROUND_HINT}"
+    return prompt
+
 
 # ---------- 题材模板 ----------
 
@@ -325,6 +345,8 @@ def generate_ref_route(body: GenerateRefBody):
     prompt = (body.prompt or "").strip() or name
     if not prompt:
         raise HTTPException(status_code=400, detail="prompt 与 entity_id 均为空")
+    # 角色类注入三视图/无背景约束；场景/道具原样
+    prompt = _augment_prompt_for_kind(prompt, body.kind)
 
     try:
         provider = _build_provider(_safe_cfg())
