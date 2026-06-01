@@ -248,6 +248,8 @@
 <script>
 /* ===== 后端：screenwriter_agent（默认 18430），/ideate/chat 为 SSE ===== */
 const SW_API = new URLSearchParams(location.search).get("sw") || "http://127.0.0.1:18430";
+/* media_agent（默认 18450）：题材模板库 /assets/genres、风格圣经库 /assets/styles（F1 域建） */
+const MEDIA_API = new URLSearchParams(location.search).get("media") || "http://127.0.0.1:18450";
 /* 项目目录：壳通过 ?project= 注入；真机联调由主控传入 */
 const PROJECT_DIR = new URLSearchParams(location.search).get("project") || "";
 
@@ -285,33 +287,83 @@ document.querySelectorAll(".adv .tog").forEach((t) =>
   t.addEventListener("click", () => $(t.getAttribute("data-adv")).classList.toggle("open")));
 
 /* —— 题材/风格模板选择 ——
-   stub 预设（真机会改为 fetch 模板库 / 弹选择器；此处保证结构+触发+占位渲染） */
-const GENRE_PRESETS = [
-  { id: "short_revenge", name: "短剧", sub: ["逆袭爽"], meta: "爽点：打脸40·逆袭30 / 节奏：每分钟4爆点" },
-  { id: "short_sweet", name: "短剧", sub: ["甜宠"], meta: "爽点：心动30·宠溺40 / 节奏：每集1高甜钩" },
-  { id: "ancient", name: "古风", sub: ["权谋"], meta: "爽点：算计·反转 / 节奏：步步为营" },
+   实拉模板库（域W3）：题材 GET {MEDIA_API}/assets/genres、风格 GET {MEDIA_API}/assets/styles
+   （后端由 F1 域并行建）。读不到 / fetch 失败时回退占位，仅 console 提示，不报错阻断。
+   点「选模板」→ 首次拉库并缓存，之后循环填入下一项。 */
+
+/* 回退占位（后端就绪后被实拉数据覆盖；保证离线也有可用结构） */
+const GENRE_FALLBACK = [
+  { id: "short_revenge", name: "短剧", sub: ["逆袭爽"], meta: "爽点：打脸40·逆袭30 / 节奏：每分钟4爆点（占位）" },
+  { id: "short_sweet", name: "短剧", sub: ["甜宠"], meta: "爽点：心动30·宠溺40 / 节奏：每集1高甜钩（占位）" },
+  { id: "ancient", name: "古风", sub: ["权谋"], meta: "爽点：算计·反转 / 节奏：步步为营（占位）" },
 ];
-const STYLE_PRESETS = [
-  { ref: "real/cinematic-warm-v1", name: "真人 · 电影感暖调", meta: "real/cinematic-warm-v1 · 浅景深胶片颗粒" },
-  { ref: "real/cinematic-cool-v1", name: "真人 · 冷峻夜景", meta: "real/cinematic-cool-v1 · 高对比霓虹" },
-  { ref: "2d/anime-soft-v1", name: "2D · 日系柔光", meta: "2d/anime-soft-v1 · 干净线条柔光" },
+const STYLE_FALLBACK = [
+  { ref: "real/cinematic-warm-v1", name: "真人 · 电影感暖调", meta: "real/cinematic-warm-v1 · 浅景深胶片颗粒（占位）" },
+  { ref: "real/cinematic-cool-v1", name: "真人 · 冷峻夜景", meta: "real/cinematic-cool-v1 · 高对比霓虹（占位）" },
+  { ref: "2d/anime-soft-v1", name: "2D · 日系柔光", meta: "2d/anime-soft-v1 · 干净线条柔光（占位）" },
 ];
+
+/* 把后端 genre 记录归一为本地 chip 结构（容忍多种字段名） */
+function normGenre(g) {
+  const id = g.id || g.genre_id || g.genre || "";
+  const name = g.name || g.display_name || g.title || id || "未命名题材";
+  let sub = g.sub || g.subgenre || g.subgenres || g.tags || [];
+  if (typeof sub === "string") sub = sub.split(/[,，·]/).map((s) => s.trim()).filter(Boolean);
+  if (!Array.isArray(sub)) sub = [];
+  const meta = g.meta || g.summary || g.desc || g.description ||
+    [g.beats || g.beat_matrix, g.pace || g.rhythm].filter(Boolean).join(" / ") || "";
+  return { id, name, sub, meta };
+}
+/* 把后端 style 记录归一为本地 chip 结构 */
+function normStyle(s) {
+  const ref = s.ref || s.style_id || s.id || "";
+  const name = s.name || s.name_cn || s.display_name || ref || "未命名风格";
+  const meta = s.meta || s.summary || s.desc || s.suffix || s.prompt_suffix ||
+    [ref, s.category].filter(Boolean).join(" · ") || ref;
+  return { ref, name, meta };
+}
+
+/* 模板库缓存 + 实拉（失败回退占位） */
+const lib = { genres: null, styles: null };
+async function loadLib(kind) {
+  if (lib[kind]) return lib[kind];
+  const fallback = kind === "genres" ? GENRE_FALLBACK : STYLE_FALLBACK;
+  const norm = kind === "genres" ? normGenre : normStyle;
+  try {
+    const r = await fetch(MEDIA_API + "/assets/" + kind);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    /* 容忍 {genres:[...]}/{styles:[...]}/{items:[...]} 或裸数组 */
+    const arr = Array.isArray(j) ? j : (j[kind] || j.items || j.data || []);
+    const mapped = (Array.isArray(arr) ? arr : []).map(norm).filter((x) => x.name);
+    lib[kind] = mapped.length ? mapped : fallback;
+  } catch (e) {
+    console.warn("[ideate] 模板库 /assets/" + kind + " 不可用，回退占位：", e.message);
+    lib[kind] = fallback;
+  }
+  return lib[kind];
+}
+
 let _gp = 0, _sp = 0;
-$("pickGenreBtn").addEventListener("click", () => {
-  const g = GENRE_PRESETS[_gp++ % GENRE_PRESETS.length];
-  state.genre = { ...g };
+$("pickGenreBtn").addEventListener("click", async () => {
+  const list = await loadLib("genres");
+  if (!list.length) return;
+  const g = list[_gp++ % list.length];
+  state.genre = { id: g.id, name: g.name, sub: [...g.sub], meta: g.meta };
   $("genreChip").textContent = g.name;
   const sub = $("genreSubChip");
   if (g.sub.length) { sub.textContent = "+" + g.sub.join("·"); sub.style.display = ""; }
   else sub.style.display = "none";
-  $("genreMeta").textContent = g.meta;
+  $("genreMeta").textContent = g.meta || `已选 ${g.name}`;
   refreshInjection();
 });
-$("pickStyleBtn").addEventListener("click", () => {
-  const s = STYLE_PRESETS[_sp++ % STYLE_PRESETS.length];
-  state.style = { ...s };
+$("pickStyleBtn").addEventListener("click", async () => {
+  const list = await loadLib("styles");
+  if (!list.length) return;
+  const s = list[_sp++ % list.length];
+  state.style = { ref: s.ref, name: s.name, meta: s.meta };
   $("styleChip").textContent = s.name;
-  $("styleMeta").textContent = s.meta;
+  $("styleMeta").textContent = s.meta || `已选 ${s.name}`;
   refreshInjection();
 });
 

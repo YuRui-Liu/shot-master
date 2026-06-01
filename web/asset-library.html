@@ -183,7 +183,8 @@ const REF_DATA = {
 };
 
 // 题材模板：对齐 templates/genres/index.json → genres[]{genre_id,display_name}
-const GENRES = [
+// 域W3：题材 tab 实拉 GET {MEDIA_API}/assets/genres（F1 域建）；以下为离线/失败回退占位。
+const GENRE_FALLBACK = [
   { genre_id: "short-drama",    display_name: "短剧",     desc: "竖屏强冲突反转，钩子前置、节奏快。", swatch: "linear-gradient(135deg,#4a9eff,#8b7fd9)" },
   { genre_id: "single-episode", display_name: "单集短篇", desc: "完整起承转合的单集叙事结构。",       swatch: "linear-gradient(135deg,#8b7fd9,#a78bfa)" },
   { genre_id: "commercial",     display_name: "商业广告", desc: "产品卖点驱动，强 CTA 收口。",         swatch: "linear-gradient(135deg,#4ec98f,#4a9eff)" },
@@ -193,7 +194,8 @@ const GENRES = [
 ];
 
 // 风格圣经：对齐 templates/styles/visual_styles.json → styles[]{style_id,name_cn,category,prompt_suffix}
-const STYLES = [
+// 域W3：风格 tab 实拉 GET {MEDIA_API}/assets/styles（F1 域建）；以下为离线/失败回退占位。
+const STYLE_FALLBACK = [
   { style_id: "real/cinematic-warm-v1", name_cn: "电影感暖调", category: "real",  suffix: "warm tungsten grade, shallow DOF, film grain", swatch: "linear-gradient(135deg,#e0a85a,#a76a3a)" },
   { style_id: "real/cinematic-cool-v1", name_cn: "电影感冷调", category: "real",  suffix: "teal-and-orange grade, anamorphic flare",     swatch: "linear-gradient(135deg,#4a9eff,#2f5e96)" },
   { style_id: "real/doc-natural-v1",    name_cn: "纪实自然光", category: "real",  suffix: "natural light, handheld realism",             swatch: "linear-gradient(135deg,#c4c8d4,#9aa0a6)" },
@@ -201,6 +203,62 @@ const STYLES = [
 ];
 
 const DEFAULT_STYLE_ID = "real/cinematic-warm-v1";
+
+// 实拉后填充（先用占位，fetch 成功后整组替换并重渲染）
+let GENRES = GENRE_FALLBACK.slice();
+let STYLES = STYLE_FALLBACK.slice();
+
+/* swatch 轮转色板：后端记录无 swatch 时按序补一个，保持卡面观感 */
+const SWATCHES = [
+  "linear-gradient(135deg,#4a9eff,#8b7fd9)", "linear-gradient(135deg,#8b7fd9,#a78bfa)",
+  "linear-gradient(135deg,#4ec98f,#4a9eff)", "linear-gradient(135deg,#e0a85a,#8b7fd9)",
+  "linear-gradient(135deg,#a78bfa,#4a9eff)", "linear-gradient(135deg,#4a9eff,#4ec98f)",
+];
+
+/* 归一后端 genre 记录 → 渲染所需字段（容忍多种字段名） */
+function normGenre(g, i) {
+  return {
+    genre_id: g.genre_id || g.id || g.genre || ("genre-" + i),
+    display_name: g.display_name || g.name || g.title || g.genre_id || "未命名题材",
+    desc: g.desc || g.description || g.summary || g.meta || "",
+    swatch: g.swatch || SWATCHES[i % SWATCHES.length],
+  };
+}
+/* 归一后端 style 记录 → 渲染所需字段 */
+function normStyle(s, i) {
+  return {
+    style_id: s.style_id || s.ref || s.id || ("style-" + i),
+    name_cn: s.name_cn || s.name || s.display_name || s.style_id || "未命名风格",
+    category: s.category || s.cat || s.medium || "",
+    suffix: s.suffix || s.prompt_suffix || s.desc || s.meta || s.summary || "",
+    swatch: s.swatch || SWATCHES[i % SWATCHES.length],
+  };
+}
+
+/* 实拉题材/风格模板库（F1 域 /assets/* 就绪即生效；失败回退占位，仅 console 提示） */
+async function fetchAssets(kind, norm) {
+  try {
+    const r = await fetch(MEDIA_API + "/assets/" + kind);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    const arr = Array.isArray(j) ? j : (j[kind] || j.items || j.data || []);
+    const mapped = (Array.isArray(arr) ? arr : []).map(norm);
+    return mapped.length ? mapped : null;
+  } catch (e) {
+    console.warn("[asset-library] /assets/" + kind + " 不可用，回退占位：", e.message);
+    return null;
+  }
+}
+async function loadAssetLibraries() {
+  const [g, s] = await Promise.all([
+    fetchAssets("genres", normGenre),
+    fetchAssets("styles", normStyle),
+  ]);
+  if (g) GENRES = g;
+  if (s) { STYLES = s; if (!STYLES.some((x) => x.style_id === loadedStyle)) loadedStyle = STYLES[0] ? STYLES[0].style_id : loadedStyle; }
+  if (g && !GENRES.some((x) => x.genre_id === loadedGenre)) loadedGenre = GENRES[0] ? GENRES[0].genre_id : loadedGenre;
+  if (g || s) renderAll();
+}
 
 /* ===== tab 定义 ===== */
 const TABS = [
@@ -404,12 +462,12 @@ async function loadRefIndex(kind) {
   // const r = await fetch(`${MEDIA_API}/asset/ref_index?kind=${kind}`);
   // REF_DATA[kind].entries = (await r.json()).refs.map(...); renderAll();
 }
-async function loadGenres() { /* GET templates/genres/index.json 或 SW_API /genres */ }
-async function loadStyles() { /* GET templates/styles/visual_styles.json 或 SW_API /styles */ }
 */
 
 function renderAll() { renderTabs(); renderToolbar(); renderGrid(); renderGate(); }
 renderAll();
+/* 域W3：题材模板/风格圣经实拉（GET MEDIA_API /assets/genres、/assets/styles），失败回退占位 */
+loadAssetLibraries();
 </script>
 </body>
 </html>

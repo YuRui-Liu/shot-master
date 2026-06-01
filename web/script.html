@@ -192,6 +192,8 @@
    后端 screenwriter_agent 默认 18430；路由前缀实际为 /script/outline /script/episode（SSE）。 */
 const qs = new URLSearchParams(location.search);
 const SW_API = qs.get("sw") || "http://127.0.0.1:18430";
+/* media_agent（默认 18450）：题材模板库 /assets/genres、风格圣经库 /assets/styles（F1 域建） */
+const MEDIA_API = qs.get("media") || "http://127.0.0.1:18450";
 const PROJECT_DIR = qs.get("project") || qs.get("project_dir") || "";
 
 const $ = (id) => document.getElementById(id);
@@ -414,6 +416,50 @@ function saveEpisode() {
   setTimeout(() => (btn.textContent = old), 1200);
 }
 
+/* ---------- 题材/风格继承提示（只读：从 /assets 取当前选中名） ----------
+   域W3：实拉 GET {MEDIA_API}/assets/genres、/assets/styles（F1 域建）。
+   「当前选中」来源：asset-library 写入的 localStorage（若有）→ 否则取库首项；
+   读不到后端则保留「继承自立意页」占位，仅 console 提示，不报错。 */
+const LS_GENRE = "nuomi.asset.loadedGenre";   // asset-library 加载题材时可写入
+const LS_STYLE = "nuomi.asset.loadedStyle";   // asset-library 加载风格时可写入
+
+function pickName(arr, savedId, idKeys, nameKeys) {
+  if (!Array.isArray(arr) || !arr.length) return null;
+  const getId = (o) => idKeys.map((k) => o[k]).find((v) => v != null);
+  const getName = (o) => nameKeys.map((k) => o[k]).find((v) => v != null);
+  let rec = savedId ? arr.find((o) => getId(o) === savedId) : null;
+  if (!rec) rec = arr[0];
+  return getName(rec) || getId(rec) || null;
+}
+
+async function fetchAssetList(kind) {
+  try {
+    const r = await fetch(MEDIA_API + "/assets/" + kind);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    const arr = Array.isArray(j) ? j : (j[kind] || j.items || j.data || []);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    console.warn("[script] /assets/" + kind + " 不可用，保留占位：", e.message);
+    return null;
+  }
+}
+
+async function showInheritedContext() {
+  const tag = $("genreTag");
+  const [genres, styles] = await Promise.all([fetchAssetList("genres"), fetchAssetList("styles")]);
+  if (!genres && !styles) return;  // 全失败 → 保留「继承自立意页」占位
+  const gName = genres ? pickName(genres, localStorage.getItem(LS_GENRE),
+    ["genre_id", "id", "genre"], ["display_name", "name", "title"]) : null;
+  const sName = styles ? pickName(styles, localStorage.getItem(LS_STYLE),
+    ["style_id", "ref", "id"], ["name_cn", "name", "display_name"]) : null;
+  const parts = [];
+  if (gName) parts.push("题材 " + gName);
+  if (sName) parts.push("风格 " + sName);
+  tag.textContent = parts.length ? parts.join(" · ") : tag.textContent;
+  tag.title = "只读 · 在立意页/资源库切换";
+}
+
 /* ---------- 绑定 ---------- */
 $("btnOutline").addEventListener("click", genOutline);
 $("btnAll").addEventListener("click", genAll);
@@ -424,6 +470,7 @@ $("btnCollapse").addEventListener("click", toggleCollapse);
 
 checkHealth();
 renderEpList();
+showInheritedContext();   // 域W3：只读显示当前选中题材/风格名
 </script>
 </body>
 </html>
