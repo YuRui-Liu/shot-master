@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import logging
 from functools import partial
 from pathlib import Path
 from typing import Callable, Optional
@@ -12,6 +13,8 @@ from sound_track_agent.shot_detector import detect_shots
 from sound_track_agent.segment_planner import plan_segments
 from sound_track_agent.session import ScoringSession, hash_file
 from sound_track_agent.pipeline import Stages, run as _pipeline_run, STAGE_ORDER
+
+_log = logging.getLogger(__name__)
 
 
 def _read_fps(video_path) -> float:
@@ -22,7 +25,8 @@ def _read_fps(video_path) -> float:
         fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
         cap.release()
         return float(fps) if fps and fps > 0 else 24.0
-    except Exception:
+    except Exception as e:
+        _log.warning("cv2 not available, using 24fps: %s", e)
         return 24.0
 
 
@@ -107,8 +111,8 @@ def _make_align_fn(video_path) -> Callable:
         try:
             from sound_track_agent.accent_detector import detect_accents
             session.accent_points = detect_accents(video_path)
-        except Exception:
-            pass
+        except Exception as e:
+            _log.warning("accent detection failed, skipping: %s", e)
     return _align
 
 

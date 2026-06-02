@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from PIL import Image
@@ -29,6 +30,8 @@ from media_agent.core.sse import sse_event
 router = APIRouter(prefix="/imaging")
 
 _EXT = {"PNG": "png", "JPG": "jpg"}
+
+logger = logging.getLogger(__name__)
 
 
 class MarginsModel(BaseModel):
@@ -87,7 +90,11 @@ def _do_split(req: SplitRequest) -> list[str]:
 
 @router.post("/split")
 def split(req: SplitRequest):
-    return {"outputs": _do_split(req)}
+    try:
+        return {"outputs": _do_split(req)}
+    except Exception as e:
+        logger.error(f"图像处理失败(split): {e}")
+        raise HTTPException(status_code=500, detail=f"图像处理失败: {str(e)[:200]}")
 
 
 class TrimRequest(BaseModel):
@@ -100,13 +107,17 @@ class TrimRequest(BaseModel):
 
 @router.post("/trim")
 def trim(req: TrimRequest):
-    with Image.open(req.src_path) as src:
-        out = trim_white_edges(src, threshold=req.threshold, max_iter=req.max_iter)
-        out.load()
-    p = Path(req.out_path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    save_image(out, p, req.fmt.upper())
-    return {"output": str(p)}
+    try:
+        with Image.open(req.src_path) as src:
+            out = trim_white_edges(src, threshold=req.threshold, max_iter=req.max_iter)
+            out.load()
+        p = Path(req.out_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        save_image(out, p, req.fmt.upper())
+        return {"output": str(p)}
+    except Exception as e:
+        logger.error(f"图像处理失败(trim): {e}")
+        raise HTTPException(status_code=500, detail=f"图像处理失败: {str(e)[:200]}")
 
 
 class CombineRequest(BaseModel):
@@ -122,21 +133,27 @@ class CombineRequest(BaseModel):
 
 @router.post("/combine")
 def combine(req: CombineRequest):
-    imgs = [Image.open(p) for p in req.src_paths]
     try:
-        spec = CombineSpec(
-            target_rows=req.target_rows, target_cols=req.target_cols,
-            gap=req.gap, target_aspect=_aspect(req.target_aspect),
-            scale_mode=ScaleMode(req.scale_mode),
-        )
-        out = combine_images(imgs, spec, bg=(255, 255, 255, 255))
-    finally:
-        for im in imgs:
-            im.close()
-    p = Path(req.out_path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    save_image(out, p, req.fmt.upper())
-    return {"output": str(p)}
+        imgs = []
+        try:
+            for p in req.src_paths:
+                imgs.append(Image.open(p))
+            spec = CombineSpec(
+                target_rows=req.target_rows, target_cols=req.target_cols,
+                gap=req.gap, target_aspect=_aspect(req.target_aspect),
+                scale_mode=ScaleMode(req.scale_mode),
+            )
+            out = combine_images(imgs, spec, bg=(255, 255, 255, 255))
+        finally:
+            for im in imgs:
+                im.close()
+        p = Path(req.out_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        save_image(out, p, req.fmt.upper())
+        return {"output": str(p)}
+    except Exception as e:
+        logger.error(f"图像处理失败(combine): {e}")
+        raise HTTPException(status_code=500, detail=f"图像处理失败: {str(e)[:200]}")
 
 
 # ── 自动检测（返回 JSON，供前端填表单，不存盘）──
@@ -148,19 +165,27 @@ class DetectRequest(BaseModel):
 
 @router.post("/infer_grid")
 def infer_grid_route(req: DetectRequest):
-    with Image.open(req.src_path) as src:
-        rows, cols = infer_grid(src, white_threshold=req.white_threshold,
-                                min_white_ratio=req.min_white_ratio)
-    return {"rows": rows, "cols": cols}
+    try:
+        with Image.open(req.src_path) as src:
+            rows, cols = infer_grid(src, white_threshold=req.white_threshold,
+                                    min_white_ratio=req.min_white_ratio)
+        return {"rows": rows, "cols": cols}
+    except Exception as e:
+        logger.error(f"图像处理失败(infer_grid): {e}")
+        raise HTTPException(status_code=500, detail=f"图像处理失败: {str(e)[:200]}")
 
 
 @router.post("/detect_borders")
 def detect_borders_route(req: DetectRequest):
-    with Image.open(req.src_path) as src:
-        m, gap = detect_borders(src, white_threshold=req.white_threshold,
-                                min_white_ratio=req.min_white_ratio)
-    return {"margins": {"top": m.top, "right": m.right,
-                        "bottom": m.bottom, "left": m.left}, "gap": gap}
+    try:
+        with Image.open(req.src_path) as src:
+            m, gap = detect_borders(src, white_threshold=req.white_threshold,
+                                    min_white_ratio=req.min_white_ratio)
+        return {"margins": {"top": m.top, "right": m.right,
+                            "bottom": m.bottom, "left": m.left}, "gap": gap}
+    except Exception as e:
+        logger.error(f"图像处理失败(detect_borders): {e}")
+        raise HTTPException(status_code=500, detail=f"图像处理失败: {str(e)[:200]}")
 
 
 class CellBoxesRequest(BaseModel):
@@ -173,11 +198,15 @@ class CellBoxesRequest(BaseModel):
 
 @router.post("/cell_boxes")
 def cell_boxes_route(req: CellBoxesRequest):
-    with Image.open(req.src_path) as src:
-        boxes, mode = find_cell_boxes(
-            src, req.n_rows, req.n_cols,
-            white_threshold=req.white_threshold, min_ratio=req.min_ratio)
-    return {"boxes": [list(b) for b in boxes], "mode": mode}
+    try:
+        with Image.open(req.src_path) as src:
+            boxes, mode = find_cell_boxes(
+                src, req.n_rows, req.n_cols,
+                white_threshold=req.white_threshold, min_ratio=req.min_ratio)
+        return {"boxes": [list(b) for b in boxes], "mode": mode}
+    except Exception as e:
+        logger.error(f"图像处理失败(cell_boxes): {e}")
+        raise HTTPException(status_code=500, detail=f"图像处理失败: {str(e)[:200]}")
 
 
 # ── aspect 居中裁剪（存盘）──
@@ -190,13 +219,17 @@ class CropAspectRequest(BaseModel):
 
 @router.post("/crop_aspect")
 def crop_aspect_route(req: CropAspectRequest):
-    with Image.open(req.src_path) as src:
-        out = center_crop_to_aspect(src, _aspect(req.aspect))
-        out.load()
-    p = Path(req.out_path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    save_image(out, p, req.fmt.upper())
-    return {"output": str(p)}
+    try:
+        with Image.open(req.src_path) as src:
+            out = center_crop_to_aspect(src, _aspect(req.aspect))
+            out.load()
+        p = Path(req.out_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        save_image(out, p, req.fmt.upper())
+        return {"output": str(p)}
+    except Exception as e:
+        logger.error(f"图像处理失败(crop_aspect): {e}")
+        raise HTTPException(status_code=500, detail=f"图像处理失败: {str(e)[:200]}")
 
 
 class BatchSplitRequest(BaseModel):

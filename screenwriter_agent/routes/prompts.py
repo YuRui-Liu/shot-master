@@ -171,7 +171,7 @@ async def prompts(req: PromptsReq, request: Request):
                 only = opts.get("only_group_index")
                 if only is not None:
                     plan = [t for t in plan if t[0] == only]
-                n_groups = len(user_groups)
+                n_groups = len(plan)
             else:
                 # 回退：按统一 grid_mode 切块
                 grid_size = {"single": 1, "4": 4, "9": 9}.get(opts["grid_mode"], 9)

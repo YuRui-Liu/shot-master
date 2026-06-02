@@ -11,8 +11,8 @@
     stage="ref"    → 出 ref 图阶段 append `ref_fingerprint`（中性平光锁一致性）。
     stage="render" → 分镜/出片阶段 **不** append fingerprint，否则中性平光
                      污染戏剧打光（OnlyShot 失败模式 16 / `--no-fingerprint`）。
-    两个阶段都 append `prompt_suffix`，并以 `negative_suffix`（禁字幕常量句，
-    Yvonne 收尾护栏）收尾。
+    两个阶段都 append `prompt_suffix`。`negative_suffix` 不注入 positive prompt，
+    调用方应单独处理负面提示词。
 """
 from __future__ import annotations
 
@@ -61,8 +61,8 @@ def get_style(style_id: str, path: str | Path | None = None) -> Optional[dict]:
 def inject_style_prompt(base_prompt: str, style: dict, *, stage: str = "render") -> str:
     """把风格注入分镜底图 prompt，按阶段决定是否加视觉指纹。
 
-    拼装顺序：base_prompt → [ref_fingerprint(仅 ref 阶段)] → prompt_suffix
-              → negative_suffix（恒在，收尾）。
+    拼装顺序：base_prompt → [ref_fingerprint(仅 ref 阶段)] → prompt_suffix。
+    negative_suffix 不注入 positive prompt，调用方应单独处理。
 
     - stage="ref"：append `ref_fingerprint`（中性平光锁一致性）。
     - stage="render"（默认）：**不** append fingerprint，避免中性平光污染戏剧打光。
@@ -78,9 +78,5 @@ def inject_style_prompt(base_prompt: str, style: dict, *, stage: str = "render")
     if suffix:
         parts.append(suffix)
 
-    # 收尾护栏：禁字幕常量句恒在，且置于末尾
-    neg = (style.get("negative_suffix") or "").strip()
-    if neg:
-        parts.append(neg)
-
+    # negative_suffix 是负面提示词，不注入 positive prompt
     return ", ".join(parts)

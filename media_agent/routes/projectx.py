@@ -44,14 +44,46 @@ def recent_remove(body: PathBody):
     return {"ok": True}
 
 
+def _validate_rmtree_safe(raw_path: str) -> Path:
+    """解析并校验路径是否允许 rmtree 删除。
+
+    防护：拒删根目录、系统关键目录、或以 .. 越权离开项目白名单的路径。
+    Path.resolve() 后必须 startswith 当前工作目录或用户主目录（安全白名单），
+    否则拒删（403）。
+    """
+    p = Path(raw_path).resolve()
+    # 拒删根目录
+    if p == Path(p.anchor):
+        raise HTTPException(status_code=403, detail="不允许删除根目录")
+    # 拒删系统关键目录（Windows + POSIX 常见）
+    _FORBIDDEN = {
+        Path("C:/Windows"), Path("C:/Program Files"), Path("C:/Program Files (x86)"),
+        Path("C:/System32"), Path("/etc"), Path("/bin"), Path("/usr"), Path("/System"),
+    }
+    for fb in _FORBIDDEN:
+        try:
+            r = fb.resolve()
+        except Exception:
+            continue
+        if p == r or str(p).startswith(str(r) + ("\\" if "\\" in str(r) else "/")):
+            raise HTTPException(status_code=403, detail=f"不允许删除系统目录: {p}")
+    # 安全白名单：当前工作目录 + 用户主目录（项目通常在这些位置下）
+    safe = [Path.cwd().resolve(), Path.home().resolve()]
+    if not any(str(p).startswith(str(s)) for s in safe):
+        raise HTTPException(status_code=403,
+                            detail=f"路径 {p} 不在安全白名单内，拒绝删除")
+    return p
+
+
 @router.post("/recent/delete_folder")
 def recent_delete_folder(body: PathBody):
-    """连带删除项目目录 + 从最近列表移除。rmtree 忽略错误，缺目录不抛。"""
-    path = (body.path or "").strip()
-    if not path:
+    """连带删除项目目录 + 从最近列表移除。rmtree 前校验路径安全性。"""
+    raw = (body.path or "").strip()
+    if not raw:
         raise HTTPException(status_code=400, detail="path 不能为空")
-    shutil.rmtree(path, ignore_errors=True)
-    _manager().remove(path)
+    safe_path = _validate_rmtree_safe(raw)
+    shutil.rmtree(str(safe_path), ignore_errors=True)
+    _manager().remove(raw)
     return {"ok": True}
 
 

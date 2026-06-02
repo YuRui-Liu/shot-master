@@ -121,6 +121,7 @@ def test_synthesize_clone_mode3_uploads_emo_audio(tmp_path, monkeypatch):
 # ---------- preview：落临时目录 ----------
 
 def test_preview_returns_output(tmp_path, monkeypatch):
+    import base64 as _b64
     _patch(monkeypatch)
     r = client.post("/tts/preview", json={
         "text": "试听一下",
@@ -130,8 +131,11 @@ def test_preview_returns_output(tmp_path, monkeypatch):
         "out_dir": "",  # preview 忽略 out_dir，落临时目录
     })
     assert r.status_code == 200, r.text
-    p = Path(r.json()["output"])
-    assert p.exists() and p.read_bytes() == b"FAKE_FLAC_BYTES"
+    data = r.json()
+    assert "output" in data
+    assert "audio_base64" in data
+    assert _b64.b64decode(data["audio_base64"]) == b"FAKE_FLAC_BYTES"
+    # 临时目录已在 finally 块中清理，不再断言磁盘文件存在
 
 
 # ---------- 边界：空 text / 缺 workflow_id ----------

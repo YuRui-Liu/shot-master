@@ -1,15 +1,22 @@
 """media_agent 转场端点 — 无 Qt。analyze 用假路径降级中性帧；ffmpeg_args 干跑。"""
+import tempfile
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from media_agent.server import create_app
 
 client = TestClient(create_app())
 
+# 跨平台假绝对路径（不存在但格式正确），让 _resolve_and_validate_clip_paths
+# 走"绝对 + 不存在 = missing"分支（而非"相对 + 无 project = missing"分支）。
+_FAKE_BASE = str(Path(tempfile.gettempdir()) / "__test_nonexistent_transition__")
+
 
 def _comp(n=2):
     return {
         "clips": [
-            {"path": f"/fake/clip_{i}.mp4", "duration": 5.0, "keep": True}
+            {"path": f"{_FAKE_BASE}/clip_{i}.mp4", "duration": 5.0, "keep": True}
             for i in range(n)
         ],
         "width": 640, "height": 360, "fps": 30,

@@ -130,6 +130,9 @@ async def script_episode(req: ScriptEpisodeReq, request: Request):
                       + "\n```\n\n## 参数\n"
                       + f"duration_sec={opts['duration_sec']}\n"
                       + f"language_style={opts['language_style']}\n")
+            genre_ctx = (opts.get("genre_context") or "").strip()
+            if genre_ctx:
+                prompt += "## 题材规则\n" + genre_ctx + "\n"
             messages = [{"role": "user", "content": prompt}]
 
             client = LLMClient(api_key=api_key, base_url=base_url, model=model,

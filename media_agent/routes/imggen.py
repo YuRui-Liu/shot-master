@@ -6,6 +6,7 @@ provider 需 API key/网络，故工厂用模块级 `_provider_factory`（测试
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -17,6 +18,10 @@ from drama_shot_master.core.task_runner import TaskRunner, TaskItem
 from media_agent.core.sse import sse_event
 
 router = APIRouter(prefix="/imggen")
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_GEN_TIMEOUT = 120.0  # 秒
 
 # 可注入：测试替换为假 provider 工厂
 _provider_factory = make_image_provider
@@ -54,11 +59,21 @@ def _do_generate(req: GenRequest) -> list[str]:
 
 
 @router.post("/generate")
-def generate(req: GenRequest):
+async def generate(req: GenRequest):
     try:
-        return {"outputs": _do_generate(req)}
+        result = await asyncio.wait_for(
+            asyncio.to_thread(_do_generate, req),
+            timeout=_DEFAULT_GEN_TIMEOUT,
+        )
+        return {"outputs": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except asyncio.TimeoutError:
+        logger.error(f"图像生成超时(>{_DEFAULT_GEN_TIMEOUT}s): prompt={req.prompt[:80]}")
+        raise HTTPException(status_code=504, detail=f"图像生成超时(>{_DEFAULT_GEN_TIMEOUT}s)")
+    except Exception as e:
+        logger.error(f"图像生成失败(generate): {e}")
+        raise HTTPException(status_code=500, detail=f"图像生成失败: {str(e)[:200]}")
 
 
 class BatchGenRequest(BaseModel):
@@ -73,7 +88,10 @@ async def batch_generate(req: BatchGenRequest):
 
     async def worker(item: TaskItem) -> dict:
         r: GenRequest = item.payload["req"]
-        outputs = await asyncio.to_thread(_do_generate, r)
+        outputs = await asyncio.wait_for(
+            asyncio.to_thread(_do_generate, r),
+            timeout=_DEFAULT_GEN_TIMEOUT,
+        )
         return {"outputs": outputs}
 
     runner = TaskRunner(items, worker)

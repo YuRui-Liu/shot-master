@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from sound_track_agent.session import EmotionTag
+
+_log = logging.getLogger(__name__)
 
 _NEUTRAL = EmotionTag(labels=[], valence=0.0, arousal=0.3, intensity=0.5)
 
@@ -36,7 +39,8 @@ def _parse_emotion(raw: str) -> EmotionTag:
             arousal=float(obj.get("arousal", 0.3)),
             intensity=float(obj.get("intensity", 0.5)),
         )
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
+        _log.warning("emotion parse degraded: %s | error: %s", raw[:100], e)
         return _NEUTRAL
 
 
@@ -64,6 +68,7 @@ def tag_emotion_multi(provider, frame_paths: list[Path],
     解析失败 → _NEUTRAL（不抛）。
     """
     if not frame_paths:
+        _log.warning("no frames extracted, returning neutral")
         return _NEUTRAL
     raw = provider.generate(list(frame_paths), _SYS,
                             _USR_TMPL.format(style=global_style))

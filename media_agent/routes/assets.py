@@ -407,8 +407,11 @@ def generate_ref_route(body: GenerateRefBody):
     # 注入项目风格圣经（ref 阶段：含视觉指纹），使 ref 图与项目设定的电影/2D/3D 风格一致
     prompt = _inject_project_style(prompt, pdir)
 
+    cfg = _safe_cfg()
+    if cfg is None:
+        raise HTTPException(status_code=500, detail="配置读取失败，无法初始化出图 provider")
     try:
-        provider = _build_provider(_safe_cfg())
+        provider = _build_provider(cfg)
         images = provider.generate(prompt, [], size=body.size, n=1)
     except Exception as e:  # noqa: BLE001 provider 失败 → 500 透出
         raise HTTPException(status_code=500, detail=f"生成失败: {e}")

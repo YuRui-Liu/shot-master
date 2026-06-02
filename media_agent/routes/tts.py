@@ -16,6 +16,8 @@
 """
 from __future__ import annotations
 
+import base64
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -69,7 +71,7 @@ def _resolve_profile(cfg, mode: str) -> P.TTSProfile:
 class SynthesizeRequest(BaseModel):
     text: str
     mode: str = "design"                 # 'design' | 'clone'
-    language: str = "中文"
+    language: str = "zh"
     # design：音色设计风格描述
     style: str = ""
     # clone：说话人参考音频 + 情感模式
@@ -176,10 +178,15 @@ def synthesize(req: SynthesizeRequest):
 
 @router.post("/preview")
 def preview(req: SynthesizeRequest):
-    """同 synthesize，但落系统临时目录，供试听。"""
+    """同 synthesize，但落系统临时目录供试听；响应中携带 base64 音频数据，响应后自动清理临时目录。"""
     tmp = Path(tempfile.mkdtemp(prefix="tts_preview_"))
     try:
-        return {"output": _do_synthesize(req, tmp)}
+        out_path_str = _do_synthesize(req, tmp)
+        out_path = Path(out_path_str)
+        with open(out_path, "rb") as f:
+            audio_bytes = f.read()
+        audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+        return {"output": out_path_str, "audio_base64": audio_b64}
     except (ValueError, RunningHubInvalidSpec, KeyError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (RunningHubUnavailable, RunningHubUploadError,
@@ -187,3 +194,8 @@ def preview(req: SynthesizeRequest):
         raise HTTPException(status_code=502, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        try:
+            shutil.rmtree(tmp)
+        except OSError:
+            pass

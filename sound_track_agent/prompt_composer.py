@@ -1,9 +1,12 @@
 """总风格 + 段落情绪 + 时长 → ACE-Step BGM-only prompt。纯模板，可单测。"""
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from sound_track_agent.session import EmotionTag
+
+_log = logging.getLogger(__name__)
 
 
 def _tempo_hint(arousal: float) -> str:

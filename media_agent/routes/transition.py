@@ -52,19 +52,24 @@ class CompositionRequest(BaseModel):
 
 def _resolve_and_validate_clip_paths(
     composition: dict, project: str = ""
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str]]:
     """Resolve clip paths and validate existence.
 
-    Returns (valid_absolute_paths, missing_paths).
-    If ``project`` is provided, relative paths are resolved against it.
-    Missing or non-existent paths are excluded from analysis.
+    Returns (valid, unresolvable, not_found) — three disjoint lists of raw path strings.
+    - ``valid``: absolute (or resolved) paths whose files exist.
+    - ``unresolvable``: relative paths with no ``project`` to resolve against — truly
+      unusable in any context.
+    - ``not_found``: absolute (or resolved) paths whose files do not exist.  Callers
+      that can gracefully handle missing files (e.g. CV analysis with neutral scores)
+      may treat these as valid; render callers should reject them.
     """
     valid: list[str] = []
-    missing: list[str] = []
+    unresolvable: list[str] = []
+    not_found: list[str] = []
     for clip in composition.get("clips", []):
         raw = str(clip.get("path", "") or "")
         if not raw:
-            missing.append(raw or "<empty>")
+            unresolvable.append(raw or "<empty>")
             continue
         p = Path(raw)
         if not p.is_absolute():
@@ -74,14 +79,14 @@ def _resolve_and_validate_clip_paths(
                 logger.warning(
                     "Clip path is relative and no project provided, cannot resolve: %s", raw
                 )
-                missing.append(raw)
+                unresolvable.append(raw)
                 continue
         if p.exists():
             valid.append(raw)
         else:
             logger.warning("Clip file not found, skipping: %s", p)
-            missing.append(raw)
-    return valid, missing
+            not_found.append(raw)
+    return valid, unresolvable, not_found
 
 
 @router.post("/analyze")
@@ -90,17 +95,23 @@ def analyze(req: CompositionRequest):
 
     先校验所有 clip path 是否存在；缺失的剪除，相对路径必须搭配 project。
     """
-    missing = _resolve_and_validate_clip_paths(req.composition, req.project)[1]
-    if missing:
+    _, unresolvable, not_found = _resolve_and_validate_clip_paths(
+        req.composition, req.project)
+    if unresolvable:
         logger.warning(
-            "analyze: %d clip path(s) missing or unresolvable, cutting from analysis",
-            len(missing),
+            "analyze: %d clip path(s) unresolvable, cutting from analysis",
+            len(unresolvable),
         )
         req.composition["clips"] = [
             c
             for c in req.composition.get("clips", [])
-            if str(c.get("path", "")) not in missing
+            if str(c.get("path", "")) not in unresolvable
         ]
+    if not_found:
+        logger.warning(
+            "analyze: %d clip path(s) not found, keeping for neutral CV scoring",
+            len(not_found),
+        )
 
     comp = CompositionModel.from_dict(req.composition)
     analyze_composition(comp)
@@ -121,11 +132,12 @@ def _probe_from_comp(comp: CompositionModel):
 @router.post("/ffmpeg_args")
 def ffmpeg_args(req: RenderRequest):
     """干跑：返回将执行的 ffmpeg 参数列表（不实际渲染），便于前端预览/调试。"""
+    from drama_shot_master.core.ffmpeg_locate import ffmpeg_path
     comp = CompositionModel.from_dict(req.composition)
     ok, msg = comp.validate()
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
-    args = tr.build_ffmpeg_args(comp, req.out_path, ffmpeg="ffmpeg",
+    args = tr.build_ffmpeg_args(comp, req.out_path, ffmpeg=ffmpeg_path(),
                                 probe=_probe_from_comp(comp))
     return {"args": args, "warning": (msg if msg != "ok" else "")}
 
@@ -133,6 +145,20 @@ def ffmpeg_args(req: RenderRequest):
 @router.post("/render")
 def render(req: RenderRequest):
     """实际渲染成片（调用 ffmpeg，长耗时）。"""
+    # 校验 clip 路径：无法解析或文件不存在 → 400（渲染需要真文件）
+    project = req.composition.get("project", "") if isinstance(req.composition, dict) else ""
+    valid, unresolvable, not_found = _resolve_and_validate_clip_paths(req.composition, project)
+    all_missing = unresolvable + not_found
+    if all_missing:
+        raise HTTPException(status_code=400,
+                            detail=f"片段路径不可用: {', '.join(all_missing)}")
+    # 剔除无效 clip 后再构建模型
+    if valid:
+        if isinstance(req.composition, dict):
+            req.composition["clips"] = [
+                c for c in req.composition.get("clips", [])
+                if str(c.get("path", "")) in valid
+            ]
     comp = CompositionModel.from_dict(req.composition)
     ok, msg = comp.validate()
     if not ok:
@@ -149,6 +175,19 @@ class RenderStreamRequest(BaseModel):
 @router.post("/render-stream")
 async def render_stream(req: RenderStreamRequest):
     """流式渲染成片（SSE），逐帧报告 ffmpeg 进度（基于 stderr time=… 解析）。"""
+    # 校验 clip 路径：无法解析或文件不存在 → 400（渲染需要真文件）
+    project = req.composition.get("project", "") if isinstance(req.composition, dict) else ""
+    valid, unresolvable, not_found = _resolve_and_validate_clip_paths(req.composition, project)
+    all_missing = unresolvable + not_found
+    if all_missing:
+        raise HTTPException(status_code=400,
+                            detail=f"片段路径不可用: {', '.join(all_missing)}")
+    if valid:
+        if isinstance(req.composition, dict):
+            req.composition["clips"] = [
+                c for c in req.composition.get("clips", [])
+                if str(c.get("path", "")) in valid
+            ]
     comp = CompositionModel.from_dict(req.composition)
     ok, msg = comp.validate()
     if not ok:
