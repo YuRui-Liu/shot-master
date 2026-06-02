@@ -146,12 +146,12 @@
     <div class="status"><span class="dot" id="apiDot"></span><span id="apiText">检测后端…</span></div>
   </div>
 
-  <!-- 向导步骤条（① 立意 done › ② 剧本 active › ③ 分镜 › ④ 出图 prompt） -->
+  <!-- 向导步骤条（① 立意 done › ② 剧本 active › ③ 分镜 › ④ 出图提示词） -->
   <div class="stepper" id="stepper">
     <div class="step done clk" id="stepIdeate"><span class="n">1</span>立意</div><span class="chev">›</span>
     <div class="step active"><span class="n">2</span>剧本</div><span class="chev">›</span>
     <div class="step"><span class="n">3</span>分镜</div><span class="chev">›</span>
-    <div class="step"><span class="n">4</span>出图 prompt</div>
+    <div class="step"><span class="n">4</span>出图提示词</div>
   </div>
 
   <!-- 本阶段参数 + 题材/风格继承提示 -->
@@ -230,6 +230,7 @@ let busy = false;         // 单集/大纲流式互斥
 
 /* ---------- 项目级持久化（localStorage 镜像，切页/重启不丢正文） ---------- */
 const LS_SCRIPT = "nuomi.script.state." + (PROJECT_DIR || "noproj");
+const LS_PROJECT_ASPECT = "nuomi.project.aspect." + (PROJECT_DIR || "noproj");
 function saveLocal() {
   try {
     localStorage.setItem(LS_SCRIPT, JSON.stringify({
@@ -237,6 +238,15 @@ function saveLocal() {
       epCount: $("epCount").value, durSec: $("durSec").value, langStyle: $("langStyle").value,
     }));
   } catch {}
+  /* 传播画幅到分镜板：从立意页取当前 aspect 写入约定的跨页 key */
+  try {
+    const ideateKey = "nuomi.ideate.state." + (PROJECT_DIR || "noproj");
+    const ideateRaw = localStorage.getItem(ideateKey);
+    let ar = null;
+    if (ideateRaw) { const s = JSON.parse(ideateRaw); if (s.aspect) ar = s.aspect; }
+    if (!ar) ar = localStorage.getItem("nuomi.ideate.lastAspect");
+    if (ar) localStorage.setItem(LS_PROJECT_ASPECT, ar);
+  } catch (_) {}
 }
 function restoreLocal() {
   let s; try { s = JSON.parse(localStorage.getItem(LS_SCRIPT) || "null"); } catch {}
@@ -650,6 +660,15 @@ async function init() {
   checkHealth();
   renderEpList();
   restoreLocal();             // 即时占位：参数 + 上次分集/正文（无后端/离线时即终态）
+  /* 首次加载：传播立意页画幅到分镜板约定的跨页 key */
+  try {
+    const ideateKey = "nuomi.ideate.state." + (PROJECT_DIR || "noproj");
+    const ideateRaw = localStorage.getItem(ideateKey);
+    let ar = null;
+    if (ideateRaw) { const s = JSON.parse(ideateRaw); if (s.aspect) ar = s.aspect; }
+    if (!ar) ar = localStorage.getItem("nuomi.ideate.lastAspect");
+    if (ar) localStorage.setItem(LS_PROJECT_ASPECT, ar);
+  } catch (_) {}
   readSelectedIdea();         // 显示立意页选定的立意（继承上下文）
   /* P0-6: 继承立意页集数（若脚本页从未保存过 epCount，从 ideate localStorage 回读） */
   if (!$("epCount").dataset.inherited) {

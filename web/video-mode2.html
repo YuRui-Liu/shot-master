@@ -267,6 +267,15 @@
   }
   .audio-clip .audio-wave { flex: 1; height: 14px; background: rgba(255,255,255,.06); border-radius: 2px; min-width: 10px; }
   .audio-clip .audio-name { max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .audio-play-btn {
+    width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0;
+    background: rgba(138,127,217,.14); color: var(--mauve);
+    border: 1px solid #4a3d6e; font-size: 10px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1; padding: 0; transition: all .14s;
+  }
+  .audio-play-btn:hover { background: rgba(138,127,217,.28); color: var(--fg); }
+  .audio-play-btn.playing { background: rgba(78,201,143,.16); color: var(--done); border-color: #2f6b4f; }
 
   .resize-handle {
     position: absolute; top: 0; bottom: 0; width: 8px; cursor: col-resize;
@@ -590,6 +599,7 @@
             <div class="audio-track" id="audioTrack">
               <div class="audio-empty" id="audioEmpty">暂无音频，点「＋ Add Audio」添加</div>
             </div>
+            <audio id="audioPreview" style="display:none" preload="auto"></audio>
           </div>
         </div>
 
@@ -1065,6 +1075,7 @@ function createClipBlock(c, type) {
   } else {
     block.innerHTML = `
       <span>🎵</span>
+      <button class="audio-play-btn" title="播放/暂停" data-clip-id="${c.id}">▶</button>
       <span class="audio-name" title="${c.path || ''}">${c.path ? baseName(c.path) : "音频"}</span>
       <span class="audio-wave"></span>
       <span class="clip-dur">${fmtDur(c.duration)}</span>
@@ -1086,6 +1097,7 @@ function renderTimeline() {
 }
 
 function renderAudioTrack() {
+  audioPreviewReset();
   const track = document.getElementById("audioTrack");
   const empty = document.getElementById("audioEmpty");
   const label = document.getElementById("audioTrackLabel");
@@ -1133,11 +1145,30 @@ function selectClip(id) { dirState.selectedClipId = id; renderTimeline(); render
 function getClip(id) { return dirState.clips.find(c => c.id === id); }
 
 /* ---------- 音频操作 ---------- */
-function addAudioClip(path) {
+async function addAudioClip(path) {
+  if (!path) return;
   const start = dirState.audioClips.length ? Math.max(...dirState.audioClips.map(c => c.start + c.duration)) : 0;
-  dirState.audioClips.push({ id: genId(), path: path || null, start, duration: 3 });
+  // 先以默认时长 5s 插入并立即渲染，避免等待元数据白屏
+  const clip = { id: genId(), path: path, start, duration: 5 };
+  dirState.audioClips.push(clip);
   if (!dirState.use_custom_audio) { dirState.use_custom_audio = true; document.getElementById("chkCustomAudio").checked = true; }
   refreshAll();
+  // 异步取真实音频时长（通过 mediaUrl 加载元数据，兼容中文/空格路径）
+  try {
+    const url = mediaUrl(path);
+    if (!url) return;
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    await new Promise((resolve) => {
+      const done = () => { try { audio.remove(); } catch (_) {} resolve(); };
+      audio.addEventListener('loadedmetadata', () => { clip.duration = audio.duration || 5; done(); }, { once: true });
+      audio.addEventListener('error', () => done(), { once: true });
+      setTimeout(() => done(), 8000);
+      audio.src = url;
+    });
+    // 仅当时长变化时刷新时间轴
+    if (Math.abs(clip.duration - 5) > 0.01) refreshAll();
+  } catch (_) {}
 }
 
 /* ---------- 当前段编辑器 ---------- */
@@ -1271,7 +1302,6 @@ function snapPosition(proposedStart, proposedEnd, ignoreId, allClips) {
   for (let i = 0; i <= 120; i += 0.5) snaps.push({ pos: i });
   let bestStart = proposedStart, bestEnd = proposedEnd, snapUsed = false;
   snaps.forEach(s => {
-    if (Math.abs(proposedStart - s.pos) * TIME_SCALE < SNAP_THRESHOLD) { bestStart = s.pos; snapUsed = true; }
     if (Math.abs(proposedEnd - s.pos) * TIME_SCALE < SNAP_THRESHOLD) { bestEnd = s.pos; snapUsed = true; }
   });
   return { start: bestStart, end: bestEnd, snapped: snapUsed };
@@ -1305,15 +1335,22 @@ function onDragMove(e) {
   } else if (mode === 'resize-right') newDuration = Math.max(dragInfo.minDuration, origDuration + pxToTime(deltaX));
   const proposedEnd = newStart + newDuration;
   const { start: ss, end: se, snapped } = snapPosition(newStart, proposedEnd, clipId, clipsArr);
-  if (snapped) { newStart = ss; newDuration = se - ss; }
+  if (snapped) {
+    if (mode === 'move') {
+      newStart = Math.max(0, se - newDuration);
+    } else if (mode === 'resize-right') {
+      newDuration = Math.max(dragInfo.minDuration, se - origStart);
+    } else if (mode === 'resize-left') {
+      newStart = Math.max(0, se - newDuration);
+    }
+  }
   clipEl.style.left = (newStart * TIME_SCALE) + "px";
   clipEl.style.width = Math.max(newDuration * TIME_SCALE, 60) + "px";
   const durEl = clipEl.querySelector('.clip-dur'); if (durEl) durEl.textContent = fmtDur(newDuration);
   const al = alignLine();
   al.style.display = snapped ? 'block' : 'none';
   if (snapped) {
-    const endSnapped = Math.abs(se - proposedEnd) > 0.0001;
-    al.style.left = (endSnapped ? se : ss) * TIME_SCALE + "px";
+    al.style.left = (newStart + newDuration) * TIME_SCALE + "px";
   }
 }
 
@@ -1332,15 +1369,61 @@ function onDragEnd() {
   dragInfo = null;
 }
 
+/* 音频预览：全局共享 <audio> + 当前播放 clipId */
+let audioPreviewEl = null;
+let audioPlayingClipId = null;
+
+function audioPreviewReset() {
+  if (audioPreviewEl) {
+    try { audioPreviewEl.pause(); } catch (_) {}
+    audioPreviewEl.src = '';
+  }
+  audioPlayingClipId = null;
+  document.querySelectorAll('.audio-play-btn.playing').forEach(b => { b.textContent = '▶'; b.classList.remove('playing'); });
+}
+
+function audioPreviewToggle(clipId) {
+  const clip = dirState.audioClips.find(c => String(c.id) === String(clipId));
+  if (!clip || !clip.path) return;
+  if (!audioPreviewEl) audioPreviewEl = document.getElementById('audioPreview');
+  if (!audioPreviewEl) return;
+  if (audioPlayingClipId === clipId) {
+    // 暂停当前
+    audioPreviewEl.pause();
+    audioPreviewReset();
+    return;
+  }
+  // 切换曲目
+  audioPreviewReset();
+  const url = mediaUrl(clip.path);
+  if (!url) return;
+  audioPreviewEl.src = url;
+  audioPlayingClipId = clipId;
+  audioPreviewEl.play().catch(() => { audioPreviewReset(); });
+  const btn = document.querySelector('.audio-play-btn[data-clip-id="' + clipId + '"]');
+  if (btn) { btn.textContent = '⏸'; btn.classList.add('playing'); }
+  audioPreviewEl.onended = () => { audioPreviewReset(); };
+  audioPreviewEl.onerror = () => { audioPreviewReset(); };
+}
+
 function attachClipEvents() {
   document.querySelectorAll('.clip-block, .audio-clip').forEach(el => {
     if (el.dataset.eventsAttached) return;
     el.dataset.eventsAttached = '1';
     el.addEventListener('mousedown', (e) => {
+      // 音频播放按钮：不触发拖拽
+      if (e.target.classList.contains('audio-play-btn')) {
+        e.stopPropagation(); e.preventDefault();
+        audioPreviewToggle(e.target.dataset.clipId);
+        return;
+      }
       if (e.target.classList.contains('clip-del')) {
         const id = el.dataset.clipId;
         if (el.dataset.type === 'video') deleteClip(id);
-        else { dirState.audioClips = dirState.audioClips.filter(c => String(c.id) !== String(id)); refreshAll(); }
+        else {
+          if (String(audioPlayingClipId) === String(id)) audioPreviewReset();
+          dirState.audioClips = dirState.audioClips.filter(c => String(c.id) !== String(id)); refreshAll();
+        }
         return;
       }
       if (!e.target.classList.contains('resize-handle') && el.dataset.type === 'video') selectClip(el.dataset.clipId);

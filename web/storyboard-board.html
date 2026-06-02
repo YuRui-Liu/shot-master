@@ -804,6 +804,39 @@
   let curWide = false;   // false=9:16 竖屏（默认）, true=16:9 横屏
   function curSize() { return curWide ? "1920x1080" : "1080x1920"; }
 
+  // ---- 从剧本页继承画幅默认值（跨页 localStorage 约定：nuomi.project.aspect.<project>）----
+  const LS_PROJECT_ASPECT = "nuomi.project.aspect." + (PROJECT || "noproj");
+  function applyProjectAspect() {
+    try {
+      const ar = localStorage.getItem(LS_PROJECT_ASPECT);
+      if (!ar) return;
+      // 分镜视角：同步 curWide + 预览 UI（静默设置，不清已有预览图）
+      const wantWide = ar === "16:9";
+      curWide = wantWide;
+      const pv = $("preview");
+      if (pv) pv.classList.toggle("wide", wantWide);
+      const arToggle = $("arToggle");
+      if (arToggle) {
+        arToggle.querySelectorAll(".ar-btn").forEach(function (b) {
+          b.classList.toggle("active", b.dataset.ar === (wantWide ? "wide" : "vertical"));
+        });
+      }
+      var ph = $("previewPh");
+      if (ph) {
+        ph.innerHTML = (wantWide ? "16 : 9 横屏" : "9 : 16 竖屏") +
+          "<br>分镜图预览<br><span class=\"faint\">（占位）</span>";
+      }
+      var sm = $("sideMeta");
+      if (sm) {
+        sm.innerHTML = (wantWide ? "画幅 16:9 · 横屏" : "画幅 9:16 · 短剧竖屏") +
+          "<br>单图 HD · 视频基底帧";
+      }
+      // 自由模式：同步 studioAspect 下拉框默认值
+      var sa = $("studioAspect");
+      if (sa) sa.value = ar;
+    } catch (_) {}
+  }
+
   // [A] 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）
   // 共享前端契约：照抄。MEDIA_API/PROJECT_DIR 取页内现有法（MEDIA/PROJECT 别名）。
   const MEDIA_API0 = MEDIA;      // media_agent 基址（含 /file 端点）
@@ -1182,6 +1215,8 @@
   $("reloadBtn").addEventListener("click", loadStoryboards);
 
   bindShotEditors();
+  // 从剧本页继承画幅默认值（优先于硬编码的 16:9）
+  applyProjectAspect();
   // 初次进页自动读分镜
   loadStoryboards();
   setupLightbox();

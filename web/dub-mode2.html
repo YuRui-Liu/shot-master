@@ -671,6 +671,11 @@ const LANG_OPTIONS = [
   { cn: "西班牙语", en: "Spanish" },
   { cn: "意大利语", en: "Italian" },
 ];
+/* ===== 并行任务（模式2 多任务）===== */
+const PARALLEL_TASKS = [
+  { id: "task1", name: "配音任务 1", ep: "第1集", shots: 3 },
+];
+
 const SHOTS = [{
     n: 1, role: "旁白", meta: ["全景", "俯拍", "固定", "4s"],
     desc: "雨夜废品场全景\n人群打伞站立",
@@ -1019,6 +1024,9 @@ function toast(msg) {
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.opacity = "0"; }, 4000);
 }
+
+/* ===== 声音克隆状态容器 ===== */
+const ttsState = {};
 
 /* ===== 声音克隆 UI 接线 =====
    - TTS 模式切换（design/clone）：切按钮高亮 + 显隐本卡 clone-panel，写 ttsState。
@@ -1766,8 +1774,8 @@ document.getElementById("taskDelBtn").addEventListener("click", () => {
 wireExamples();
 wireCloneControls();
 wireActions();
-wireModes();
 wireMode1();
+wireModes();
 wireOneClick();
 /* 切集失效集级音色设计缓存（下次「生成」重新拉取该集 audio_prompt） */
 document.getElementById("epSelect").addEventListener("change", () => {
