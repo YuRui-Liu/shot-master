@@ -268,6 +268,8 @@ const WORK_DIR = new URLSearchParams(location.search).get('workdir')
   || (PROJECT_DIR ? PROJECT_DIR.replace(/[\\/]+$/, '') + '/soundtrack' : '');
 let VIDEO = new URLSearchParams(location.search).get('video') || '';
 
+const LS_KEY = 'nuomi.daw.' + (PROJECT_DIR || 'global');
+
 /* 本地媒体 URL 助手（替代 file://）。走 media_agent GET /file?path=…[&project=…]。 */
 function mediaUrl(p) {
   if (!p) return '';
@@ -295,7 +297,14 @@ async function postJSON(path, body) {
 
 /* 时间线：总时长来自视频元数据 / 会话末段 / 成片。无源时给占位时长仅画空标尺。 */
 let TOTAL = 24.0;
-const PX_PER_SEC = 58;       // 与 CSS --pps 一致
+let PX_PER_SEC = 58;
+function readPxPerSec() {
+  const daw = document.querySelector('.daw');
+  if (!daw) return;
+  const style = getComputedStyle(daw);
+  const v = parseFloat(style.getPropertyValue('--pps').trim());
+  if (!isNaN(v) && v > 0) PX_PER_SEC = v;
+}
 let TL_WIDTH = TOTAL * PX_PER_SEC;
 
 /* 各轨音源（成片/BGM/SFX 输出）；无后端会话时为空 → 占位，不渲染波形。 */
@@ -700,6 +709,10 @@ async function generateOverlay(kind, btn) {
       renderOverlayTracks();
       addMsg('a', `已生成 ${kind.toUpperCase()} 片段，落进叠加轨。可在输入框改 prompt 再生成调整。`);
       setStatus('叠加片段已生成：' + (seg.audio_path || seg.id));
+      saveLocal();
+    } else {
+      addMsg('err', '生成响应缺 segment（后端未返回片段信息），请检查后端日志。raw keys: ' + Object.keys(res || {}).join(', '));
+      setStatus('生成响应异常：缺 segment');
     }
     document.getElementById('chatInput').value = '';
   } catch (e) {
@@ -779,6 +792,7 @@ async function doAccentDetect(btn) {
     ACCENTS = Array.isArray(res.accents) ? res.accents : [];
     layoutAccents();
     setStatus('检测到 ' + ACCENTS.length + ' 个卡点');
+    saveLocal();
   } catch (e) { setStatus('卡点检测失败：' + e.message); } finally { done(); }
 }
 async function doAccentMix(btn) {
@@ -817,7 +831,10 @@ async function loadOverlayList() {
     const res = await postJSON('/soundtrack/overlay/list', { work_dir: WORK_DIR });
     OVERLAYS = Array.isArray(res.segments) ? res.segments : [];
     renderOverlayTracks();
-  } catch (e) { /* 无 overlay.json 时静默 */ }
+  } catch (e) {
+    if (e.status === 404) { /* 无 overlay.json 是预期的（项目新或未生成过叠加），静默忽略 */ }
+    else { setStatus('加载叠加列表失败：' + e.message); }
+  }
 }
 async function removeOverlay(segId) {
   if (!WORK_DIR) return;
@@ -826,6 +843,7 @@ async function removeOverlay(segId) {
     OVERLAYS = Array.isArray(res.segments) ? res.segments : OVERLAYS.filter(s => s.id !== segId);
     renderOverlayTracks();
     setStatus('已删除叠加片段 ' + segId);
+    saveLocal();
   } catch (e) { setStatus('删除失败：' + e.message); }
 }
 
@@ -840,6 +858,7 @@ function loadVideo(path) {
   setStatus('已加载视频：' + path + ' · 抽原声轨可点「自动配乐 / 出片」');
   // 视频原声直接接到原声轨（成片本身含原声）
   setTrackSrc('orig', path);
+  saveLocal();
 }
 function wireVideo() {
   const v = document.getElementById('pvVideo');
@@ -934,8 +953,45 @@ async function loadSession() {
   await loadOverlayList();
 }
 
+/* ---------- localStorage 持久化（切页/重启回显状态，与剧本/分镜页同模式） ---------- */
+function saveLocal() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      video: VIDEO,
+      total: TOTAL,
+      accents: ACCENTS,
+      overlays: OVERLAYS,
+      tracks: TRACKS.map(t => ({ id: t.id, mute: t.mute, solo: t.solo })),
+    }));
+  } catch (e) {
+    setStatus('保存状态到 localStorage 失败：' + (e && e.message ? e.message : e));
+  }
+}
+function restoreLocal() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (!s || typeof s !== 'object') return;
+    if (typeof s.total === 'number' && s.total > 0) { TOTAL = s.total; TL_WIDTH = TOTAL * PX_PER_SEC; }
+    if (typeof s.video === 'string' && s.video) { if (!VIDEO) VIDEO = s.video; }
+    if (Array.isArray(s.accents)) ACCENTS = s.accents;
+    if (Array.isArray(s.overlays)) OVERLAYS = s.overlays;
+    if (Array.isArray(s.tracks)) {
+      s.tracks.forEach(st => {
+        const t = TRACKS.find(tr => tr.id === st.id);
+        if (t && !t.readonly) { t.mute = !!st.mute; t.solo = !!st.solo; }
+      });
+    }
+  } catch (e) {
+    setStatus('从 localStorage 恢复状态失败（数据已损坏）：' + (e && e.message ? e.message : e));
+  }
+}
+
 /* ---------- 启动 ---------- */
 function init() {
+  readPxPerSec();
+  restoreLocal();
   renderFixedTracks();
   renderOverlayTracks();
   drawRuler();

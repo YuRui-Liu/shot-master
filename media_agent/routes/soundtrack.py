@@ -79,6 +79,26 @@ class EmotionIn(BaseModel):
                           arousal=self.arousal, intensity=self.intensity)
 
 
+# ---------- work_dir 校验辅助 ----------
+
+def _validate_work_dir(work_dir: str) -> None:
+    """校验 work_dir 存在且可写；否则 raise HTTPException(400)。"""
+    p = Path(work_dir)
+    if not p.exists():
+        raise HTTPException(status_code=400, detail=f"work_dir 不存在: {work_dir}")
+    if not p.is_dir():
+        raise HTTPException(status_code=400, detail=f"work_dir 不是目录: {work_dir}")
+    # 可写性探针（不依赖 os.access，跨平台可靠）
+    probe = p / ".writable_test_tmp"
+    try:
+        probe.touch()
+        probe.unlink()
+    except (OSError, PermissionError) as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"work_dir 不可写: {work_dir} ({e})")
+
+
 # ---------- 1) compose_prompt：纯函数、必可测 ----------
 
 class ComposePromptRequest(BaseModel):
@@ -153,6 +173,10 @@ def analyze_segment(req: AnalyzeSegmentRequest):
         raise HTTPException(status_code=400, detail="end_sec 必须大于 start_sec")
     if start < 0:
         raise HTTPException(status_code=400, detail="start_sec 不能为负")
+
+    video_path = Path(req.video)
+    if not video_path.is_file():
+        raise HTTPException(status_code=400, detail=f"视频文件不存在: {req.video}")
 
     style = (req.hint or "").strip() or "neutral cinematic background"
     duration = end - start
@@ -345,6 +369,7 @@ def advance(req: AdvanceRequest):
     阶段级进度只经 on_progress 回调（无产物），与 TaskRunner 的逐项 SSE 模型不契合。
     前端要分步推进可逐阶段多次调用本端点（refine→tag→prompt→generate→align→mix）。
     """
+    _validate_work_dir(req.work_dir)
     try:
         sess = _load_or_prepare_session(req)
         dialogue = None
@@ -361,6 +386,10 @@ def advance(req: AdvanceRequest):
             stages=stages, dialogue_segments=dialogue)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     return {
         "stop_after": req.stop_after,
         "output": sess.output,
@@ -399,6 +428,7 @@ def mixdown(req: MixdownRequest):
     会话从 work_dir/session.json 读取（须已推进到至少 generate，各段有候选）。
     """
     from sound_track_agent.mixdown import assemble_and_mix
+    _validate_work_dir(req.work_dir)
     sess = _facade.load_session(req.work_dir)
     if sess is None:
         raise HTTPException(status_code=400,
@@ -410,8 +440,12 @@ def mixdown(req: MixdownRequest):
             crossfade=req.crossfade, target_lufs=req.target_lufs,
             big_threshold=req.big_threshold, snap_window=req.snap_window,
             max_stretch=req.max_stretch, **io)
-    except RuntimeError as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     sess.output = out
     sess.save(Path(req.work_dir) / "session.json")
     return {"output": out}
@@ -442,6 +476,7 @@ def accent_detect(req: AccentDetectRequest):
     view = [{"t": float(p.t), "intensity": float(p.intensity),
              "confirmed": bool(getattr(p, "confirmed", False))} for p in pts]
     if req.work_dir:
+        _validate_work_dir(req.work_dir)
         sess = _facade.load_session(req.work_dir)
         if sess is not None:
             sess.accent_points = list(pts)
@@ -461,6 +496,7 @@ class AccentMixRequest(BaseModel):
 def accent_mix(req: AccentMixRequest):
     """卡点混音/泵感试听：段拼接+对齐+泵感产出一条 BGM wav（走 facade.build_accent_preview，
     与正片 mix 共用 align+pump 路径）。返回 wav 路径。"""
+    _validate_work_dir(req.work_dir)
     sess = _facade.load_session(req.work_dir)
     if sess is None:
         raise HTTPException(status_code=400,
@@ -470,8 +506,12 @@ def accent_mix(req: AccentMixRequest):
             sess, req.work_dir, crossfade=req.crossfade,
             big_threshold=req.big_threshold, snap_window=req.snap_window,
             max_stretch=req.max_stretch)
-    except (RuntimeError, ValueError) as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     return {"preview": out}
 
 
@@ -523,6 +563,7 @@ class SfxDetectRequest(BaseModel):
 def sfx_detect(req: SfxDetectRequest):
     """检测镜头 + LLM 推荐 SFX prompt → 持久化 sfx_session.json。走 sfx.facade.plan_sfx_session。"""
     from sound_track_agent.sfx import facade as sfx_facade
+    _validate_work_dir(req.work_dir)
     cfg = _load_cfg()
     sess = sfx_facade.plan_sfx_session(
         req.video, req.work_dir, cfg=cfg,
@@ -538,13 +579,21 @@ class SfxGenerateRequest(BaseModel):
 def sfx_generate(req: SfxGenerateRequest):
     """批量生成所有 planned 镜头的 SFX 候选 → 落盘。走 sfx.facade.generate_sfx_all。"""
     from sound_track_agent.sfx import facade as sfx_facade
+    _validate_work_dir(req.work_dir)
     sess = sfx_facade.load_sfx_session(req.work_dir)
     if sess is None:
         raise HTTPException(status_code=400,
                             detail="work_dir 下无 sfx_session.json（先调 /sfx/detect）")
     cfg = _load_cfg()
-    sess = sfx_facade.generate_sfx_all(
-        sess, req.work_dir, cfg=cfg, client=_sfx_client_factory(cfg))
+    try:
+        sess = sfx_facade.generate_sfx_all(
+            sess, req.work_dir, cfg=cfg, client=_sfx_client_factory(cfg))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     return _sfx_session_view(sess)
 
 
@@ -577,10 +626,13 @@ def overlay_generate(req: OverlayGenerateRequest):
     from sound_track_agent.overlay_session import load_overlay, save_overlay
     from secrets import token_hex
 
+    _validate_work_dir(req.work_dir)
     if req.kind not in ("bgm", "sfx"):
         raise HTTPException(status_code=400, detail=f"未知 kind: {req.kind}")
     if req.t_end <= req.t_start:
         raise HTTPException(status_code=400, detail="t_end 必须大于 t_start")
+    if not req.prompt or not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt 不能为空")
     cfg = _load_cfg()
     duration = float(req.t_end) - float(req.t_start)
     try:
@@ -590,6 +642,10 @@ def overlay_generate(req: OverlayGenerateRequest):
             client=_overlay_client_factory(cfg))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     sess = load_overlay(req.work_dir)
     seg = sess.add(req.kind, req.t_start, req.t_end, req.prompt,
@@ -607,6 +663,7 @@ class OverlayListRequest(BaseModel):
 def overlay_list(req: OverlayListRequest):
     """列出 work_dir/overlay.json 中所有叠加子轨片段。"""
     from sound_track_agent.overlay_session import load_overlay
+    _validate_work_dir(req.work_dir)
     sess = load_overlay(req.work_dir)
     return {"segments": [s.to_dict() for s in sess.segments]}
 
@@ -620,6 +677,7 @@ class OverlayRemoveRequest(BaseModel):
 def overlay_remove(req: OverlayRemoveRequest):
     """从 overlay.json 删除一个片段。"""
     from sound_track_agent.overlay_session import load_overlay, save_overlay
+    _validate_work_dir(req.work_dir)
     sess = load_overlay(req.work_dir)
     removed = sess.remove(req.seg_id)
     if not removed:

@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from drama_shot_master.core import tts_profiles as P
 from drama_shot_master.providers import tts_builder as B
@@ -79,6 +79,22 @@ class SynthesizeRequest(BaseModel):
     emo_text: str = ""
     emo_audio_file: Optional[str] = None
     emo_vector: Optional[list] = None
+
+    @field_validator("emo_vector")
+    @classmethod
+    def _check_emo_vector(cls, v):
+        """Validate emo_vector: list of 8 floats in [0.0, 1.2]."""
+        if v is None:
+            return v
+        if not isinstance(v, list) or len(v) != 8:
+            raise ValueError("emo_vector 必须是长度为 8 的列表")
+        for i, x in enumerate(v):
+            if not isinstance(x, (int, float)):
+                raise ValueError(f"emo_vector[{i}] 必须是数值，收到 {type(x).__name__}")
+            x_f = float(x)
+            if x_f < 0.0 or x_f > 1.2:
+                raise ValueError(f"emo_vector[{i}] 超出范围 [0, 1.2]，收到 {x_f}")
+        return v
     sampling: Optional[dict] = None
     speed: Optional[float] = None        # 透传给 sampling（如工作流支持）
     # 显式覆盖工作流 ID（缺省取 profile/cfg）
@@ -112,8 +128,11 @@ def _do_synthesize(req: SynthesizeRequest, out_dir: Path) -> str:
     client = _client_factory(cfg)
 
     if mode == "design":
+        # Normalize language: design callers may send "zh", clone callers
+        # may send "中文" — downstream (RunningHub) expects "中文".
+        lang = "中文" if req.language == "zh" else req.language
         node_info = B.build_design_node_info(
-            req.text, req.style, req.language, prof)
+            req.text, req.style, lang, prof)
         result = tts_submit.submit_and_wait(
             client, workflow_id=workflow_id, node_info_list=node_info,
             out_path=out_path)
@@ -123,6 +142,8 @@ def _do_synthesize(req: SynthesizeRequest, out_dir: Path) -> str:
     if not req.speaker_file:
         raise ValueError("clone 模式需要 speaker_file")
     spk = Path(req.speaker_file)
+    if not spk.exists():
+        raise ValueError(f"speaker_file 不存在: {req.speaker_file}")
     emo_audio = (Path(req.emo_audio_file)
                  if (req.emo_mode == 3 and req.emo_audio_file) else None)
     uploads = [spk] + ([emo_audio] if emo_audio else [])
@@ -146,10 +167,10 @@ def synthesize(req: SynthesizeRequest):
         raise HTTPException(status_code=400, detail="out_dir 不能为空")
     try:
         return {"output": _do_synthesize(req, Path(req.out_dir))}
-    except (ValueError, RunningHubInvalidSpec) as e:
+    except (ValueError, RunningHubInvalidSpec, KeyError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (RunningHubUnavailable, RunningHubUploadError,
-            RunningHubTaskFailed) as e:
+            RunningHubTaskFailed, OSError) as e:
         raise HTTPException(status_code=502, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -161,10 +182,10 @@ def preview(req: SynthesizeRequest):
     tmp = Path(tempfile.mkdtemp(prefix="tts_preview_"))
     try:
         return {"output": _do_synthesize(req, tmp)}
-    except (ValueError, RunningHubInvalidSpec) as e:
+    except (ValueError, RunningHubInvalidSpec, KeyError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (RunningHubUnavailable, RunningHubUploadError,
-            RunningHubTaskFailed) as e:
+            RunningHubTaskFailed, OSError) as e:
         raise HTTPException(status_code=502, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
