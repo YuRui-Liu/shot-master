@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -656,21 +656,21 @@ const CLONE_EMO_MODES = [
 /* 8 维情感向量标签（与后端 EMO_VECTOR_LABELS 顺序一致） */
 const EMO_VECTOR_LABELS = ["Happy", "Angry", "Sad", "Fear", "Hate", "Low", "Surprise", "Neutral"];
 const EMO_VECTOR_CN = ["喜", "怒", "哀", "惧", "厌", "低落", "惊", "中性"];
-/* 克隆模式语言（后端默认 "中文"，design 仍沿用页内 "zh"） */
-const CLONE_LANGUAGE = "中文";
-
-/* 每卡 TTS 模式状态：shotN → { mode:"design"|"clone", emo:1..4 }（默认 design） */
-const ttsState = {};
-
-/* ===== 并行任务（最多 5 个；切换当前任务） ===== */
-let PARALLEL_TASKS = [
-  { id: "t1", name: "任务A · 都市悬疑《废铁》", ep: "第1集", shots: 3 },
-  { id: "t2", name: "任务B · 古风《长安雨》", ep: "第2集", shots: 4 },
-  { id: "t3", name: "任务C · 校园《晚自习》", ep: "第1集", shots: 2 }
+/* 克隆模式语言，前端显示中文，后端 API 使用英文字段 */
+const CLONE_LANGUAGE = "Chinese";
+const LANG_OPTIONS = [
+  { cn: "自动", en: "Auto" },
+  { cn: "中文", en: "Chinese" },
+  { cn: "英语", en: "English" },
+  { cn: "日语", en: "Japanese" },
+  { cn: "韩语", en: "Korean" },
+  { cn: "德语", en: "German" },
+  { cn: "法语", en: "French" },
+  { cn: "俄语", en: "Russian" },
+  { cn: "葡萄牙语", en: "Portuguese" },
+  { cn: "西班牙语", en: "Spanish" },
+  { cn: "意大利语", en: "Italian" },
 ];
-
-/* ===== 三个镜头：分镜图缩略 + 台词 + 默认配音参数（stub，体现自动对齐） ===== */
-const SHOTS = [
   {
     n: 1, role: "旁白", meta: ["全景", "俯拍", "固定", "4s"],
     desc: "雨夜废品场全景\n人群打伞站立",
@@ -708,7 +708,7 @@ function simpleOptions(arr, selected) {
 function renderTasks() {
   const sel = document.getElementById("taskSelect");
   sel.innerHTML = PARALLEL_TASKS
-    .map((t, i) => `<option value="${t.id}" ${i === 0 ? "selected" : ""}>${t.name} · ${t.ep} · ${t.shots} 镜</option>`)
+    .map((t, i) => `<option value="${esc(t.id)}" ${i === 0 ? "selected" : ""}>${esc(t.name)} · ${esc(t.ep)} · ${esc(String(t.shots))} 镜</option>`)
     .join("");
   // 更新删除按钮状态
   const delBtn = document.getElementById("taskDelBtn");
@@ -722,23 +722,23 @@ function renderShots() {
     const card = document.createElement("div");
     card.className = "shot";
     const meta =
-      `<span class="role">${s.role}</span><span class="sep">·</span>` +
+      `<span class="role">${esc(s.role)}</span><span class="sep">·</span>` +
       s.meta
-        .map((m, i) => i === s.meta.length - 1 ? `<span class="dur">${m}</span>` : `<span>${m}</span>`)
+        .map((m, i) => i === s.meta.length - 1 ? `<span class="dur">${esc(m)}</span>` : `<span>${esc(m)}</span>`)
         .join('<span class="sep">·</span>');
 
     card.innerHTML = `
       <div class="thumb">
-        <div class="ph">${s.desc.replace(/\n/g, "<br>")}</div>
-        <div class="ord">第 ${s.n} 个 · 自动对齐</div>
-        <div class="tag">SHOT ${s.n}</div>
+        <div class="ph">${esc(s.desc).replace(/\n/g, "<br>")}</div>
+        <div class="ord">第 ${esc(String(s.n))} 个 · 自动对齐</div>
+        <div class="tag">SHOT ${esc(String(s.n))}</div>
       </div>
       <div class="body">
         <div class="meta">${meta}</div>
-        <div class="line"><span class="ltag">台词</span>${s.line}</div>
+        <div class="line"><span class="ltag">台词</span>${esc(s.line)}</div>
 
         <!-- TTS 模式切换：音色设计 / 声音克隆 -->
-        <div class="ttsmode" data-shot="${s.n}">
+        <div class="ttsmode" data-shot="${esc(String(s.n))}">
           <span class="lbl">TTS 模式</span>
           <div class="seg">
             <button class="tts-mode-btn on" data-mode="design" data-shot="${s.n}">音色设计</button>
@@ -1182,6 +1182,7 @@ function wireActions() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
+            signal: AbortSignal.timeout(300_000),
           });
           let data = {};
           try { data = await resp.json(); } catch {}
@@ -1247,7 +1248,38 @@ function wireModes() {
  * - clone 入参对齐 media_agent/routes/tts.py SynthesizeRequest。
  * ===================================================================== */
 const DM_LS_KEY = "nuomi.dubMode." + (PROJECT_DIR || "default");
+const M1_TASKS_LS_KEY = "nuomi.dubTasks." + (PROJECT_DIR || "default");
 const M1_MAX_TASKS = 5;
+/* 读 localStorage m1Tasks，失败则用默认；恢复时重新实例化 emoVec 数组 */
+function m1RestoreTasks() {
+  try {
+    const raw = localStorage.getItem(M1_TASKS_LS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) {
+        return arr.map((t, i) => ({
+          name: t.name || ("配音任务 " + (i + 1)),
+          mode: t.mode || "design",
+          text: t.text || "",
+          style: t.style || "",
+          speaker: t.speaker || "",
+          alpha: Number.isFinite(t.alpha) ? t.alpha : 1.0,
+          emo: t.emo || 1,
+          emoText: t.emoText || "",
+          emoAudio: t.emoAudio || "",
+          emoVec: Array.isArray(t.emoVec) ? t.emoVec.slice() : new Array(EMO_VECTOR_LABELS.length).fill(0),
+          speed: Number.isFinite(t.speed) ? t.speed : 1.0,
+          temp: t.temp || "0.8", topP: t.topP || "0.8", topK: t.topK || "30",
+          prefix: t.prefix || "", outDir: t.outDir || "",
+        }));
+      }
+    }
+  } catch (_) {}
+  return [m1NewTask(1)];
+}
+
+function m1PersistTasks() { try { localStorage.setItem(M1_TASKS_LS_KEY, JSON.stringify(m1Tasks)); } catch (_) {} }
+
 function m1NewTask(i) {
   return {
     name: "配音任务 " + i,
@@ -1265,7 +1297,7 @@ function m1NewTask(i) {
     prefix: "", outDir: "",
   };
 }
-const m1Tasks = [m1NewTask(1)];
+const m1Tasks = m1RestoreTasks();
 let m1Cur = 0;
 
 const m1El = (id) => document.getElementById(id);
@@ -1340,7 +1372,7 @@ function m1Load() {
 function m1RenderTaskSelect() {
   const sel = m1El("m1TaskSelect");
   sel.innerHTML = m1Tasks
-    .map((t, i) => `<option value="${i}" ${i === m1Cur ? "selected" : ""}>${(t.name || ("任务 " + (i + 1)))}${t.mode === "clone" ? " · 克隆" : " · 设计"}</option>`)
+    .map((t, i) => `<option value="${i}" ${i === m1Cur ? "selected" : ""}>${esc(t.name || ("任务 " + (i + 1)))}${t.mode === "clone" ? " · 克隆" : " · 设计"}</option>`)
     .join("");
   m1El("m1TaskCount").textContent = m1Tasks.length + "/" + M1_MAX_TASKS;
   m1El("m1AddTask").disabled = m1Tasks.length >= M1_MAX_TASKS;
@@ -1349,7 +1381,7 @@ function m1RenderTaskSelect() {
 function m1RenderVec() {
   const wrap = m1El("m1Vec");
   wrap.innerHTML = EMO_VECTOR_LABELS.map((lab, i) =>
-    `<div class="vc"><label>${EMO_VECTOR_CN[i]} · ${lab}</label>` +
+    `<div class="vc"><label>${esc(EMO_VECTOR_CN[i])} · ${esc(lab)}</label>` +
     `<input type="number" min="0" max="1.2" step="0.05" value="0" data-vecidx="${i}"></div>`
   ).join("");
 }
@@ -1436,6 +1468,7 @@ async function m1Run(isListen, btn) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(300_000),
     });
     let data = {};
     try { data = await resp.json(); } catch {}
@@ -1474,6 +1507,7 @@ function wireMode1() {
     m1Collect();
     const idx = parseInt(e.target.value, 10);
     if (idx >= 0 && idx < m1Tasks.length) { m1Cur = idx; m1Load(); m1RenderTaskSelect(); }
+    m1PersistTasks();
   });
 
   // 删除当前任务（至少保留1个）
@@ -1482,6 +1516,7 @@ function wireMode1() {
     if (!confirm("确定删除任务「" + ((m1Tasks[m1Cur] && m1Tasks[m1Cur].name) || ("任务 " + (m1Cur + 1))) + "」？")) return;
     m1Tasks.splice(m1Cur, 1);
     if (m1Cur >= m1Tasks.length) m1Cur = m1Tasks.length - 1;
+    m1PersistTasks();
     m1RenderTaskSelect(); m1Load();
   });
 
@@ -1491,6 +1526,7 @@ function wireMode1() {
     m1Collect();
     m1Tasks.push(m1NewTask(m1Tasks.length + 1));
     m1Cur = m1Tasks.length - 1;
+    m1PersistTasks();
     m1RenderTaskSelect(); m1Load();
   });
 
@@ -1499,6 +1535,7 @@ function wireMode1() {
     b.addEventListener("click", () => {
       m1Tasks[m1Cur].mode = b.getAttribute("data-m1mode");
       m1ApplyVisibility(); m1RenderTaskSelect();
+      m1PersistTasks();
     });
   });
 
@@ -1507,6 +1544,7 @@ function wireMode1() {
     e.addEventListener("click", () => {
       m1Tasks[m1Cur].emo = parseInt(e.getAttribute("data-emo"), 10) || 1;
       m1ApplyVisibility();
+      m1PersistTasks();
     });
   });
 
@@ -1515,17 +1553,20 @@ function wireMode1() {
   alpha.addEventListener("input", () => {
     m1Tasks[m1Cur].alpha = parseFloat(alpha.value) || 0;
     alphaVal.textContent = parseFloat(alpha.value).toFixed(2);
+    m1PersistTasks();
   });
   const speed = m1El("m1Speed"), speedVal = m1El("m1SpeedVal");
   speed.addEventListener("input", () => {
     m1Tasks[m1Cur].speed = parseFloat(speed.value) || 1.0;
     speedVal.textContent = parseFloat(speed.value).toFixed(2) + "x";
+    m1PersistTasks();
   });
 
   // 任务名实时回显到下拉
   m1El("m1Name").addEventListener("input", () => {
     m1Tasks[m1Cur].name = m1El("m1Name").value;
     m1RenderTaskSelect();
+    m1PersistTasks();
   });
 
   // 路径选择占位（浏览器无原生本地选择器，提示手填；壳可后续接桥）
@@ -1547,6 +1588,7 @@ function wireMode1() {
   m1El("m1Synth").addEventListener("click", (e) => m1Run(false, e.currentTarget));
   m1El("m1Save").addEventListener("click", (e) => {
     m1Collect();
+    m1PersistTasks();
     const b = e.currentTarget; const orig = b.textContent;
     b.textContent = "已保存 ✓"; setTimeout(() => (b.textContent = orig), 1200);
   });
@@ -1627,7 +1669,7 @@ function setPreviewSrc(url) {
 function renderJumps() {
   const wrap = document.getElementById("pvJumps");
   const chips = SHOTS.map((s, i) =>
-    `<span class="jump" data-jump="${i}" title="跳到 SHOT ${s.n}（${fmtTC(SHOT_STARTS[i])}）">SHOT ${s.n}</span>`
+    `<span class="jump" data-jump="${i}" title="跳到 SHOT ${esc(String(s.n))}（${fmtTC(SHOT_STARTS[i])}）">SHOT ${esc(String(s.n))}</span>`
   ).join("");
   wrap.innerHTML = `<span class="lab">镜头卡点：</span>${chips}`;
   wrap.querySelectorAll(".jump").forEach((el) => {
@@ -1651,8 +1693,8 @@ function paintTransport() {
   const idx = currentShotIdx();
   const s = SHOTS[idx];
   document.getElementById("pvNow").innerHTML = s
-    ? `<span class="role">${s.role}</span><span class="sep">·</span>SHOT ${s.n}` +
-      `<span class="sep">·</span><span class="dur">${s.meta[s.meta.length - 1]}</span><br>${s.line}`
+    ? `<span class="role">${esc(s.role)}</span><span class="sep">·</span>SHOT ${esc(String(s.n))}` +
+      `<span class="sep">·</span><span class="dur">${esc(s.meta[s.meta.length - 1])}</span><br>${esc(s.line)}`
     : "";
   document.querySelectorAll("#pvJumps .jump").forEach((el, i) =>
     el.classList.toggle("active", i === idx));

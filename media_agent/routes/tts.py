@@ -128,11 +128,9 @@ def _do_synthesize(req: SynthesizeRequest, out_dir: Path) -> str:
     client = _client_factory(cfg)
 
     if mode == "design":
-        # Normalize language: design callers may send "zh", clone callers
-        # may send "中文" — downstream (RunningHub) expects "中文".
-        lang = "中文" if req.language == "zh" else req.language
+        # language 字段：前端传英文值(Auto/Chinese/English/...), 直接透传给 RunningHub
         node_info = B.build_design_node_info(
-            req.text, req.style, lang, prof)
+            req.text, req.style, req.language, prof)
         result = tts_submit.submit_and_wait(
             client, workflow_id=workflow_id, node_info_list=node_info,
             out_path=out_path)
