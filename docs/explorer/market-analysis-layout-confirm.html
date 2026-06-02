@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>市场分析看板 · 布局确认稿</title>
+<link rel="stylesheet" href="../../web/tokens.css">
+<style>
+  body { margin:0; background:var(--bg); color:var(--fg); }
+  .note { background:rgba(74,158,255,.08); border-bottom:1px solid var(--blue-dim); padding:9px 20px; font-size:12px; color:var(--periw); flex-shrink:0; }
+  .note b{ color:var(--blue); }
+  .page { max-width:1280px; margin:0 auto; padding:16px 24px 60px; }
+  .head { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+  .head h1{ margin:0; font-size:19px; background:linear-gradient(135deg,var(--blue),var(--mauve)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .head .sp{ flex:1; }
+  .head .ctrl{ display:flex; gap:8px; }
+  .head .btn{ font-size:12.5px; padding:7px 14px; border-radius:7px; cursor:pointer; background:var(--panel2); color:var(--fg2); border:1px solid var(--border); }
+  .head .btn.scan{ background:linear-gradient(135deg,var(--blue),var(--periw)); color:#06122a; font-weight:700; border:none; }
+  .head .btn.auto{ border-color:var(--done); color:var(--done); }
+  .head .upd{ font-size:11px; color:var(--muted); }
+  .head .upd b{ color:var(--fg2); }
+
+  /* 概览卡片行 */
+  .overview { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .stat{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:13px 15px; }
+  .stat .sv{ font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .stat .sv.up{ color:var(--done); } .stat .sv.warm{ color:#e0a85a; } .stat .sv.hot{ color:var(--err); }
+  .stat .sl{ font-size:11px; color:var(--muted); margin-top:3px; }
+
+  /* 三栏核心 */
+  .cols{ display:grid; grid-template-columns:1fr 1fr 300px; gap:14px; margin-bottom:16px; }
+  @media(max-width:1024px){ .cols{ grid-template-columns:1fr 1fr; } }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); }
+  .card .ch{ display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--border-lo); }
+  .card .ch .t{ font-size:12.5px; font-weight:600; }
+  .card .ch .sp{ flex:1; }
+  .card .ch .badge{ font-size:9.5px; padding:1px 8px; border-radius:8px; border:1px solid; }
+  .badge.hot{ color:var(--err); border-color:#6b3a3a; background:rgba(224,90,90,.1); }
+  .badge.rise{ color:#e0a85a; border-color:#5a4a2c; background:rgba(224,168,90,.1); }
+  .badge.cold{ color:var(--teal, #4ec98f); border-color:#2c5a44; background:rgba(78,201,143,.1); }
+  .card .cb{ overflow:auto; padding:10px 14px; }
+
+  /* 主题行 */
+  .trow{ display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px solid var(--border-lo); }
+  .trow:last-child{ border-bottom:none; }
+  .trow .rnk{ width:20px; font-size:11px; color:var(--muted); font-weight:700; }
+  .trow .nm{ flex:1; font-size:12.5px; color:var(--fg2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .trow .bar-wrap{ width:72px; height:5px; background:var(--field); border-radius:2px; overflow:hidden; flex-shrink:0; }
+  .trow .bar-in{ height:100%; border-radius:2px; }
+  .trow .bar-in.hot{ background:linear-gradient(90deg,var(--err),#c05050); }
+  .trow .bar-in.rise{ background:linear-gradient(90deg,#e0a85a,#c08040); }
+  .trow .bar-in.cold{ background:linear-gradient(90deg,var(--teal,#4ec98f),#3aa978); }
+  .trow .freq{ font-size:10.5px; color:var(--muted); width:42px; text-align:right; }
+  .trow .arrow{ font-size:13px; } .arrow.u{ color:var(--done); } .arrow.d{ color:var(--err); }
+
+  /* 平台分布 */
+  .pbar{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .pbar .pl{ width:88px; font-size:11.5px; color:var(--fg2); }
+  .pbar .pw{ flex:1; height:18px; background:var(--field); border-radius:4px; overflow:hidden; }
+  .pbar .pf{ height:100%; border-radius:4px; background:linear-gradient(90deg,var(--blue),var(--periw)); }
+  .pbar .pn{ width:40px; font-size:11px; color:var(--muted); text-align:right; }
+
+  /* 底栏趋势 */
+  .trend{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-bottom:16px; }
+  .trend .tth{ font-size:12.5px; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:9px; }
+  .trend .tth .chips{ display:flex; gap:5px; }
+  .trend .tth .tchip{ font-size:10.5px; padding:3px 10px; border-radius:11px; border:1px solid var(--border); color:var(--muted); cursor:pointer; }
+  .trend .tth .tchip.on{ border-color:var(--blue); color:var(--blue); background:rgba(74,158,255,.1); }
+  /* 简易趋势图:6个月柱状 */
+  .tchart{ display:flex; align-items:flex-end; gap:16px; height:120px; padding:0 4px; }
+  .tbar{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .tbar .col{ width:100%; border-radius:6px 6px 0 0; background:linear-gradient(180deg,var(--blue),var(--periw)); opacity:.8; min-height:8px; }
+  .tbar .lbl{ font-size:10px; color:var(--muted); }
+
+  .empty { color:var(--faint); font-size:12px; text-align:center; padding:30px; }
+</style>
+</head>
+<body>
+<div class="note"><b>市场分析看板 · 布局确认稿</b> —— 独立服务 market_intelligence(爬虫+LLM+SQLite)，左侧导航开辟「📊 市场分析」。本 mock 展示核心看板布局：① 概览卡片 ② 三栏(爆款TOP10/冷门机会/平台分布) ③ 主题趋势图 ④ 手动扫描/自动开关。数据为静态示意图。请在浏览器确认。</div>
+
+<div class="page">
+  <div class="head">
+    <h1>📊 市场分析 · 短剧情报</h1>
+    <span class="upd">更新于 <b>2026-06-02 09:30</b> · 扫描 3 个平台</span>
+    <div class="ctrl">
+      <span class="btn auto">● 自动·今日已调用</span>
+      <span class="btn scan">✦ 手动扫描</span>
+    </div>
+  </div>
+
+  <!-- ① 概览 -->
+  <div class="overview">
+    <div class="stat"><div class="sv up">142</div><div class="sl">今日新增短剧</div></div>
+    <div class="stat"><div class="sv hot">18</div><div class="sl">爆款主题（热度>80）</div></div>
+    <div class="stat"><div class="sv warm">7</div><div class="sl">冷门上升趋势</div></div>
+    <div class="stat"><div class="sv">2,891</div><div class="sl">累计分析短剧 · 历史可查</div></div>
+  </div>
+
+  <!-- ② 三栏 -->
+  <div class="cols">
+    <div class="card">
+      <div class="ch"><span class="t">🔥 爆款主题 TOP10</span><span class="sp"></span><span class="badge hot">本周</span></div>
+      <div class="cb">
+        <div class="trow"><span class="rnk">1</span><span class="nm">替嫁·逆袭·打脸</span><div class="bar-wrap"><div class="bar-in hot" style="width:96%"></div></div><span class="freq">45部</span><span class="arrow u">↑8</span></div>
+        <div class="trow"><span class="rnk">2</span><span class="nm">重生·回到90年代</span><div class="bar-wrap"><div class="bar-in hot" style="width:88%"></div></div><span class="freq">38部</span><span class="arrow u">↑5</span></div>
+        <div class="trow"><span class="rnk">3</span><span class="nm">总裁·契约婚姻</span><div class="bar-wrap"><div class="bar-in hot" style="width:82%"></div></div><span class="freq">31部</span><span class="arrow d">↓3</span></div>
+        <div class="trow"><span class="rnk">4</span><span class="nm">穿越·宫斗·权谋</span><div class="bar-wrap"><div class="bar-in hot" style="width:76%"></div></div><span class="freq">27部</span><span class="arrow u">↑4</span></div>
+        <div class="trow"><span class="rnk">5</span><span class="nm">虐恋·追妻火葬场</span><div class="bar-wrap"><div class="bar-in hot" style="width:70%"></div></div><span class="freq">24部</span><span class="arrow u">↑2</span></div>
+        <div class="trow"><span class="rnk">6</span><span class="nm">神医·都市修真</span><div class="bar-wrap"><div class="bar-in rise" style="width:63%"></div></div><span class="freq">21部</span><span class="arrow d">↓1</span></div>
+        <div class="trow"><span class="rnk">7</span><span class="nm">真假千金·认亲</span><div class="bar-wrap"><div class="bar-in rise" style="width:57%"></div></div><span class="freq">18部</span><span class="arrow u">↑6</span></div>
+        <div class="trow"><span class="rnk">8</span><span class="nm">系统·签到流</span><div class="bar-wrap"><div class="bar-in cold" style="width:51%"></div></div><span class="freq">15部</span><span class="arrow u">↑9</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><span class="t">🟢 冷门上升趋势（机会窗口）</span><span class="sp"></span><span class="badge rise">近两周</span></div>
+      <div class="cb">
+        <div class="trow"><span class="rnk">1</span><span class="nm">短剧+AI/元宇宙</span><div class="bar-wrap"><div class="bar-in rise" style="width:70%"></div></div><span class="freq">8部</span><span class="arrow u">▲势头强</span></div>
+        <div class="trow"><span class="rnk">2</span><span class="nm">丧偶式育儿·现实向</span><div class="bar-wrap"><div class="bar-in rise" style="width:62%"></div></div><span class="freq">6部</span><span class="arrow u">↑4</span></div>
+        <div class="trow"><span class="rnk">3</span><span class="nm">宠物·猫狗·温情</span><div class="bar-wrap"><div class="bar-in rise" style="width:54%"></div></div><span class="freq">5部</span><span class="arrow u">↑3</span></div>
+        <div class="trow"><span class="rnk">4</span><span class="nm">非遗·传统文化</span><div class="bar-wrap"><div class="bar-in rise" style="width:48%"></div></div><span class="freq">4部</span><span class="arrow u">↑2</span></div>
+        <div class="trow"><span class="rnk">5</span><span class="nm">海外务工·跨国</span><div class="bar-wrap"><div class="bar-in rise" style="width:40%"></div></div><span class="freq">3部</span><span class="arrow u">↑3</span></div>
+        <div class="trow"><span class="rnk">6</span><span class="nm">美食+创业·烟火气</span><div class="bar-wrap"><div class="bar-in cold" style="width:34%"></div></div><span class="freq">3部</span><span class="arrow u">新品</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><span class="t">平台分布 & 题材占比</span><span class="sp"></span></div>
+      <div class="cb">
+        <div class="pbar"><span class="pl">红果短剧</span><div class="pw"><div class="pf" style="width:52%"></div></div><span class="pn">52%</span></div>
+        <div class="pbar"><span class="pl">快手短剧</span><div class="pw"><div class="pf" style="width:28%"></div></div><span class="pn">28%</span></div>
+        <div class="pbar"><span class="pl">抖音短剧</span><div class="pw"><div class="pf" style="width:20%"></div></div><span class="pn">20%</span></div>
+        <div style="margin-top:14px;font-size:11px;color:var(--faint)">题材分布 —</div>
+        <div class="pbar"><span class="pl">都市情感</span><div class="pw"><div class="pf" style="width:38%"></div></div><span class="pn">38%</span></div>
+        <div class="pbar"><span class="pl">古风/穿越</span><div class="pw"><div class="pf" style="width:26%"></div></div><span class="pn">26%</span></div>
+        <div class="pbar"><span class="pl">现言/虐恋</span><div class="pw"><div class="pf" style="width:18%"></div></div><span class="pn">18%</span></div>
+        <div class="pbar"><span class="pl">玄幻/修真</span><div class="pw"><div class="pf" style="width:10%"></div></div><span class="pn">10%</span></div>
+        <div class="pbar"><span class="pl">悬疑/惊悚</span><div class="pw"><div class="pf" style="width:8%"></div></div><span class="pn">8%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ 趋势图 -->
+  <div class="trend">
+    <div class="tth"><span>📈 主题趋势对比（近6个月）</span><span class="sp"></span>
+      <div class="chips"><span class="tchip on">替嫁逆袭</span><span class="tchip">重生年代</span><span class="tchip">系统签到</span><span class="tchip">+ 添加对比</span></div>
+    </div>
+    <div class="tchart">
+      <div class="tbar"><div class="col" style="height:36%"></div><div class="lbl">1月</div></div>
+      <div class="tbar"><div class="col" style="height:44%"></div><div class="lbl">2月</div></div>
+      <div class="tbar"><div class="col" style="height:58%"></div><div class="lbl">3月</div></div>
+      <div class="tbar"><div class="col" style="height:72%"></div><div class="lbl">4月</div></div>
+      <div class="tbar"><div class="col" style="height:85%"></div><div class="lbl">5月</div></div>
+      <div class="tbar"><div class="col" style="height:96%"></div><div class="lbl">6月</div></div>
+    </div>
+  </div>
+
+  <div style="color:var(--faint);font-size:11px;margin-top:6px;">
+    设置中可启用「启动后自动调用」（每天多次启动仅调一次）。历史数据存入 market_intelligence SQLite，累计分析 2891 条记录。
+  </div>
+</div>
+</body>
+</html>
