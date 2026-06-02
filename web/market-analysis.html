@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>糯米AI · 市场分析</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body { overflow-x: hidden; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 16px 24px 60px; }
+  .head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+  .head h1 { margin: 0; font-size: 19px; background: linear-gradient(135deg, var(--blue), var(--mauze)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .head .sp { flex: 1; }
+  .head .ctrl { display: flex; gap: 8px; }
+  .head .btn { font: inherit; font-size: 12.5px; padding: 7px 14px; border-radius: 7px; cursor: pointer; background: var(--panel2); color: var(--fg2); border: 1px solid var(--border); }
+  .head .btn.scan { background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; font-weight: 700; border: none; }
+  .head .btn.scan:disabled { filter: grayscale(.6); }
+  .head .upd { font-size: 11px; color: var(--muted); }
+  .head .upd b { color: var(--fg2); }
+  .overview { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 840px) { .overview { grid-template-columns: repeat(2, 1fr); } }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 15px; }
+  .stat .sv { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .sv.up { color: var(--done); }
+  .stat .sv.warm { color: #e0a85a; }
+  .stat .sv.hot { color: var(--err); }
+  .stat .sl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr 300px; gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 1024px) { .cols { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 700px) { .cols { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+  .card .ch { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--border-lo); }
+  .card .ch .t { font-size: 12.5px; font-weight: 600; }
+  .card .ch .sp { flex: 1; }
+  .badge { font-size: 9.5px; padding: 1px 8px; border-radius: 8px; border: 1px solid; }
+  .badge.hot { color: var(--err); border-color: #6b3a3a; background: rgba(224,90,90,.1); }
+  .badge.rise { color: #e0a85a; border-color: #5a4a2c; background: rgba(224,168,90,.1); }
+  .badge.cold { color: var(--teal, #4ec98f); border-color: #2c5a44; background: rgba(78,201,143,.1); }
+  .card .cb { overflow: auto; padding: 10px 14px; }
+  .trow { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px solid var(--border-lo); }
+  .trow:last-child { border-bottom: none; }
+  .trow .rnk { width: 20px; font-size: 11px; color: var(--muted); font-weight: 700; }
+  .trow .nm { flex: 1; font-size: 12.5px; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trow .bar-wrap { width: 72px; height: 5px; background: var(--field); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+  .trow .bar-in { height: 100%; border-radius: 2px; }
+  .trow .bar-in.hot { background: linear-gradient(90deg, var(--err), #c05050); }
+  .trow .bar-in.rise { background: linear-gradient(90deg, #e0a85a, #c08040); }
+  .trow .bar-in.cold { background: linear-gradient(90deg, var(--teal, #4ec98f), #3aa978); }
+  .trow .freq { font-size: 10.5px; color: var(--muted); width: 42px; text-align: right; }
+  .trow .arrow { font-size: 13px; }
+  .arrow.u { color: var(--done); }
+  .arrow.d { color: var(--err); }
+  .pbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .pbar .pl { width: 88px; font-size: 11.5px; color: var(--fg2); }
+  .pbar .pw { flex: 1; height: 18px; background: var(--field); border-radius: 4px; overflow: hidden; }
+  .pbar .pf { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--blue), var(--periw)); }
+  .pbar .pn { width: 40px; font-size: 11px; color: var(--muted); text-align: right; }
+  .trend { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px; }
+  .trend .tth { font-size: 12.5px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 9px; }
+  .tchips { display: flex; gap: 5px; }
+  .tchip { font-size: 10.5px; padding: 3px 10px; border-radius: 11px; border: 1px solid var(--border); color: var(--muted); cursor: pointer; }
+  .tchip.on { border-color: var(--blue); color: var(--blue); background: rgba(74,158,255,.1); }
+  .tchart { display: flex; align-items: flex-end; gap: 16px; height: 120px; padding: 0 4px; }
+  .tbar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .tbar .col { width: 100%; border-radius: 6px 6px 0 0; background: linear-gradient(180deg, var(--blue), var(--periw)); opacity: .8; min-height: 8px; }
+  .tbar .lbl { font-size: 10px; color: var(--muted); }
+  .empty { color: var(--faint); font-size: 12px; text-align: center; padding: 30px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="head">
+    <h1>📊 市场分析 · 短剧情报</h1>
+    <span class="upd" id="lastUpdate">加载中…</span>
+    <div class="ctrl">
+      <button class="btn scan" id="btnScan" onclick="doScan()">✦ 手动扫描</button>
+    </div>
+  </div>
+  <div class="overview" id="overview"></div>
+  <div class="cols" id="cols"></div>
+  <div class="trend" id="trendPanel"></div>
+</div>
+<script>
+const MARKET_API = new URLSearchParams(location.search).get("market_intel") || "http://127.0.0.1:18460";
+const $ = (id) => document.getElementById(id);
+
+/* 取 report：优先调后端，失败回退空态(提示服务未启动) */
+async function fetchReport() {
+  try {
+    const r = await fetch(MARKET_API + "/analysis/report?latest=1");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+async function fetchHotThemes(n) {
+  try {
+    const r = await fetch(MARKET_API + "/analysis/hot_themes?limit=" + (n || 10));
+    if (!r.ok) return [];
+    const d = await r.json();
+    return Array.isArray(d.themes) ? d.themes : [];
+  } catch (e) { return []; }
+}
+
+async function fetchColdTopics(n) {
+  try {
+    const r = await fetch(MARKET_API + "/analysis/cold_topics?limit=" + (n || 6));
+    if (!r.ok) return [];
+    const d = await r.json();
+    return Array.isArray(d.topics) ? d.topics : [];
+  }
+  catch (e) { return []; }
+}
+
+async function fetchPlatformStats() {
+  try {
+    const r = await fetch(MARKET_API + "/analysis/platform_stats");
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+async function fetchTrend(theme) {
+  try {
+    const r = await fetch(MARKET_API + "/analysis/trend?theme=" + encodeURIComponent(theme) + "&months=6");
+    if (!r.ok) return [];
+    const d = await r.json();
+    return Array.isArray(d.points) ? d.points : [];
+  } catch (e) { return []; }
+}
+
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+
+async function loadAll() {
+  const [rep, hot, cold, plat] = await Promise.all([fetchReport(), fetchHotThemes(), fetchColdTopics(), fetchPlatformStats()]);
+  renderOverview(rep);
+  renderHotThemes(hot);
+  renderColdTopics(cold);
+  renderPlatform(plat);
+  renderTrend();
+  if (rep && rep.generated_at) {
+    $("lastUpdate").innerHTML = "更新于 <b>" + esc(rep.generated_at.slice(0, 16).replace("T", " ")) + "</b>";
+  } else if (rep) {
+    $("lastUpdate").innerHTML = '<b>已有数据</b>';
+  } else {
+    $("lastUpdate").innerHTML = '<b style="color:var(--warn)">市场情报服务未连接</b> · 请确认 web_app 已启动 market_intelligence';
+  }
+}
+
+function renderOverview(rep) {
+  const root = $("overview");
+  if (!rep) {
+    root.innerHTML = '<div class="empty" style="grid-column:1/-1">市场情报服务未启动或尚无数据。<br>请在设置中启用「启动后自动调用」或点「手动扫描」。</div>';
+    return;
+  }
+  const s = rep.stats || {};
+  root.innerHTML = `
+    <div class="stat"><div class="sv up">${esc(s.today_new || "—")}</div><div class="sl">今日新增短剧</div></div>
+    <div class="stat"><div class="sv hot">${esc(s.hot_count || "—")}</div><div class="sl">爆款主题（热度>80）</div></div>
+    <div class="stat"><div class="sv warm">${esc(s.cold_rising || "—")}</div><div class="sl">冷门上升趋势</div></div>
+    <div class="stat"><div class="sv">${esc(s.total_analyzed || "—")}</div><div class="sl">累计分析 · 历史可查</div></div>`;
+}
+
+function renderHotThemes(themes) {
+  var h = '<div class="ch"><span class="t">🔥 爆款主题</span><span class="sp"></span><span class="badge hot">热度</span></div><div class="cb">';
+  if (!themes.length) h += '<div class="empty">暂无数据</div>';
+  else themes.forEach(function (t, i) {
+    var pct = Math.min(100, (t.heat || 50));
+    var arrow = (t.trend || "").startsWith("up") ? '<span class="arrow u">↑</span>' : ((t.trend || "").startsWith("down") ? '<span class="arrow d">↓</span>' : "");
+    h += '<div class="trow"><span class="rnk">' + (i + 1) + '</span><span class="nm">' + esc(t.name || t.theme_name || "") + '</span>' +
+      '<div class="bar-wrap"><div class="bar-in hot" style="width:' + pct + '%"></div></div>' +
+      '<span class="freq">' + esc(t.freq || t.mention_count || "") + '</span>' + arrow + '</div>';
+  });
+  h += '</div>';
+  $("cols").innerHTML = '<div class="card">' + h + '</div>' + $("cols").innerHTML;
+}
+
+function renderColdTopics(topics) {
+  var h = '<div class="ch"><span class="t">🟢 冷门上升（机会窗口）</span><span class="sp"></span><span class="badge rise">近两周</span></div><div class="cb">';
+  if (!topics.length) h += '<div class="empty">暂无数据</div>';
+  else topics.forEach(function (t, i) {
+    var pct = Math.min(100, (t.rising_speed || 30));
+    h += '<div class="trow"><span class="rnk">' + (i + 1) + '</span><span class="nm">' + esc(t.name || t.theme_name || "") + '</span>' +
+      '<div class="bar-wrap"><div class="bar-in rise" style="width:' + pct + '%"></div></div>' +
+      '<span class="freq">' + esc(t.supply_gap || "") + '</span>' +
+      '<span class="arrow u">' + esc(t.rising_speed || "") + '</span></div>';
+  });
+  h += '</div>';
+  $("cols").innerHTML += '<div class="card">' + h + '</div>';
+}
+
+function renderPlatform(plat) {
+  var h = '<div class="ch"><span class="t">平台 & 题材</span><span class="sp"></span></div><div class="cb">';
+  if (!plat) { h += '<div class="empty">暂无数据</div>'; }
+  else {
+    (plat.platforms || []).forEach(function (p) {
+      h += '<div class="pbar"><span class="pl">' + esc(p.name || "") + '</span><div class="pw"><div class="pf" style="width:' + esc(p.pct || 50) + '%"></div></div><span class="pn">' + esc(p.pct || "") + '%</span></div>';
+    });
+    if (plat.genre_distribution) {
+      h += '<div style="margin-top:14px;font-size:11px;color:var(--faint)">题材分布 —</div>';
+      Object.entries(plat.genre_distribution).forEach(function (e) {
+        h += '<div class="pbar"><span class="pl">' + esc(e[0]) + '</span><div class="pw"><div class="pf" style="width:' + esc(e[1]) + '%"></div></div><span class="pn">' + esc(e[1]) + '%</span></div>';
+      });
+    }
+  }
+  h += '</div>';
+  $("cols").innerHTML += '<div class="card">' + h + '</div>';
+}
+
+async function renderTrend(theme) {
+  theme = theme || "替嫁逆袭";
+  var points = await fetchTrend(theme);
+  var h = '<div class="tth"><span>📈 主题趋势（近6个月）</span><span class="sp"></span>' +
+    '<div class="tchips"><span class="tchip' + (theme === "替嫁逆袭" ? " on" : "") + '" onclick="renderTrend(\'替嫁逆袭\')">替嫁逆袭</span>' +
+    '<span class="tchip' + (theme === "重生年代" ? " on" : "") + '" onclick="renderTrend(\'重生年代\')">重生年代</span>' +
+    '<span class="tchip' + (theme === "系统签到" ? " on" : "") + '" onclick="renderTrend(\'系统签到\')">系统签到</span></div></div>' +
+    '<div class="tchart">';
+  if (!points.length) {
+    for (var i = 1; i <= 6; i++) h += '<div class="tbar"><div class="col" style="height:30%"></div><div class="lbl">' + i + '月</div></div>';
+  } else {
+    var max = Math.max.apply(null, points.map(function (p) { return p.value || 0; })) || 100;
+    points.forEach(function (p) {
+      var pct = Math.round((p.value || 0) / max * 100);
+      h += '<div class="tbar"><div class="col" style="height:' + pct + '%"></div><div class="lbl">' + esc(p.label || p.month || "") + '</div></div>';
+    });
+  }
+  h += '</div>';
+  $("trendPanel").innerHTML = h;
+}
+
+async function doScan() {
+  var btn = $("btnScan");
+  btn.disabled = true; var old = btn.textContent; btn.textContent = "扫描中…";
+  try {
+    var r = await fetch(MARKET_API + "/crawl/now", { method: "POST" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    alert("扫描完成 ✓");
+    loadAll();
+  } catch (e) {
+    alert("扫描失败：" + (e && e.message || e));
+  } finally { btn.disabled = false; btn.textContent = old; }
+}
+
+loadAll();
+</script>
+</body>
+</html>

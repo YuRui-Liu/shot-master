@@ -4,9 +4,10 @@
   1) spawn media_agent(18450)：既是媒体后端(imaging/转场/出图/配乐/skills)，又经 /ui
      静态同源托管 web/ 设计系统页面。
   2) spawn screenwriter_agent：编剧链路 SSE(立意/剧本/分镜/提示词/视频/配音)。
-  3) QWebEngine 打开 http://127.0.0.1:18450/ui/app.html —— 即 web/app.html 应用壳
-     (糯米 AI 顶栏 + 本项目 6 导航 + hash 路由)，各内容页经 ?sw=&media= 调两个后端。
-  4) 退出：确定性 teardown 先 terminate 两个 agent 再回收窗口，避免 exit5 native 崩溃。
+  3) spawn market_intelligence(18460)：市场情报服务(风格圣经/题材趋势/竞品分析)。
+  4) QWebEngine 打开 http://127.0.0.1:18450/ui/app.html —— 即 web/app.html 应用壳
+     (糯米 AI 顶栏 + 本项目 6 导航 + hash 路由)，各内容页经 ?sw=&media=&market_intel= 调三个后端。
+  5) 退出：确定性 teardown 先 terminate 三个 agent 再回收窗口，避免 exit5 native 崩溃。
 
 与现有 PySide6 `python -m drama_shot_master.main` 并存（绞杀者：Web 入口逐步取代）。
 """
@@ -22,6 +23,9 @@ from pathlib import Path
 
 MEDIA_PORT = 18450
 MEDIA_API = f"http://127.0.0.1:{MEDIA_PORT}"
+
+MARKET_INTEL_PORT = 18460
+MARKET_INTEL_API = f"http://127.0.0.1:{MARKET_INTEL_PORT}"
 
 
 def _wait_health(url: str, timeout: float = 25.0) -> bool:
@@ -66,14 +70,27 @@ def main() -> int:
         except Exception:
             pass
 
-    state = {"lifecycle": None, "media": None, "media_ok": False, "ready": False,
-             "sw_port": getattr(cfg, "screenwriter_agent_port", 18430)}
+    state = {"lifecycle": None, "media": None, "media_ok": False,
+             "market": None, "market_ok": False, "ready": False,
+             "sw_port": getattr(cfg, "screenwriter_agent_port", 18430),
+             "mi_port": MARKET_INTEL_PORT}
 
     def _work():
-        # 后台线程 spawn 两个 agent —— 不阻塞 GUI，splash 才能立即渲染+动画
+        # 后台线程 spawn 三个 agent（并行 Popen）—— 不阻塞 GUI，splash 才能立即渲染+动画
         state["media"] = subprocess.Popen([sys.executable, "-m", "media_agent.server"])
+        try:
+            state["market"] = subprocess.Popen(
+                [sys.executable, "-m", "market_intelligence.server"])
+        except Exception as e:
+            print(f"[web_app] market_intelligence spawn 异常(市场情报页将不可用): {e}")
+
         state["media_ok"] = _wait_health(MEDIA_API + "/health")
         print(f"[web_app] media_agent: {'OK' if state['media_ok'] else 'TIMEOUT'} @ {MEDIA_API}")
+
+        if state["market"] is not None:
+            state["market_ok"] = _wait_health(MARKET_INTEL_API + "/health")
+            print(f"[web_app] market_intelligence: {'OK' if state['market_ok'] else 'TIMEOUT'} @ {MARKET_INTEL_API}")
+
         try:
             from drama_shot_master.agents.screenwriter_lifecycle import ScreenwriterLifecycle
             lc = ScreenwriterLifecycle(base_port=state["sw_port"], cfg=cfg)
@@ -84,7 +101,7 @@ def main() -> int:
             print(f"[web_app] screenwriter_agent spawn 失败(编剧页将不可用): {e}")
         state["ready"] = True
 
-    prog = {"p": 0.06, "m": False}
+    prog = {"p": 0.06, "m": False, "m2": False}
     timer = QTimer()
 
     def _tick():
@@ -92,13 +109,17 @@ def main() -> int:
         if state["media_ok"] and not prog["m"]:
             prog["m"] = True
             _js("window.splashStage && (splashStage(0,'done'),splashStage(1,'active'))")
+        if state["market_ok"] and not prog["m2"]:
+            prog["m2"] = True
+            _js("window.splashStage && (splashStage(1,'done'),splashStage(2,'active'),splashStage(3,'active'))")
         prog["p"] = min(0.92, prog["p"] + 0.02)
         _js(f"window.splashProgress && splashProgress({prog['p']:.3f})")
         if state["ready"]:
             timer.stop()
-            _js("window.splashStage && (splashStage(1,'done'),splashStage(2,'done'),splashStage(3,'done')); window.splashProgress && splashProgress(1)")
+            _js("window.splashStage && (splashStage(2,'done'),splashStage(3,'done'),splashStage(4,'done')); window.splashProgress && splashProgress(1)")
             sw = state["sw_port"]
-            win.view.load(QUrl(f"{MEDIA_API}/ui/app.html?sw=http://127.0.0.1:{sw}&media={MEDIA_API}"))
+            mi = state.get("mi_port", MARKET_INTEL_PORT)
+            win.view.load(QUrl(f"{MEDIA_API}/ui/app.html?sw=http://127.0.0.1:{sw}&media={MEDIA_API}&market_intel=http://127.0.0.1:{mi}"))
 
     state["_timer"] = timer
     timer.timeout.connect(_tick)
@@ -113,19 +134,23 @@ def main() -> int:
     finally:
         lifecycle = state["lifecycle"]
         media = state["media"]
-        # 4) 确定性 teardown（避免 widget 在 QApplication 销毁后析构 → exit5）
+        market = state.get("market")
+        # 5) 确定性 teardown（避免 widget 在 QApplication 销毁后析构 → exit5）
         if lifecycle is not None:
             try:
                 lifecycle.terminate()
             except Exception:
                 pass
-        try:
-            media.terminate(); media.wait(timeout=5)
-        except Exception:
+        for proc, label in ((media, "media"), (market, "market_intel")):
+            if proc is None:
+                continue
             try:
-                media.kill()
+                proc.terminate(); proc.wait(timeout=5)
             except Exception:
-                pass
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
         try:
             win.hide(); win.deleteLater()
             app.processEvents(); app.sendPostedEvents(None, 0)

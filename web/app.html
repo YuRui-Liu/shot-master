@@ -109,6 +109,7 @@
       <!-- NAV_ITEMS (nav_config.py 本项目规范) -->
       <a data-key="project_center" data-page="project-center.html"><span class="ic">▦</span>项目中心</a>
       <a data-key="overview"      data-page="overview.html"        ><span class="ic">▦</span>概览</a>
+      <a data-key="market"        data-page="market-analysis.html"  ><span class="ic">📊</span>市场分析</a>
       <a data-key="screenwriter"  data-page="ideate.html"          ><span class="ic">✎</span>剧本创作</a>
       <a data-key="asset_library" data-page="asset-library.html"   ><span class="ic">◈</span>资源库</a>
       <a data-key="storyboard"    data-page="storyboard-board.html"><span class="ic">▤</span>分镜板</a>
@@ -153,7 +154,7 @@
       { label: '立意', page: 'ideate.html' },
       { label: '剧本', page: 'script.html' },
       { label: '分镜', page: 'storyboard-script.html' },
-      { label: '出图 Prompt', page: 'prompts.html' },
+      { label: '出图提示词', page: 'prompts.html' },
     ],
   };
 
@@ -222,7 +223,7 @@
     if (d.type === 'project.open' && d.path) openProject(d.path);
     // 编剧链阶段推进/回退（立意→剧本→分镜→出图prompt→视频生成）
     else if (d.type === 'ideate.advance') gotoSwStage('剧本');
-    else if (d.type === 'storyboard.advance') gotoSwStage('出图 Prompt');
+    else if (d.type === 'storyboard.advance') gotoSwStage('出图提示词');
     else if (d.type === 'prompts.back') gotoSwStage('分镜');
     else if (d.type === 'prompts.advance') go('asset_library');   // 出图prompt 完成 → 资源库
     // 概览/其它页通用导航：{type:'nav', key:<左栏 data-key>}

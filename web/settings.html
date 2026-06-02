@@ -275,6 +275,7 @@ const SECTIONS = [
   // 应用（项目管理 / 流程锁与调试）
   { id: 'project',    title: '项目管理',    cat: '应用',     ico: '📁' },
   { id: 'pipeline',   title: '流程 & 调试', cat: '应用',     ico: '🔒' },
+  { id: 'market',     title: '市场分析',    cat: '应用',     ico: '📊' },
 ];
 const CAT_ORDER = ['平台核心', '生成功能', '辅助', '外观', '应用'];
 
@@ -638,6 +639,20 @@ const FORMS = {
   _stub(s) {
     return `<p class="intro">「${s ? s.title : ''}」设置项（占位）。真机由主控接 cfg 与对应 section 的 load_from/validate/save_to。</p>` +
       card('设置', `<div class="empty">表单占位 — 待主控接入。</div>`);
+  },
+
+  market(s) {
+    const auto = !!getCfg('market_auto_crawl', false);
+    const model = getCfg('market_llm_model') || getCfg('screenwriter_models', {}).ideate || '';
+    return `<p class="intro">市场情报（独立服务 market_intelligence :18460）—— 爬虫+LLM 分析短剧市场趋势、爆款主题、冷门机会。结果存入 SQLite 累计分析。</p>` +
+      card('分析设置',
+        row('自动分析',
+          `<span class="tg ${auto ? 'on' : ''}" id="marketAutoTg"><span class="knob"></span></span>
+           <span class="tg-note" id="marketAutoNote">${auto ? '开 — 启动后自动调用（每日仅一次）' : '关 — 手动调用（默认）'}</span>`,
+          '每天多次启动只调用一次。需后端 market_intelligence 服务运行。')) +
+      card('分析模型',
+        row('LLM 模型', `<input class="inp" data-cfg="market_llm_model" placeholder="如 deepseek-v4-flash" value="${htmlesc(model)}">`,
+          '市场分析的 LLM 模型（默认复用编剧模型）。'));
   },
 };
 
