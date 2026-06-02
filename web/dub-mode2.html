@@ -575,6 +575,9 @@ function currentEpisodeId() {
   return m ? 'E' + m[1] : 'E1';
 }
 
+/* HTML 转义（防 XSS） */
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
 /* 解析单条 SSE 帧 → { event, data }（同 ideate：event:/data: 行，data 是 JSON） */
 function parseSSE(chunk) {
   let event = 'message'; const dataLines = [];
@@ -891,7 +894,7 @@ async function runAudioPrompt(onStatus) {
     const body = {
       project_dir: PROJECT_DIR,
       episode_id: ep,
-      options: { language: "zh", include_bgm_tags: true },
+      options: { language: "中文", include_bgm_tags: true },
       reasoning_effort: "high",
     };
     const resp = await fetch(SW_API + "/audio_prompt", {
@@ -1163,7 +1166,7 @@ function wireActions() {
           // design：音色取本卡「音色」下拉作为音色设计风格描述
           const voiceSel = document.querySelector(`select[data-fld="voice"][data-shot="${n}"]`);
           const style = voiceSel ? (voiceSel.value || "").trim() : "";
-          body = { text, mode: "design", language: "zh", style, speed };
+          body = { text, mode: "design", language: "中文", style, speed };
         }
 
         if (!isListen) {
@@ -1400,7 +1403,7 @@ function m1BuildBody() {
   return {
     ok: true,
     body: {
-      text, mode: "design", language: "zh",
+      text, mode: "design", language: "中文",
       style: (t.style || "").trim(),
       speed: t.speed,
       sampling: Object.keys(sampling).length ? sampling : undefined,
