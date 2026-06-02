@@ -149,6 +149,8 @@ class Config:
         for k, v in kwargs.items():
             if hasattr(self, k):
                 setattr(self, k, v)
+        # 运行时同步：workflow_ids → 旧 key（让现有后端代码能从旧字段读到新值）
+        _sync_workflow_ids_to_old_keys(self)
         if self.settings_path:
             data = {
                 "current_provider": self.current_provider,
@@ -472,3 +474,44 @@ def _post_load_migrate(cfg) -> None:
             cfg.current_translator = "deeplx"
         else:
             cfg.current_translator = "tencent"
+
+    # 向后兼容：旧 key (dub_workflow_ids, soundtrack_workflow_id, sfx_workflow_id)
+    # ←→ 统一 workflow_ids 双向同步。
+    # (a) 旧 key → workflow_ids（让 UI data-wfid 能读到旧值）
+    # (b) workflow_ids → 旧 key（让现有后端代码能从旧字段读到新值）
+    wids: dict = dict(cfg.workflow_ids or {})
+
+    # (a) 旧 → 新
+    if isinstance(cfg.dub_workflow_ids, dict) and cfg.dub_workflow_ids:
+        if "voice_design" in cfg.dub_workflow_ids and "tts_design" not in wids:
+            wids["tts_design"] = cfg.dub_workflow_ids["voice_design"]
+        if "voice_clone" in cfg.dub_workflow_ids and "tts_clone" not in wids:
+            wids["tts_clone"] = cfg.dub_workflow_ids["voice_clone"]
+    if cfg.soundtrack_workflow_id and "bgm" not in wids:
+        wids["bgm"] = cfg.soundtrack_workflow_id
+    if cfg.sfx_workflow_id and "sfx" not in wids:
+        wids["sfx"] = cfg.sfx_workflow_id
+
+    if wids != cfg.workflow_ids:
+        cfg.workflow_ids = wids
+
+    # (b) 新 → 旧（让现有后端代码继续读到值）
+    if wids:
+        _sync_workflow_ids_to_old_keys(cfg)
+
+
+def _sync_workflow_ids_to_old_keys(cfg) -> None:
+    """运行时同步：workflow_ids → 旧 key 字段（workflow_ids 为主，旧 key 为派生）。"""
+    wids = dict(cfg.workflow_ids or {})
+    if not wids:
+        return
+    if not isinstance(cfg.dub_workflow_ids, dict):
+        cfg.dub_workflow_ids = {}
+    if "tts_design" in wids:
+        cfg.dub_workflow_ids["voice_design"] = wids["tts_design"]
+    if "tts_clone" in wids:
+        cfg.dub_workflow_ids["voice_clone"] = wids["tts_clone"]
+    if "bgm" in wids:
+        cfg.soundtrack_workflow_id = wids["bgm"]
+    if "sfx" in wids:
+        cfg.sfx_workflow_id = wids["sfx"]

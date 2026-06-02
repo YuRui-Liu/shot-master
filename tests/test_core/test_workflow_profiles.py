@@ -59,3 +59,91 @@ def test_load_extras_reads_overrides(monkeypatch, tmp_path):
 
 def test_load_extras_for_profile_without_yaml():
     assert wp.load_extras(wp.PROFILES["director"]) == []
+
+
+# ── 音频 profile ────────────────────────────────────────────────────
+
+def test_audio_profiles_count():
+    """四个音频 workflow profile 全部注册。"""
+    assert set(wp.AUDIO_PROFILES) == {"tts_design", "tts_clone", "bgm", "sfx"}
+
+
+def test_tts_design_key_nodes():
+    p = wp.AUDIO_PROFILES["tts_design"]
+    assert p.key == "tts_design"
+    assert p.name == "音色设计"
+    assert p.template_filename == "Qwen3 TTS 音色设计_api.json"
+    assert p.key_nodes["text"] == "14"
+    assert p.key_nodes["audio_style"] == "15"
+    assert p.key_nodes["voice_design"] == "22"
+    assert p.key_nodes["model_loader"] == "23"
+    assert p.key_nodes["save_audio"] == "18"
+
+
+def test_tts_clone_key_nodes():
+    p = wp.AUDIO_PROFILES["tts_clone"]
+    assert p.key == "tts_clone"
+    assert p.name == "声音克隆"
+    assert p.template_filename == "TTS2 情感声音克隆_input_switch_api.json"
+    assert p.key_nodes["text"] == "4"
+    assert p.key_nodes["speaker_audio"] == "10"
+    assert p.key_nodes["emo_text"] == "16"
+    assert p.key_nodes["emo_audio"] == "19"
+    assert p.key_nodes["emo_vector"] == "21"
+    assert p.key_nodes["emotion_selector"] == "103"
+    assert p.key_nodes["run_node"] == "1"
+    assert p.key_nodes["save_audio"] == "5"
+    assert "情感模式" in p.notes
+
+
+def test_bgm_key_nodes():
+    p = wp.AUDIO_PROFILES["bgm"]
+    assert p.key == "bgm"
+    assert p.name == "配BGM (ACE-Step)"
+    assert p.template_filename == "Ace-Step1.5X 配乐_api.json"
+    assert p.key_nodes["tags_prompt"] == "94"
+    assert p.key_nodes["bpm"] == "203"
+    assert p.key_nodes["duration"] == "205"
+    assert p.key_nodes["seed"] == "109"
+    assert p.key_nodes["save_audio"] == "107"
+
+
+def test_sfx_key_nodes():
+    p = wp.AUDIO_PROFILES["sfx"]
+    assert p.key == "sfx"
+    assert p.name == "配SFX (Stable Audio)"
+    assert p.template_filename == "Stable audio 3纯音乐-音效-VFX-One-Shot音频_api.json"
+    assert p.key_nodes["user_prompt"] == "92"
+    assert p.key_nodes["duration"] == "98"
+    assert p.key_nodes["enable_reprompt"] == "97"
+    assert p.key_nodes["mode_selector"] == "108"
+    assert p.key_nodes["save_audio_mp3"] == "78"
+    assert p.key_nodes["save_audio_flac"] == "102"
+    # SFX notes 提示 LLM 改写 + mode_selector 存疑
+    assert "LLM" in p.notes
+    assert "存疑" in p.notes
+
+
+def test_get_audio_profile():
+    assert wp.get_audio_profile("tts_design") is wp.AUDIO_PROFILES["tts_design"]
+    assert wp.get_audio_profile("nope") is None
+    assert wp.get_audio_profile("bgm") is wp.AUDIO_PROFILES["bgm"]
+
+
+def test_audio_template_path_exists():
+    """所有音频模板 JSON 文件在 comfyui_workflow/ 下必须存在。"""
+    for key, prof in wp.AUDIO_PROFILES.items():
+        p = wp.audio_template_path_for(prof)
+        assert p.exists(), f"{key}: 模板缺失 {p}"
+        assert p.suffix == ".json", f"{key}: 模板非 .json"
+
+
+def test_video_profiles_unchanged():
+    """确保原有视频 profile 的 node ID 不受音频 profile 新增影响。"""
+    assert set(wp.PROFILES) == {"director", "director_v3"}
+    p = wp.PROFILES["director"]
+    assert p.director_node == "4"
+    assert p.save_video_node == "32"
+    p3 = wp.PROFILES["director_v3"]
+    assert p3.director_node == "672"
+    assert p3.save_video_node == "683"

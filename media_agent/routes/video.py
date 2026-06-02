@@ -193,8 +193,9 @@ class LtxRequest(BaseModel):
     aspect: Optional[str] = None              # 旧字段别名
     custom_w: Optional[int] = None
     custom_h: Optional[int] = None
-    # 不截断：有首帧图时按图真实像素宽高比出图（默认开）。custom_w/h 时不生效。
+    # 不截断：有首帧图时按图真实像素宽高比出图（默认开）。
     fit_to_input_image: bool = True
+    use_custom_resolution: bool = False           # 用户显式指定自定义分辨率(宽/高优先于预设)
 
     # ----- 采样 -----
     noise_seed: Optional[int] = None
@@ -310,10 +311,12 @@ def _do_ltx(req: LtxRequest) -> dict:
         spec_kwargs["epsilon"] = float(req.epsilon)
 
     # 分辨率：自定义宽高优先；否则预设串。
-    if req.use_custom_resolution:
+    # 自定义宽高：用户显式设了 use_custom_resolution 或提供了 custom_w/h 即启用
+    use_custom = req.use_custom_resolution or (req.custom_w and req.custom_h)
+    if use_custom:
         spec_kwargs["use_custom_resolution"] = True
-        spec_kwargs["custom_width"] = int(req.custom_w)
-        spec_kwargs["custom_height"] = int(req.custom_h)
+        spec_kwargs["custom_width"] = req.custom_w or 0
+        spec_kwargs["custom_height"] = req.custom_h or 0
     else:
         res = req.eff_resolution()
         if res:
