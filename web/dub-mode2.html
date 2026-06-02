@@ -1218,9 +1218,11 @@ function wireActions() {
    切换时连带显隐共享的集/镜下拉、一键分镜配音、对齐提示（这些只属于模式2）。 */
 function applyMode(mode) {
   const isM1 = mode === "m1";
-  document.getElementById("mode1Root").style.display = isM1 ? "" : "none";
-  document.getElementById("mode2Root").style.display = isM1 ? "none" : "";
-  // 模式2 专属的顶栏控件（集/镜下拉、一键分镜配音、对齐提示）在模式1 下隐藏
+  // 防御：DOM 可能尚未就绪(iframe 异步加载/缓存旧版)，缺容器则静默跳过
+  const root1 = document.getElementById("mode1Root");
+  const root2 = document.getElementById("mode2Root");
+  if (root1) root1.style.display = isM1 ? "" : "none";
+  if (root2) root2.style.display = isM1 ? "none" : "";
   ["epSelect", "shotSelect", "oneClick", "alignNote"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.style.display = isM1 ? "none" : "";

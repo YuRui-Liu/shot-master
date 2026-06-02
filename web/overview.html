@@ -316,11 +316,18 @@ function renderRecent(items) {
     el.className = "asset";
     const url = mediaUrl(r.path);
     const vtag = r.kind === "video" ? `<span class="vtag">▶</span>` : "";
-    // 缩略图：图/视频均尝试 <img>（视频可能无缩略 → onerror 回退文字占位）。
-    const ph = url
-      ? `<img src="${esc(url)}" alt="" loading="lazy"
-             onerror="this.parentNode.textContent=this.alt||'无预览';">${vtag}`
-      : esc(r.name);
+    // 缩略图/预览：图片用 <img>，视频用 <video>(/file 可流式,浏览器可播可首帧)。
+    let ph;
+    if (!url) ph = esc(r.name);
+    else if (r.kind === "video") {
+      ph = `<video src="${esc(url)}" muted preload="metadata"` +
+           ` style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;` +
+           `opacity:.85;pointer-events:none;"` +
+           ` onerror="this.parentNode.textContent=(this.src?this.src.split('/').pop():'')||'无预览';">${vtag}`;
+    } else {
+      ph = `<img src="${esc(url)}" alt="" loading="lazy"` +
+           ` onerror="this.parentNode.textContent=this.alt||'无预览';">${vtag}`;
+    }
     el.innerHTML = `
       <div class="ph">${ph}</div>
       <div class="cap">
