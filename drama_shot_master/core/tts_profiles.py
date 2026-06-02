@@ -25,9 +25,9 @@ VOICE_CLONE = TTSProfile(
     nodes={
         "text": "4", "speaker_audio": "10",
         "emo_text": "16", "emo_audio": "19", "emo_vector": "21",
-        "switch": "27",
-        "branch_default": "1", "branch_emo_text": "14",
-        "branch_emo_audio": "17", "branch_emo_vector": "20",
+        "switch": "103",
+        "branch_default": "1", "branch_emo_text": "1",
+        "branch_emo_audio": "1", "branch_emo_vector": "1",
     },
 )
 
