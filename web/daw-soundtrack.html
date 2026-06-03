@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>糯米AI · ⑦ 配乐 · Soundtrack</title>
+<title>糯米AI · 配乐 · Soundtrack</title>
 <link rel="stylesheet" href="tokens.css">
 <!-- wavesurfer.js v7（真实波形）。离线时改为本地：<script src="vendor/wavesurfer.min.js"></script> -->
 <script src="https://unpkg.com/wavesurfer.js@7"></script>
@@ -25,16 +25,22 @@
   :root{ --video:#4a9eff; --bgm:#8b7fd9; --sfx:#4ec98f; --dialogue:#e0a85a; --overlay:#a78bfa; }
   body { margin:0; background:var(--bg); color:var(--fg); height:100vh; overflow:hidden; display:flex; flex-direction:column; }
 
-  /* ---------- 顶栏：标题 + 全局动作按钮 ---------- */
-  .head { display:flex; align-items:center; gap:10px; padding:12px 20px 8px; flex-shrink:0; flex-wrap:wrap; }
-  .head h1{ margin:0; font-size:18px; background:linear-gradient(135deg,var(--blue),var(--mauve)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .head .style-pill{ font-size:11.5px; color:var(--mauve); background:rgba(138,127,217,.16); border:1px solid #4a3d6e; padding:4px 11px; border-radius:12px; }
-  .head .sub{ display:flex; gap:6px; margin-left:auto; flex-wrap:wrap; }
-  .head .btn{ font-size:12.5px; padding:7px 13px; border-radius:8px; cursor:pointer; background:var(--panel2); color:var(--fg2); border:1px solid var(--border); }
-  .head .btn:hover{ border-color:var(--mauve); color:var(--fg); }
-  .head .btn:disabled{ opacity:.5; cursor:default; }
-  .head .btn.load{ color:var(--blue); border-color:var(--blue-dim); }
-  .head .btn.gen{ background:linear-gradient(135deg,var(--blue),var(--periw)); color:#06122a; font-weight:700; border:none; }
+  /* ---------- 统一头部规范：标题行(标题→副标题→spacer→操作) ---------- */
+  /* 本页是固定视口 DAW 布局（body flex 列、.work flex:1 占满），故 .work-head 不吃规范里的
+     大 padding，而是顶部薄留白；.work 保持 flex 容器不变，避免破坏轨道区不挤压规则。 */
+  .work-head { display:flex; align-items:center; gap:14px; margin-bottom:14px; max-width:1280px; flex-wrap:wrap; padding:12px 20px 0; flex-shrink:0; }
+  .work-head h1{ margin:0; font-size:22px; background:linear-gradient(135deg,var(--blue),var(--mauve)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .work-head .sub{ font-size:12px; color:var(--faint); letter-spacing:.5px; align-self:flex-end; padding-bottom:4px; }
+  .head-spacer{ flex:1; }
+
+  /* 标题行右侧：风格指示器 + 全局动作按钮 */
+  .head-actions{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .head-actions .style-pill{ font-size:11.5px; color:var(--mauve); background:rgba(138,127,217,.16); border:1px solid #4a3d6e; padding:4px 11px; border-radius:12px; }
+  .head-actions .btn{ font-size:12.5px; padding:7px 13px; border-radius:8px; cursor:pointer; background:var(--panel2); color:var(--fg2); border:1px solid var(--border); }
+  .head-actions .btn:hover{ border-color:var(--mauve); color:var(--fg); }
+  .head-actions .btn:disabled{ opacity:.5; cursor:default; }
+  .head-actions .btn.load{ color:var(--blue); border-color:var(--blue-dim); }
+  .head-actions .btn.gen{ background:linear-gradient(135deg,var(--blue),var(--periw)); color:#06122a; font-weight:700; border:none; }
 
   .work { flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 12px; gap:12px; }
 
@@ -148,11 +154,14 @@
 <body>
 <!-- 壳内容页：标题栏/侧栏由 web/app.html（糯米 AI）统一提供，本页不自带 -->
 
-<div class="head">
-  <h1>⑦ 配乐 · Soundtrack</h1>
-  <span class="style-pill" id="stylePill">整体风格：（未加载）</span>
-  <div class="sub">
+<!-- 统一头部规范：标题 → 副标题 → spacer → 右侧操作（全局动作按钮 + 风格指示器） -->
+<div class="work-head">
+  <h1>智能配乐</h1><span class="sub">Soundtrack</span>
+  <span class="head-spacer"></span>
+  <div class="head-actions">
+    <span class="style-pill" id="stylePill">整体风格：（未加载）</span>
     <button class="btn load" id="btnLoadVideo" title="选择成片 mp4 → 预览 + 抽原声轨">📂 加载视频</button>
+    <input type="file" id="videoFilePicker" accept=".mp4,.mov,.webm,.mkv" style="display:none">
     <button class="btn" id="btnScore" title="POST /soundtrack/advance 推进配乐管线">⚡ 自动配乐</button>
     <button class="btn" id="btnAccentDetect" title="POST /soundtrack/accent/detect 光流爆点检测">⚡ 检测卡点</button>
     <button class="btn" id="btnAccentMix" title="POST /soundtrack/accent/mix 卡点泵感试听">⚡ 卡点混音</button>
@@ -279,6 +288,14 @@ function mediaUrl(p) {
   return u;
 }
 function fileSrc(p) { return mediaUrl(p); }
+/* 视频预览 URL：走 /preview（H.264 mp4 转 WebM，QtWebEngine 才能播；否则 SRC_NOT_SUPPORTED）。 */
+function previewSrc(p) {
+  if (!p) return '';
+  if (/^(https?:|data:|blob:)/.test(p)) return p;
+  var u = MEDIA_API + '/preview?path=' + encodeURIComponent(p);
+  if (PROJECT_DIR && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += '&project=' + encodeURIComponent(PROJECT_DIR);
+  return u;
+}
 
 async function postJSON(path, body) {
   const resp = await fetch(MEDIA_API + path, {
@@ -854,7 +871,7 @@ function loadVideo(path) {
   const v = document.getElementById('pvVideo'); const ph = document.getElementById('videoPh');
   v.style.display = 'block'; ph.style.display = 'none';
   hasVideo = true;
-  v.src = mediaUrl(path);
+  v.src = previewSrc(path);   // 视频预览走 /preview(转 WebM)；原声轨另用本地路径
   setStatus('已加载视频：' + path + ' · 抽原声轨可点「自动配乐 / 出片」');
   // 视频原声直接接到原声轨（成片本身含原声）
   setTrackSrc('orig', path);
@@ -874,8 +891,20 @@ function wireVideo() {
 function wire() {
   // 顶栏动作
   document.getElementById('btnLoadVideo').addEventListener('click', () => {
-    const p = prompt('请输入成片 mp4 的本地路径：', VIDEO || '');
-    if (p && p.trim()) loadVideo(p.trim());
+    document.getElementById('videoFilePicker').click();
+  });
+  document.getElementById('videoFilePicker').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    // Electron 环境下 file.path 为绝对路径；纯浏览器回退 prompt
+    const p = file.path || (file.webkitRelativePath || "");
+    if (p && p.trim()) {
+      loadVideo(p.trim());
+    } else {
+      const fb = prompt('请手动输入成片 mp4 的绝对路径：', VIDEO || '');
+      if (fb && fb.trim()) loadVideo(fb.trim());
+    }
+    e.target.value = '';   // 重置，允许再次选同一文件
   });
   document.getElementById('btnScore').addEventListener('click', (e) => doAdvance(e.currentTarget));
   document.getElementById('btnMixdown').addEventListener('click', (e) => doMixdown(e.currentTarget));
