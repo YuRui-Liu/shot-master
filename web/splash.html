@@ -103,8 +103,12 @@
   @keyframes shimmer{0%{background-position:120% 0;}100%{background-position:-120% 0;}}
   .bl{display:flex;justify-content:space-between;align-items:center;margin-top:8px;}
   .status{font-size:11px;color:var(--muted);} .status .b{color:var(--blue);}
-  .credit{font-size:15px;color:var(--fg2);letter-spacing:.5px;}
-  .credit b{color:var(--mauve);font-weight:700;}
+  .credit{font-size:15px;color:var(--muted);letter-spacing:.5px;}
+  .credit b{
+    font-weight:800;letter-spacing:1px;
+    background:linear-gradient(135deg,var(--blue),var(--mauve));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
 
   /* 图标缺失兜底：渐变方块 + 字母 */
   .mark .fallback{width:70px;height:70px;border-radius:17px;display:none;
