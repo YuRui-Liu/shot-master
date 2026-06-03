@@ -454,6 +454,49 @@ const CLIPS_SUB_DEFAULT = "video";   // 视频成片常落在 <project>/video（
 let clipsSub = CLIPS_SUB_DEFAULT;
 let clipsLoaded = false;             // 是否已从后端成功拉到真实片段
 
+/* ===== 本地缓存（localStorage，按项目隔离）===== */
+const LS_COMPOSE = "nuomi.compose." + encodeURIComponent(PROJECT || "");
+let _saveTimer = null;
+
+function saveLocal() {
+  if (!PROJECT) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    try {
+      // thumb 可能是 data URL（大），存储时剥离；下次打开恢复后缺图不影响功能
+      const clipsToStore = clips.map((cl) => { const c = Object.assign({}, cl); delete c.thumb; return c; });
+      localStorage.setItem(LS_COMPOSE, JSON.stringify({
+        v: 1,
+        clips: clipsToStore,
+        cuts: cuts,
+        selClip, selCut,
+        clipsSub, lastOutput, clipsLoaded,
+      }));
+    } catch (_) {}
+  }, 300);   // 300ms 防抖，避免拖拽期间频繁写
+}
+
+function restoreLocal() {
+  if (!PROJECT) return false;
+  let s;
+  try { s = JSON.parse(localStorage.getItem(LS_COMPOSE) || "null"); } catch (_) { return false; }
+  if (!s || s.v !== 1) return false;
+  if (Array.isArray(s.clips) && s.clips.length) {
+    clips.length = 0;
+    s.clips.forEach((c) => clips.push(c));
+    clipsLoaded = s.clipsLoaded || false;
+  }
+  if (Array.isArray(s.cuts) && s.cuts.length) {
+    cuts.length = 0;
+    s.cuts.forEach((c) => cuts.push(c));
+  }
+  if (s.selClip != null) selClip = s.selClip;
+  if (s.selCut  != null) selCut  = s.selCut;
+  if (s.clipsSub) { clipsSub = s.clipsSub; const el = document.getElementById("subDir"); if (el) el.value = clipsSub; }
+  if (s.lastOutput) lastOutput = s.lastOutput;
+  return clips.length > 0;
+}
+
 /* 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）。
    走 media_agent GET /file?path=…[&project=…]：绝对路径直读，相对路径附 project 解析。
    本页项目目录变量名为 PROJECT。 */
@@ -1045,6 +1088,7 @@ function renderStrip() {
   add.addEventListener("click", () => loadClips());
   root.appendChild(add);
   refreshAdoptAll();   // 子1：每次重渲同步「采纳全部建议」按钮可用性
+  saveLocal();         // 每次状态变更后防抖落盘（切面板不丢失）
 }
 
 /* HTML 转义（与 ideate/asset-library 的 esc 一致）。 */
@@ -1606,12 +1650,15 @@ function toast(msg) {
 
 const _subEl = document.getElementById("subDir");
 if (_subEl) _subEl.value = CLIPS_SUB_DEFAULT;   // 默认生成视频子目录，可改
+
+// 优先从 localStorage 恢复（切面板再回来不丢失），恢复成功则跳过 loadClips
+const _restored = restoreLocal();
 renderStrip();
 renderInspector();
 renderTrim();
 wireToolbar();
 wireExtDropdown();
-loadClips();
+if (!_restored) loadClips();   // 无缓存才自动列目录；有缓存则保留现有片段（用户可手动「⟳ 列出」刷新）
 </script>
 </body>
 </html>
