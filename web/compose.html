@@ -761,19 +761,18 @@ async function postJSON(url, body) {
 }
 
 /* ===== 外部路径导入片段（不持久落盘，关软件丢失） ===== */
-async function loadExternal() {
-  const extEl = document.getElementById("extDir");
-  const dir = (extEl && extEl.value || "").trim();
-  if (!dir) { toast("请先在「外部路径」输入框中填写文件夹路径"); return; }
+async function loadExternal(dir) {
+  dir = (dir || "").trim();
+  if (!dir) { toast("请输入文件夹路径"); return false; }
   if (!dir.match(/^[a-zA-Z]:[\\/]/) && !dir.startsWith("/")) {
-    toast("外部路径需为绝对路径（如 E:\\\\MyClips 或 /home/user/clips）"); return;
+    toast("外部路径需为绝对路径（如 E:\\MyClips 或 /home/user/clips）"); return false;
   }
-  if (!PROJECT) { toast("请先选择项目（外部路径导入需要项目便于获取相对路径）"); return; }
+  if (!PROJECT) { toast("请先选择项目（外部路径导入需要项目）"); return false; }
   toast("列出外部目录中…");
   try {
     const data = await getJSON(MEDIA_API + "/project/clips?" + new URLSearchParams({ project: PROJECT, sub: dir }).toString());
     const list = (data && data.clips) || [];
-    if (!list.length) { toast("外部目录下没有可用的视频/图片文件"); return; }
+    if (!list.length) { toast("外部目录下没有可用的视频/图片文件"); return false; }
     const startId = clips.length ? Math.max(...clips.map(c => c.id)) + 1 : 1;
     const newClips = list.map((c, i) => ({
       id: startId + i,
@@ -795,11 +794,112 @@ async function loadExternal() {
     rebuildCutsFromOrder();
     renderStrip(); renderInspector(); renderTrim();
     toast("已从外部路径导入 " + newClips.length + " 个片段（不持久落盘，关软件丢失）");
+    return true;
   } catch (e) {
     if (e.status === 404) { toast("外部路径不可用：目录不存在或无权限访问"); }
     else { toast("外部导入失败：" + e.message); }
+    return false;
   }
 }
+
+/* ===== 外部导入下拉面板 ===== */
+const _EXT_LS_KEY = "nuomi.extDirHistory." + encodeURIComponent(PROJECT || "");
+
+function extHistoryLoad() {
+  try { return JSON.parse(localStorage.getItem(_EXT_LS_KEY) || "[]"); }
+  catch (_) { return []; }
+}
+
+function extHistorySave(path) {
+  let arr = extHistoryLoad().filter(p => p !== path);
+  arr.unshift(path);
+  if (arr.length > 5) arr = arr.slice(0, 5);
+  localStorage.setItem(_EXT_LS_KEY, JSON.stringify(arr));
+}
+
+function renderExtHistory() {
+  const list = document.getElementById("extHistoryList");
+  if (!list) return;
+  const hist = extHistoryLoad();
+  if (!hist.length) {
+    list.innerHTML = '<div class="ext-history-empty">暂无历史记录</div>';
+    return;
+  }
+  list.innerHTML = hist.map(p =>
+    `<div class="ext-history-item" data-path="${p.replace(/"/g, "&quot;")}">
+       <span style="font-size:13px">📁</span>
+       <span class="eh-path" title="${p.replace(/"/g, "&quot;")}">${p}</span>
+       <span class="eh-hint">↵</span>
+     </div>`
+  ).join("");
+  list.querySelectorAll(".ext-history-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const inp = document.getElementById("extPathInput");
+      if (inp) inp.value = el.dataset.path;
+      inp && inp.focus();
+    });
+  });
+}
+
+function openExtDropdown() {
+  const dd = document.getElementById("extDropdown");
+  if (!dd) return;
+  renderExtHistory();
+  dd.classList.add("open");
+  const inp = document.getElementById("extPathInput");
+  if (inp) inp.focus();
+}
+
+function closeExtDropdown() {
+  const dd = document.getElementById("extDropdown");
+  if (dd) dd.classList.remove("open");
+}
+
+function toggleExtDropdown() {
+  const dd = document.getElementById("extDropdown");
+  if (!dd) return;
+  if (dd.classList.contains("open")) closeExtDropdown();
+  else openExtDropdown();
+}
+
+function wireExtDropdown() {
+  const btn = document.getElementById("btnAddExt");
+  const dd = document.getElementById("extDropdown");
+  const doImport = document.getElementById("btnDoImport");
+  if (!btn || !dd || !doImport) return;
+
+  btn.addEventListener("click", (e) => { e.stopPropagation(); toggleExtDropdown(); });
+
+  doImport.addEventListener("click", async () => {
+    const inp = document.getElementById("extPathInput");
+    const path = (inp && inp.value || "").trim();
+    const ok = await loadExternal(path);
+    if (ok) {
+      extHistorySave(path);
+      closeExtDropdown();
+    }
+  });
+
+  // 面板内 Enter 键触发导入
+  const inp = document.getElementById("extPathInput");
+  if (inp) {
+    inp.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter") { e.preventDefault(); doImport.click(); }
+    });
+  }
+
+  // 点外部关闭
+  document.addEventListener("click", (e) => {
+    const wrap = btn.closest(".ext-import-wrap");
+    if (wrap && !wrap.contains(e.target)) closeExtDropdown();
+  });
+
+  // Esc 关闭
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeExtDropdown();
+  });
+}
+
 /* 切口状态标签（子3：走马灯节点常显「转场图标 + 名 + 方向 + 时长」，图标改用 fxIcon 按 fx 静态映射）。
    analyzing 用脉冲态图标；其余状态用转场本身图标。 */
 const TAG_TXT = { ai: "AI", analyzing: "分析", manual: "手动", locked: "锁定", cut: "硬切" };
@@ -1462,6 +1562,7 @@ renderStrip();
 renderInspector();
 renderTrim();
 wireToolbar();
+wireExtDropdown();
 loadClips();
 </script>
 </body>
