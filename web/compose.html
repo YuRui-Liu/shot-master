@@ -826,9 +826,9 @@ function renderExtHistory() {
     return;
   }
   list.innerHTML = hist.map(p =>
-    `<div class="ext-history-item" data-path="${p.replace(/"/g, "&quot;")}">
+    `<div class="ext-history-item" data-path="${esc(p)}">
        <span style="font-size:13px">📁</span>
-       <span class="eh-path" title="${p.replace(/"/g, "&quot;")}">${p}</span>
+       <span class="eh-path" title="${esc(p)}">${esc(p)}</span>
        <span class="eh-hint">↵</span>
      </div>`
   ).join("");
@@ -862,7 +862,10 @@ function toggleExtDropdown() {
   else openExtDropdown();
 }
 
+let _extWired = false;
 function wireExtDropdown() {
+  if (_extWired) return;
+  _extWired = true;
   const btn = document.getElementById("btnAddExt");
   const dd = document.getElementById("extDropdown");
   const doImport = document.getElementById("btnDoImport");
