@@ -14,7 +14,9 @@ from pydantic import BaseModel
 
 import json
 
+from drama_shot_master.core.compass import paths as _paths
 from drama_shot_master.core.compass.manifest import load_manifest, save_manifest
+from drama_shot_master.core.compass.ref_index import READY_STATUS, load_ref_index
 from drama_shot_master.core.ffmpeg_locate import probe_video_meta
 from drama_shot_master.core.recent_projects import RecentProjectsManager
 
@@ -295,29 +297,78 @@ _VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv"}
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 
 
+def _safe_sub_target(base: Path, sub: str) -> Path:
+    """归一化 base/sub 并校验 resolved 路径仍在 base 之下。
+
+    拒绝含 '..' 段与绝对路径段（主要防 compose 自由输入的子目录）。
+    sub 为空 → 返回 base。越界 → HTTPException 400。
+    """
+    sub_clean = (sub or "").strip()
+    if not sub_clean:
+        return base
+    # 归一分隔符后逐段检查：拒绝 '..'、空段、盘符/根（绝对路径段）。
+    sub_norm = sub_clean.replace("\\", "/")
+    parts = [seg for seg in sub_norm.split("/") if seg]
+    for seg in parts:
+        if seg == ".." or (len(seg) >= 2 and seg[1] == ":"):
+            raise HTTPException(status_code=400, detail="sub 含非法路径段")
+    candidate = Path(sub_norm)
+    if candidate.is_absolute() or candidate.drive:
+        raise HTTPException(status_code=400, detail="sub 不能为绝对路径")
+    target = base / candidate
+    # resolved 仍须在 base 之下（兜底，目录不必存在）。
+    try:
+        base_res = base.resolve()
+        target_res = target.resolve()
+    except OSError:
+        raise HTTPException(status_code=400, detail="sub 路径无法解析")
+    if base_res != target_res and base_res not in target_res.parents:
+        raise HTTPException(status_code=400, detail="sub 越界")
+    return target
+
+
 @router.get("/project/clips")
-def project_clips(project: str, sub: str = ""):
-    """列出项目目录（或 project/sub 子目录）下的视频与图片片段。
+def project_clips(project: str, sub: str = "", ext: str = "",
+                  recursive: bool = False):
+    """列出项目目录（或 project/sub 子目录 / 外部绝对目录 ext）下的视频与图片片段。
 
     转场页用：返回 {clips:[{name,path(posix),kind,size,duration,width,height,
     fps,codec,has_audio}]}，按文件名排序。
     视频文件通过 ffprobe 补充元信息（单文件单次调用）；图片字段为默认值。
     每文件独立错误处理：ffprobe 失败时该文件元字段回退为默认值。
-    project 空 → 400；目录不存在 → 空列表（不报错）。
+    - sub：相对项目根的子目录（受 _safe_sub_target 安全校验，拒绝越界）。
+    - ext：外部绝对路径目录（供「外部导入」功能，不受 sub 的安全约束，
+      必须为绝对路径，否则 400）。ext 与 sub 互斥，ext 优先。
+    - recursive：True 时递归列举子目录；默认 False。
+    project 空 → 400；ext 非绝对路径 → 400；目录不存在 → 空列表（不报错）。
     """
     proj = (project or "").strip()
     if not proj:
         raise HTTPException(status_code=400, detail="project 不能为空")
-    base = Path(proj)
-    sub_clean = (sub or "").strip()
-    target = base / sub_clean if sub_clean else base
+
+    # ext 优先：外部绝对路径导入
+    ext_clean = (ext or "").strip()
+    if ext_clean:
+        candidate = Path(ext_clean)
+        if not candidate.is_absolute():
+            raise HTTPException(status_code=400, detail="ext 必须为绝对路径")
+        target = candidate
+    else:
+        base = Path(proj)
+        target = _safe_sub_target(base, sub)
 
     clips: list[dict] = []
     if not target.is_dir():
         return {"clips": clips}
 
     try:
-        entries = sorted(target.iterdir(), key=lambda p: p.name.lower())
+        if recursive:
+            entries = sorted(
+                (p for p in target.rglob("*")),
+                key=lambda p: p.as_posix().lower(),
+            )
+        else:
+            entries = sorted(target.iterdir(), key=lambda p: p.name.lower())
     except OSError:
         return {"clips": clips}
 
@@ -364,19 +415,22 @@ def project_clips(project: str, sub: str = ""):
 
 
 @router.get("/project/files")
-def project_files(project: str, sub: str = "", ext: str = ""):
+def project_files(
+    project: str, sub: str = "", ext: str = "", recursive: bool = False
+):
     """列出项目目录（或 project/sub 子目录）下的文件，按扩展名可选过滤。
 
-    返回 {files:[{name,path(posix),size}]}，按文件名排序（非递归）。
+    返回 {files:[{name,path(posix),size}]}，按文件名排序。
     - ext：逗号分隔的扩展名（小写、不含点，如 "md,json"）；空则不过滤。
-    - project 空 → 400；目录不存在 → 空列表（不报错）。
+    - recursive：True 时递归列举子目录（用于仪表盘统计按集产物 E{ep}/）；
+      默认 False 保持原非递归行为。递归时按 posix 全路径排序。
+    - project 空 → 400；sub 越界 → 400；目录不存在 → 空列表（不报错）。
     """
     proj = (project or "").strip()
     if not proj:
         raise HTTPException(status_code=400, detail="project 不能为空")
     base = Path(proj)
-    sub_clean = (sub or "").strip()
-    target = base / sub_clean if sub_clean else base
+    target = _safe_sub_target(base, sub)
 
     # 扩展名过滤集合：小写、去点、去空
     ext_set = {
@@ -390,7 +444,13 @@ def project_files(project: str, sub: str = "", ext: str = ""):
         return {"files": files}
 
     try:
-        entries = sorted(target.iterdir(), key=lambda p: p.name.lower())
+        if recursive:
+            entries = sorted(
+                (p for p in target.rglob("*")),
+                key=lambda p: p.as_posix().lower(),
+            )
+        else:
+            entries = sorted(target.iterdir(), key=lambda p: p.name.lower())
     except OSError:
         return {"files": files}
 
@@ -613,3 +673,202 @@ def project_meta(body: ProjectMetaBody):
 
     save_manifest(m, proj_dir)
     return {"ok": True}
+
+
+# ---------- GET /project/cover · 默认封面解析 + POST /project/cover/set · 设封面 ----------
+
+# 封面候选图扩展名（小写匹配，与 _IMAGE_EXTS 同集）
+_COVER_IMG_EXTS = _IMAGE_EXTS  # {".png", ".jpg", ".jpeg", ".webp"}
+
+# 已显式设定的封面文件名（设封面统一复制为 cover.jpg；亦兼容历史其它后缀）
+_COVER_NAMES = ("cover.jpg", "cover.jpeg", "cover.png", "cover.webp")
+
+
+def _resolve_ref_path(proj_dir: Path, raw: str) -> Path | None:
+    """把 ref_index 里的 path 解析成存在的绝对路径；解析不到 → None。
+
+    ref path 历史上有相对项目根 / 相对所属 kind 子目录两种写法，依次尝试。
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    cand = Path(raw)
+    if cand.is_absolute():
+        return cand if cand.is_file() else None
+    # 相对项目根（与 /assets/refs/generate 落盘的 <kind>/<name>_ref.png 一致）
+    p = proj_dir / cand
+    if p.is_file():
+        return p
+    return None
+
+
+def _first_character_ref(proj_dir: Path) -> Path | None:
+    """资源库角色图：characters/ref_index.json 中首个就绪且落盘存在的 ref 图。"""
+    idx = load_ref_index(_paths.ref_index_path(proj_dir, "characters"))
+    for e in idx.entries:
+        if e.status != READY_STATUS:
+            continue
+        resolved = _resolve_ref_path(proj_dir, e.path)
+        if resolved is not None:
+            return resolved
+    return None
+
+
+def _first_image_in(
+    dir_path: Path, *, prefix: str = "", recursive: bool = False
+) -> Path | None:
+    """目录下按文件名排序的首张图片（可选名字前缀过滤）；无 → None。
+
+    recursive=True 时递归扫描子目录（用于出图按集落 imggen/E{ep}/shot_*），
+    按 posix 全路径排序后取首张；prefix 仍只匹配文件名（basename）。
+    """
+    if not dir_path.is_dir():
+        return None
+    try:
+        if recursive:
+            entries = sorted(
+                (p for p in dir_path.rglob("*")),
+                key=lambda p: p.as_posix().lower(),
+            )
+        else:
+            entries = sorted(dir_path.iterdir(), key=lambda p: p.name.lower())
+    except OSError:
+        return None
+    for p in entries:
+        if not p.is_file():
+            continue
+        if p.suffix.lower() not in _COVER_IMG_EXTS:
+            continue
+        if p.name.lower() in _COVER_NAMES:
+            continue  # 跳过既有封面自身
+        if prefix and not p.name.lower().startswith(prefix.lower()):
+            continue
+        return p
+    return None
+
+
+def _explicit_cover(proj_dir: Path) -> Path | None:
+    """已显式设定的封面（cover.jpg 等）；无 → None。"""
+    for name in _COVER_NAMES:
+        p = proj_dir / name
+        if p.is_file():
+            return p
+    return None
+
+
+def _auto_cover(proj_dir: Path) -> tuple[Path | None, str]:
+    """按优先级自动选一张已生成图作封面。
+
+    优先级：资源库角色图(characters refs) → 分镜首图(imggen/shot_*) →
+    出图(imggen) 第一张。返回 (路径 or None, source 标记)。
+    分镜视角出图落盘 imggen/shot_{shotId}_NN.png（见 storyboard-board.html 约定），
+    剧集模式按集落 imggen/E{ep}/shot_*，故递归扫描 imggen/ 下全部子目录：
+    「分镜首图」= imggen 树下 shot_ 前缀首张，「出图首张」= imggen 树下任意首张。
+    """
+    ref = _first_character_ref(proj_dir)
+    if ref is not None:
+        return ref, "character_ref"
+
+    imggen_dir = proj_dir / "imggen"
+    sb_img = _first_image_in(imggen_dir, prefix="shot_", recursive=True)
+    if sb_img is not None:
+        return sb_img, "storyboard"
+
+    gen_img = _first_image_in(imggen_dir, recursive=True)
+    if gen_img is not None:
+        return gen_img, "imggen"
+
+    return None, ""
+
+
+@router.get("/project/cover")
+def project_cover(project: str):
+    """解析项目封面图路径（前端首页项目卡片用）。
+
+    返回 {cover, source, explicit}：
+    - explicit=True 表示用户已显式设过封面（cover.jpg），cover 即其 posix 路径，
+      source="explicit"。
+    - 否则按优先级自动取一张已生成人物/分镜/出图（source=character_ref|
+      storyboard|imggen），cover=该图 posix 路径。
+    - 都没有 → cover=None, source="", explicit=False（前端回退占位图）。
+    project 空 → 400；目录不存在 → 404。
+    """
+    proj = (project or "").strip()
+    if not proj:
+        raise HTTPException(status_code=400, detail="project 不能为空")
+    proj_dir = Path(proj)
+    if not proj_dir.exists():
+        raise HTTPException(status_code=404, detail=f"项目路径不存在: {proj}")
+
+    explicit = _explicit_cover(proj_dir)
+    if explicit is not None:
+        return {"cover": explicit.as_posix(), "source": "explicit",
+                "explicit": True}
+
+    chosen, source = _auto_cover(proj_dir)
+    return {
+        "cover": chosen.as_posix() if chosen is not None else None,
+        "source": source,
+        "explicit": False,
+    }
+
+
+class SetCoverBody(BaseModel):
+    project: str
+    # 选中的已生成图片路径（绝对，或相对项目根的 posix）。
+    # 来自 /assets/refs（characters）或 /project/clips（imggen）列出的 path。
+    path: str
+
+
+def _resolve_selected_image(proj_dir: Path, raw: str) -> Path | None:
+    """把前端传来的选中图 path 解析为存在的图片绝对路径；非图/不存在 → None。"""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    cand = Path(raw)
+    candidates = [cand] if cand.is_absolute() else [proj_dir / cand, cand]
+    for c in candidates:
+        if c.is_file() and c.suffix.lower() in _COVER_IMG_EXTS:
+            return c
+    return None
+
+
+@router.post("/project/cover/set")
+def project_cover_set(body: SetCoverBody):
+    """把选定的已生成图片复制为 项目/cover.jpg（设为项目封面）。
+
+    前端传 {project, path}（path 为 /assets/refs 或 /project/clips 列出的某张
+    已生成图的路径）。复制（非移动，保留原图），统一落盘为 cover.jpg。
+    清理历史其它后缀封面（cover.png/.jpeg/.webp），避免 GET 命中旧图。
+    project 空 / path 空 → 400；项目目录不存在 → 404；选中图不存在或非图 → 400。
+    """
+    proj = (body.project or "").strip()
+    if not proj:
+        raise HTTPException(status_code=400, detail="project 不能为空")
+    if not (body.path or "").strip():
+        raise HTTPException(status_code=400, detail="path 不能为空")
+    proj_dir = Path(proj)
+    if not proj_dir.exists():
+        raise HTTPException(status_code=404, detail=f"项目路径不存在: {proj}")
+
+    src = _resolve_selected_image(proj_dir, body.path)
+    if src is None:
+        raise HTTPException(
+            status_code=400, detail=f"选中图不存在或非图片: {body.path}")
+
+    cover_path = proj_dir / "cover.jpg"
+    # 源即目标（已是 cover.jpg）→ 幂等不复制
+    if src.resolve() != cover_path.resolve():
+        shutil.copyfile(str(src), str(cover_path))
+    # 清掉历史其它后缀封面，避免 GET _explicit_cover 命中旧图
+    for name in _COVER_NAMES:
+        if name == "cover.jpg":
+            continue
+        stale = proj_dir / name
+        if stale.is_file():
+            try:
+                stale.unlink()
+            except OSError:
+                pass
+
+    return {"ok": True, "cover": cover_path.as_posix()}

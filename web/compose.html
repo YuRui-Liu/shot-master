@@ -770,7 +770,7 @@ async function loadExternal(dir) {
   if (!PROJECT) { toast("请先选择项目（外部路径导入需要项目）"); return false; }
   toast("列出外部目录中…");
   try {
-    const data = await getJSON(MEDIA_API + "/project/clips?" + new URLSearchParams({ project: PROJECT, sub: dir }).toString());
+    const data = await getJSON(MEDIA_API + "/project/clips?" + new URLSearchParams({ project: PROJECT, ext: dir }).toString());
     const list = (data && data.clips) || [];
     if (!list.length) { toast("外部目录下没有可用的视频/图片文件"); return false; }
     const startId = clips.length ? Math.max(...clips.map(c => c.id)) + 1 : 1;
