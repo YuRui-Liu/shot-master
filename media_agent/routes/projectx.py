@@ -375,6 +375,9 @@ def project_clips(project: str, sub: str = "", ext: str = "",
     for p in entries:
         if not p.is_file():
             continue
+        # 跳过 /preview 转码缓存（*.preview.webm）和切口预览临时文件（.cut_preview.mp4）
+        if p.name.endswith(".preview.webm") or p.name == ".cut_preview.mp4":
+            continue
         ext = p.suffix.lower()
         if ext in _VIDEO_EXTS:
             kind = "video"
