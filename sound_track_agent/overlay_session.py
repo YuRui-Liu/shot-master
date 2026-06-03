@@ -111,7 +111,11 @@ def load_overlay(work_dir) -> OverlaySession:
 
 
 def save_overlay(work_dir, session: OverlaySession) -> None:
+    """原子写：先写 .tmp 再 os.replace，避免并发请求写坏 overlay.json。"""
+    import os
     p = _overlay_path(work_dir)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(session.to_dict(), ensure_ascii=False, indent=2),
-                 encoding="utf-8")
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(session.to_dict(), ensure_ascii=False, indent=2),
+                   encoding="utf-8")
+    os.replace(str(tmp), str(p))

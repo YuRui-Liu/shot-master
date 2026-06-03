@@ -99,5 +99,9 @@ def run(sess: ScoringSession,
 
     out = stages.mix(sess)
     sess.output = out
-    _save(sess, session_path)
+    try:
+        _save(sess, session_path)
+    except Exception:
+        sess.output = None   # 回滚内存状态，让调用方感知持久化失败
+        raise
     return out

@@ -68,6 +68,17 @@ def _build_bgm_client(cfg):
 _client_factory = _build_bgm_client
 
 
+def _close_quiet(client) -> None:
+    """释放服务路径自建的 RunningHub 客户端；无 close / close 失败均静默。"""
+    close = getattr(client, "close", None)
+    if close is None:
+        return
+    try:
+        close()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 class EmotionIn(BaseModel):
     labels: list[str] = []
     valence: float = 0.0
@@ -239,11 +250,16 @@ def _do_generate_bgm(req: GenerateBgmRequest) -> dict:
     client = _client_factory(_load_cfg())
     out_dir = Path(req.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    cands = generate_bgm(
-        client, req.workflow_id,
-        tags=tags, bpm=bpm, duration=dur,
-        out_dir=out_dir, seeds=list(req.seeds),
-        timeout=req.timeout, poll_interval=req.poll_interval)
+    try:
+        cands = generate_bgm(
+            client, req.workflow_id,
+            tags=tags, bpm=bpm, duration=dur,
+            out_dir=out_dir, seeds=list(req.seeds),
+            timeout=req.timeout, poll_interval=req.poll_interval)
+    finally:
+        # 服务路径每次新建 client（内含长生命周期 httpx.Client），用完即释放，
+        # 否则 fd/连接池泄漏（H4）。close 失败不掩盖业务异常。
+        _close_quiet(client)
     return {
         "acestep": {"tags": tags, "bpm": bpm, "duration": dur},
         "candidates": [c.to_dict() for c in cands],
@@ -355,10 +371,14 @@ def _load_or_prepare_session(req: AdvanceRequest) -> ScoringSession:
     sess = _facade.load_session(req.work_dir)
     if sess is not None:
         return sess
-    if not (req.video and req.global_style is not None):
-        raise ValueError(
-            "work_dir 下无 session.json，需提供 video + global_style 以新建会话")
-    return _facade.prepare_session(req.video, req.global_style, req.work_dir)
+    if not req.video:
+        raise ValueError("work_dir 下无 session.json，需提供 video 以新建会话")
+    if not (req.global_style and req.global_style.strip()):
+        raise ValueError("work_dir 下无 session.json，需提供非空 global_style 以新建会话（请在面板填写整体风格）")
+    video_path = Path(req.video)
+    if not video_path.is_file():
+        raise ValueError(f"视频文件不存在: {req.video}")
+    return _facade.prepare_session(req.video, req.global_style.strip(), req.work_dir)
 
 
 @router.post("/advance")
@@ -369,7 +389,16 @@ def advance(req: AdvanceRequest):
     阶段级进度只经 on_progress 回调（无产物），与 TaskRunner 的逐项 SSE 模型不契合。
     前端要分步推进可逐阶段多次调用本端点（refine→tag→prompt→generate→align→mix）。
     """
-    _validate_work_dir(req.work_dir)
+    # 首次调用时 work_dir 可能不存在 → 自动创建（facade.advance 内部也会 mkdir，但先于它）
+    p = Path(req.work_dir)
+    if p.exists():
+        _validate_work_dir(req.work_dir)
+    else:
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            raise HTTPException(status_code=400,
+                                detail=f"无法创建 work_dir: {req.work_dir} ({e})")
     try:
         sess = _load_or_prepare_session(req)
         dialogue = None
@@ -435,11 +464,15 @@ def mixdown(req: MixdownRequest):
                             detail="work_dir 下无 session.json")
     io = _mixdown_io_factory()
     try:
+        from sound_track_agent.overlay_session import load_overlay as _load_overlay
+        ov_sess = _load_overlay(req.work_dir)
         out = assemble_and_mix(
             sess, sess.source_mp4, req.work_dir,
             crossfade=req.crossfade, target_lufs=req.target_lufs,
             big_threshold=req.big_threshold, snap_window=req.snap_window,
-            max_stretch=req.max_stretch, **io)
+            max_stretch=req.max_stretch,
+            overlay_session=ov_sess if ov_sess and ov_sess.segments else None,
+            **io)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:

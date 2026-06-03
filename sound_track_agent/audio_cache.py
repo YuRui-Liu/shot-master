@@ -23,10 +23,15 @@ def lookup(cache_dir, key: str):
 
 
 def store(cache_dir, key: str, src) -> Path:
-    """把 src 移入缓存（同盘 rename，原子），返回缓存路径。"""
+    """把 src 移入缓存，返回缓存路径。同卷用原子 rename，跨卷回退 copy+unlink。"""
+    import shutil
     dest = cache_path(cache_dir, key)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    Path(src).replace(dest)
+    try:
+        Path(src).replace(dest)
+    except OSError:
+        shutil.copy2(str(src), str(dest))
+        Path(src).unlink(missing_ok=True)
     return dest
 
 

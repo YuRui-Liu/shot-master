@@ -93,7 +93,8 @@
   .THEAD_W{}  /* 轨道头列宽度统一变量：见 --thw */
   .daw{ --thw:140px; --pps:58px; }   /* thw=轨头宽; pps=px/秒（与 ruler/playhead 对齐） */
 
-  .ruler { height:24px; background:var(--navy); border-bottom:1px solid var(--border-lo); position:relative; flex-shrink:0; overflow:hidden; }
+  .ruler { height:24px; background:var(--navy); border-bottom:1px solid var(--border-lo); position:relative; flex-shrink:0; overflow-x:auto; overflow-y:hidden; }
+  .ruler::-webkit-scrollbar { display:none; }
   .ruler canvas{ display:block; height:24px; position:absolute; left:var(--thw); top:0; }
   .ruler .lab{ position:absolute; left:0; top:0; width:var(--thw); height:24px; display:flex; align-items:center; padding-left:12px; font-size:10px; color:var(--periw); border-right:1px solid var(--border-lo); box-sizing:border-box; }
 
@@ -115,7 +116,7 @@
   .track .thead .b.m.on{ background:var(--err); color:#fff; border-color:var(--err); }
   .track .thead .b.s.on{ background:var(--warn); color:#1e1f22; border-color:var(--warn); }
   .track .thead .ro{ font-size:9.5px; color:var(--faint); border:1px dashed var(--border); border-radius:4px; padding:2px 6px; }
-  .track .lane { flex:1; position:relative; overflow:hidden; background:repeating-linear-gradient(90deg,transparent,transparent calc(var(--pps) - 1px),var(--border-lo) calc(var(--pps) - 1px),var(--border-lo) var(--pps)); }
+  .track .lane { flex:1; position:relative; overflow-x:auto; overflow-y:hidden; background:repeating-linear-gradient(90deg,transparent,transparent calc(var(--pps) - 1px),var(--border-lo) calc(var(--pps) - 1px),var(--border-lo) var(--pps)); }
   .track .lane .wave-host{ position:absolute; inset:0; display:flex; align-items:center; pointer-events:none; }
   .track .lane .wave-ph{ position:absolute; inset:0; display:flex; align-items:center; padding-left:10px; font-size:10.5px; color:var(--faint); pointer-events:none; }
   .clip { position:absolute; top:8px; bottom:8px; border-radius:6px; display:flex; align-items:center; padding:0 8px; font-size:10.5px; font-weight:600; overflow:hidden; z-index:3; border:1px solid rgba(255,255,255,.18); box-shadow:0 1px 4px rgba(0,0,0,.3); }
@@ -159,9 +160,13 @@
   <h1>智能配乐</h1><span class="sub">Soundtrack</span>
   <span class="head-spacer"></span>
   <div class="head-actions">
-    <span class="style-pill" id="stylePill">整体风格：（未加载）</span>
-    <button class="btn load" id="btnLoadVideo" title="选择成片 mp4 → 预览 + 抽原声轨">📂 加载视频</button>
-    <button class="btn" id="btnScore" title="POST /soundtrack/advance 推进配乐管线">⚡ 自动配乐</button>
+    <input type="text" id="globalStyleInput"
+      placeholder="① 整体风格（如：史诗热血、温馨治愈）"
+      style="background:var(--field);border:1px solid var(--border);border-radius:8px;color:var(--fg);padding:5px 11px;font-size:12px;width:200px;outline:none"
+      title="整体风格基调，首次自动配乐时必填">
+    <span class="style-pill" id="stylePill">整体风格：（未设置）</span>
+    <button class="btn load" id="btnLoadVideo" title="② 选择成片 mp4 → 预览 + 抽原声轨">📂 加载视频</button>
+    <button class="btn" id="btnScore" title="③ POST /soundtrack/advance 推进配乐管线（需先加载视频+填写风格）">⚡ 自动配乐</button>
     <button class="btn" id="btnAccentDetect" title="POST /soundtrack/accent/detect 光流爆点检测">⚡ 检测卡点</button>
     <button class="btn" id="btnAccentMix" title="POST /soundtrack/accent/mix 卡点泵感试听">⚡ 卡点混音</button>
     <button class="btn" id="btnSfxDetect" title="POST /soundtrack/sfx/detect 镜头+LLM 规划 SFX">🔊 SFX 检测</button>
@@ -778,15 +783,28 @@ function applySfxResult(view) {
 /* ---------- 后端动作 ---------- */
 async function doAdvance(btn) {
   if (!WORK_DIR) { setStatus('未选择项目（缺 ?project=/?workdir=），无法推进'); return; }
+  if (!VIDEO) { setStatus('请先点「加载视频」选择成片 mp4'); return; }
+  const styleEl = document.getElementById('globalStyleInput');
+  const globalStyle = (styleEl && styleEl.value || '').trim();
+  if (!globalStyle) {
+    if (styleEl) { styleEl.style.borderColor = 'var(--blue)'; styleEl.focus(); }
+    setStatus('请先填写「整体风格」（如：史诗热血、温馨治愈）');
+    return;
+  }
+  if (styleEl) styleEl.style.borderColor = '';
   const done = flashBtn(btn, '配乐中…');
   setStatus('POST /soundtrack/advance 推进中…（同步阻塞，耗时较长）');
   try {
     const res = await postJSON('/soundtrack/advance', {
-      work_dir: WORK_DIR, video: VIDEO || undefined, global_style: undefined,
+      work_dir: WORK_DIR, video: VIDEO,
+      global_style: globalStyle,
       workflow_id: '', seeds_count: 2, stop_after: 'mix',
     });
     applyAdvanceResult(res);
+    if (res.global_style && styleEl && !styleEl.value.trim())
+      styleEl.value = res.global_style;
     setStatus('管线已推进至 ' + (res.stop_after || 'mix') + (res.output ? ' · 已出成片' : ''));
+    saveLocal();
   } catch (e) { setStatus('配乐失败：' + e.message); } finally { done(); }
 }
 async function doMixdown(btn) {
@@ -797,6 +815,7 @@ async function doMixdown(btn) {
     const res = await postJSON('/soundtrack/mixdown', { work_dir: WORK_DIR });
     if (res.output) { setTrackSrc('orig', res.output); }
     setStatus('出片完成：' + (res.output || ''));
+    saveLocal();
   } catch (e) { setStatus('出片失败：' + e.message); } finally { done(); }
 }
 async function doAccentDetect(btn) {
@@ -819,6 +838,7 @@ async function doAccentMix(btn) {
     const res = await postJSON('/soundtrack/accent/mix', { work_dir: WORK_DIR });
     if (res.preview) { setTrackSrc('bgm', res.preview); }
     setStatus('卡点泵感试听已就绪：' + (res.preview || ''));
+    saveLocal();
   } catch (e) { setStatus('卡点混音失败：' + e.message); } finally { done(); }
 }
 async function doSfxDetect(btn) {
@@ -829,6 +849,7 @@ async function doSfxDetect(btn) {
     const view = await postJSON('/soundtrack/sfx/detect', { video: VIDEO, work_dir: WORK_DIR });
     applySfxResult(view);
     setStatus('SFX 规划：' + (view.shots ? view.shots.length : 0) + ' 个镜头');
+    saveLocal();
   } catch (e) { setStatus('SFX 检测失败：' + e.message); } finally { done(); }
 }
 async function doSfxGenerate(btn) {
@@ -839,6 +860,7 @@ async function doSfxGenerate(btn) {
     const view = await postJSON('/soundtrack/sfx/generate', { work_dir: WORK_DIR });
     applySfxResult(view);
     setStatus('SFX 生成完成');
+    saveLocal();
   } catch (e) { setStatus('SFX 生成失败：' + e.message); } finally { done(); }
 }
 async function loadOverlayList() {
@@ -993,12 +1015,7 @@ function wire() {
   document.getElementById('btnAddOverlay').addEventListener('click', () => {
     const r = selRange();
     if (!r) { setStatus('先在进度条框选时段，再新增叠加'); return; }
-    const kind = (prompt('叠加类型 bgm / sfx：', 'bgm') || '').trim().toLowerCase();
-    if (kind !== 'bgm' && kind !== 'sfx') { setStatus('未知 kind（只接受 bgm/sfx）'); return; }
-    const p = prompt('生成 prompt：', LAST_ANALYSIS && LAST_ANALYSIS.suggested_tags || '');
-    if (p == null) return;
-    document.getElementById('chatInput').value = p;
-    generateOverlay(kind, document.getElementById('btnAddOverlay'));
+    showOverlayModal(r);
   });
 }
 
@@ -1012,15 +1029,20 @@ async function loadSession() {
 /* ---------- localStorage 持久化（切页/重启回显状态，与剧本/分镜页同模式） ---------- */
 function saveLocal() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      video: VIDEO,
-      total: TOTAL,
-      accents: ACCENTS,
-      overlays: OVERLAYS,
-      tracks: TRACKS.map(t => ({ id: t.id, mute: t.mute, solo: t.solo })),
-    }));
+    const payload = {
+      video: VIDEO, total: TOTAL, accents: ACCENTS, overlays: OVERLAYS,
+      _workdir: WORK_DIR,
+      trackSrc: Object.assign({}, TRACK_SRC),
+      tracks: TRACKS.map(t => ({ id: t.id, mute: t.mute, solo: t.solo, clips: t.clips || [] })),
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(payload));
   } catch (e) {
-    setStatus('保存状态到 localStorage 失败：' + (e && e.message ? e.message : e));
+    if (e && e.name === 'QuotaExceededError') {
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ video: VIDEO, total: TOTAL, _workdir: WORK_DIR })); } catch (_) {}
+      setStatus('存储配额不足，仅保存视频路径和时长');
+    } else {
+      setStatus('保存状态到 localStorage 失败：' + (e && e.message ? e.message : e));
+    }
   }
 }
 function restoreLocal() {
@@ -1029,19 +1051,102 @@ function restoreLocal() {
     if (!raw) return;
     const s = JSON.parse(raw);
     if (!s || typeof s !== 'object') return;
-    if (typeof s.total === 'number' && s.total > 0) { TOTAL = s.total; TL_WIDTH = TOTAL * PX_PER_SEC; }
+    // work_dir 不匹配时不恢复（防多项目污染）
+    if (s._workdir && WORK_DIR && s._workdir !== WORK_DIR) return;
+    const videoMatch = !s.video || !VIDEO || s.video === VIDEO;
+    if (typeof s.total === 'number' && s.total > 0 && videoMatch) { TOTAL = s.total; TL_WIDTH = TOTAL * PX_PER_SEC; }
     if (typeof s.video === 'string' && s.video) { if (!VIDEO) VIDEO = s.video; }
-    if (Array.isArray(s.accents)) ACCENTS = s.accents;
+    if (Array.isArray(s.accents) && videoMatch) ACCENTS = s.accents;
     if (Array.isArray(s.overlays)) OVERLAYS = s.overlays;
+    if (s.trackSrc && typeof s.trackSrc === 'object') Object.assign(TRACK_SRC, s.trackSrc);
     if (Array.isArray(s.tracks)) {
       s.tracks.forEach(st => {
         const t = TRACKS.find(tr => tr.id === st.id);
-        if (t && !t.readonly) { t.mute = !!st.mute; t.solo = !!st.solo; }
+        if (!t || t.readonly) return;
+        t.mute = !!st.mute; t.solo = !!st.solo;
+        if (Array.isArray(st.clips)) t.clips = st.clips;
       });
     }
   } catch (e) {
     setStatus('从 localStorage 恢复状态失败（数据已损坏）：' + (e && e.message ? e.message : e));
   }
+}
+
+/* ---------- overlay 新增 modal（替代 window.prompt，Electron 兼容）---------- */
+function showOverlayModal(r) {
+  const ex = document.getElementById('_overlayModal');
+  if (ex) ex.remove();
+  const ov = document.createElement('div');
+  ov.id = '_overlayModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = `
+    <div style="background:#1e1f30;border:1px solid #3a3d5c;border-radius:10px;padding:20px 24px;width:380px;box-shadow:0 16px 40px #000c">
+      <div style="font-size:13px;font-weight:600;color:#e8eaed;margin-bottom:10px">新增叠加（${fmt(r.start)} – ${fmt(r.end)}）</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button id="_ovKindBgm" style="flex:1;padding:6px;border-radius:6px;border:1px solid #4a9eff;background:rgba(74,158,255,.2);color:#4a9eff;cursor:pointer;font-size:12px">BGM</button>
+        <button id="_ovKindSfx" style="flex:1;padding:6px;border-radius:6px;border:1px solid #2c2f48;background:transparent;color:#aaa;cursor:pointer;font-size:12px">SFX</button>
+      </div>
+      <input type="text" id="_ovPrompt" style="width:100%;box-sizing:border-box;background:#0d0e1a;border:1px solid #2c2f48;border-radius:6px;color:#e8eaed;font-size:12px;padding:8px 10px;margin-bottom:10px" placeholder="生成 prompt（如：轻柔钢琴、温暖氛围）" value="${(LAST_ANALYSIS && LAST_ANALYSIS.suggested_tags || '')}">
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="document.getElementById('_overlayModal').remove()" style="background:#252640;border:1px solid #2c2f48;border-radius:6px;padding:6px 14px;font-size:12px;color:#aaa;cursor:pointer">取消</button>
+        <button id="_ovOk" style="background:#4a9eff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;color:#06122a;font-weight:600;cursor:pointer">生成</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  let selectedKind = 'bgm';
+  document.getElementById('_ovKindBgm').addEventListener('click', function() {
+    selectedKind = 'bgm';
+    this.style.borderColor = '#4a9eff'; this.style.background = 'rgba(74,158,255,.2)'; this.style.color = '#4a9eff';
+    const sfxBtn = document.getElementById('_ovKindSfx');
+    sfxBtn.style.borderColor = '#2c2f48'; sfxBtn.style.background = 'transparent'; sfxBtn.style.color = '#aaa';
+  });
+  document.getElementById('_ovKindSfx').addEventListener('click', function() {
+    selectedKind = 'sfx';
+    this.style.borderColor = '#4ec98f'; this.style.background = 'rgba(78,201,143,.2)'; this.style.color = '#4ec98f';
+    const bgmBtn = document.getElementById('_ovKindBgm');
+    bgmBtn.style.borderColor = '#2c2f48'; bgmBtn.style.background = 'transparent'; bgmBtn.style.color = '#aaa';
+  });
+  document.getElementById('_ovOk').addEventListener('click', () => {
+    const p = (document.getElementById('_ovPrompt').value || '').trim();
+    if (!p) return;
+    document.getElementById('chatInput').value = p;
+    ov.remove();
+    generateOverlay(selectedKind, document.getElementById('btnAddOverlay'));
+  });
+  const inp = document.getElementById('_ovPrompt');
+  inp.focus();
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('_ovOk').click(); });
+}
+
+/* ---------- 时间轴 Ctrl+滚轮缩放 ---------- */
+function wireTimelineZoom() {
+  const MIN_PPS = 20, MAX_PPS = 300;
+  document.getElementById('daw').addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.15 : 0.87;
+    PX_PER_SEC = Math.max(MIN_PPS, Math.min(MAX_PPS, PX_PER_SEC * factor));
+    const dawEl = document.querySelector('.daw');
+    if (dawEl) dawEl.style.setProperty('--pps', PX_PER_SEC + 'px');
+    TL_WIDTH = TOTAL * PX_PER_SEC;
+    drawRuler();
+    document.querySelectorAll('.wave-host').forEach(h => { h.style.width = TL_WIDTH + 'px'; });
+    renderFixedTracks(); renderOverlayTracks(); layoutAccents(); updateHead();
+  }, { passive: false });
+}
+
+/* ---------- project guard：WORK_DIR 为空时禁用写操作按钮 ---------- */
+function applyProjectGuard() {
+  if (WORK_DIR) return;
+  ['btnScore', 'btnMixdown', 'btnAccentMix', 'btnSfxGen'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) { b.disabled = true; b.title = '请先在壳里打开项目（?project=）'; }
+  });
+  const banner = document.createElement('div');
+  banner.style.cssText = 'background:rgba(229,90,90,.1);border:1px solid #7a2020;border-radius:6px;padding:7px 14px;font-size:12px;color:#e88;margin:0 0 8px';
+  banner.textContent = '⚠ 未选择项目目录——配乐、出片等写操作不可用，请从项目中心进入本页';
+  const head = document.querySelector('.work-head');
+  if (head && head.parentNode) head.parentNode.insertBefore(banner, head.nextSibling);
 }
 
 /* ---------- 启动 ---------- */
@@ -1056,6 +1161,8 @@ function init() {
   document.getElementById('tcTotal').textContent = fmt(TOTAL);
   wireVideo();
   wire();
+  wireTimelineZoom();
+  applyProjectGuard();
   if (VIDEO) loadVideo(VIDEO);     // ?video= 自动加载
   loadSession();
 }

@@ -52,7 +52,9 @@ def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
                      replace_video_audio_fn=None,
                      duration_of=None,
                      sfx_session=None,
-                     sfx_ducking_db: float = -6.0) -> str:
+                     sfx_ducking_db: float = -6.0,
+                     overlay_session=None,
+                     overlay_ducking_db: float = -6.0) -> str:
     """段 BGM 拼接 → 卡点对齐+泵感（跳过对齐爆点） → 装对白轨(或 Demucs) →
     ducking → 写回视频。所有 I/O 可注入（测试用）。"""
     # 默认值引用模块级名称，使 monkeypatch 仍然生效
@@ -76,13 +78,15 @@ def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    seg_bgms = [_chosen_bgm(s) for s in sess.segments]
+    # 过滤软删除段（disabled=True）
+    active_segs = [s for s in sess.segments if not getattr(s, "disabled", False)]
+    seg_bgms = [_chosen_bgm(s) for s in active_segs]
     accents = list(getattr(sess, "accent_points", []) or [])
     use_accent = bool(getattr(sess, "accent_mix_enabled", True)) and bool(accents)
-    gains = [float(getattr(s, "volume", 1.0)) for s in sess.segments]
+    gains = [float(getattr(s, "volume", 1.0)) for s in active_segs]
 
     if use_accent:
-        targets = clip_targets([s.duration for s in sess.segments], accents,
+        targets = clip_targets([s.duration for s in active_segs], accents,
                                big_threshold=big_threshold, window=snap_window,
                                min_clip=crossfade)
         raw_bgm = _assemble_bgm(seg_bgms, work_dir / "full_bgm.wav",
@@ -117,6 +121,12 @@ def assemble_and_mix(sess: ScoringSession, video_path, work_dir, *,
         mixed = _post_mix_sfx_layer(
             mixed, sfx_session.shots,
             float(sfx_ducking_db), work_dir)
+
+    # Phase 4b: 动态叠加轨（overlay）接入
+    if overlay_session is not None:
+        mixed = _post_mix_overlay_layer(
+            mixed, overlay_session.segments,
+            float(overlay_ducking_db), work_dir)
 
     out_video = work_dir / (Path(video_path).stem + "_scored.mp4")
     _replace_video_audio(video_path, mixed, out_video)
@@ -161,20 +171,22 @@ def assemble_sfx_track(sfx_shots, out_path):
 
 
 def duck_bgm_for_sfx(bgm_path, sfx_path, out_path, *, ducking_db: float = -6.0):
-    """SFX 触发，BGM 被压缩 ducking_db。"""
+    """SFX 触发，BGM 被压缩 ducking_db（ducking_db <= 0）。makeup 固定为 0 以保留 ducking 效果。"""
     out_path = Path(out_path)
-    makeup = max(0.0, -float(ducking_db))
     cmd = [
         "ffmpeg", "-y",
         "-i", str(bgm_path),
         "-i", str(sfx_path),
         "-filter_complex",
         f"[0:a][1:a]sidechaincompress=threshold=0.05:ratio=4:"
-        f"attack=20:release=200:makeup={makeup}[duck];"
+        f"attack=20:release=200:makeup=0[duck];"
         f"[duck][1:a]amix=inputs=2:duration=first:normalize=0[mix]",
         "-map", "[mix]", "-c:a", "pcm_s16le", str(out_path),
     ]
-    subprocess.run(cmd, check=False, capture_output=True)
+    result = subprocess.run(cmd, check=False, capture_output=True)
+    if result.returncode != 0 or not out_path.exists():
+        err = (result.stderr or b"").decode("utf-8", "ignore")[-400:]
+        raise RuntimeError(f"duck_bgm_for_sfx ffmpeg 失败: {err}")
     return out_path
 
 
@@ -183,10 +195,53 @@ def _post_mix_sfx_layer(mixed_path, sfx_shots, ducking_db: float, work_dir):
     sfx_track = assemble_sfx_track(sfx_shots, Path(work_dir) / "sfx_track.wav")
     if sfx_track is None:
         return mixed_path
-    return duck_bgm_for_sfx(
-        Path(mixed_path), sfx_track,
-        Path(work_dir) / "mixed_with_sfx.wav",
-        ducking_db=ducking_db)
+    try:
+        return duck_bgm_for_sfx(
+            Path(mixed_path), sfx_track,
+            Path(work_dir) / "mixed_with_sfx.wav",
+            ducking_db=ducking_db)
+    except RuntimeError:
+        import logging as _log
+        _log.getLogger(__name__).warning("SFX ducking 失败，降级不含 SFX", exc_info=True)
+        return mixed_path
+
+
+def _post_mix_overlay_layer(mixed_path, segments, ducking_db: float, work_dir):
+    """mix 完成后追加叠加轨（overlay）层 + ducking。"""
+    cues = [
+        (s.t_start, s.audio_path, float(s.volume))
+        for s in segments
+        if s.enabled and s.audio_path and Path(s.audio_path).is_file()
+    ]
+    if not cues:
+        return mixed_path
+
+    class _FakeShot:
+        def __init__(self, t_start, path, volume):
+            self.t_start = t_start
+            self.enabled = True
+            self.chosen_candidate = 0
+            self.volume = volume
+
+            class _Cand:
+                pass
+            c = _Cand()
+            c.path = path
+            self.candidates = [c]
+
+    fake_shots = [_FakeShot(t, p, v) for t, p, v in cues]
+    overlay_track = assemble_sfx_track(fake_shots, Path(work_dir) / "overlay_track.wav")
+    if overlay_track is None:
+        return mixed_path
+    try:
+        return duck_bgm_for_sfx(
+            Path(mixed_path), overlay_track,
+            Path(work_dir) / "mixed_with_overlay.wav",
+            ducking_db=ducking_db)
+    except RuntimeError:
+        import logging as _log
+        _log.getLogger(__name__).warning("overlay ducking 失败，降级不含 overlay", exc_info=True)
+        return mixed_path
 
 
 def extract_frames_at(video_path, times: list[float], out_dir, *,
