@@ -1350,19 +1350,64 @@ function wireInspector(c) {
 }
 
 /* ===== 子2：「预览此切口」=====
-   最小实现：把切口前一个片段（c.a）放进播放器整体预览，并提示当前转场。
-   TODO(后端)：新增单切口干跑端点（如 /transition/preview-cut 渲该切口短样）后改为渲染样片。
-   保持 /transition/render、/preview 调用契约不变。 */
-function previewCut(c) {
+   POST /transition/preview_cut：渲切口两侧各 2.5s 的短样片，播到预览区。
+   输出覆写固定临时文件 PROJECT/.cut_preview.mp4（无需清理）。 */
+async function previewCut(c) {
   if (!c) { toast("请先选中一个切口"); return; }
+  if (!PROJECT) { toast("请先选择项目（预览切口需要项目路径保存临时文件）"); return; }
   const clA = clips.find((cl) => cl.id === c.a);
-  if (clA && clA.kind === "video" && clA.path) {
-    selClip = clA.id;
-    playPreview(clA);
-    renderStrip(); renderTrim();
-    toast(`预览切口 ${c.a}→${c.b}（${fxShortName(c.fx)}）· 单切口样片渲染待后端 TODO，暂放前片预览`);
-  } else {
-    toast("该切口前一片段不可预览（非视频）· 单切口样片渲染待后端 TODO");
+  const clB = clips.find((cl) => cl.id === c.b);
+  if (!clA || !clB) { toast("找不到切口两侧片段"); return; }
+  if (clA.kind !== "video" || clB.kind !== "video") {
+    toast("切口预览仅支持视频片段（当前含非视频片段）"); return;
+  }
+
+  // 构造仅含 2 个片段的 mini composition
+  const isCut = c.fx === "cut";
+  const rcA = {
+    clip_id: String(clA.id), path: clA.path || clA.name,
+    keep: true, duration: clA.durSec || 0,
+    ...(clA.trimIn  != null ? { in_point:  clA.trimIn  } : {}),
+    ...(clA.trimOut != null ? { out_point: clA.trimOut } : {}),
+    user_transition: c.fx,
+    user_duration: isCut ? 0.0 : (c.dur || 0.5),
+  };
+  const rcB = {
+    clip_id: String(clB.id), path: clB.path || clB.name,
+    keep: true, duration: clB.durSec || 0,
+    ...(clB.trimIn  != null ? { in_point:  clB.trimIn  } : {}),
+    ...(clB.trimOut != null ? { out_point: clB.trimOut } : {}),
+  };
+  const miniComp = { clips: [rcA, rcB], fps: 30, width: clA.w || 1920, height: clA.h || 1080 };
+  const outPath = PROJECT.replace(/\\/g, "/") + "/.cut_preview.mp4";
+
+  const pvBtn = document.getElementById("inspector") &&
+    document.getElementById("inspector").querySelector('[data-act="previewcut"]');
+  if (pvBtn) { pvBtn.disabled = true; pvBtn.textContent = "⏳ 渲染中…"; }
+  toast(`渲染切口样片（${fxShortName(c.fx)}）中…`);
+
+  try {
+    const resp = await fetch(MEDIA_API + "/transition/preview_cut", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ composition: miniComp, out_path: outPath,
+                             preview_window: 2.5, project: PROJECT }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      toast("切口预览失败：" + (err.detail || resp.status));
+      return;
+    }
+    const data = await resp.json();
+    // 复用 playPreview：传一个虚拟 clip 对象（path = 渲染出的临时文件）
+    playPreview({ kind: "video", path: data.output || outPath, _previewCut: true });
+    const pvTag = document.getElementById("pvTag");
+    if (pvTag) pvTag.textContent = `切口预览：${fxShortName(c.fx)} ${isCut ? "（硬切）" : (c.dur || 0.5) + "s"}`;
+    toast(`切口样片已就绪 · ${fxShortName(c.fx)} ${isCut ? "" : (c.dur || 0.5) + "s"}`);
+  } catch (e) {
+    toast("切口预览网络错误：" + e.message);
+  } finally {
+    if (pvBtn) { pvBtn.disabled = false; pvBtn.textContent = "▶ 预览此切口"; }
   }
 }
 

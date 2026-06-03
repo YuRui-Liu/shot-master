@@ -1,10 +1,19 @@
 """成片渲染：由 CompositionModel 构建 ffmpeg(xfade+acrossfade) 参数并执行。Qt-free。
 
 转场效果库 XFADE_EFFECTS 为 UI/渲染共用事实源（含类别 + 中文显示名）。
+分类：universal(通用) / directional(方向) / fx(特效) / cut(切)。约 20 种。
+TRANSITIONS 为 spec 用名的别名，指向同一事实源。
+
+子项目2 新增特效类（均为合法 ffmpeg xfade transition 名）：
+    circleopen / circleclose / radial / pixelize / zoomin / diagtl / hlslice
+⚠ 个别 xfade 名在部分 ffmpeg 构建上可能不被支持——落地后逐个验渲染，
+  对本机 ffmpeg 不支持的名字应从本表剔除（build_ffmpeg_args 直传该名，
+  不支持时 ffmpeg 会在渲染期报错）。
 """
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 from typing import Callable
 
 from drama_shot_master.core.composition_model import CompositionModel
@@ -14,7 +23,6 @@ XFADE_EFFECTS = [
     {"name": "fadeblack", "label": "黑场过渡", "category": "universal"},
     {"name": "fadewhite", "label": "白场过渡", "category": "universal"},
     {"name": "dissolve", "label": "叠化", "category": "universal"},
-    {"name": "distance", "label": "距离溶解", "category": "universal"},
     {"name": "smoothleft", "label": "推进 ←", "category": "directional"},
     {"name": "smoothright", "label": "推进 →", "category": "directional"},
     {"name": "smoothup", "label": "推进 ↑", "category": "directional"},
@@ -23,14 +31,19 @@ XFADE_EFFECTS = [
     {"name": "slideright", "label": "滑动 →", "category": "directional"},
     {"name": "wipeleft", "label": "擦除 ←", "category": "directional"},
     {"name": "wiperight", "label": "擦除 →", "category": "directional"},
-    {"name": "circleopen", "label": "圆形展开", "category": "creative"},
-    {"name": "circleclose", "label": "圆形收拢", "category": "creative"},
-    {"name": "radial", "label": "径向", "category": "creative"},
-    {"name": "zoomin", "label": "推近", "category": "creative"},
-    {"name": "pixelize", "label": "像素化", "category": "creative"},
-    {"name": "squeezev", "label": "纵向挤压", "category": "creative"},
+    # —— fx 特效（子项目2 新增，落地后逐个验渲染，不支持的剔除）——
+    {"name": "circleopen", "label": "圆形展开", "category": "fx"},
+    {"name": "circleclose", "label": "圆形收拢", "category": "fx"},
+    {"name": "radial", "label": "径向", "category": "fx"},
+    {"name": "pixelize", "label": "像素化", "category": "fx"},
+    {"name": "zoomin", "label": "推近", "category": "fx"},
+    {"name": "diagtl", "label": "对角 ↖", "category": "fx"},
+    {"name": "hlslice", "label": "百叶窗", "category": "fx"},
     {"name": "none", "label": "硬切", "category": "cut"},
 ]
+
+# spec 以 TRANSITIONS 指代效果库；保留 XFADE_EFFECTS 为既有事实源名，别名指向同一对象。
+TRANSITIONS = XFADE_EFFECTS
 
 
 def compute_offsets(durations: list[float], trans_durs: list[float]) -> list[float]:
@@ -176,6 +189,8 @@ def build_ffmpeg_args(comp: CompositionModel, out_path: str,
 def render(comp: CompositionModel, out_path: str) -> str:
     """执行渲染（真调 ffmpeg）。成功返回 out_path，失败抛 RuntimeError。"""
     from drama_shot_master.core.ffmpeg_locate import ffmpeg_path, probe_duration, has_audio_stream
+    # 确保输出目录存在（外部导入路径 / 新项目首次渲染时目录可能未创建）
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     args = build_ffmpeg_args(comp, out_path, ffmpeg=ffmpeg_path(), probe=probe_duration,
                              has_audio=has_audio_stream)
     proc = subprocess.run(args, capture_output=True, check=False)

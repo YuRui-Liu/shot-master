@@ -114,13 +114,70 @@ def analyze(req: CompositionRequest):
         )
 
     comp = CompositionModel.from_dict(req.composition)
-    analyze_composition(comp)
+    # refine_trim：附带 in/out 网格搜索，回填 auto_in/auto_out 建议（spec §子1）。
+    analyze_composition(comp, refine_trim=True)
     return {"composition": comp.to_dict()}
 
 
 class RenderRequest(BaseModel):
     composition: dict
     out_path: str
+
+
+class PreviewCutRequest(BaseModel):
+    """单切口短样预览：传两片段的 composition + 转场参数，渲一段短片返回路径。"""
+    composition: dict          # 仅含切口两侧的 2 个 clip（前端自行筛出）
+    out_path: str              # 输出路径（前端传临时路径，如 PROJECT/.cut_preview.mp4）
+    preview_window: float = 2.5  # 每侧保留多少秒（截断过长的片段，加速渲染）
+    project: str = ""
+
+
+@router.post("/preview_cut")
+def preview_cut(req: PreviewCutRequest):
+    """渲染单切口短样片（最多 preview_window×2 秒）。
+
+    前端传切口两侧 2 个 clip 的 composition，本端点把每个片段截断到最多
+    preview_window 秒（取末尾/开头），渲染后返回临时文件路径供前端播放。
+    文件可重复覆写（out_path 固定为 .cut_preview.mp4），无需清理。
+    """
+    clips = req.composition.get("clips") or []
+    if len(clips) < 2:
+        raise HTTPException(status_code=400, detail="composition 需包含恰好 2 个 clip")
+
+    # 截断每个片段，只保留切口附近的 preview_window 秒
+    win = max(0.5, req.preview_window)
+    clip_a = dict(clips[0])
+    clip_b = dict(clips[1])
+    dur_a = float(clip_a.get("duration") or 0)
+    dur_b = float(clip_b.get("duration") or 0)
+
+    # clip_a：保留末尾 win 秒（in_point 往后推）
+    if dur_a > win:
+        orig_out_a = float(clip_a.get("out_point") or dur_a)
+        clip_a["out_point"] = orig_out_a
+        clip_a["in_point"] = max(0.0, orig_out_a - win)
+
+    # clip_b：保留开头 win 秒（out_point 往前推）
+    if dur_b > win:
+        orig_in_b = float(clip_b.get("in_point") or 0)
+        clip_b["in_point"] = orig_in_b
+        clip_b["out_point"] = orig_in_b + win
+
+    preview_comp = dict(req.composition)
+    preview_comp["clips"] = [clip_a, clip_b]
+
+    valid, unresolvable, not_found = _resolve_and_validate_clip_paths(preview_comp, req.project)
+    all_missing = unresolvable + not_found
+    if all_missing:
+        raise HTTPException(status_code=400,
+                            detail=f"片段路径不可用: {', '.join(all_missing)}")
+
+    comp = CompositionModel.from_dict(preview_comp)
+    ok, msg = comp.validate()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    out = tr.render(comp, req.out_path)
+    return {"output": out, "warning": (msg if msg != "ok" else "")}
 
 
 def _probe_from_comp(comp: CompositionModel):
