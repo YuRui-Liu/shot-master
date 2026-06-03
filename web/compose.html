@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>糯米AI · ⑤ 智能转场 · Transition</title>
+<title>糯米AI · 智能转场 · Transition</title>
 <link rel="stylesheet" href="tokens.css">
 <style>
   /* 作为壳内容页：自带标题栏/侧栏由 web/app.html 壳(糯米 AI)统一提供，本页不重复。 */
@@ -16,8 +16,12 @@
     max-width: 1280px; flex-wrap: wrap;
   }
   .work-head h1 { margin: 0; font-size: 22px; background: linear-gradient(135deg, var(--blue), var(--mauve)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .ep-select { min-width: 170px; }
+  .work-head .sub { font-size: 12px; color: var(--faint); letter-spacing: .5px; align-self: flex-end; padding-bottom: 4px; }
   .head-spacer { flex: 1; }
+
+  /* 标题行之后的切换/工具条（集选择 + 列目录/外部导入/添加片段） */
+  .work-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; max-width: 1280px; flex-wrap: wrap; }
+  .ep-select { min-width: 170px; }
 
   /* 工具栏按钮：分析(主CTA) / 渲染 拆开（一主CTA原则） */
   .btn-analyze {
@@ -48,6 +52,13 @@
     background: rgba(138,127,217,.14); border: 1px solid #4a3d6e;
     border-radius: 10px; padding: 2px 10px;
   }
+  .strip-hd .btn-trim-all {
+    font-size: 11px; color: var(--blue); background: rgba(74,158,255,.1);
+    border: 1px solid var(--blue-dim); border-radius: 10px; padding: 3px 11px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .strip-hd .btn-trim-all:hover:not(:disabled) { background: rgba(74,158,255,.2); }
+  .strip-hd .btn-trim-all:disabled { opacity: .4; cursor: not-allowed; }
   .strip { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 8px; scroll-behavior: smooth; }
   .strip::-webkit-scrollbar { height: 6px; }
   .strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -75,7 +86,16 @@
     display: flex; align-items: center; justify-content: center; color: var(--blue); font-size: 12px;
   }
   .clip.dropped .keep { border-color: var(--faint); color: var(--faint); }
-  .clip .grip { position: absolute; top: 6px; right: 6px; color: var(--muted); font-size: 13px; opacity: .7; }
+  .clip .grip { position: absolute; top: 6px; right: 26px; color: var(--muted); font-size: 13px; opacity: .7; }
+  /* 删除片段：真正从走马灯移除该 clip（与「剔除/dropped 置灰保留」区分）。 */
+  .clip .del {
+    position: absolute; top: 5px; right: 5px; width: 18px; height: 18px; border-radius: 5px;
+    background: rgba(8,8,18,.6); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 12px; line-height: 1; cursor: pointer; z-index: 7;
+    transition: color .14s, border-color .14s, background .14s;
+  }
+  .clip .del:hover { color: var(--err); border-color: var(--err); background: rgba(224,90,90,.16); }
   .clip .shots {
     position: absolute; bottom: 34px; left: 6px; font-size: 9px; color: var(--blue);
     background: rgba(74,158,255,.18); border: 1px solid var(--blue-dim); border-radius: 3px; padding: 1px 5px;
@@ -84,6 +104,7 @@
   .clip .c-name { font-size: 11px; font-weight: 600; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .clip .c-dur { font-size: 9px; color: var(--faint); margin-top: 1px; }
   .clip .thumb-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .clip .thumb-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; background: transparent; }
   .clip .trimmed {
     position: absolute; bottom: 34px; right: 6px; font-size: 8.5px; color: var(--warn);
     background: rgba(224,168,90,.16); border: 1px solid #6b5520; border-radius: 3px; padding: 1px 5px;
@@ -105,6 +126,54 @@
   }
   .clip.add { border-style: dashed; background: transparent; }
   .clip.add .thumb { background: none; display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 26px; }
+
+  /* ===== 子3：片段卡左右拖拽把手（设 in/out 生效点）+ 裁切遮罩 ===== */
+  .clip .trimbar { position: absolute; left: 0; right: 0; bottom: 0; top: 0; pointer-events: none; z-index: 3; }
+  /* 被裁掉的头/尾用半透明黑遮罩示意 */
+  .clip .trimbar .crop {
+    position: absolute; top: 0; bottom: 0; background: rgba(8,8,18,.62);
+    border-top: 0; pointer-events: none;
+  }
+  .clip .trimbar .crop.l { left: 0; }
+  .clip .trimbar .crop.r { right: 0; }
+  /* 可拖拽把手（仅视频；底部一条贴在缩略图下沿，覆盖整高便于抓取） */
+  .clip .thandle {
+    position: absolute; top: 0; bottom: 0; width: 9px; background: var(--blue);
+    cursor: ew-resize; pointer-events: auto; z-index: 5; opacity: .85;
+    box-shadow: 0 0 6px rgba(74,158,255,.5);
+  }
+  .clip .thandle:hover { opacity: 1; }
+  .clip .thandle.l { border-radius: 3px 0 0 3px; }
+  .clip .thandle.r { border-radius: 0 3px 3px 0; }
+  .clip .thandle::after {
+    content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 2px; height: 14px; background: rgba(255,255,255,.85); border-radius: 1px;
+  }
+  /* 子1：AI 建议裁剪点（虚线指示 + 数值），在缩略图上以虚线竖条标出 auto_in/auto_out */
+  .clip .autoline {
+    position: absolute; top: 0; bottom: 22px; width: 0; pointer-events: none; z-index: 4;
+    border-left: 1.5px dashed var(--mauve);
+  }
+  .clip .autoline .v {
+    position: absolute; top: 2px; font-size: 7.5px; color: var(--mauve);
+    background: rgba(138,127,217,.22); border: 1px solid #4a3d6e; border-radius: 2px;
+    padding: 0 3px; white-space: nowrap; line-height: 1.5;
+  }
+  .clip .autoline.ai-in .v { left: 1px; }
+  .clip .autoline.ai-out .v { right: 1px; }
+  /* 子1：单卡 AI 建议条（采纳/锁定），覆盖在 meta 上方 */
+  .clip .suggest {
+    position: absolute; left: 0; right: 0; bottom: 22px; z-index: 6;
+    display: flex; align-items: center; gap: 4px; padding: 2px 5px;
+    background: rgba(138,127,217,.92); font-size: 8.5px; color: #0b0a1a; font-weight: 700;
+  }
+  .clip .suggest .lab { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .clip .suggest .sg-btn {
+    cursor: pointer; pointer-events: auto; padding: 0 4px; border-radius: 3px;
+    background: rgba(11,10,26,.25); border: 1px solid rgba(11,10,26,.4);
+  }
+  .clip .suggest .sg-btn:hover { background: rgba(11,10,26,.45); }
+  .clip.locktrim .meta { box-shadow: inset 0 0 0 1px var(--warn); }
 
   /* 切口连接器 conn = 转场切口 */
   .conn {
@@ -172,6 +241,15 @@
   }
   .field .select:hover { border-color: var(--mauve); }
   .field input[type="number"] { width: 100%; }
+  /* 子2：转场类型 <select> + <optgroup>（通用/方向/特效/切） */
+  .field select.fx-select {
+    width: 100%; background: var(--field); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 8px 11px; color: var(--fg);
+    font-size: 12.5px; cursor: pointer; appearance: auto;
+  }
+  .field select.fx-select:hover { border-color: var(--mauve); }
+  .field select.fx-select optgroup { color: var(--mauve); font-style: normal; font-weight: 700; }
+  .field select.fx-select option { color: var(--fg); background: var(--panel); font-weight: 400; }
 
   /* CV 评分拆解卡 */
   .scorecard { background: var(--field); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; }
@@ -206,28 +284,84 @@
     transition: opacity .2s, transform .2s; z-index: 80; box-shadow: 0 10px 28px rgba(0,0,0,.5);
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ===== 外部导入下拉面板 ===== */
+  .ext-import-wrap { position: relative; display: inline-block; }
+  .ext-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background: var(--panel);
+    border: 1px solid #3a3d5c;
+    border-radius: 8px;
+    width: 280px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.55);
+    z-index: 200;
+  }
+  .ext-dropdown.open { display: block; }
+  .ext-dropdown-head {
+    padding: 8px 12px 6px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .5px;
+    border-bottom: 1px solid #2a2c40;
+  }
+  .ext-history-list { padding: 6px 8px 4px; }
+  .ext-history-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 6px; border-radius: 5px; cursor: pointer;
+    font-size: 11px; color: var(--muted);
+    white-space: nowrap; overflow: hidden;
+  }
+  .ext-history-item:hover { background: var(--panel2); }
+  .ext-history-item .eh-path {
+    flex: 1; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ext-history-item .eh-hint { font-size: 10px; color: var(--blue); opacity: .7; flex-shrink: 0; }
+  .ext-history-empty { padding: 6px 8px; font-size: 11px; color: var(--faint); }
+  .ext-dropdown-input-row {
+    display: flex; gap: 6px; align-items: center;
+    padding: 6px 8px 8px;
+    border-top: 1px solid #2a2c40;
+  }
+  .ext-dropdown-input-row input {
+    flex: 1; font-size: 11px; padding: 5px 8px;
+  }
+  .ext-dropdown-input-row .btn-import {
+    background: var(--blue); color: #06122a;
+    border: none; border-radius: 6px;
+    padding: 5px 12px; font-size: 11px;
+    font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .ext-dropdown-input-row .btn-import:hover { filter: brightness(1.15); }
 </style>
 </head>
 <body>
 <div class="work">
   <div class="work-head">
-    <h1>⑤ 智能转场 · Transition</h1>
+    <h1>智能转场</h1><span class="sub">Transition</span>
+    <span class="head-spacer"></span>
+    <!-- 主 CTA：智能转场=CV 分析触发（不直接出片） -->
+    <button class="btn-analyze" data-act="analyze">✦ 一键智能转场</button>
+    <!-- 拆出的渲染：分析→审阅→再生成 -->
+    <button class="btn-render" data-act="render">⬇ 生成成片</button>
+  </div>
+
+  <!-- 标题行之后：集选择 + 生成目录/外部导入/添加片段 工具条 -->
+  <div class="work-toolbar">
     <select class="ep-select">
       <option>第1集 · 成片</option>
       <option>第2集 · 成片</option>
       <option>预告片</option>
     </select>
     <span class="head-spacer"></span>
-    <input id="subDir" class="ep-select" style="min-width:120px;max-width:160px"
+    <input type="text" id="subDir" class="ep-select" style="min-width:120px;max-width:160px"
            placeholder="子目录(如 video)" title="GET /project/clips 的 sub 参数（生成视频子目录）">
     <button class="btn-soft" data-act="listdir">⟳ 列出生成目录</button>
     <input id="extDir" class="ep-select" style="min-width:120px;max-width:160px;border-style:dashed;" placeholder="外部路径（局部的）" title="添加外部文件夹路径导入片段，不持久落盘，关软件丢失">
     <button class="btn-soft" data-act="addext" title="从外部路径导入片段">＋ 外部导入</button>
     <button class="btn-soft" data-act="addclip">＋ 添加片段</button>
-    <!-- 主 CTA：智能转场=CV 分析触发（不直接出片） -->
-    <button class="btn-analyze" data-act="analyze">✦ 一键智能转场</button>
-    <!-- 拆出的渲染：分析→审阅→再生成 -->
-    <button class="btn-render" data-act="render">⬇ 生成成片</button>
   </div>
 
   <div class="compose">
@@ -235,8 +369,11 @@
     <section class="card strip-card">
       <div class="strip-hd">
         <span class="h">片段走马灯 · ClipStrip</span>
-        <span class="cnt">拖拽排序 · 点缩略图预览 · 点圆点编辑转场切口</span>
+        <span class="cnt">拖拽排序 · 拖卡片左右把手裁 in/out · 点圆点编辑转场切口</span>
         <span class="ana" id="anaState">未分析 · 点「一键智能转场」跑 CV 推荐</span>
+        <!-- 子1：一键采纳全部 AI 裁剪建议（auto_in/out → in_point/out_point）；无建议时禁用 -->
+        <button class="btn-trim-all" id="adoptAll" data-act="adoptall" disabled
+                title="把每个片段的 AI 建议裁剪点采纳为生效入/出点">✓ 采纳全部裁剪建议</button>
       </div>
       <div class="strip" id="strip"><!-- JS 渲染 --></div>
     </section>
@@ -319,6 +456,24 @@ function mediaUrl(p) {
 /* 片段缩略图/媒体 src（保留原函数名，内部改走 mediaUrl 消除色块/空白）。 */
 function fileSrc(path) { return mediaUrl(path); }
 
+/* 视频预览 src：走 /preview（H.264 mp4 会转成 QtWebEngine 能播的 WebM）。
+   QtWebEngine 本构建不带 H.264/AAC 解码，直接喂 mp4 会 MEDIA_ERR_SRC_NOT_SUPPORTED。 */
+function previewSrc(p) {
+  if (!p) return "";
+  if (/^(https?:|data:|blob:)/.test(p)) return p;
+  var u = MEDIA_API + "/preview?path=" + encodeURIComponent(p);
+  if (PROJECT && !/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) u += "&project=" + encodeURIComponent(PROJECT);
+  return u;
+}
+
+/* 在系统文件管理器中定位本地文件：经壳中继 open.path → Qt filepick.openPath。
+   传**本地文件路径**(非 http URL)。QtWebEngine 里 <a target=_blank> 不会开新窗，故走桥。 */
+function openInShell(absPath) {
+  if (!absPath) return;
+  try { window.parent.postMessage({ type: "open.path", path: absPath }, "*"); }
+  catch (_) { try { navigator.clipboard.writeText(absPath); } catch (__) {} }
+}
+
 /* 视频片段缩略图：无现成抽帧端点 → 若存在同名图(.jpg/.png/.webp)用首帧图；
    否则返回空（renderStrip 退化为「文件名卡片」，不造假抽帧）。 */
 const _THUMB_EXT = ["jpg", "jpeg", "png", "webp"];
@@ -352,9 +507,9 @@ function playPreview(cl) {
   const playIcon = pvBox.querySelector(".play");
   if (playIcon) playIcon.style.display = "none";
 
-  // 构造 src：路径归一化反斜杠
+  // 构造 src：路径归一化反斜杠；视频走 /preview（转 WebM 才能在 QtWebEngine 播放）
   const rawPath = (typeof cl.path === "string" ? cl.path : String(cl.path || "")).replace(/\\/g, "/");
-  const src = fileSrc(rawPath);
+  const src = previewSrc(rawPath);
 
   const vid = document.createElement("video");
   vid.src = src;
@@ -374,9 +529,9 @@ function playPreview(cl) {
     d.innerHTML =
       '<div style="font-size:12px;color:var(--err);font-weight:600">视频无法播放</div>' +
       '<div style="font-size:10px;color:var(--warn)">' + codeLabel + '</div>' +
-      '<div style="font-size:9.5px;word-break:break-all;max-width:92%;color:var(--faint);line-height:1.4">src: ' + esc(src) + '</div>' +
-      '<div style="margin-top:3px"><a href="' + esc(src) + '" target="_blank" style="color:var(--blue);text-decoration:underline;font-size:12px">点击路径直接访问文件</a></div>' +
-      '<div style="font-size:9px;color:var(--faint);margin-top:3px">Tips: 直接访问正常则是 Range/CORS/编码问题，请确认 media_agent 已重启并支持 206 分段请求</div>';
+      '<div style="font-size:9.5px;word-break:break-all;max-width:92%;color:var(--faint);line-height:1.4">' + esc(rawPath) + '</div>' +
+      '<div style="margin-top:3px"><span onclick="openInShell(\'' + rawPath.replace(/'/g, "\\'") + '\')" style="cursor:pointer;color:var(--blue);text-decoration:underline;font-size:12px">在文件管理器中打开</span></div>' +
+      '<div style="font-size:9px;color:var(--faint);margin-top:3px">Tips: 预览经 /preview 转 WebM；若仍失败请确认 media_agent 已重启且 ffmpeg 可用</div>';
     pvBox.appendChild(d);
     if (playIcon) playIcon.style.display = "";
   };
@@ -407,15 +562,65 @@ async function getJSON(url) {
   return data || {};
 }
 
-/* ===== 转场效果 ↔ 中文标签映射（与后端 transition_analyzer / ffmpeg xfade 名一致） ===== */
-const FX_LABEL = {
-  dissolve: "叠化 (dissolve)", fadeblack: "淡入黑 (fadeblack)",
-  smoothleft: "推左 (smoothleft)", smoothright: "推右 (smoothright)",
-  smoothup: "推上 (smoothup)", smoothdown: "推下 (smoothdown)",
-  circleopen: "圆开 (circleopen)", circleclose: "圆闭 (circleclose)",
-  fade: "淡入淡出 (fade)", cut: "硬切 (cut)",
-};
+/* ===== 转场词汇表（子2：~20 种，分四类，与后端 transition_render.TRANSITIONS / ffmpeg xfade 名一致） =====
+   每项 {fx, label, cat, icon, dir}：
+     fx   = ffmpeg xfade 名（cut 为硬切，render 时降级 none/0 时长）
+     cat  = general(通用) | direction(方向) | fx(特效) | cut(切)
+     icon = 走马灯节点静态图标（零渲染，子3 用）
+     dir  = 方向类的箭头方向（用于节点显示）。
+   分类顺序即检查器 <optgroup> 顺序。 */
+const TRANSITIONS = [
+  // 通用
+  { fx: "dissolve",   label: "叠化 (dissolve)",     cat: "general",   icon: "◈" },
+  { fx: "fade",       label: "淡入淡出 (fade)",     cat: "general",   icon: "○" },
+  { fx: "fadeblack",  label: "淡入黑 (fadeblack)",  cat: "general",   icon: "●" },
+  { fx: "fadewhite",  label: "淡入白 (fadewhite)",  cat: "general",   icon: "◌" },
+  // 方向
+  { fx: "smoothleft",  label: "推左 (smoothleft)",  cat: "direction", icon: "⇠", dir: "left" },
+  { fx: "smoothright", label: "推右 (smoothright)", cat: "direction", icon: "⇢", dir: "right" },
+  { fx: "smoothup",    label: "推上 (smoothup)",    cat: "direction", icon: "⇡", dir: "up" },
+  { fx: "smoothdown",  label: "推下 (smoothdown)",  cat: "direction", icon: "⇣", dir: "down" },
+  { fx: "slideleft",   label: "滑左 (slideleft)",   cat: "direction", icon: "←", dir: "left" },
+  { fx: "slideright",  label: "滑右 (slideright)",  cat: "direction", icon: "→", dir: "right" },
+  { fx: "wipeleft",    label: "擦左 (wipeleft)",    cat: "direction", icon: "◁", dir: "left" },
+  { fx: "wiperight",   label: "擦右 (wiperight)",   cat: "direction", icon: "▷", dir: "right" },
+  // 特效
+  { fx: "circleopen",  label: "圆开 (circleopen)",  cat: "fx", icon: "◎" },
+  { fx: "circleclose", label: "圆闭 (circleclose)", cat: "fx", icon: "⊙" },
+  { fx: "radial",      label: "径向 (radial)",      cat: "fx", icon: "✺" },
+  { fx: "pixelize",    label: "像素化 (pixelize)",  cat: "fx", icon: "▦" },
+  { fx: "zoomin",      label: "缩放推近 (zoomin)",  cat: "fx", icon: "⊕" },
+  { fx: "diagtl",      label: "对角 (diagtl)",      cat: "fx", icon: "◤" },
+  { fx: "hlslice",     label: "百叶窗 (hlslice)",   cat: "fx", icon: "▤" },
+  // 切
+  { fx: "cut",         label: "硬切 (cut)",         cat: "cut", icon: "▭" },
+];
+const CAT_LABEL = { general: "通用", direction: "方向", fx: "特效", cut: "切" };
+const CAT_ORDER = ["general", "direction", "fx", "cut"];
+const TX_BY_FX = {};
+TRANSITIONS.forEach((t) => { TX_BY_FX[t.fx] = t; });
+
+/* fx → 中文标签（沿用旧 fxLabel 调用点） */
+const FX_LABEL = {};
+TRANSITIONS.forEach((t) => { FX_LABEL[t.fx] = t.label; });
 function fxLabel(fx) { return FX_LABEL[fx] || (fx ? `${fx}` : "叠化 (dissolve)"); }
+/* fx → 短名（节点/走马灯用，去掉英文括号部分） */
+function fxShortName(fx) {
+  const t = TX_BY_FX[fx];
+  if (!t) return fx || "叠化";
+  return t.label.split(" (")[0];
+}
+/* fx → 节点图标（子3 静态映射，方向类带方向语义） */
+function fxIcon(fx) {
+  const t = TX_BY_FX[fx];
+  return t ? t.icon : "◈";
+}
+/* fx → 方向中文（仅方向类有） */
+const DIR_LABEL = { left: "←左", right: "→右", up: "↑上", down: "↓下" };
+function fxDir(fx) {
+  const t = TX_BY_FX[fx];
+  return (t && t.dir) ? DIR_LABEL[t.dir] : "";
+}
 function catFor(total) {
   if (total >= 0.7) return "高匹配 → 万能类（叠化）";
   if (total >= 0.4) return "中匹配+运动 → 方向类（推进）";
@@ -445,10 +650,14 @@ function buildComposition() {
       keep: !!cl.kept,
       duration: cl.durSec || 0,
     };
-    // trim 实裁：把入/出点交给后端，render 时 ffmpeg -ss/-to 真实裁切
+    // trim 实裁：生效入/出点交给后端，render 时 ffmpeg -ss/-to 真实裁切
     // （CompositionModel.trimmed_duration / transition_render 已支持 in_point/out_point）
+    // 子1/子3 共用字段：trimIn/trimOut = in_point/out_point（生效值，子1采纳 + 子3拖拽都写这里）。
     if (cl.trimIn != null) rc.in_point = cl.trimIn;
     if (cl.trimOut != null) rc.out_point = cl.trimOut;
+    // 子1：回传 AI 建议值（auto_in/auto_out），便于后端在已有建议基础上跳过/对照（向后兼容：缺省 None）。
+    if (cl.autoIn != null) rc.auto_in = cl.autoIn;
+    if (cl.autoOut != null) rc.auto_out = cl.autoOut;
     if (cut) {
       const isCut = cut.fx === "cut";
       rc.locked = cut.status === "locked";
@@ -486,13 +695,15 @@ function applyComposition(comp) {
   comp.clips.forEach((rc) => { byId[String(rc.clip_id)] = rc; });
   // P1-1: CV 分析后端可能返回 probe 检测到的真实时长，回填到 clips
   comp.clips.forEach((rc) => {
-    if (rc.duration != null && rc.duration > 0) {
-      const cl = clips.find((c) => String(c.id) === String(rc.clip_id));
-      if (cl && Math.abs(cl.durSec - rc.duration) > 0.01) {
-        cl.durSec = rc.duration;
-        cl.dur = durLabel(rc.duration);
-      }
+    const cl = clips.find((c) => String(c.id) === String(rc.clip_id));
+    if (!cl) return;
+    if (rc.duration != null && rc.duration > 0 && Math.abs(cl.durSec - rc.duration) > 0.01) {
+      cl.durSec = rc.duration;
+      cl.dur = durLabel(rc.duration);
     }
+    // 子1：回填 AI 建议裁剪点（auto_in/auto_out）→ 待用户采纳才写 trimIn/trimOut（生效值不被覆盖）。
+    cl.autoIn = (rc.auto_in != null) ? rc.auto_in : null;
+    cl.autoOut = (rc.auto_out != null) ? rc.auto_out : null;
   });
   cuts.forEach((cut) => {
     const rc = byId[String(cut.a)];               // 切口参数在前一个片段上
@@ -565,6 +776,7 @@ async function loadExternal() {
       kind: c.kind === "image" ? "image" : "video",
       thumb: c.thumb || "",
       trimIn: null, trimOut: null,
+      autoIn: null, autoOut: null,
       _external: true,
       w: c.w || null, h: c.h || null, fps: c.fps || null,
     }));
@@ -577,30 +789,22 @@ async function loadExternal() {
     else { toast("外部导入失败：" + e.message); }
   }
 }
-const EFFECTS = [
-  "叠化 (dissolve)", "淡入黑 (fadeblack)",
-  "推左 (smoothleft)", "推右 (smoothright)",
-  "推上 (smoothup)", "推下 (smoothdown)",
-  "圆开 (circleopen)", "圆闭 (circleclose)",
-  "淡入淡出 (fade)", "硬切 (cut)",
-];
-const FX_MAP = {
-  "叠化 (dissolve)": "dissolve",
-  "淡入黑 (fadeblack)": "fadeblack",
-  "推左 (smoothleft)": "smoothleft",
-  "推右 (smoothright)": "smoothright",
-  "推上 (smoothup)": "smoothup",
-  "推下 (smoothdown)": "smoothdown",
-  "圆开 (circleopen)": "circleopen",
-  "圆闭 (circleclose)": "circleclose",
-  "淡入淡出 (fade)": "fade",
-  "硬切 (cut)": "cut",
-};
+/* 切口状态标签（子3：走马灯节点常显「转场图标 + 名 + 方向 + 时长」，图标改用 fxIcon 按 fx 静态映射）。
+   analyzing 用脉冲态图标；其余状态用转场本身图标。 */
+const TAG_TXT = { ai: "AI", analyzing: "分析", manual: "手动", locked: "锁定", cut: "硬切" };
 
-const NODE_ICON = { ai: "⤬", analyzing: "◌", manual: "▷", locked: "◐", cut: "▭" };
-const TAG_TXT   = { ai: "AI", analyzing: "分析", manual: "手动", locked: "锁定", cut: "硬切" };
-
-function shortEffect(c) { return c.fx === "cut" ? "硬切" : c.effect.split(" ")[0] + " " + c.dur + "s"; }
+/* 走马灯节点图标：分析中=脉冲占位，否则按转场 fx 静态映射（子3） */
+function nodeIcon(c) {
+  if (c.status === "analyzing") return "◌";
+  return fxIcon(c.fx);
+}
+/* 走马灯节点主标签：转场名 + 方向（如有） + 时长（子3：常显，零渲染） */
+function shortEffect(c) {
+  if (c.status === "analyzing") return "分析中…";
+  if (c.fx === "cut") return "硬切";
+  const dir = fxDir(c.fx);
+  return fxShortName(c.fx) + (dir ? " " + dir : "") + " " + (c.dur != null ? c.dur.toFixed(1) : "0.5") + "s";
+}
 
 /* ===== 渲染 ClipStrip（片段卡 + 卡间切口圆点） ===== */
 function renderStrip() {
@@ -609,34 +813,88 @@ function renderStrip() {
   clips.forEach((cl, i) => {
     // 片段卡
     const card = document.createElement("div");
-    card.className = "clip " + cl.cls + (cl.kept ? "" : " dropped") + (cl.id === selClip ? " sel" : "") + (cl._external ? " ext" : "");
+    card.className = "clip " + cl.cls + (cl.kept ? "" : " dropped") + (cl.id === selClip ? " sel" : "") + (cl._external ? " ext" : "") + (cl.trimLocked ? " locktrim" : "");
     card.setAttribute("draggable", "true");
     card.dataset.clipId = String(cl.id);
-    // 缩略图：图片片段=自身首帧；视频=同名图(若有)否则退化为纯文件名卡片(不造假抽帧)
-    const thumbSrc = videoThumbSrc(cl);
+    // 缩略图：图片片段=自身首帧 <img>；视频片段=首帧预览 <video>(走 /preview 转 WebM)。
+    // 媒体加载失败 → onerror 隐藏元素，露出 .thumb 渐变色块作为最终兜底。
     const trimmed = (cl.trimIn != null || cl.trimOut != null);
-    const thumbImg = thumbSrc
-      ? `<img class="thumb-img" src="${esc(thumbSrc)}" alt="${esc(cl.name)}"
+    // 子3：把手位置百分比（生效 in/out → trimIn/trimOut，未设则 0/dur）。
+    const dur = cl.durSec || 0;
+    const tin = cl.trimIn != null ? cl.trimIn : 0;
+    const tout = cl.trimOut != null ? cl.trimOut : dur;
+    const inPct = dur > 0 ? clamp01(tin / dur) * 100 : 0;
+    const outPct = dur > 0 ? clamp01(tout / dur) * 100 : 100;
+    const keptDur = Math.max(0, tout - tin);
+    // 子1：AI 建议裁剪点（auto_in/auto_out）虚线指示，仅视频且后端给了建议时显示。
+    const hasAuto = cl.kind === "video" && dur > 0 && (cl.autoIn != null || cl.autoOut != null);
+    const aInPct = (hasAuto && cl.autoIn != null) ? clamp01(cl.autoIn / dur) * 100 : null;
+    const aOutPct = (hasAuto && cl.autoOut != null) ? clamp01(cl.autoOut / dur) * 100 : null;
+    // 建议是否已采纳（生效值≈建议值视为已采纳）
+    const adopted = hasAuto
+      && (cl.autoIn == null || (cl.trimIn != null && Math.abs(cl.trimIn - cl.autoIn) < 0.05))
+      && (cl.autoOut == null || (cl.trimOut != null && Math.abs(cl.trimOut - cl.autoOut) < 0.05));
+    let thumbImg;
+    if (cl.kind === "video" && cl.path) {
+      // 视频：直接喂首帧预览（muted+preload=metadata 只取首帧，不自动播放）
+      const vsrc = previewSrc(String(cl.path).replace(/\\/g, "/"));
+      // onloadedmetadata 时把 currentTime 推到极小偏移 → 强制解码出首帧（否则部分内核显示空白）
+      thumbImg = `<video class="thumb-vid" src="${esc(vsrc)}" muted preload="metadata" playsinline
+             onloadedmetadata="try{this.currentTime=0.04}catch(_){}"
+             onerror="this.style.display='none'"></video>`;
+    } else {
+      const thumbSrc = videoThumbSrc(cl);   // 图片片段 → 自身文件；视频降级路径
+      thumbImg = thumbSrc
+        ? `<img class="thumb-img" src="${esc(thumbSrc)}" alt="${esc(cl.name)}"
              onerror="this.style.display='none'">`
-      : "";
+        : "";
+    }
+    // 子3：拖拽把手 + 裁切遮罩（仅视频且有时长可拖；图片靠 /imaging/trim，不放把手）。
+    const draggableTrim = cl.kind === "video" && dur > 0;
+    const trimOverlay = `
+        <div class="trimbar">
+          ${inPct > 0 ? `<div class="crop l" style="width:${inPct}%"></div>` : ""}
+          ${outPct < 100 ? `<div class="crop r" style="width:${100 - outPct}%"></div>` : ""}
+          ${(hasAuto && !adopted && aInPct != null) ? `<div class="autoline ai-in" style="left:${aInPct}%"><span class="v">建议入 ${fmtT(cl.autoIn)}</span></div>` : ""}
+          ${(hasAuto && !adopted && aOutPct != null) ? `<div class="autoline ai-out" style="left:${aOutPct}%"><span class="v">建议出 ${fmtT(cl.autoOut)}</span></div>` : ""}
+          ${draggableTrim ? `<div class="thandle l" data-thandle="l" data-clip="${cl.id}" style="left:${inPct}%" title="拖动设入点"></div>` : ""}
+          ${draggableTrim ? `<div class="thandle r" data-thandle="r" data-clip="${cl.id}" style="left:calc(${outPct}% - 9px)" title="拖动设出点"></div>` : ""}
+        </div>`;
+    // 子1：单卡 AI 建议条（未采纳时给「采纳/锁定」按钮）
+    const suggestBar = (hasAuto && !adopted && !cl.trimLocked) ? `
+        <div class="suggest" data-clip="${cl.id}">
+          <span class="lab">AI 建议裁 ${cl.autoIn != null ? fmtT(cl.autoIn) : "·"}–${cl.autoOut != null ? fmtT(cl.autoOut) : "·"}</span>
+          <span class="sg-btn" data-sg="adopt" data-clip="${cl.id}" title="采纳此建议">采纳</span>
+          <span class="sg-btn" data-sg="lock" data-clip="${cl.id}" title="锁定，不被重算/采纳全部覆盖">锁</span>
+        </div>` : "";
     card.innerHTML = `
       <div class="thumb">
         ${thumbImg}
+        ${trimOverlay}
         <div class="keep" data-keep="${cl.id}">${cl.kept ? "✓" : ""}</div>
+        <div class="del" data-del="${cl.id}" title="删除片段（从走马灯移除，不可恢复；与「剔除」置灰保留不同）">✕</div>
         <div class="grip" title="拖拽排序">⠿</div>
         <div class="clip-idx">${i + 1}</div>
         ${cl.shots && cl.shots !== "—" ? `<div class="shots">${esc(cl.shots)}</div>` : ""}
-        ${trimmed ? `<div class="trimmed">✂ 已裁</div>` : ""}
+        ${trimmed ? `<div class="trimmed">✂ 裁后 ${keptDur.toFixed(1)}s</div>` : ""}
+        ${cl.trimLocked ? `<div class="kindbadge" style="left:auto;right:6px;top:30px;color:var(--warn);border-color:#6b5520;background:rgba(224,168,90,.16)">锁裁</div>` : ""}
         ${cl.kind === "image" ? `<div class="kindbadge">图</div>` : ""}
         ${cl._external ? `<div class="extbadge">EXT</div>` : ""}
+        ${suggestBar}
       </div>
-      <div class="meta"><div class="c-name">${esc(cl.name)}</div><div class="c-dur">${esc(cl.dur)}</div></div>`;
+      <div class="meta"><div class="c-name">${esc(cl.name)}</div><div class="c-dur">${esc(cl.dur)}${trimmed ? " · 裁后 " + keptDur.toFixed(1) + "s" : ""}</div></div>`;
     card.addEventListener("click", (e) => {
+      if (e.target.dataset.del) {
+        deleteClip(cl.id);             // 删除：真正从 clips 移除（区别于剔除置灰保留）
+        return;
+      }
       if (e.target.dataset.keep) {
-        cl.kept = !cl.kept;            // 勾选保留/剔除
+        cl.kept = !cl.kept;            // 勾选保留/剔除（dropped 置灰但仍在走马灯）
         renderStrip();
         return;
       }
+      // 子1/子3：把手 / 建议按钮点击不触发选片预览（各自 wire 处理）
+      if (e.target.dataset.thandle || e.target.dataset.sg) return;
       selClip = cl.id;                 // 点卡片预览 → 同步 trim 条
       // 视频片段播放预览
       if (cl.kind === "video" && cl.path) playPreview(cl);
@@ -645,6 +903,8 @@ function renderStrip() {
       renderTrim();
     });
     wireDrag(card, cl);
+    wireTrimHandles(card, cl);   // 子3：左右把手拖拽设 in/out
+    wireSuggest(card, cl);       // 子1：单卡采纳/锁定
     root.appendChild(card);
 
     // 卡间切口圆点
@@ -655,9 +915,9 @@ function renderStrip() {
         conn.className = "conn " + cut.status + (cut.id === selCut ? " sel" : "");
         conn.innerHTML = `
           ${cut.status === "locked" ? `<span class="lock">🔒</span>` : ""}
-          <div class="node">${NODE_ICON[cut.status]}</div>
+          <div class="node">${nodeIcon(cut)}</div>
           ${cut.status !== "cut" ? `<span class="tagb">${TAG_TXT[cut.status]}</span>` : ""}
-          <span class="lbl">${cut.status === "analyzing" ? "分析中…" : shortEffect(cut)}</span>
+          <span class="lbl">${shortEffect(cut)}</span>
           <span class="score">${cut.status === "analyzing" ? "" : "匹配 " + cut.total.toFixed(2)}</span>`;
         conn.addEventListener("click", () => { selCut = cut.id; renderInspector(); renderStrip(); });
         root.appendChild(conn);
@@ -670,10 +930,119 @@ function renderStrip() {
   add.innerHTML = `<div class="thumb">＋</div><div class="meta"><div class="c-name" style="color:var(--faint)">添加片段</div></div>`;
   add.addEventListener("click", () => loadClips());
   root.appendChild(add);
+  refreshAdoptAll();   // 子1：每次重渲同步「采纳全部建议」按钮可用性
 }
 
 /* HTML 转义（与 ideate/asset-library 的 esc 一致）。 */
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+
+/* ===== 子3：片段卡左右拖拽把手 → 设 in/out（写 trimIn/trimOut = in_point/out_point） =====
+   拖拽时实时改 trimIn/trimOut，松手后整表重渲（更新裁后时长/总时长/检查器）。
+   in 不得越过 out，反之亦然；至少保留 0.1s。 */
+function wireTrimHandles(card, cl) {
+  const dur = cl.durSec || 0;
+  if (cl.kind !== "video" || dur <= 0) return;
+  const thumb = card.querySelector(".thumb");
+  card.querySelectorAll("[data-thandle]").forEach((h) => {
+    h.addEventListener("mousedown", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const which = h.dataset.thandle;     // 'l' | 'r'
+      const rect = thumb.getBoundingClientRect();
+      const onMove = (ev) => {
+        const ratio = clamp01((ev.clientX - rect.left) / Math.max(1, rect.width));
+        let t = +(ratio * dur).toFixed(2);
+        const curIn = cl.trimIn != null ? cl.trimIn : 0;
+        const curOut = cl.trimOut != null ? cl.trimOut : dur;
+        if (which === "l") {
+          t = Math.min(t, curOut - 0.1);
+          cl.trimIn = Math.max(0, t);
+        } else {
+          t = Math.max(t, curIn + 0.1);
+          cl.trimOut = Math.min(dur, t);
+        }
+        selClip = cl.id;
+        liveUpdateTrim(cl);                 // 拖拽中只动该卡把手/遮罩 + trim 条，避免整表重渲卡顿
+      };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        renderStrip(); renderTrim(); renderInspector();
+        const keep = Math.max(0, (cl.trimOut != null ? cl.trimOut : dur) - (cl.trimIn != null ? cl.trimIn : 0));
+        toast(`已裁 ${cl.name}：保留 ${keep.toFixed(1)}s（生成成片时 ffmpeg 实裁）`);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  });
+}
+/* 拖拽过程中的轻量更新：只挪当前卡的把手/遮罩与裁后标签 + 顶部 trim 条（不重建整表）。 */
+function liveUpdateTrim(cl) {
+  const dur = cl.durSec || 0;
+  if (dur <= 0) return;
+  const card = document.querySelector(`.clip[data-clip-id="${cl.id}"]`);
+  if (!card) return;
+  const tin = cl.trimIn != null ? cl.trimIn : 0;
+  const tout = cl.trimOut != null ? cl.trimOut : dur;
+  const inPct = clamp01(tin / dur) * 100, outPct = clamp01(tout / dur) * 100;
+  const hL = card.querySelector('[data-thandle="l"]');
+  const hR = card.querySelector('[data-thandle="r"]');
+  const cropL = card.querySelector(".trimbar .crop.l");
+  const cropR = card.querySelector(".trimbar .crop.r");
+  if (hL) hL.style.left = inPct + "%";
+  if (hR) hR.style.left = `calc(${outPct}% - 9px)`;
+  if (cropL) cropL.style.width = inPct + "%";
+  if (cropR) cropR.style.width = (100 - outPct) + "%";
+  if (selClip === cl.id) renderTrim();
+}
+
+/* ===== 子1：单卡 AI 建议「采纳 / 锁定」 ===== */
+function wireSuggest(card, cl) {
+  card.querySelectorAll("[data-sg]").forEach((b) => {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (b.dataset.sg === "adopt") {
+        adoptClip(cl);
+        renderStrip(); renderTrim(); renderInspector();
+        toast(`已采纳 ${cl.name} 的 AI 裁剪建议`);
+      } else if (b.dataset.sg === "lock") {
+        cl.trimLocked = !cl.trimLocked;     // 锁定后：采纳全部 / 重算不覆盖其生效裁剪
+        renderStrip();
+        toast(cl.trimLocked ? `已锁定 ${cl.name} 裁剪（重算/采纳全部不覆盖）` : `已解锁 ${cl.name} 裁剪`);
+      }
+    });
+  });
+}
+/* 采纳单个片段建议：auto_in/out → in_point/out_point（生效值）。锁定的不动。 */
+function adoptClip(cl) {
+  if (cl.trimLocked) return;
+  if (cl.autoIn != null) cl.trimIn = cl.autoIn;
+  if (cl.autoOut != null) cl.trimOut = cl.autoOut;
+}
+/* 是否存在未采纳/未锁定的 AI 建议（控制「采纳全部」按钮可用性）。 */
+function hasPendingSuggestions() {
+  return clips.some((cl) =>
+    !cl.trimLocked && (cl.autoIn != null || cl.autoOut != null) &&
+    ((cl.autoIn != null && (cl.trimIn == null || Math.abs(cl.trimIn - cl.autoIn) >= 0.05)) ||
+     (cl.autoOut != null && (cl.trimOut == null || Math.abs(cl.trimOut - cl.autoOut) >= 0.05)))
+  );
+}
+/* 子1：一键采纳全部建议（auto_in/out → in_point/out_point），跳过锁定片段。 */
+function adoptAllSuggestions() {
+  let n = 0;
+  clips.forEach((cl) => {
+    if (cl.trimLocked) return;
+    if (cl.autoIn != null || cl.autoOut != null) { adoptClip(cl); n++; }
+  });
+  renderStrip(); renderTrim(); renderInspector();
+  if (n) toast(`已采纳 ${n} 个片段的 AI 裁剪建议（锁定项跳过）`);
+  else toast("没有可采纳的建议（先「一键智能转场」生成，或全部已采纳/锁定）");
+}
+/* 刷新「采纳全部裁剪建议」按钮可用性。 */
+function refreshAdoptAll() {
+  const btn = document.getElementById("adoptAll");
+  if (btn) btn.disabled = !hasPendingSuggestions();
+}
 
 /* ===== 拖拽排序：HTML5 DnD，drop 时按落点位置重排 clips ===== */
 let dragId = null;
@@ -722,6 +1091,31 @@ function rebuildCutsFromOrder() {
   if (!cuts.find((c) => c.id === selCut)) selCut = cuts.length ? cuts[0].id : null;
 }
 
+/* ===== 删除片段：真正从走马灯移除该 clip（区别于「剔除/dropped」置灰保留）=====
+   从 clips 数组 splice 出去 → rebuildCutsFromOrder 重算相邻切口/转场 → 整表重渲，
+   避免走马灯里被剔除的卡无限堆积加长。删除是不可恢复操作（外部导入/真实片段均不动盘）。
+   selClip/selCut 若指向被删项则回退到第一个可用项；保持拖拽/把手/建议等其他状态不变。 */
+function deleteClip(id) {
+  const idx = clips.findIndex((c) => c.id === id);
+  if (idx < 0) return;
+  const removed = clips[idx];
+  clips.splice(idx, 1);
+  // 选中片段失效 → 回退到相邻/首个；清理预览播放器里的旧视频
+  if (selClip === id) {
+    selClip = clips.length ? clips[Math.min(idx, clips.length - 1)].id : null;
+    const pvBox = document.querySelector(".player");
+    const oldVid = pvBox && pvBox.querySelector("video");
+    if (oldVid) { oldVid.pause(); oldVid.remove(); }
+    const playIcon = pvBox && pvBox.querySelector(".play");
+    if (playIcon) playIcon.style.display = "";
+  }
+  rebuildCutsFromOrder();   // 相邻关系变了 → 重建切口 a/b（保留锁定切口，新邻接回 manual 待重析）
+  renderStrip();
+  renderInspector();
+  renderTrim();
+  toast(`已删除片段「${removed ? removed.name : id}」· 切口已重算${clips.length ? "（如需重跑「一键智能转场」）" : "（走马灯已空）"}`);
+}
+
 /* ===== trim 条：反映/编辑选中片段的入/出点（图片可实裁；视频靠 render 时 ffmpeg） ===== */
 function fmtT(sec) {
   sec = Math.max(0, sec || 0);
@@ -758,16 +1152,29 @@ function renderInspector() {
   if (!c) { insp.innerHTML = `<div class="insp-hd">未选中切口</div>`; return; }
   const badge = { ai: "AI 推荐", analyzing: "分析中", manual: "手动覆盖", locked: "锁定", cut: "硬切" }[c.status];
   const s = c.scores;
+  // 子2：转场类型 <select> + <optgroup>（通用/方向/特效/切），列全 ~20，按 CAT_ORDER 分组。
+  const fxOptions = CAT_ORDER.map((cat) => {
+    const items = TRANSITIONS.filter((t) => t.cat === cat);
+    if (!items.length) return "";
+    const opts = items.map((t) =>
+      `<option value="${t.fx}"${t.fx === c.fx ? " selected" : ""}>${t.icon} ${esc(t.label)}</option>`
+    ).join("");
+    return `<optgroup label="${CAT_LABEL[cat]}">${opts}</optgroup>`;
+  }).join("");
+  const isCut = c.fx === "cut";
   insp.innerHTML = `
     <div class="insp-hd">转场：${c.a} → ${c.b} <span class="badge">${badge}</span></div>
 
     <div class="field">
-      <label>转场效果</label>
-      <div class="select" data-act="pickfx"><span>${c.effect}</span><span style="color:var(--mauve)">▾</span></div>
+      <label>转场类型（通用 / 方向 / 特效 / 切）</label>
+      <select class="fx-select" data-act="pickfx">${fxOptions}</select>
     </div>
     <div class="field">
-      <label>时长（0.3 – 2.0s）</label>
-      <input type="number" min="0.3" max="2.0" step="0.1" value="${c.dur.toFixed(1)}" data-act="dur">
+      <label>时长（0.3 – 2.0s）${isCut ? " · 硬切无时长" : ""}</label>
+      <input type="number" min="0.3" max="2.0" step="0.1" value="${(c.dur || 0).toFixed(1)}" data-act="dur"${isCut ? " disabled" : ""}>
+    </div>
+    <div class="field">
+      <button class="btn-soft" style="width:100%;padding:7px 0;font-size:11.5px" data-act="previewcut">▶ 预览此切口</button>
     </div>
 
     <div class="field">
@@ -799,15 +1206,20 @@ function renderInspector() {
 
 function wireInspector(c) {
   const insp = document.getElementById("inspector");
-  insp.querySelector('[data-act="pickfx"]').addEventListener("click", () => {
-    const i = EFFECTS.indexOf(c.effect);
-    c.effect = EFFECTS[(i + 1) % EFFECTS.length];
-    c.fx = FX_MAP[c.effect] || "dissolve";
-    if (c.fx === "cut") c.dur = 0.0;
+  // 子2：转场类型 <select>（user 覆盖 → status=manual，cut → status=cut）
+  const fxSel = insp.querySelector('[data-act="pickfx"]');
+  if (fxSel) fxSel.addEventListener("change", () => {
+    c.fx = fxSel.value || "dissolve";
+    c.effect = fxLabel(c.fx);
+    if (c.fx === "cut") { c.dur = 0.0; c.status = "cut"; }
+    else if (c.status === "cut" || c.status === "ai") { c.status = "manual"; }
     renderInspector(); renderStrip();
   });
   const durEl = insp.querySelector('[data-act="dur"]');
   if (durEl) durEl.addEventListener("change", () => { c.dur = parseFloat(durEl.value) || 0.5; renderStrip(); });
+  // 子2：「预览此切口」— 最小实现复用整体预览（渲一段含该切口的样片成本高，先标 TODO）。
+  const pvCutEl = insp.querySelector('[data-act="previewcut"]');
+  if (pvCutEl) pvCutEl.addEventListener("click", () => previewCut(c));
   insp.querySelectorAll("[data-src]").forEach((el) => el.addEventListener("click", () => {
     c.status = el.dataset.src; renderInspector(); renderStrip();
   }));
@@ -821,6 +1233,23 @@ function wireInspector(c) {
     cuts.forEach((x) => { if (x.status !== "locked" && x.fx !== "cut") { x.effect = c.effect; x.fx = c.fx; x.dur = c.dur; } });
     renderInspector(); renderStrip(); toast(`已把「${c.effect}」应用到全部未锁定切口`);
   });
+}
+
+/* ===== 子2：「预览此切口」=====
+   最小实现：把切口前一个片段（c.a）放进播放器整体预览，并提示当前转场。
+   TODO(后端)：新增单切口干跑端点（如 /transition/preview-cut 渲该切口短样）后改为渲染样片。
+   保持 /transition/render、/preview 调用契约不变。 */
+function previewCut(c) {
+  if (!c) { toast("请先选中一个切口"); return; }
+  const clA = clips.find((cl) => cl.id === c.a);
+  if (clA && clA.kind === "video" && clA.path) {
+    selClip = clA.id;
+    playPreview(clA);
+    renderStrip(); renderTrim();
+    toast(`预览切口 ${c.a}→${c.b}（${fxShortName(c.fx)}）· 单切口样片渲染待后端 TODO，暂放前片预览`);
+  } else {
+    toast("该切口前一片段不可预览（非视频）· 单切口样片渲染待后端 TODO");
+  }
 }
 
 /* ===== 列生成目录 → 用真实片段替换硬编码 =====
@@ -857,6 +1286,7 @@ async function loadClips() {
         kind: c.kind === "image" ? "image" : "video",
         thumb: c.thumb || "",
         trimIn: null, trimOut: null,
+        autoIn: null, autoOut: null,
         w: c.w || null, h: c.h || null, fps: c.fps || null,
       });
       added++;
@@ -927,8 +1357,10 @@ async function analyze() {
     const out = await postJSON(`${MEDIA_API}/transition/analyze`, { composition: buildComposition() });
     applyComposition(out.composition);
     const n = targets.length;
-    document.getElementById("anaState").textContent = `✦ CV 分析完成 · ${n} 切口已推荐（锁定项保留）`;
-    toast(`已完成 CV 分析：${n} 个切口回填推荐效果`);
+    const sug = clips.filter((cl) => cl.autoIn != null || cl.autoOut != null).length;
+    document.getElementById("anaState").textContent =
+      `✦ CV 分析完成 · ${n} 切口已推荐${sug ? ` · ${sug} 片段有裁剪建议` : ""}（锁定项保留）`;
+    toast(`已完成 CV 分析：${n} 个切口回填推荐效果${sug ? `，${sug} 片段有裁剪建议（可「采纳全部」）` : ""}`);
   } catch (e) {
     targets.forEach((c) => (c.status = c.status === "analyzing" ? "manual" : c.status));  // 回退脉冲
     document.getElementById("anaState").textContent = `✦ 分析失败 · ${e.message}`;
@@ -989,6 +1421,7 @@ function wireToolbar() {
         case "listdir":  loadClips(); break;
         case "addclip":  loadClips(); break;
         case "addext":  loadExternal(); break;
+        case "adoptall": adoptAllSuggestions(); break;
         case "trim":     trimSelected(); break;
         case "play": {
           const cl = clips.find(c => c.id === selClip);
