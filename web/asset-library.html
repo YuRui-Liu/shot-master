@@ -9,14 +9,16 @@
 <style>
   /* 内容铺满壳工作区 */
   body { overflow: hidden; }
-  .work { height: 100vh; overflow-y: auto; padding: 22px 26px 40px; }
+  .work { height: 100vh; overflow-y: auto; padding: 24px 28px 36px; }
   .wrap { max-width: 1180px; margin: 0 auto; }
 
-  /* 标题 + 完备性闸门 */
-  .head { display: flex; align-items: center; gap: 14px; padding: 0 2px 13px; margin-bottom: 0; border-bottom: 1px solid var(--border-lo); }
-  .head h1 { margin: 0; font-size: 21px; font-weight: 650; }
-  .head .en { font-size: 10px; color: var(--faint); letter-spacing: 2px; margin-left: 7px; }
-  .head .sp { flex: 1; }
+  /* ===== 统一头部规范（与其它面板一致）===== */
+  .work-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; max-width: 1280px; flex-wrap: wrap; }
+  .work-head h1 { margin: 0; font-size: 22px; background: linear-gradient(135deg, var(--blue), var(--mauve)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .work-head .sub { font-size: 12px; color: var(--faint); letter-spacing: .5px; align-self: flex-end; padding-bottom: 4px; }
+  .head-spacer { flex: 1; }
+
+  /* 完备性闸门 */
   .gate {
     font-size: 11.5px; color: var(--warn); border: 1px solid #5a4a28;
     background: rgba(224,168,90,.08); border-radius: 13px; padding: 4px 13px;
@@ -97,6 +99,8 @@
   }
   .rcard .a:hover { border-color: var(--mauve); color: var(--fg); }
   .rcard .a.blue { color: var(--blue); border-color: var(--blue-dim); }
+  .rcard .a.danger { color: var(--err, #f87171); border-color: transparent; flex: 0 0 auto; padding: 5px 8px; }
+  .rcard .a.danger:hover { border-color: var(--err, #f87171); background: rgba(248,113,113,.08); }
   /* 新增卡 */
   .rcard.add {
     border-style: dashed; align-items: center; justify-content: center;
@@ -117,7 +121,8 @@
   .acard .load { transition: filter .12s; }
   .acard .load:hover { filter: brightness(1.08); }
   .acard .top { display: flex; align-items: center; gap: 10px; }
-  .acard .swatch { width: 38px; height: 38px; border-radius: 8px; flex-shrink: 0; border: 1px solid var(--border-lo); }
+  .acard .swatch { width: 38px; height: 38px; border-radius: 8px; flex-shrink: 0; border: 1px solid var(--border-lo); overflow: hidden; position: relative; }
+  .acard .swatch img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .acard .nm { font-size: 14px; font-weight: 600; color: var(--fg); }
   .acard .sub { font-size: 11px; color: var(--muted); font-family: "Consolas", monospace; }
   .acard .desc { font-size: 12px; color: var(--fg2); line-height: 1.55; min-height: 34px; }
@@ -135,6 +140,172 @@
   .acard .sp { flex: 1; }
 
   .empty-hint { color: var(--faint); font-size: 13px; padding: 30px 0; text-align: center; }
+
+  /* ===== 富实体卡（characters/scenes/props 读子2规划的设定集）===== */
+  .grid.ent-grid { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+  .ent {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 13px 15px; display: flex; flex-direction: column;
+    box-shadow: 0 4px 10px rgba(0,0,0,.22);
+    transition: border-color .14s, transform .14s, box-shadow .14s;
+  }
+  .ent:hover { border-color: var(--blue-dim); transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,.3); }
+  .ent .hd { display: flex; align-items: flex-start; gap: 12px; }
+  .ent .nm { font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; }
+  .ent .id { font-size: 10.5px; color: var(--faint); margin-top: 1px; font-family: "Consolas", monospace; }
+  .ent .brief { font-size: 12px; color: var(--fg2); margin-top: 4px; line-height: 1.5; }
+  .ent .hd .acts { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
+  .ent .iconb {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--fg2);
+    border-radius: 7px; padding: 4px 8px; font-size: 11px; cursor: pointer;
+    transition: border-color .12s, color .12s;
+  }
+  .ent .iconb:hover { border-color: var(--mauve); color: var(--fg); }
+  .ent .iconb.danger:hover { border-color: var(--err, #f87171); color: var(--err, #f87171); }
+  .ent .src {
+    font-size: 9px; padding: 1px 6px; border-radius: 8px;
+    background: rgba(139,127,217,.16); border: 1px solid #5a4fa0; color: #b7aef0;
+  }
+  .ent .sect { margin-top: 11px; }
+  .ent .sect .t { font-size: 11px; color: var(--periw, #8b9bff); font-weight: 600; margin-bottom: 6px; }
+  .ent .sect .t .muted2 { color: var(--faint); font-weight: 400; }
+  .ent .vrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ent .variant {
+    flex: 1; min-width: 170px; background: var(--panel2, #161826);
+    border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px;
+  }
+  .ent .variant .vn { font-size: 12px; font-weight: 600; color: #fff; }
+  .ent .variant .vp { font-size: 11px; color: var(--fg2); margin-top: 4px; line-height: 1.5; max-height: 48px; overflow: hidden; }
+  .ent .voice {
+    background: linear-gradient(160deg, rgba(139,127,217,.06), transparent);
+    border: 1px solid #34305a; border-radius: 9px; padding: 9px 11px; margin-top: 11px;
+  }
+  .ent .voice .t { font-size: 11px; color: #b7aef0; font-weight: 600; margin-bottom: 6px; }
+  .ent .voice .vk { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 11.5px; align-items: baseline; }
+  .ent .voice .vk b { color: var(--faint); font-weight: 500; }
+  .ent .voice .vk span { color: var(--fg2); }
+  .ent .voice .vact { display: flex; gap: 7px; margin-top: 8px; }
+
+  /* ===== 实体编辑弹窗（JSON 编辑，首版）===== */
+  .emask {
+    position: fixed; inset: 0; z-index: 122; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(8,10,20,.78); backdrop-filter: blur(3px);
+  }
+  .emask.on { display: flex; }
+  .edlg {
+    width: 640px; max-width: 92vw; max-height: 88vh; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 13px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.6); padding: 20px 22px 22px;
+  }
+  .edlg h2 { margin: 0 0 4px; font-size: 17px; color: var(--fg); }
+  .edlg .ed-sub { font-size: 11.5px; color: var(--faint); margin-bottom: 14px; }
+  .edlg .ed-sub b { color: var(--blue); }
+  .edlg textarea {
+    width: 100%; box-sizing: border-box; font-family: "Consolas", monospace; font-size: 12.5px;
+    background: var(--navy); border: 1px solid var(--border); border-radius: 7px;
+    padding: 10px 12px; color: var(--fg); resize: vertical; min-height: 320px; line-height: 1.5;
+  }
+  .edlg textarea:focus { outline: none; border-color: var(--blue-dim); }
+  .ed-err { font-size: 11.5px; color: var(--err); margin-top: 8px; white-space: pre-wrap; line-height: 1.5; min-height: 16px; }
+  .ed-foot { display: flex; align-items: center; gap: 9px; margin-top: 14px; }
+  .ed-foot .esp { flex: 1; }
+  .ed-x {
+    float: right; width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--fg); font-size: 16px; line-height: 24px; text-align: center;
+    cursor: pointer; padding: 0; margin: -4px -4px 0 0;
+  }
+  .ed-x:hover { border-color: var(--mauve); color: #fff; }
+
+  /* ===== 角色音色（配音色）===== */
+  /* 卡内音色行：未配 → 「＋配音色」入口；已配 → 状态条 + 试听 + 改/清 */
+  .voice-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .voice-row .vbtn {
+    flex: 1; font: inherit; font-size: 11px; text-align: center; cursor: pointer;
+    border: 1px dashed var(--border); border-radius: 6px; padding: 5px 0; color: var(--muted);
+    background: transparent; transition: border-color .12s, color .12s;
+  }
+  .voice-row .vbtn:hover { border-color: var(--mauve); color: var(--fg); }
+  .voice-set {
+    display: flex; align-items: center; gap: 6px; margin-top: 4px;
+    background: rgba(138,127,217,.1); border: 1px solid #4a3d6e; border-radius: 7px; padding: 4px 6px;
+  }
+  .voice-set .vtag { font-size: 10px; color: var(--mauve); white-space: nowrap; }
+  .voice-set .vsp { flex: 1; }
+  .voice-set .vmini {
+    font: inherit; font-size: 13px; line-height: 1; cursor: pointer; border: none; background: transparent;
+    color: var(--periw); padding: 2px 4px; border-radius: 5px;
+  }
+  .voice-set .vmini:hover { background: rgba(138,127,217,.22); color: #fff; }
+  .voice-set .vmini.busy { color: var(--warn); }
+
+  /* ===== 配音色弹窗（设计/上传/预设 三选）===== */
+  .vmask {
+    position: fixed; inset: 0; z-index: 120; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(8,10,20,.78); backdrop-filter: blur(3px);
+  }
+  .vmask.on { display: flex; }
+  .vdlg {
+    width: 520px; max-width: 92vw; max-height: 88vh; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 13px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.6); padding: 20px 22px 22px;
+  }
+  .vdlg h2 { margin: 0 0 4px; font-size: 17px; color: var(--fg); }
+  .vdlg .vd-sub { font-size: 11.5px; color: var(--faint); margin-bottom: 14px; }
+  .vdlg .vd-sub b { color: var(--blue); }
+  .vd-tabs { display: flex; gap: 4px; margin-bottom: 14px; }
+  .vd-tab {
+    flex: 1; text-align: center; font-size: 12.5px; color: var(--muted); cursor: pointer;
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 0; transition: all .12s;
+  }
+  .vd-tab:hover { color: var(--fg2); border-color: var(--mauve); }
+  .vd-tab.on { color: #06122a; background: linear-gradient(135deg, var(--blue), var(--periw)); border-color: transparent; font-weight: 600; }
+  .vd-pane { display: none; }
+  .vd-pane.on { display: block; }
+  .vd-field { margin-bottom: 11px; }
+  .vd-field label { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 5px; }
+  .vd-field input, .vd-field select, .vd-field textarea {
+    width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px;
+    background: var(--navy); border: 1px solid var(--border); border-radius: 7px;
+    padding: 8px 10px; color: var(--fg); resize: vertical;
+  }
+  .vd-field input:focus, .vd-field select:focus, .vd-field textarea:focus { outline: none; border-color: var(--blue-dim); }
+  .vd-row2 { display: flex; gap: 9px; }
+  .vd-row2 > * { flex: 1; }
+  .vd-hint { font-size: 10.5px; color: var(--faint); line-height: 1.5; margin: 2px 0 4px; }
+  .vd-preset-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; padding-right: 2px; }
+  .vd-preset {
+    display: flex; align-items: center; gap: 9px; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px; transition: all .12s;
+  }
+  .vd-preset:hover { border-color: var(--mauve); }
+  .vd-preset.on { border-color: var(--blue-dim); background: rgba(74,158,255,.1); }
+  .vd-preset .pnm { font-size: 12.5px; color: var(--fg); font-weight: 500; }
+  .vd-preset .pds { font-size: 10.5px; color: var(--muted); }
+  .vd-preset .pra { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; }
+  .vd-preset.on .pra { border-color: var(--blue); background: var(--blue); box-shadow: inset 0 0 0 2px var(--panel); }
+  .vd-foot { display: flex; align-items: center; gap: 9px; margin-top: 16px; }
+  .vd-foot .vsp { flex: 1; }
+  .vd-foot .vd-status { font-size: 11px; color: var(--muted); }
+  .vd-foot .vd-status.busy { color: var(--warn); }
+  .vd-foot .vd-status.err { color: var(--err); }
+  .vd-btn {
+    font: inherit; font-size: 12.5px; cursor: pointer; border-radius: 8px; padding: 8px 16px;
+    border: 1px solid var(--border); color: var(--fg2); background: transparent; font-weight: 500;
+  }
+  .vd-btn:hover { border-color: var(--mauve); color: var(--fg); }
+  .vd-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .vd-btn.pri { background: linear-gradient(135deg, var(--blue), var(--periw)); color: #06122a; border: none; font-weight: 600; }
+  .vd-btn.pri:hover { filter: brightness(1.08); }
+  .vd-sample { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11.5px; color: var(--done); }
+  .vd-sample.hidden { display: none; }
+  .vd-x {
+    float: right; width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--fg); font-size: 16px; line-height: 24px; text-align: center;
+    cursor: pointer; padding: 0; margin: -4px -4px 0 0;
+  }
+  .vd-x:hover { border-color: var(--mauve); color: #fff; }
 
   /* ===== 灯箱（点「查看」看大图）===== */
   .lb {
@@ -165,13 +336,14 @@
 <body>
 <main class="work">
   <div class="wrap">
-    <div class="head">
-      <h1>资源库<span class="en">ASSET LIBRARY</span></h1>
-      <span class="sp"></span>
+    <!-- 统一头部：标题→副标题→spacer→右侧操作/指示器(完备性闸门) -->
+    <div class="work-head">
+      <h1>资源库</h1><span class="sub">ASSET LIBRARY</span>
+      <span class="head-spacer"></span>
       <span class="gate" id="gate">完备性：<b>—</b></span>
     </div>
 
-    <!-- tabs：前三个=ref 库（characters/scenes/props），后两个=可加载资产（genres/styles） -->
+    <!-- 标题行下方：切换/标签条（前三个=ref 库 characters/scenes/props，后两个=可加载资产 genres/styles） -->
     <div class="tabs" id="tabs"></div>
 
     <div class="toolbar" id="toolbar"></div>
@@ -190,6 +362,92 @@
   </div>
 </div>
 
+<!-- 配音色弹窗：角色音色三选（设计 / 上传 / 预设），仅 characters tab 使用 -->
+<div class="vmask" id="voiceMask" aria-hidden="true">
+  <div class="vdlg" role="dialog" aria-modal="true">
+    <button class="vd-x" id="vdClose" title="关闭">✕</button>
+    <h2>配音色</h2>
+    <div class="vd-sub">角色 <b id="vdName">—</b> · 设置后用于剧集模式按角色克隆台词</div>
+
+    <div class="vd-tabs">
+      <div class="vd-tab on" data-vtab="design">设计</div>
+      <div class="vd-tab" data-vtab="upload">上传</div>
+      <div class="vd-tab" data-vtab="preset">预设</div>
+    </div>
+
+    <!-- 设计：性别/年龄/性格 → audio_style + 一句样本 text → /tts/synthesize mode=design -->
+    <div class="vd-pane on" data-vpane="design">
+      <div class="vd-row2">
+        <div class="vd-field">
+          <label>性别</label>
+          <select id="vdSex"><option value="男">男</option><option value="女">女</option><option value="中性">中性</option></select>
+        </div>
+        <div class="vd-field">
+          <label>年龄段</label>
+          <select id="vdAge"><option value="少年">少年</option><option value="青年">青年</option><option value="中年" selected>中年</option><option value="老年">老年</option></select>
+        </div>
+      </div>
+      <div class="vd-field">
+        <label>性格 / 音色特征</label>
+        <input id="vdTrait" type="text" placeholder="如：沉稳磁性、清亮俏皮、低沉威严…">
+      </div>
+      <div class="vd-field">
+        <label>音色风格描述（audio_style，自动拼装，可改）</label>
+        <textarea id="vdStyle" rows="2" placeholder="点上方任一项自动生成，或手动填写"></textarea>
+      </div>
+      <div class="vd-field">
+        <label>样本台词（合成试听用）</label>
+        <input id="vdText" type="text" value="你好，这是我的声音样本。">
+      </div>
+      <div class="vd-hint">点「合成样本」调 qwen3-tts 生成一句样本 FLAC；满意后「保存音色」存为该角色音色(source=design)。</div>
+      <div class="vd-sample hidden" id="vdSample">✓ 已生成样本 · <button class="vmini" id="vdSamplePlay" style="font-size:13px;cursor:pointer;border:none;background:transparent;color:var(--periw)">▶ 试听</button></div>
+    </div>
+
+    <!-- 上传：本地音频路径 → source=upload -->
+    <div class="vd-pane" data-vpane="upload">
+      <div class="vd-field">
+        <label>本地音频文件</label>
+        <div class="vd-row2" style="gap:8px">
+          <input id="vdUpPath" type="text" placeholder="选择或填写本地音频路径（FLAC/WAV/MP3）" style="flex:3">
+          <button class="vd-btn" id="vdUpPick" style="flex:1">选择文件…</button>
+        </div>
+      </div>
+      <div class="vd-hint">选择本地音频作为该角色音色(source=upload)；将作为剧集模式克隆的参考音频。</div>
+      <div class="vd-sample hidden" id="vdUpSample">已选择 · <button class="vmini" id="vdUpPlay" style="font-size:13px;cursor:pointer;border:none;background:transparent;color:var(--periw)">▶ 试听</button></div>
+    </div>
+
+    <!-- 预设：内置音色列表 → source=preset -->
+    <div class="vd-pane" data-vpane="preset">
+      <div class="vd-hint">从内置音色中选择一个(source=preset)；预设 id 存入音色参数。</div>
+      <div class="vd-preset-list" id="vdPresetList"></div>
+    </div>
+
+    <div class="vd-foot">
+      <span class="vd-status" id="vdStatus"></span>
+      <span class="vsp"></span>
+      <button class="vd-btn" id="vdClear">清除音色</button>
+      <button class="vd-btn" id="vdSynth">合成样本</button>
+      <button class="vd-btn pri" id="vdSave">保存音色</button>
+    </div>
+  </div>
+</div>
+
+<!-- 实体编辑弹窗：GET 全文 → JSON textarea 改 → PUT /assets/entity（首版 JSON 编辑） -->
+<div class="emask" id="entMask" aria-hidden="true">
+  <div class="edlg" role="dialog" aria-modal="true">
+    <button class="ed-x" id="edClose" title="关闭（Esc）">✕</button>
+    <h2 id="edTitle">编辑实体</h2>
+    <div class="ed-sub">富实体 <b id="edName">—</b> · 改字段（含 variants/voice/prompt）后保存，存前过 <b>validate_entity</b> 校验</div>
+    <textarea id="edText" spellcheck="false"></textarea>
+    <div class="ed-err" id="edErr"></div>
+    <div class="ed-foot">
+      <span class="esp"></span>
+      <button class="vd-btn" id="edCancel">取消</button>
+      <button class="vd-btn pri" id="edSave">保存</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ===== 可配 API base（真机联调由主控接）=====
    ref 库 → media_agent；genres/styles → 加载接口（media_agent 或专用） */
@@ -198,23 +456,16 @@ const SW_API = new URLSearchParams(location.search).get('sw') || 'http://127.0.0
 // 项目目录（壳已转发 ?project=…）；空 → 占位+友好提示，不报错
 const PROJECT_DIR = new URLSearchParams(location.search).get('project') || new URLSearchParams(location.search).get('project_dir') || "";
 
-/* ===== 资源库三类 ref（角色/场景/道具）=====
-   entries 由 GET {MEDIA_API}/assets/refs?project=<dir> 实拉填充（每条 {name,path,source,status}）。
-   后端 status：ready / pending（缺图）；本页另用前端态 generating（生成中，乐观更新）。 */
+/* ===== 资源库三类富实体（角色/场景/道具，子2「规划实体」产出的设定集）=====
+   entries 由 GET {MEDIA_API}/assets/entities?project=<dir>&kind=<复数> 实拉（摘要 {name,id,brief,variant_count,source}）。
+   编辑/配音色时再 GET {MEDIA_API}/assets/entity 取完整 JSON（含 variants/prompt/voice）。
+   实体 JSON 与 ref_index.json 同目录，后端列举时已跳过 ref_index.json。 */
 const REF_DATA = {
-  characters: { label: "角色", icon: "👤", entries: [] },
-  scenes:     { label: "场景", icon: "🏞", entries: [] },
-  props:      { label: "道具", icon: "🗝", entries: [] },
+  characters: { label: "角色", icon: "👤", single: "character", entries: [] },
+  scenes:     { label: "场景", icon: "🏞", single: "scene",     entries: [] },
+  props:      { label: "道具", icon: "🗝", single: "prop",      entries: [] },
 };
 let refsLoaded = false;   // 是否成功拉到过后端数据（区分「空项目」与「未拉取/失败」）
-
-/* 后端条目 status → 前端三态（ready / generating / empty）。
-   后端只有 ready / pending；pending（或缺 path）一律视作 empty 缺图。 */
-function uiStatus(e) {
-  if (e.status === "generating") return "generating";   // 前端乐观态
-  if (e.status === "ready" && e.path) return "ready";
-  return "empty";
-}
 
 /* 本地媒体 URL 助手（替代 file://，因 http 页面禁 file://）。
    走 media_agent GET /file?path=…[&project=…]：绝对路径直读，相对路径附 project 解析。 */
@@ -228,25 +479,30 @@ function mediaUrl(p) {
 /* 参考图缩略图 src（保留原函数名，内部改走 mediaUrl 消除色块）。 */
 function refImgSrc(path) { return mediaUrl(path); }
 
-/* 实拉三类 ref_index（GET /assets/refs?project=<dir>）。
-   无 project / 失败 → 保持空 entries + 友好提示，不抛错。 */
-async function loadRefs() {
+/* 实拉三类富实体摘要（GET /assets/entities?project=<dir>&kind=<复数>）。
+   无 project / 失败 → 保持空 entries + 友好提示，不抛错。三类并行拉取。 */
+async function loadEntities() {
   if (!PROJECT_DIR) { refsLoaded = false; renderAll(); return; }
   try {
-    const r = await fetch(MEDIA_API + "/assets/refs?project=" + encodeURIComponent(PROJECT_DIR));
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = await r.json();
-    ["characters", "scenes", "props"].forEach((k) => {
-      const refs = (j[k] && Array.isArray(j[k].refs)) ? j[k].refs : [];
-      REF_DATA[k].entries = refs.map((e) => ({
-        name: e.name || "", path: e.path || "", source: e.source || "",
-        status: e.status || "pending",
+    const results = await Promise.all(["characters", "scenes", "props"].map(async (k) => {
+      const r = await fetch(MEDIA_API + "/assets/entities?project=" + encodeURIComponent(PROJECT_DIR) + "&kind=" + k);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const j = await r.json();
+      return { k, ents: Array.isArray(j.entities) ? j.entities : [] };
+    }));
+    results.forEach(({ k, ents }) => {
+      REF_DATA[k].entries = ents.map((e) => ({
+        name: e.name || "",
+        id: e.id || "",
+        brief: e.brief || "",
+        variant_count: e.variant_count || 0,
+        source: e.source || "",
       }));
     });
     refsLoaded = true;
   } catch (e) {
     refsLoaded = false;
-    console.warn("[asset-library] /assets/refs 不可用：", e.message);
+    console.warn("[asset-library] /assets/entities 不可用：", e.message);
   }
   renderAll();
 }
@@ -272,6 +528,23 @@ const STYLE_FALLBACK = [
 ];
 
 const DEFAULT_STYLE_ID = "real/cinematic-warm-v1";
+
+// 风格 → style-previews/ 预览图映射（同源静态目录，相对路径即可；图加载失败时 onerror 回退到色块 swatch）。
+// 映射不到的条目保持纯色块。文件名按审计确认的命名约定对齐。
+const STYLE_PREVIEW = {
+  "real/cinematic-warm-v1": "real_cinematic-warm-v1.png",
+  "real/cinematic-cool-v1": "real_cinematic-cool-v1.png",
+  "real/doc-natural-v1":    "real_doc-natural-v1.png",
+  "anime/cel-clean-v1":     "2D_anime-cel-v1.png",
+  // 以下为后端可能下发但当前 STYLE_FALLBACK 未定义的条目，预先映射以备实拉命中：
+  "2D/guofeng-ink-v1":      "2D_guofeng-ink-v1.png",
+  "3D/photoreal-octane-v1": "3D_photoreal-octane-v1.png",
+  "3D/pixar-stylized-v1":   "3D_pixar-stylized-v1.png",
+};
+function stylePreviewSrc(styleId) {
+  const f = STYLE_PREVIEW[styleId];
+  return f ? ("style-previews/" + f) : "";
+}
 
 // 实拉后填充（先用占位，fetch 成功后整组替换并重渲染）
 let GENRES = GENRE_FALLBACK.slice();
@@ -305,22 +578,22 @@ function normStyle(s, i) {
 }
 
 /* 实拉题材/风格模板库（F1 域 /assets/* 就绪即生效；失败回退占位，仅 console 提示） */
-async function fetchAssets(kind, norm) {
+async function fetchAssets(kind, norm, apiPath) {
   try {
-    const r = await fetch(MEDIA_API + "/assets/" + kind);
+    const r = await fetch(MEDIA_API + "/assets/" + (apiPath || kind));
     if (!r.ok) throw new Error("HTTP " + r.status);
     const j = await r.json();
     const arr = Array.isArray(j) ? j : (j[kind] || j.items || j.data || []);
     const mapped = (Array.isArray(arr) ? arr : []).map(norm);
     return mapped.length ? mapped : null;
   } catch (e) {
-    console.warn("[asset-library] /assets/" + kind + " 不可用，回退占位：", e.message);
+    console.warn("[asset-library] /assets/" + (apiPath || kind) + " 不可用，回退占位：", e.message);
     return null;
   }
 }
 async function loadAssetLibraries() {
   const [g, s] = await Promise.all([
-    fetchAssets("genres", normGenre),
+    fetchAssets("genres", normGenre, "genres/detail"),   // /genres 只返回 ID 数组，需 /genres/detail
     fetchAssets("styles", normStyle),
   ]);
   if (g) GENRES = g;
@@ -348,27 +621,33 @@ let activeTab = "characters";
 let loadedGenre = "short-drama";
 let loadedStyle = DEFAULT_STYLE_ID;
 
-const ST_TEXT = { ready: "✓ 就绪", generating: "⟳ 生成中", empty: "○ 缺图" };
-const ST_CLASS = { ready: "ready", generating: "gen", empty: "empty" };
 
-/* ===== 完备性闸门（OnlyShot 失败模式4：进「分镜板·出图」前缺图阻断）=====
-   汇总 ref 三类的 ready / 总数 */
+/* ===== 完备性闸门（进「分镜板·出图」前需有可出图变体）=====
+   汇总富实体三类：有 ≥1 变体（场景/角色）或有出图 prompt（道具）视作「已规划」。
+   道具摘要无 variant_count（单 prompt），按存在即计为已规划。 */
 function computeCompleteness() {
   let ready = 0, total = 0;
   ["characters", "scenes", "props"].forEach((k) => {
-    REF_DATA[k].entries.forEach((e) => { total++; if (uiStatus(e) === "ready") ready++; });
+    REF_DATA[k].entries.forEach((e) => {
+      total++;
+      // 角色/场景：有变体即已规划；道具：单 prompt，存在即计入
+      if (k === "props" || (e.variant_count || 0) > 0) ready++;
+    });
   });
   return { ready, total, missing: total - ready };
 }
 function renderGate() {
   const { ready, total, missing } = computeCompleteness();
   const gate = document.getElementById("gate");
-  if (missing === 0) {
+  if (total === 0) {
+    gate.className = "gate";
+    gate.innerHTML = `完备性：<b>—</b> 暂无富实体（去剧本页规划）`;
+  } else if (missing === 0) {
     gate.className = "gate ok";
-    gate.innerHTML = `完备性：<b>${ready}/${total}</b> 就绪 · 可进分镜板出图`;
+    gate.innerHTML = `完备性：<b>${ready}/${total}</b> 已规划 · 可进分镜板出图`;
   } else {
     gate.className = "gate";
-    gate.innerHTML = `完备性：<b>${ready}/${total}</b> 就绪 · ${missing} 项缺图（出图前需补全）`;
+    gate.innerHTML = `完备性：<b>${ready}/${total}</b> 已规划 · ${missing} 项缺变体`;
   }
 }
 
@@ -395,11 +674,10 @@ function renderToolbar() {
   if (tab.kind === "ref") {
     const lbl = REF_DATA[activeTab].label;
     root.innerHTML = `
-      <span class="src">来源：从剧本/风格圣经自动提取 + 手动导入</span>
+      <span class="src">设定集：由剧本页「规划实体」产出（含变体/出图 prompt/音色），此处读/展示/编辑。</span>
       <span class="sp"></span>
-      <button class="tb-btn" data-act="import"><span class="i">${IC.import}</span>导入图</button>
-      <button class="tb-btn" data-act="batch"><span class="i">${IC.batch}</span>批量生成缺图</button>
-      <button class="tb-btn pri" data-act="extract"><span class="i">${IC.plus}</span>从剧本提取${lbl}</button>`;
+      <button class="tb-btn" id="btnAddEntity" data-act="add-entity"><span class="i">${IC.plus}</span>手动新增${lbl}</button>
+      <button class="tb-btn pri" id="btnPlanEntities" data-act="plan-entities">🧩 去剧本页规划实体</button>`;
   } else if (activeTab === "genres") {
     root.innerHTML = `
       <span class="src">题材模板（templates/genres）— 加载到立意/剧本生成，最多叠加 3 个</span>
@@ -418,8 +696,8 @@ function renderToolbar() {
 function renderGrid() {
   const grid = document.getElementById("grid");
   const tab = TABS.find((t) => t.id === activeTab);
-  grid.className = tab.kind === "asset" ? "grid wide" : "grid";
-  if (tab.kind === "ref") grid.innerHTML = renderRefCards(activeTab);
+  grid.className = tab.kind === "asset" ? "grid wide" : "grid ent-grid";
+  if (tab.kind === "ref") grid.innerHTML = renderEntityCards(activeTab);
   else if (activeTab === "genres") grid.innerHTML = renderGenreCards();
   else grid.innerHTML = renderStyleCards();
   wireGrid();
@@ -427,45 +705,53 @@ function renderGrid() {
 
 function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
-function renderRefCards(key) {
+/* 富实体卡：摘要直接用列表数据（name/id/brief/variant_count/source）；
+   编辑/配音色时再 GET /assets/entity 取全文。结构对齐 mockup（变体计数 + 角色音色区入口）。 */
+function renderEntityCards(key) {
   const def = REF_DATA[key];
-  // 无项目 / 拉取失败 / 空名单 → 友好提示（仍保留「手动新增」卡）
-  let lead = "";
+  // 无项目 / 拉取失败 / 空名单 → 友好提示
   if (!PROJECT_DIR) {
-    lead = `<div class="empty-hint" style="grid-column:1/-1">未选择项目 · 请先在首页打开一个项目（缺少 ?project=）。</div>`;
-  } else if (!refsLoaded) {
-    lead = `<div class="empty-hint" style="grid-column:1/-1">资源库读取失败 · 请确认媒体服务已启动后重试。</div>`;
-  } else if (def.entries.length === 0) {
-    lead = `<div class="empty-hint" style="grid-column:1/-1">暂无${esc(def.label)} · 点「从剧本提取${esc(def.label)}」或手动新增。</div>`;
+    return `<div class="empty-hint" style="grid-column:1/-1">未选择项目 · 请先在首页打开一个项目（缺少 ?project=）。</div>`;
   }
-  const cards = def.entries.map((e) => {
-    const us = uiStatus(e);
-    const sc = ST_CLASS[us];
-    const img = us === "ready" ? refImgSrc(e.path) : "";
-    const thumbInner = img
-      ? `<img src="${esc(img)}" alt="${esc(e.name)}" onerror="this.style.display='none';this.parentNode.querySelector('.ph').style.display='';">`
-        + `<div class="ph" style="position:absolute;display:none">${def.icon}</div>`
-      : `<div class="ph">${us === "generating" ? "⟳" : (us === "ready" ? def.icon : "+")}</div>`;
-    const acts = us === "ready"
-      ? `<button class="a blue" data-act="view" data-name="${esc(e.name)}">查看</button><button class="a" data-act="regen" data-name="${esc(e.name)}">↻ 重生</button>`
-      : us === "generating"
-        ? `<button class="a" data-act="cancel" data-name="${esc(e.name)}">取消</button>`
-        : `<button class="a blue" data-act="gen" data-name="${esc(e.name)}">✦ 生成</button><button class="a" data-act="import" data-name="${esc(e.name)}">导入</button>`;
-    const refLine = us === "empty"
-      ? `<div class="ref miss">未生成 · 出图前需补</div>`
-      : `<div class="ref">${esc(e.path || "—")}</div>`;
+  if (!refsLoaded) {
+    return `<div class="empty-hint" style="grid-column:1/-1">资源库读取失败 · 请确认媒体服务已启动后重试。</div>`;
+  }
+  if (def.entries.length === 0) {
+    return `<div class="empty-hint" style="grid-column:1/-1">该项目暂无${esc(def.label)}富实体。点「🧩 去剧本页规划实体」生成，或「＋ 手动新增」。</div>`;
+  }
+  return def.entries.map((e) => {
+    const srcTag = e.source ? `<span class="src">${esc(e.source)}</span>` : "";
+    const isChar = key === "characters";
+    const isProp = key === "props";
+    // 变体区：道具为单 prompt（无 variants），角色/场景显示变体计数
+    const variantSect = isProp
+      ? `<div class="sect"><div class="t">出图 prompt <span class="muted2">· 单图（无变体）</span></div></div>`
+      : `<div class="sect"><div class="t">变体 variants <span class="muted2">· ${e.variant_count || 0} 个（每变体自带出图 prompt）</span></div></div>`;
+    // 音色区：仅角色
+    const voiceSect = isChar ? `
+      <div class="voice">
+        <div class="t">🎙 音色包 voice</div>
+        <div class="vk"><b>配音色</b><span>点「🎚 配音色」读/写该角色 voice（设计/上传/预设）</span></div>
+        <div class="vact"><button class="iconb" data-act="voice" data-name="${esc(e.name)}">🎚 配音色</button></div>
+      </div>` : "";
     return `
-      <div class="rcard" data-kind="${key}" data-name="${esc(e.name)}">
-        <div class="thumb">${thumbInner}<span class="st ${sc}">${ST_TEXT[us]}</span></div>
-        <div class="rbody">
-          <div class="nm">${esc(e.name)}</div>
-          ${refLine}
-          <div class="acts">${acts}</div>
+      <div class="ent" data-kind="${key}" data-name="${esc(e.name)}">
+        <div class="hd">
+          <div>
+            <div class="nm">${esc(e.name)} ${srcTag}</div>
+            <div class="id">${esc(e.id || "")}${e.id ? " · " : ""}变体 ${e.variant_count || 0}</div>
+            <div class="brief">${esc(e.brief || "")}</div>
+          </div>
+          <div class="acts">
+            <button class="iconb" data-act="edit" data-name="${esc(e.name)}">✎ 编辑</button>
+            <button class="iconb" data-act="gen-ref" data-name="${esc(e.name)}" data-kind="${key}">🖼 生成参考图</button>
+            <button class="iconb danger" data-act="delete" data-name="${esc(e.name)}" title="删除该实体">🗑</button>
+          </div>
         </div>
+        ${variantSect}
+        ${voiceSect}
       </div>`;
-  });
-  cards.push(`<div class="rcard add" data-act="add"><div class="pl">+</div><div class="t">手动新增${esc(def.label)}</div></div>`);
-  return lead + cards.join("");
+  }).join("");
 }
 
 function renderGenreCards() {
@@ -490,10 +776,15 @@ function renderStyleCards() {
   return STYLES.map((s) => {
     const on = s.style_id === loadedStyle;
     const def = s.style_id === DEFAULT_STYLE_ID ? `<span class="meta-pill">默认</span>` : "";
+    // 优先显示预览图直观感知风格；加载失败 onerror 回退到原色块 swatch（移除 img、把渐变填回父容器）。
+    const prev = stylePreviewSrc(s.style_id);
+    const swatch = prev
+      ? `<div class="swatch" style="background:${s.swatch}"><img src="${prev}" alt="${s.name_cn}" loading="lazy" onerror="this.remove()"></div>`
+      : `<div class="swatch" style="background:${s.swatch}"></div>`;
     return `
       <div class="acard">
         <div class="top">
-          <div class="swatch" style="background:${s.swatch}"></div>
+          ${swatch}
           <div><div class="nm">${s.name_cn}</div><div class="sub">${s.style_id}</div></div>
         </div>
         <div class="desc">${s.suffix}</div>
@@ -525,152 +816,184 @@ async function postJSON(path, body) {
   return r.json();
 }
 
+/* PUT JSON 小工具：失败抛带 detail 的错误（detail 可能是 {errors:[...]} 对象） */
+async function putJSON(path, body) {
+  const r = await fetch(MEDIA_API + path, {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (r.ok) return r.json();
+  let detail = "HTTP " + r.status;
+  try { const j = await r.json(); detail = j.detail != null ? j.detail : detail; } catch (_) {}
+  const err = new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  err.status = r.status; err.detail = detail;
+  throw err;
+}
+
 /* ===== toolbar 动作 ===== */
 async function onToolbar(act) {
-  if (act === "extract") {
-    if (!requireProject()) return;
-    const lbl = REF_DATA[activeTab] ? REF_DATA[activeTab].label : "实体";
-    toast(`正在从剧本提取${lbl}…`);
-    try {
-      const j = await postJSON("/assets/refs/extract", { project: PROJECT_DIR });
-      // 端点返回 {added, refs}——直接用 refs 刷新本地三类
-      if (j.refs) {
-        ["characters", "scenes", "props"].forEach((k) => {
-          const refs = (j.refs[k] && Array.isArray(j.refs[k].refs)) ? j.refs[k].refs : [];
-          REF_DATA[k].entries = refs.map((e) => ({
-            name: e.name || "", path: e.path || "", source: e.source || "", status: e.status || "pending",
-          }));
-        });
-        refsLoaded = true;
-      } else { await loadRefs(); return; }
-      const added = j.added || {};
-      const n = (added.characters || 0) + (added.scenes || 0) + (added.props || 0);
-      renderAll();
-      toast(n ? `已提取，新增 ${n} 项实体。` : "提取完成，无新增实体。");
-    } catch (e) {
-      toast("提取失败：" + e.message);
-    }
+  if (act === "add-entity") { addEntityManual(activeTab); return; }
+  if (act === "plan-entities") {
+    // 跳剧本页/编剧链规划实体（壳监听 nav 切页）
+    try { window.parent && window.parent.postMessage({ type: "nav", key: "screenwriter" }, "*"); } catch (_) {}
+    toast("已请求跳转到剧本页规划实体。");
     return;
   }
-  if (act === "batch") {
-    // 批量生成当前类缺图：逐条调单条生成端点
-    if (!requireProject()) return;
-    const def = REF_DATA[activeTab];
-    const targets = (def ? def.entries : []).filter((e) => uiStatus(e) === "empty");
-    if (!targets.length) { toast("当前没有缺图条目。"); return; }
-    toast(`批量生成 ${targets.length} 张缺图…`);
-    let ok = 0, fail = 0;
-    for (const e of targets) {
-      try { await genOne(activeTab, e.name, { silent: true }); ok++; }
-      catch (_) { fail++; }
-    }
-    toast(`批量生成完成：成功 ${ok}${fail ? ` · 失败 ${fail}` : ""}。`);
-    return;
-  }
-  if (act === "import") {
-    // 手动导入：选本地图，写回该条 path/source=custom/status=ready（这里整类批量导入语义不清晰，落到单条 add 流程）
-    toast("请在具体条目上点「导入」以指定本地图路径。");
-    return;
-  }
-  if (act === "add") { addEntry(activeTab); return; }
   // genre-import / style-import：题材/风格自定义（后端暂无写端点）
   toast("自定义模板：暂未开放写入。");
 }
 
-/* 单条生成 ref 图：乐观置 generating → POST /assets/refs/generate → 用返回 entry 更新 */
-async function genOne(kind, name, opts) {
-  opts = opts || {};
-  if (!requireProject()) return;
-  const def = REF_DATA[kind];
-  const entry = def && def.entries.find((x) => x.name === name);
-  const prevStatus = entry ? entry.status : null;
-  if (entry) { entry.status = "generating"; renderGrid(); }
-  if (!opts.silent) toast(`生成中：${name}…`);
-  try {
-    const j = await postJSON("/assets/refs/generate", { project: PROJECT_DIR, kind, entity_id: name });
-    const r = j.entry || {};
-    if (entry) {
-      entry.path = r.path || entry.path;
-      entry.source = r.source || "ai-generated";
-      entry.status = r.status || "ready";
-    }
-    renderAll();
-    if (!opts.silent) toast(`已生成：${name}`);
-  } catch (e) {
-    if (entry) entry.status = prevStatus;   // 回滚乐观态
-    renderAll();
-    if (!opts.silent) toast(`生成失败：${e.message}`);
-    if (opts.silent) throw e;               // 批量模式向上累计失败
-  }
-}
+/* 当前 tab 的复数 kind */
+function currentKind() { return activeTab; }
 
-/* 手动导入本地图：输入路径 → /assets/refs/update 写 path+status=ready+source=custom */
-async function importOne(kind, name) {
+/* 删除富实体：DELETE /assets/entity */
+async function delEntity(kind, name) {
   if (!requireProject()) return;
-  const path = prompt(`输入「${name}」的参考图本地路径（可相对项目目录）：`, "");
-  if (path === null) return;
-  const p = path.trim();
-  if (!p) { toast("路径为空，已取消。"); return; }
+  if (!confirm(`删除实体「${name}」？此操作会删除磁盘上的实体 JSON 文件。`)) return;
   try {
-    const j = await postJSON("/assets/refs/update", {
-      project: PROJECT_DIR, kind, entity_id: name, path: p, source: "custom", status: "ready",
-    });
-    const r = j.entry || {};
+    const r = await fetch(MEDIA_API + "/assets/entity?project=" + encodeURIComponent(PROJECT_DIR)
+      + "&kind=" + kind + "&name=" + encodeURIComponent(name), { method: "DELETE" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
     const def = REF_DATA[kind];
-    let entry = def && def.entries.find((x) => x.name === name);
-    if (entry) { entry.path = r.path || p; entry.source = r.source || "custom"; entry.status = r.status || "ready"; }
+    if (def) def.entries = def.entries.filter((x) => x.name !== name);
     renderAll();
-    toast(`已导入：${name}`);
-  } catch (e) {
-    toast("导入失败：" + e.message);
-  }
+    toast(`已删除：${name}`);
+  } catch (e) { toast("删除失败：" + e.message); }
 }
 
-/* 手动新增条目：输入名字 → /assets/refs/update 登记空条目（status=pending） */
-async function addEntry(kind) {
+/* 生成参考图：POST /assets/refs/generate。
+   对角色/场景取第一变体的 prompt，道具取自身的 prompt。 */
+async function genRef(kind, name) {
+  if (!requireProject()) return;
+  // 1) 先取实体全文以提取 prompt
+  let obj;
+  try {
+    const r = await fetch(MEDIA_API + "/assets/entity?project=" + encodeURIComponent(PROJECT_DIR)
+      + "&kind=" + kind + "&name=" + encodeURIComponent(name));
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    obj = await r.json();
+  } catch (e) { toast("读取实体失败：" + e.message); return; }
+
+  // 2) 提取 prompt
+  let prompt = "";
+  if (kind === "props") {
+    // 道具：自身 prompt 字段
+    prompt = (obj.prompt || "").trim();
+  } else {
+    // 角色/场景：第一变体的 prompt
+    const vars = obj.variants;
+    if (vars && typeof vars === "object") {
+      const keys = Object.keys(vars);
+      if (keys.length > 0) {
+        const first = vars[keys[0]];
+        prompt = (first && first.prompt ? first.prompt : "").trim();
+      }
+    }
+  }
+  if (!prompt) { toast("该实体无可用的出图 prompt（请先编辑补充变体 prompt）。"); return; }
+
+  // 3) 调用生成端点
+  toast("正在提交参考图生成…");
+  try {
+    const size = "1024x1024";   // 默认方形
+    const j = await postJSON("/assets/refs/generate", {
+      project: PROJECT_DIR,
+      kind: kind,
+      entity_id: name,
+      prompt: prompt,
+      size: size,
+    });
+    toast("已提交生成 · " + (j.preview_url || j.task_id || "OK"));
+    // 刷新列表以更新状态
+    loadEntities();
+  } catch (e) { toast("生成失败：" + e.message); }
+}
+
+/* 手动新增富实体：输入名 → 用最小骨架打开编辑弹窗让用户填实后 PUT（因 validate_entity 拒占位符）。 */
+async function addEntityManual(kind) {
   if (!requireProject()) return;
   const def = REF_DATA[kind];
-  const nm = prompt(`新增${def ? def.label : "条目"}名称：`, "");
+  const single = def ? def.single : "character";
+  const nm = prompt(`新增${def ? def.label : "实体"}名称：`, "");
   if (nm === null) return;
   const name = nm.trim();
   if (!name) { toast("名称为空，已取消。"); return; }
-  if (def && def.entries.some((x) => x.name === name)) { toast("已存在同名条目。"); return; }
+  if (def && def.entries.some((x) => x.name === name)) { toast("已存在同名实体。"); return; }
+  // 最小骨架（含占位 prompt，需用户在弹窗内填实再保存——validate_entity 会拒占位符）
+  const base = single === "character"
+    ? { name, character_id: "", identity: "", voice: { design: { style: "（待填）", language: "Chinese" }, clone: { ref_audio: "" } }, variants: {} }
+    : single === "scene"
+      ? { name, scene_id: "", type: "", variants: { "默认": { prompt: "（待填出图提示词）" } } }
+      : { name, prop_id: "", type: "", story_function: "", prompt: "（待填出图提示词）" };
+  openEntityEditorWithData(kind, name, base);
+}
+
+/* 编辑弹窗：GET 全文 → JSON textarea 改 → PUT /assets/entity（失败显 validate 错误）。 */
+async function openEntityEditor(kind, name) {
+  if (!requireProject()) return;
+  let obj;
   try {
-    const j = await postJSON("/assets/refs/update", {
-      project: PROJECT_DIR, kind, entity_id: name, status: "pending",
-    });
-    const r = j.entry || {};
-    if (def) def.entries.push({ name: r.name || name, path: r.path || "", source: r.source || "", status: r.status || "pending" });
-    renderAll();
-    toast(`已新增：${name}`);
+    const r = await fetch(MEDIA_API + "/assets/entity?project=" + encodeURIComponent(PROJECT_DIR)
+      + "&kind=" + kind + "&name=" + encodeURIComponent(name));
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    obj = await r.json();
+  } catch (e) { toast("读取失败：" + e.message); return; }
+  openEntityEditorWithData(kind, name, obj);
+}
+
+/* openEntityEditor 的「用给定 data 而非 GET」变体（手动新增复用同一弹窗骨架）。 */
+function openEntityEditorWithData(kind, name, obj) {
+  entDlg.kind = kind; entDlg.name = name;
+  vEl("edName").textContent = name;
+  vEl("edTitle").textContent = "编辑实体 · " + (REF_DATA[kind] ? REF_DATA[kind].label : kind);
+  vEl("edText").value = JSON.stringify(obj, null, 2);
+  vEl("edErr").textContent = "";
+  vEl("entMask").classList.add("on");
+  vEl("entMask").setAttribute("aria-hidden", "false");
+}
+
+function closeEntityEditor() {
+  vEl("entMask").classList.remove("on");
+  vEl("entMask").setAttribute("aria-hidden", "true");
+}
+
+/* 保存编辑：解析 JSON → PUT /assets/entity；validate 失败显 detail.errors */
+async function saveEntityEditor() {
+  const kind = entDlg.kind, name = entDlg.name;
+  const errBox = vEl("edErr");
+  errBox.textContent = "";
+  let data;
+  try { data = JSON.parse(vEl("edText").value); }
+  catch (e) { errBox.textContent = "JSON 解析失败：" + e.message; return; }
+  try {
+    await putJSON("/assets/entity", { project: PROJECT_DIR, kind, name, data });
+    closeEntityEditor();
+    toast(`已保存：${name}`);
+    loadEntities();
   } catch (e) {
-    toast("新增失败：" + e.message);
+    let msg = "保存失败（" + (e.status || "?") + "）";
+    if (e.detail && e.detail.errors && Array.isArray(e.detail.errors)) {
+      msg += "\n校验错误：\n· " + e.detail.errors.join("\n· ");
+    } else { msg += " " + e.message; }
+    errBox.textContent = msg;
   }
 }
 
 function wireGrid() {
   document.querySelectorAll("#grid [data-act]").forEach((el) => {
-    el.addEventListener("click", (ev) => {
+    el.addEventListener("click", async (ev) => {
       ev.stopPropagation();
       const act = el.getAttribute("data-act");
       const name = el.getAttribute("data-name");
       const id = el.getAttribute("data-id");
-      const card = el.closest(".rcard");
+      const card = el.closest(".ent");
       const kind = card ? card.getAttribute("data-kind") : activeTab;
       if (act === "load-genre") { loadedGenre = id; renderGrid(); toast(`已加载题材：${id}（写入立意/剧本生成上下文）`); return; }
       if (act === "load-style") { loadedStyle = id; renderGrid(); toast(`已加载风格圣经：${id}（锁 ref_fingerprint 保一致性）`); return; }
-      if (act === "gen" || act === "regen") { genOne(kind || activeTab, name); return; }
-      if (act === "import") { importOne(kind || activeTab, name); return; }
-      if (act === "add") { addEntry(activeTab); return; }
-      if (act === "view") {
-        const def = REF_DATA[kind || activeTab];
-        const entry = def && def.entries.find((x) => x.name === name);
-        // 仅 ready/有 path 可看；缺图引导先生成
-        if (!entry || uiStatus(entry) !== "ready" || !entry.path) { toast("该条目暂无参考图，请先生成。"); return; }
-        openLightbox(refImgSrc(entry.path), entry.name);
-        return;
-      }
-      if (act === "cancel") { toast("生成中无法中断（后端为同步生成）。"); return; }
+      if (act === "edit") { openEntityEditor(kind || activeTab, name); return; }
+      if (act === "delete") { delEntity(kind || activeTab, name); return; }
+      if (act === "voice") { openVoiceDialog(name); return; }
+      if (act === "gen-ref") { genRef(kind, name); return; }
       toast(`${act}${name ? " · " + name : ""}`);
     });
   });
@@ -708,6 +1031,269 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && document.getElementById("lightbox").classList.contains("on")) closeLightbox();
 });
 
+/* ===== 角色音色（配音色）：设计 / 上传 / 预设 三选 =====
+   读/写富实体 voice（GET /assets/entity 预填，PUT /assets/entity/voice 保存，过 validate_entity）：
+   设计 → voice.design.style/language；上传 → voice.clone.ref_audio；预设 → voice.design.style 模板描述。
+   试听：design 样本走 /tts/preview 取 audio_base64；已存音色走 /file 回放本地音频。 */
+
+// 内置预设音色（source=preset；params.preset = id）。真机若有后端预设接口可替换为实拉。
+const VOICE_PRESETS = [
+  { id: "narrator-male",  name: "旁白大叔", desc: "沉稳磁性的中年大叔旁白音" },
+  { id: "young-female",   name: "清亮少女", desc: "清亮俏皮的少女声，音调偏高" },
+  { id: "young-male",     name: "阳光青年", desc: "阳光朝气的青年男声，中频清晰" },
+  { id: "elder",          name: "苍老老者", desc: "苍老醇厚的老者声，语速缓慢" },
+  { id: "yujie",          name: "高冷御姐", desc: "慵懒高冷的御姐音，气声明显" },
+  { id: "intellectual-f", name: "知性女声", desc: "温柔知性的成熟女声" },
+  { id: "authority-male", name: "威严男声", desc: "低沉威严的男性权威嗓音" },
+  { id: "news-anchor",    name: "新闻播报", desc: "标准新闻播报腔，吐字清晰平稳" },
+];
+
+// 单例 <audio> 试听回放（本地路径走 /file，http 壳禁 file://）
+let _previewAudio = null;
+function playAudioPath(path) {
+  if (!path) { toast("无可试听音频。"); return; }
+  if (!_previewAudio) _previewAudio = new Audio();
+  _previewAudio.src = mediaUrl(path);
+  _previewAudio.play().catch((e) => toast("无法播放：" + (e && e.message || e)));
+}
+// base64 音频试听（design 样本 /tts/preview 返回 audio_base64）
+function playAudioBase64(b64) {
+  if (!b64) { toast("无样本可试听。"); return; }
+  if (!_previewAudio) _previewAudio = new Audio();
+  _previewAudio.src = "data:audio/flac;base64," + b64;
+  _previewAudio.play().catch((e) => toast("无法播放样本：" + (e && e.message || e)));
+}
+
+// 弹窗会话态
+const voiceDlg = {
+  name: "",            // 当前角色名
+  tab: "design",       // design | upload | preset
+  designPath: "",      // 已合成样本的 FLAC 路径（保存时作 voice.path）
+  designB64: "",       // 样本 base64（试听用）
+  uploadPath: "",      // 上传所选本地音频
+  presetId: "",        // 选中预设 id
+};
+
+// 实体编辑弹窗会话态
+const entDlg = { kind: "", name: "" };
+
+function vEl(id) { return document.getElementById(id); }
+
+/* 据性别/年龄/性格自动拼 audio_style 描述 */
+function buildDesignStyle() {
+  const sex = vEl("vdSex").value, age = vEl("vdAge").value, trait = vEl("vdTrait").value.trim();
+  const parts = [age + sex + "声"];
+  if (trait) parts.push(trait);
+  return parts.join("，");
+}
+
+function setVdStatus(msg, cls) {
+  const el = vEl("vdStatus");
+  el.textContent = msg || "";
+  el.className = "vd-status" + (cls ? " " + cls : "");
+}
+
+async function openVoiceDialog(name) {
+  if (!requireProject()) return;
+  voiceDlg.name = name;
+  voiceDlg.designPath = ""; voiceDlg.designB64 = ""; voiceDlg.uploadPath = ""; voiceDlg.presetId = "";
+  vEl("vdName").textContent = name;
+  // 复位字段
+  vEl("vdSex").value = "男"; vEl("vdAge").value = "中年"; vEl("vdTrait").value = "";
+  vEl("vdStyle").value = buildDesignStyle();
+  vEl("vdText").value = "你好，这是我的声音样本。";
+  vEl("vdUpPath").value = "";
+  vEl("vdSample").classList.add("hidden");
+  vEl("vdUpSample").classList.add("hidden");
+  setVdStatus("");
+  // 读富实体的 voice 预填（GET /assets/entity）；失败/缺省 → 默认空 voice
+  let voice = { design: { style: "", language: "Chinese" }, clone: { ref_audio: "" } };
+  try {
+    const r = await fetch(MEDIA_API + "/assets/entity?project=" + encodeURIComponent(PROJECT_DIR)
+      + "&kind=characters&name=" + encodeURIComponent(name));
+    if (r.ok) {
+      const obj = await r.json();
+      if (obj && obj.voice && typeof obj.voice === "object") voice = obj.voice;
+    }
+  } catch (_) {}
+  const design = (voice.design && typeof voice.design === "object") ? voice.design : {};
+  const clone = (voice.clone && typeof voice.clone === "object") ? voice.clone : {};
+  // 设计：style 预填到风格描述框
+  if (design.style) vEl("vdStyle").value = design.style;
+  // 上传：clone.ref_audio 预填到上传路径
+  if (clone.ref_audio) { voiceDlg.uploadPath = clone.ref_audio; vEl("vdUpPath").value = clone.ref_audio; vEl("vdUpSample").classList.remove("hidden"); }
+  // 默认进设计页（已有 ref_audio 则进上传页）
+  switchVoiceTab(clone.ref_audio ? "upload" : "design");
+  renderPresetList();
+  vEl("voiceMask").classList.add("on");
+  vEl("voiceMask").setAttribute("aria-hidden", "false");
+}
+
+function closeVoiceDialog() {
+  vEl("voiceMask").classList.remove("on");
+  vEl("voiceMask").setAttribute("aria-hidden", "true");
+}
+
+function switchVoiceTab(tab) {
+  voiceDlg.tab = tab;
+  document.querySelectorAll(".vd-tab").forEach((t) => t.classList.toggle("on", t.getAttribute("data-vtab") === tab));
+  document.querySelectorAll(".vd-pane").forEach((p) => p.classList.toggle("on", p.getAttribute("data-vpane") === tab));
+  // 合成样本仅 design 适用
+  vEl("vdSynth").style.display = tab === "design" ? "" : "none";
+}
+
+function renderPresetList() {
+  const root = vEl("vdPresetList");
+  root.innerHTML = VOICE_PRESETS.map((p) => `
+    <div class="vd-preset ${p.id === voiceDlg.presetId ? "on" : ""}" data-preset="${esc(p.id)}">
+      <span class="pra"></span>
+      <div><div class="pnm">${esc(p.name)}</div><div class="pds">${esc(p.desc)}</div></div>
+    </div>`).join("");
+  root.querySelectorAll(".vd-preset").forEach((el) => {
+    el.addEventListener("click", () => { voiceDlg.presetId = el.getAttribute("data-preset"); renderPresetList(); });
+  });
+}
+
+/* 合成 design 样本：/tts/preview mode=design → audio_base64 试听 + 暂存 output 路径 */
+async function synthDesignSample() {
+  const style = vEl("vdStyle").value.trim();
+  const text = vEl("vdText").value.trim();
+  if (!text) { setVdStatus("样本台词不能为空", "err"); return; }
+  if (!style) { setVdStatus("音色风格描述不能为空", "err"); return; }
+  setVdStatus("正在合成样本…", "busy");
+  vEl("vdSynth").disabled = true;
+  try {
+    // 同时落盘到项目 dub_samples（保存音色用其路径），并取 base64 试听
+    const dir = PROJECT_DIR.replace(/[\\/]+$/, "") + "/voice_samples";
+    const base = "voice_" + voiceDlg.name.replace(/[^\w一-龥-]/g, "_") + "_" + Date.now();
+    const j = await postJSON("/tts/synthesize", {
+      text, mode: "design", language: "中文", style, out_dir: dir, base_name: base,
+    });
+    voiceDlg.designPath = j.output || "";
+    voiceDlg.designB64 = "";
+    // 取一次预览 base64 便于即时试听（合成与预览同管线；失败则回退 /file 试听）
+    try {
+      const pj = await postJSON("/tts/preview", { text, mode: "design", language: "中文", style });
+      voiceDlg.designB64 = pj.audio_base64 || "";
+    } catch (_) {}
+    vEl("vdSample").classList.remove("hidden");
+    setVdStatus("样本已生成，可试听后保存。", "");
+  } catch (e) {
+    setVdStatus("合成失败：" + e.message, "err");
+  } finally {
+    vEl("vdSynth").disabled = false;
+  }
+}
+
+/* 组装富实体 voice（据当前 tab）：只传**当前操作的字段**（部分 voice），
+   后端按「出现的键覆盖、未出现的键保留」合并——故配音色不会清空未操作的另一半。
+   设计/预设 → 只传 design；上传 → 只传 clone（原 design.style 由后端保留）。 */
+function buildEntityVoice() {
+  const tab = voiceDlg.tab;
+  const style = vEl("vdStyle").value.trim();
+  const upPath = vEl("vdUpPath").value.trim();
+  if (tab === "preset") {
+    if (!voiceDlg.presetId) return { err: "请先选择一个预设音色。" };
+    const pre = VOICE_PRESETS.find((x) => x.id === voiceDlg.presetId) || {};
+    return { voice: { design: { style: pre.desc || pre.name || voiceDlg.presetId, language: "Chinese" } } };
+  }
+  if (tab === "upload") {
+    if (!upPath) return { err: "请先选择本地音频文件。" };
+    return { voice: { clone: { ref_audio: upPath } } };  // 只动 clone，design.style 后端保留
+  }
+  if (!style) return { err: "音色风格描述不能为空。" };
+  return { voice: { design: { style, language: "Chinese" } } };  // 只动 design，clone 保留
+}
+
+/* 保存音色：组富实体 voice → PUT /assets/entity/voice（聚焦更新，不动其它字段）。 */
+async function saveVoice() {
+  const built = buildEntityVoice();
+  if (built.err) { setVdStatus(built.err, "err"); return; }
+  setVdStatus("保存中…", "busy");
+  try {
+    await putJSON("/assets/entity/voice", {
+      project: PROJECT_DIR, name: voiceDlg.name, voice: built.voice,
+    });
+    toast(`已配音色：${voiceDlg.name}`);
+    closeVoiceDialog();
+    loadEntities();
+  } catch (e) {
+    let msg = "保存失败（" + (e.status || "?") + "）";
+    if (e.detail && e.detail.errors && Array.isArray(e.detail.errors)) {
+      msg += "：" + e.detail.errors.join("；");
+    } else { msg += " " + e.message; }
+    setVdStatus(msg, "err");
+  }
+}
+
+/* 清除音色：富实体 voice.design.style 不可为空（validate_entity 拒），
+   故「清除」改为清空声音克隆参考音频（clone.ref_audio=""），保留 design.style。 */
+async function clearVoice() {
+  setVdStatus("清除克隆参考音频中…", "busy");
+  // 只清 clone.ref_audio（键出现→生效），design 不传由后端保留原描述。
+  const voice = { clone: { ref_audio: "" } };
+  try {
+    await putJSON("/assets/entity/voice", {
+      project: PROJECT_DIR, name: voiceDlg.name, voice,
+    });
+    toast(`已清除克隆参考音频：${voiceDlg.name}`);
+    closeVoiceDialog();
+    loadEntities();
+  } catch (e) {
+    let msg = "清除失败（" + (e.status || "?") + "）";
+    if (e.detail && e.detail.errors && Array.isArray(e.detail.errors)) {
+      msg += "：" + e.detail.errors.join("；");
+    } else { msg += " " + e.message; }
+    setVdStatus(msg, "err");
+  }
+}
+
+/* 选择本地音频：优先请壳原生 filepick（postMessage），无回应回退手填路径 */
+let _filePickResolve = null;
+function pickAudioFile() {
+  // 监听壳回传（type:'file.picked'）；超时回退 prompt
+  try {
+    window.parent.postMessage({ type: "file.pick", accept: "audio", purpose: "voice" }, "*");
+  } catch (_) {}
+  if (_filePickResolve) { clearTimeout(_filePickResolve._t); }
+  const timer = setTimeout(() => {
+    _filePickResolve = null;
+    const p = prompt("输入本地音频文件路径（FLAC/WAV/MP3）：", vEl("vdUpPath").value || "");
+    if (p && p.trim()) { vEl("vdUpPath").value = p.trim(); voiceDlg.uploadPath = p.trim(); vEl("vdUpSample").classList.remove("hidden"); }
+  }, 600);
+  _filePickResolve = { _t: timer };
+}
+window.addEventListener("message", (ev) => {
+  const d = ev.data || {};
+  if (d.type === "file.picked" && d.purpose === "voice" && d.path && _filePickResolve) {
+    clearTimeout(_filePickResolve._t); _filePickResolve = null;
+    vEl("vdUpPath").value = d.path; voiceDlg.uploadPath = d.path;
+    vEl("vdUpSample").classList.remove("hidden");
+  }
+});
+
+// 弹窗事件绑定
+vEl("vdClose").addEventListener("click", closeVoiceDialog);
+vEl("voiceMask").addEventListener("click", (ev) => { if (ev.target.id === "voiceMask") closeVoiceDialog(); });
+document.querySelectorAll(".vd-tab").forEach((t) => t.addEventListener("click", () => switchVoiceTab(t.getAttribute("data-vtab"))));
+["vdSex", "vdAge", "vdTrait"].forEach((id) => vEl(id).addEventListener("input", () => { vEl("vdStyle").value = buildDesignStyle(); }));
+vEl("vdSynth").addEventListener("click", synthDesignSample);
+vEl("vdSave").addEventListener("click", saveVoice);
+vEl("vdClear").addEventListener("click", clearVoice);
+vEl("vdSamplePlay").addEventListener("click", () => { if (voiceDlg.designB64) playAudioBase64(voiceDlg.designB64); else playAudioPath(voiceDlg.designPath); });
+vEl("vdUpPlay").addEventListener("click", () => playAudioPath(vEl("vdUpPath").value.trim()));
+vEl("vdUpPick").addEventListener("click", pickAudioFile);
+vEl("vdUpPath").addEventListener("input", () => { voiceDlg.uploadPath = vEl("vdUpPath").value.trim(); });
+
+// 实体编辑弹窗事件绑定
+vEl("edClose").addEventListener("click", closeEntityEditor);
+vEl("edCancel").addEventListener("click", closeEntityEditor);
+vEl("edSave").addEventListener("click", saveEntityEditor);
+vEl("entMask").addEventListener("click", (ev) => { if (ev.target.id === "entMask") closeEntityEditor(); });
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && vEl("entMask").classList.contains("on")) closeEntityEditor();
+});
+
 /* ===== 轻量 toast ===== */
 let toastTimer = null;
 function toast(msg) {
@@ -728,8 +1314,8 @@ function toast(msg) {
 
 function renderAll() { renderTabs(); renderToolbar(); renderGrid(); renderGate(); }
 renderAll();
-/* 资源库三类 ref 实拉（GET MEDIA_API /assets/refs?project=…），无项目/失败 → 占位+提示 */
-loadRefs();
+/* 资源库三类富实体实拉（GET MEDIA_API /assets/entities?project=…&kind=…），无项目/失败 → 占位+提示 */
+loadEntities();
 /* 域W3：题材模板/风格圣经实拉（GET MEDIA_API /assets/genres、/assets/styles），失败回退占位 */
 loadAssetLibraries();
 </script>

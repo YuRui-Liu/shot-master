@@ -1586,6 +1586,37 @@ async function autoLoadVoices() {
   // 兜底：返回整集音色设计 JSON（用户可自行裁剪）
   try { return JSON.stringify(voices, null, 2); } catch { return ""; }
 }
+/* 页面初始化时自动加载已落盘的 voices.json（若存在），无需用户再点「一键分镜配音」。
+   通过 /project/files 发现文件，/file 拉取 JSON，缓存到 _audioPromptCache 并填入各卡配音提示词。 */
+async function autoLoadVoices() {
+  const ep = currentEpisodeId();
+  if (!PROJECT_DIR || !MEDIA_API) return;
+  try {
+    const r = await fetch(MEDIA_API + "/project/files?" + new URLSearchParams({
+      project: PROJECT_DIR, sub: "dub/" + ep, ext: "json",
+    }));
+    if (!r.ok) return;
+    const j = await r.json().catch(() => null);
+    const files = (j && Array.isArray(j.files)) ? j.files : [];
+    const vf = files.find(f => (f && f.name) === "voices.json");
+    if (!vf) return;
+    const resp = await fetch(mediaUrl((vf && vf.path) || ("dub/" + ep + "/voices.json")));
+    if (!resp.ok) return;
+    const voices = await resp.json().catch(() => null);
+    if (!voices) return;
+    _audioPromptCache.ep = ep;
+    _audioPromptCache.voices = voices;
+    SHOTS.forEach((s) => {
+      const ta = document.querySelector(`textarea[data-shot="${s.n}"]`);
+      if (!ta) return;
+      const text = voiceDesignForRole(voices, s.role);
+      if (text) ta.value = text;
+    });
+  } catch (_) {
+    // 静默：自动加载为尽力而为，失败不影响用户手动触发「一键分镜配音」
+  }
+}
+
 
 /* 语速下拉「1.0× 正常」→ 数值 1.0（解析失败回退 1.0） */
 function parseSpeed(label) {
@@ -2705,6 +2736,7 @@ wireGenAll();
    避免互相覆盖。M2：失败时显式空态，不再回退 demo SHOTS。 */
 loadAssetCharacters()
   .then(() => loadEpisodeShots(currentEpisodeId()))
+  .then(() => autoLoadVoices())
   .catch((e) => {
     console.warn("[dub-mode2] 初始化加载分镜失败：", e && e.message || e);
     showShotsEmpty("初始化加载失败：" + (e && e.message || e));   // M2

@@ -204,6 +204,27 @@
           <button class="btn-secondary" id="btnSave" disabled>保存</button>
           <span class="grow"></span>
           <button class="btn-secondary" id="btnRegen" disabled>↻ 重生成</button>
+          <button id="btnPlanEntities" title="据大纲规划场景/角色/道具实体">🧩 规划实体</button>
+          <button id="btnPlanTone" title="据大纲生成六维导演定调">🎬 生成定调</button>
+          <button id="btnAdvance" title="进入分镜阶段">推进到分镜 →</button>
+        </div>
+        <div id="tonePanel" style="display:none;margin-top:10px;padding:10px 12px;background:var(--panel);border:1px solid var(--border);border-radius:8px;font-size:12.5px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <b>六维定调</b><span id="toneStatus" style="color:var(--muted);"></span><span style="flex:1"></span>
+            <button id="toneClose" class="btn-secondary" style="padding:3px 9px;">关闭</button>
+          </div>
+          <div id="toneForm" style="margin-top:8px;"></div>
+          <div style="margin-top:8px;">
+            <button id="btnToneSave" style="display:none;">保存定调</button>
+          </div>
+        </div>
+        <div id="planEntitiesPanel" style="display:none;margin-top:10px;padding:10px 12px;background:var(--panel);border:1px solid var(--border);border-radius:8px;font-size:12.5px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <b>规划实体</b><span id="peStatus" style="color:var(--muted);"></span><span style="flex:1"></span>
+            <label style="font-size:12px;color:var(--muted);"><input type="checkbox" id="peForce"> 强制覆盖</label>
+            <button id="peClose" class="btn-secondary" style="padding:3px 9px;">关闭</button>
+          </div>
+          <div id="peResult" style="margin-top:8px;line-height:1.8;"></div>
         </div>
       </div>
     </div>
@@ -227,6 +248,8 @@ let activeEp = null;      // 当前选中集 id
 const epStatus = {};      // {E1: "idle"|"running"|"done"}
 const epContent = {};     // {E1: "正文…"} 各集编辑器内容（持久化）
 let busy = false;         // 单集/大纲流式互斥
+// 壳切面板拦截约定：流式生成中告知壳「忙」，避免切页中断生成。
+window.swIsBusy = () => busy;
 
 /* ---------- 项目级持久化（localStorage 镜像，切页/重启不丢正文） ---------- */
 const LS_SCRIPT = "nuomi.script.state." + (PROJECT_DIR || "noproj");
@@ -262,11 +285,12 @@ function restoreLocal() {
 }
 
 /* ---------- 二次打开：从后端读回分集/正文（BUGD 契约） ----------
-   [列目录] GET {MEDIA_API}/project/files?project=&ext=md → {files:[{name,path,size}]}
+   [列集]   GET {MEDIA_API}/project/episodes?project= → {episodes:[{id,title,has_storyboard}]}
+            （合并 episode/ 与旧根，按集号排序；title 取自 剧本.json 大纲）
    [读内容] GET {MEDIA_API}/file?path=<相对项目|绝对>&project=<dir> → fetch().then(r=>r.text())
-   后端落盘：剧本索引=剧本.json{episodes:[{id,title,summary}]}；分集正文=剧本_E{id}.md（旧 剧本.md=E1）。
+   后端落盘：剧本索引=剧本.json{episodes:[{id,title,summary}]}；
+            分集正文=episode/剧本_E{id}.md（旧根 剧本_E{id}.md / 旧单文件 剧本.md=E1 兜底）。
    优先后端，读不到静默回退 localStorage；不抛错、不阻塞其余 init。 */
-const RE_EP_MD = /^剧本_(E[1-9]\d*)\.md$/;   // 剧本_E12.md → E12
 function epNum(id) { const m = /^E(\d+)$/.exec(id); return m ? parseInt(m[1], 10) : 0; }
 
 async function mediaGet(path) {
@@ -274,19 +298,14 @@ async function mediaGet(path) {
   return fetch(MEDIA_API + path);
 }
 
-/* 列项目根的 .md，挑出剧本分集 → 返回有序集 id 列表（含旧 剧本.md=E1）。 */
+/* 列集：调 GET /project/episodes（后端合并 episode/ 与旧根，已按集号排序）→ id 列表。 */
 async function listEpisodeMds() {
   if (!PROJECT_DIR) return [];
   try {
-    const r = await mediaGet("/project/files?project=" + encodeURIComponent(PROJECT_DIR) + "&ext=md");
+    const r = await mediaGet("/project/episodes?project=" + encodeURIComponent(PROJECT_DIR));
     if (!r.ok) return [];
     const j = await r.json().catch(() => ({}));
-    const ids = [];
-    (j.files || []).forEach((f) => {
-      const m = RE_EP_MD.exec(f.name || "");
-      if (m) ids.push(m[1]);
-      else if (f.name === "剧本.md" && !ids.includes("E1")) ids.push("E1"); // 旧单文件 = E1
-    });
+    const ids = (j.episodes || []).map((e) => e && e.id).filter(Boolean);
     return [...new Set(ids)].sort((a, b) => epNum(a) - epNum(b));
   } catch (_) { return []; }
 }
@@ -307,9 +326,10 @@ async function readScriptIndex() {
   } catch (_) { return null; }
 }
 
-/* 读单集正文：剧本_E{id}.md（E1 兜底旧 剧本.md）。返回文本或 null。 */
+/* 读单集正文：episode/剧本_E{id}.md → 旧根 剧本_E{id}.md → 旧单文件 剧本.md(E1)。
+   返回文本或 null（与后端 script_episode_read_path 兜底链一致）。 */
 async function readEpisodeMd(id) {
-  const tryNames = ["剧本_" + id + ".md"];
+  const tryNames = ["episode/剧本_" + id + ".md", "剧本_" + id + ".md"];
   if (id === "E1") tryNames.push("剧本.md");
   for (const name of tryNames) {
     try {
@@ -636,6 +656,254 @@ async function showInheritedContext() {
   tag.title = "只读 · 在立意页/资源库切换";
 }
 
+/* 规划实体：调 /plan_entities(SSE)，进度 + 结果列 created/skipped/failed。 */
+let _peBusy = false;
+(function wirePlanEntities() {
+  const btn = $("btnPlanEntities"), panel = $("planEntitiesPanel"),
+        statusEl = $("peStatus"), resultEl = $("peResult");
+  if (!btn) return;
+  $("peClose").addEventListener("click", () => { panel.style.display = "none"; });
+  btn.addEventListener("click", async () => {
+    if (_peBusy) return;
+    _peBusy = true; btn.disabled = true;
+    panel.style.display = "block"; resultEl.innerHTML = ""; statusEl.textContent = "生成中…";
+    const created = [], skipped = [], failed = [];
+    try {
+      const resp = await fetch(SW_API + "/plan_entities", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_dir: PROJECT_DIR, format: "drama",
+                               options: { force_overwrite: $("peForce").checked } }),
+      });
+      if (!resp.ok) { statusEl.textContent = "失败 " + resp.status; return; }
+      const reader = resp.body.getReader(), dec = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const frames = buf.split("\n\n"); buf = frames.pop() || "";
+        for (const f of frames) {
+          let ev = "message", data = {};
+          f.split("\n").forEach((ln) => {
+            if (ln.startsWith("event:")) ev = ln.slice(6).trim();
+            else if (ln.startsWith("data:")) { try { data = JSON.parse(ln.slice(5).trim()); } catch (e) {} }
+          });
+          if (ev === "status") statusEl.textContent = "生成中：" + (data.phase || "");
+          else if (ev === "partial") (data.status === "created" ? created : data.status === "skipped" ? skipped : failed).push(data);
+          else if (ev === "done") statusEl.textContent = "完成";
+          else if (ev === "error") statusEl.textContent = "错误：" + (data.message || "");
+        }
+      }
+      resultEl.innerHTML =
+        `<div>✅ 新建 ${created.length}：${created.map((x) => esc(x.name)).join("、") || "—"}</div>` +
+        `<div>⏭ 跳过 ${skipped.length}：${skipped.map((x) => esc(x.name)).join("、") || "—"}</div>` +
+        `<div>⚠ 失败 ${failed.length}：${failed.map((x) => esc(x.name)).join("、") || "—"}</div>` +
+        `<div style="color:var(--muted);margin-top:4px;">产物在 项目/scenes|characters|props/；查看/编辑界面随子项目4 接入资源库。</div>`;
+    } catch (e) {
+      statusEl.textContent = "无法连接 " + SW_API;
+    } finally {
+      _peBusy = false; btn.disabled = false;
+    }
+  });
+})();
+
+/* 切面板守卫：规划实体进行中告知壳「忙」（复用既有 window.swIsBusy；与 busy 取并集） */
+const _prevSwIsBusy = window.swIsBusy;
+window.swIsBusy = () => (_peBusy || (typeof _prevSwIsBusy === "function" && _prevSwIsBusy()));
+
+/* ===== 六维定调 Task 9 ===== */
+// [dim, label, opts(null=自由文本), field(后端 validate_tone 主字段名)]
+const TONE_DIMS = [
+  ["emotional_temperature", "情感温度", ["cold", "cool", "neutral", "warm", "hot"], "level"],
+  ["genre_type",            "类型",     null, "ref"],
+  ["action_density",        "动作密度", ["low", "mid", "high"], "level"],
+  ["character_relations",   "人物关系", null, "tag"],
+  ["narrative_form",        "叙事形式", ["linear", "nonlinear", "multi_thread", "frame"], "level"],
+  ["social_lens",           "社会视角", null, "tag"],
+];
+let _curTone = {};
+let _toneBusy = false;
+
+function renderToneForm(tone) {
+  const form = $("toneForm");
+  form.innerHTML = "";
+  const dims = (tone && tone.dimensions) ? tone.dimensions : {};
+  TONE_DIMS.forEach(function(spec) {
+    const dim = spec[0], label = spec[1], opts = spec[2], field = spec[3];
+    const dimVal = dims[dim] || {};
+    const value = dimVal[field] != null ? dimVal[field] : "";
+    const note  = dimVal.note || "";
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;";
+    const lbl = document.createElement("span");
+    lbl.textContent = label;
+    lbl.style.cssText = "width:5em;font-size:12px;color:var(--muted);flex-shrink:0;";
+    row.appendChild(lbl);
+    let valEl;
+    if (opts) {
+      valEl = document.createElement("select");
+      valEl.dataset.dim = dim;
+      valEl.dataset.field = "value";
+      valEl.style.cssText = "flex:1;min-width:80px;font-size:12px;background:var(--field);color:var(--fg);border:1px solid var(--border);border-radius:var(--radius-sm);";
+      opts.forEach(function(o) {
+        const opt = document.createElement("option");
+        opt.value = o; opt.textContent = o;
+        if (String(value) === o) opt.selected = true;
+        valEl.appendChild(opt);
+      });
+    } else {
+      valEl = document.createElement("input");
+      valEl.dataset.dim = dim;
+      valEl.dataset.field = "value";
+      valEl.placeholder = dim;
+      valEl.value = String(value);
+      valEl.style.cssText = "flex:1;min-width:80px;font-size:12px;background:var(--field);color:var(--fg);border:1px solid var(--border);border-radius:var(--radius-sm);";
+    }
+    row.appendChild(valEl);
+    const noteEl = document.createElement("input");
+    noteEl.dataset.dim = dim;
+    noteEl.dataset.field = "note";
+    noteEl.placeholder = "备注";
+    noteEl.value = note;
+    noteEl.style.cssText = "flex:2;min-width:100px;font-size:12px;color:var(--muted);background:var(--field);border:1px solid var(--border);border-radius:var(--radius-sm);";
+    row.appendChild(noteEl);
+    form.appendChild(row);
+  });
+  /* director_refs 行 */
+  const refs = (tone && Array.isArray(tone.director_refs)) ? tone.director_refs.join(", ") : "";
+  const refRow = document.createElement("div");
+  refRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:4px;";
+  const refLbl = document.createElement("span");
+  refLbl.textContent = "参考片";
+  refLbl.style.cssText = "width:5em;font-size:12px;color:var(--muted);flex-shrink:0;";
+  refRow.appendChild(refLbl);
+  const refEl = document.createElement("input");
+  refEl.id = "toneRefs";
+  refEl.placeholder = "逗号分隔，如《教父》,《低俗小说》";
+  refEl.value = refs;
+  refEl.style.cssText = "flex:1;font-size:12px;background:var(--field);color:var(--fg);border:1px solid var(--border);border-radius:var(--radius-sm);";
+  refRow.appendChild(refEl);
+  form.appendChild(refRow);
+  $("btnToneSave").style.display = "";
+}
+
+function collectTone(prev) {
+  const dims = {};
+  const allDimEls = $("toneForm").querySelectorAll("[data-dim]");
+  allDimEls.forEach(function(el) {
+    const dim = el.dataset.dim, field = el.dataset.field;
+    if (!dims[dim]) dims[dim] = {};
+    if (field === "note") {
+      dims[dim].note = el.value.trim();
+    } else {
+      /* 主字段名按 TONE_DIMS 的 field（level/ref/tag），与后端 validate_tone 一致 */
+      const spec = TONE_DIMS.find(function(s) { return s[0] === dim; });
+      const field = spec ? spec[3] : "value";
+      dims[dim][field] = (typeof el.value === "string") ? el.value.trim() : el.value;
+    }
+  });
+  const refsRaw = $("toneRefs") ? $("toneRefs").value.trim() : "";
+  const director_refs = refsRaw ? refsRaw.split(/[,，]\s*/) : [];
+  const sv = (prev && prev.schema_version) ? prev.schema_version : "1.0";
+  return { schema_version: sv, dimensions: dims, director_refs: director_refs };
+}
+
+async function planTone() {
+  if (_toneBusy) return;
+  _toneBusy = true;
+  const btn = $("btnPlanTone");
+  btn.disabled = true;
+  const panel = $("tonePanel"), statusEl = $("toneStatus");
+  panel.style.display = "block";
+  $("toneForm").innerHTML = "";
+  $("btnToneSave").style.display = "none";
+  statusEl.textContent = "生成中…";
+  try {
+    const resp = await fetch(SW_API + "/plan_tone", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_dir: PROJECT_DIR }),
+    });
+    if (!resp.ok) { statusEl.textContent = "失败 " + resp.status; return; }
+    const reader = resp.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const frames = buf.split("\n\n"); buf = frames.pop() || "";
+      for (const f of frames) {
+        let ev = "message", data = {};
+        f.split("\n").forEach(function(ln) {
+          if (ln.startsWith("event:")) ev = ln.slice(6).trim();
+          else if (ln.startsWith("data:")) { try { data = JSON.parse(ln.slice(5).trim()); } catch (e) {} }
+        });
+        if (ev === "status") {
+          statusEl.textContent = "生成中：" + (data.phase || "");
+        } else if (ev === "done") {
+          _curTone = data.tone || data || {};
+          renderToneForm(_curTone);
+          statusEl.textContent = "已生成，可编辑后保存";
+        } else if (ev === "error") {
+          statusEl.textContent = "错误：" + (data.message || "");
+        }
+      }
+    }
+  } catch (e) {
+    statusEl.textContent = "无法连接 " + SW_API;
+  } finally {
+    _toneBusy = false; btn.disabled = false;
+  }
+}
+
+async function saveTone() {
+  const statusEl = $("toneStatus");
+  const tonePayload = collectTone(_curTone);
+  try {
+    const resp = await fetch(SW_API + "/tone", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_dir: PROJECT_DIR, tone: tonePayload }),
+    });
+    if (resp.ok) {
+      _curTone = tonePayload;
+      statusEl.textContent = "已保存";
+    } else {
+      let detail = "";
+      try { const j = await resp.json(); detail = j.detail ? (j.detail.errors ? JSON.stringify(j.detail.errors) : String(j.detail)) : ""; } catch (e) {}
+      statusEl.textContent = "保存失败" + (detail ? "：" + detail : " (" + resp.status + ")");
+    }
+  } catch (e) {
+    statusEl.textContent = "无法连接 " + SW_API;
+  }
+}
+
+(function wireTone() {
+  const btn = $("btnPlanTone");
+  if (!btn) return;
+  btn.addEventListener("click", planTone);
+  $("btnToneSave").addEventListener("click", saveTone);
+  $("toneClose").addEventListener("click", function() { $("tonePanel").style.display = "none"; });
+  /* 页面载入：回填已有定调 */
+  if (PROJECT_DIR) {
+    fetch(SW_API + "/tone?project=" + encodeURIComponent(PROJECT_DIR))
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(j) {
+        if (j && j.tone && j.tone.dimensions) {
+          _curTone = j.tone;
+          $("tonePanel").style.display = "block";
+          $("toneStatus").textContent = "已加载已有定调，可编辑后保存";
+          renderToneForm(_curTone);
+        }
+      })
+      .catch(function() {});
+  }
+})();
+
+/* 切面板守卫：定调生成中也置忙 */
+const _prevSwIsBusyTone = window.swIsBusy;
+window.swIsBusy = () => (_toneBusy || (typeof _prevSwIsBusyTone === "function" && _prevSwIsBusyTone()));
+
 /* ---------- 绑定 ---------- */
 $("btnOutline").addEventListener("click", genOutline);
 $("btnAll").addEventListener("click", genAll);
@@ -652,6 +920,12 @@ $("episodeEditor").addEventListener("blur", () => { if (activeEp) { epContent[ac
 $("stepIdeate").addEventListener("click", () => {
   saveLocal();
   window.parent && window.parent.postMessage({ type: "script.back", stage: "ideate" }, "*");
+});
+
+/* 右下角「推进到分镜 →」：保存后通知壳切到分镜阶段（同 ideate→剧本 的 advance 模式）。 */
+$("btnAdvance").addEventListener("click", () => {
+  saveLocal();
+  window.parent && window.parent.postMessage({ type: "script.advance", stage: "storyboard" }, "*");
 });
 
 /* init：先恢复参数（集数/时长/语言风格）与 localStorage 镜像作即时占位，
