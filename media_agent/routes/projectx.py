@@ -296,6 +296,15 @@ def _aspect_from(proj_dir: Path, m, idea: dict | None) -> str:
 _VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv"}
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 
+import re as _re
+
+def _natural_key(p: Path) -> list:
+    """自然数排序键：把文件名按数字/非数字段拆分，数字段转 int 比较。
+    使 sh2 < sh10（字母序会让 sh10 < sh2）。
+    """
+    parts = _re.split(r"(\d+)", p.name.lower())
+    return [int(c) if c.isdigit() else c for c in parts]
+
 
 def _safe_sub_target(base: Path, sub: str) -> Path:
     """归一化 base/sub 并校验 resolved 路径仍在 base 之下。
@@ -365,10 +374,10 @@ def project_clips(project: str, sub: str = "", ext: str = "",
         if recursive:
             entries = sorted(
                 (p for p in target.rglob("*")),
-                key=lambda p: p.as_posix().lower(),
+                key=_natural_key,
             )
         else:
-            entries = sorted(target.iterdir(), key=lambda p: p.name.lower())
+            entries = sorted(target.iterdir(), key=_natural_key)
     except OSError:
         return {"clips": clips}
 
@@ -450,10 +459,10 @@ def project_files(
         if recursive:
             entries = sorted(
                 (p for p in target.rglob("*")),
-                key=lambda p: p.as_posix().lower(),
+                key=_natural_key,
             )
         else:
-            entries = sorted(target.iterdir(), key=lambda p: p.name.lower())
+            entries = sorted(target.iterdir(), key=_natural_key)
     except OSError:
         return {"files": files}
 
