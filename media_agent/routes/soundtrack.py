@@ -661,8 +661,13 @@ class OverlayListRequest(BaseModel):
 
 @router.post("/overlay/list")
 def overlay_list(req: OverlayListRequest):
-    """列出 work_dir/overlay.json 中所有叠加子轨片段。"""
+    """列出 work_dir/overlay.json 中所有叠加子轨片段。
+
+    work_dir 不存在（新项目尚未生成配乐）→ 返回空列表，不报 400。
+    """
     from sound_track_agent.overlay_session import load_overlay
+    if not Path(req.work_dir).is_dir():
+        return {"segments": []}
     _validate_work_dir(req.work_dir)
     sess = load_overlay(req.work_dir)
     return {"segments": [s.to_dict() for s in sess.segments]}

@@ -865,6 +865,33 @@ async function removeOverlay(segId) {
 }
 
 /* ---------- 视频加载 ---------- */
+/* 当 Electron 无法从 file 对象取绝对路径时，展示一个小浮层让用户粘贴路径 */
+function showVideoPathInput(filename) {
+  const existing = document.getElementById('_vidPathOverlay');
+  if (existing) existing.remove();
+  const ov = document.createElement('div');
+  ov.id = '_vidPathOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = `
+    <div style="background:#1e1f30;border:1px solid #3a3d5c;border-radius:10px;padding:20px 24px;width:420px;box-shadow:0 16px 40px #000c">
+      <div style="font-size:13px;font-weight:600;color:#e8eaed;margin-bottom:6px">粘贴视频路径</div>
+      <div style="font-size:11px;color:#666;margin-bottom:10px">选中文件：${filename}<br>当前 Electron 版本无法自动获取路径，请复制文件的完整路径后粘贴：</div>
+      <input type="text" id="_vidPathInput" style="width:100%;box-sizing:border-box;background:#0d0e1a;border:1px solid #2c2f48;border-radius:6px;color:#e8eaed;font-size:12px;padding:8px 10px;margin-bottom:10px" placeholder="如：E:\\videos\\reel.mp4" />
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="document.getElementById('_vidPathOverlay').remove()" style="background:#252640;border:1px solid #2c2f48;border-radius:6px;padding:6px 14px;font-size:12px;color:#aaa;cursor:pointer">取消</button>
+        <button id="_vidPathOk" style="background:#4a9eff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;color:#06122a;font-weight:600;cursor:pointer">加载</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const inp = document.getElementById('_vidPathInput');
+  inp.focus();
+  document.getElementById('_vidPathOk').addEventListener('click', () => {
+    const p = (inp.value || '').trim();
+    if (p) { loadVideo(p); ov.remove(); }
+  });
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('_vidPathOk').click(); });
+}
+
 function loadVideo(path) {
   if (!path) return;
   VIDEO = path;
@@ -896,15 +923,22 @@ function wire() {
   document.getElementById('videoFilePicker').addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    // Electron 环境下 file.path 为绝对路径；纯浏览器回退 prompt
-    const p = file.path || (file.webkitRelativePath || "");
+    e.target.value = '';   // 重置，允许再次选同一文件
+
+    // 尝试多种方式获取绝对路径（兼容新旧 Electron）：
+    // 1. 旧版 Electron: file.path
+    // 2. 新版 Electron >= 32: window.electron.webUtils.getPathForFile(file)
+    // 3. 两者均无（纯浏览器）: 弹路径输入框
+    let p = (typeof file.path === 'string' && file.path) || '';
+    if (!p && window.electron && window.electron.webUtils) {
+      try { p = window.electron.webUtils.getPathForFile(file) || ''; } catch (_) {}
+    }
     if (p && p.trim()) {
       loadVideo(p.trim());
     } else {
-      const fb = prompt('请手动输入成片 mp4 的绝对路径：', VIDEO || '');
-      if (fb && fb.trim()) loadVideo(fb.trim());
+      // 路径获取失败：展示输入框让用户粘贴路径（Electron 版本限制）
+      showVideoPathInput(file.name);
     }
-    e.target.value = '';   // 重置，允许再次选同一文件
   });
   document.getElementById('btnScore').addEventListener('click', (e) => doAdvance(e.currentTarget));
   document.getElementById('btnMixdown').addEventListener('click', (e) => doMixdown(e.currentTarget));
