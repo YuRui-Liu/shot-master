@@ -359,8 +359,19 @@
     <input type="text" id="subDir" class="ep-select" style="min-width:120px;max-width:160px"
            placeholder="子目录(如 video)" title="GET /project/clips 的 sub 参数（生成视频子目录）">
     <button class="btn-soft" data-act="listdir">⟳ 列出生成目录</button>
-    <input id="extDir" class="ep-select" style="min-width:120px;max-width:160px;border-style:dashed;" placeholder="外部路径（局部的）" title="添加外部文件夹路径导入片段，不持久落盘，关软件丢失">
-    <button class="btn-soft" data-act="addext" title="从外部路径导入片段">＋ 外部导入</button>
+    <div class="ext-import-wrap">
+      <button class="btn-soft" id="btnAddExt" title="从外部路径导入片段（不持久落盘，关软件丢失）">＋ 外部导入 ▾</button>
+      <div class="ext-dropdown" id="extDropdown">
+        <div class="ext-dropdown-head">最近使用</div>
+        <div class="ext-history-list" id="extHistoryList">
+          <div class="ext-history-empty">暂无历史记录</div>
+        </div>
+        <div class="ext-dropdown-input-row">
+          <input type="text" id="extPathInput" placeholder="输入绝对路径…" />
+          <button class="btn-import" id="btnDoImport">导入</button>
+        </div>
+      </div>
+    </div>
     <button class="btn-soft" data-act="addclip">＋ 添加片段</button>
   </div>
 
@@ -1420,7 +1431,6 @@ function wireToolbar() {
         case "render":   render();  break;
         case "listdir":  loadClips(); break;
         case "addclip":  loadClips(); break;
-        case "addext":  loadExternal(); break;
         case "adoptall": adoptAllSuggestions(); break;
         case "trim":     trimSelected(); break;
         case "play": {
